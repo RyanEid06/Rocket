@@ -1,0 +1,4 @@
+fn main() -> Int:
+    let greeting = "Hello from Rocket"
+    print(greeting)
+    return 0

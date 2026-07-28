@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "platform": "windows-x64",
+  "portable": {
+    "llvm": {
+      "version": "22.1.6",
+      "archive": "clang+llvm-22.1.6-x86_64-pc-windows-msvc.tar.xz",
+      "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/clang%2Bllvm-22.1.6-x86_64-pc-windows-msvc.tar.xz",
+      "size": 861999212,
+      "sha256": "657343edf361ca463bd642e39c74b251c6338b96cdbd55ff277555298b027696",
+      "installDirectory": "llvm-22.1.6"
+    },
+    "ninja": {
+      "version": "1.13.1",
+      "archive": "ninja-win-1.13.1.zip",
+      "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-win.zip",
+      "size": 289808,
+      "sha256": "26a40fa8595694dec2fad4911e62d29e10525d2133c9a4230b66397774ae25bf",
+      "installDirectory": "ninja-1.13.1"
+    }
+  },
+  "systemRequirements": {
+    "cmake": ">=3.20",
+    "git": ">=2.40",
+    "msvc": ">=14.50",
+    "windowsSdk": ">=10.0.26100",
+    "python": ">=3.11 (optional: benchmarks and release tooling)"
+  }
+}

@@ -1,0 +1,11 @@
+/build/
+.langc/
+**/.rocketc/
+/dependencies/cache/
+/dependencies/installed/
+/out/
+*.exe
+*.o
+*.obj
+*.s
+*.ll
