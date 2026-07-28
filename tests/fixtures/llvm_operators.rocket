@@ -1,0 +1,23 @@
+fn int_ops(left: Int, right: Int) -> Int:
+    let sum = left + right
+    let difference = left - right
+    let product = sum * difference
+    return product / right
+
+fn float_ops(left: Float, right: Float) -> Float:
+    let sum = left + right
+    let difference = left - right
+    let product = sum * difference
+    return product / right
+
+fn main() -> Int:
+    let integer_checks = int_ops(7, 2) == 22 and 7 > 2 and 7 >= 7 and 2 < 7 and 2 <= 2 and 7 != 2
+    let float_checks = float_ops(7.0, 2.0) == 22.5 and 7.0 > 2.0 and 7.0 >= 7.0 and 2.0 < 7.0 and 2.0 <= 2.0 and 7.0 != 2.0
+    let unary_checks = -7 == -7 and -1.5 == -1.5 and not false
+    let value_checks = 'R' == 'R' and 'R' != 'X' and "Rocket" == "Rocket" and "Rocket" != "rocket" and true == not false
+    let unit_equal = print("unit-left") == print("unit-right")
+    if integer_checks and float_checks and unary_checks and value_checks and unit_equal:
+        print("operators-ok")
+    else:
+        print("operators-failed")
+    return 0

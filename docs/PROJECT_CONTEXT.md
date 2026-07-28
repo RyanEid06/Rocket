@@ -25,7 +25,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket is an early C++ `stage0` prototype, not yet an LLVM compiler.
+Rocket is a C++ `stage0` compiler with a production LLVM backend. It is not yet
+self-hosted.
 
 Implemented:
 
@@ -33,15 +34,22 @@ Implemented:
 - Parser and AST for functions, bindings, assignment, `if`/`else`, `while`, integer `for` ranges, loop control, returns, calls, arithmetic, comparisons, logical operators, and scalar literals.
 - Resolved HIR with deterministic declaration symbols, lexical name resolution, resolved calls, and checked expression types.
 - Typed, basic-block MIR with explicit locals, operations, short-circuit branches, loop edges, and terminators, plus structural/type verification.
-- Temporary MIR-to-C++ backend for `rocketc check`, `build`, `run`, and `emit-asm`.
-- Hello World, recursive Fibonacci, lexer/parser/sema/HIR/MIR/codegen suites, a golden diagnostic fixture, and CLI checks.
+- Scalar MIR-to-LLVM lowering with a verified Windows x64 ABI, O2 optimization,
+  object and assembly emission, native linking, and working `emit-ir`, `build`,
+  `run`, and `emit-asm` commands.
+- Temporary C ABI shims for scalar `print` and borrowed string-literal equality;
+  the owned string/runtime ABI is the next milestone.
+- Isolated MIR-to-C++ stage0 backend that remains buildable when LLVM is disabled.
+- Hello World, recursive Fibonacci, lexer/parser/sema/HIR/MIR/bootstrap-codegen/
+  LLVM-codegen suites, a golden diagnostic fixture, and native CLI regressions.
 - Pinned LLVM 22.1.6, Ninja 1.13.1, and MSVC Windows x64 development setup.
 
 Not implemented yet:
 
 - Complete control-flow return analysis and a broader golden diagnostic catalog.
-- LLVM IR lowering; `emit-ir` is currently a stub.
-- Runtime ABI, ARC, arrays, structs, enums, generics, modules, `Option`, `Result`, standard library, formatter, test runner, package layout, editor support, and self-hosting.
+- Runtime ABI, ARC, owned UTF-8 strings, arrays, slices, structs, enums,
+  generics, modules, `Option`, `Result`, standard library, formatter, test
+  runner, package layout, editor support, and self-hosting.
 
 ## Canonical build commands
 
@@ -129,16 +137,51 @@ Known limitations remain those in the implementation-state list above; no langua
 - Verified the pinned LLVM 22.1.6, Ninja 1.13.1, MSVC 19.51.36252, CMake 4.3.2, and Git 2.54.0 toolchain.
 - Smoke-tested Hello World, recursive Fibonacci (output: `55`), and MIR-lowered scalar control flow (output: `8`, `2`).
 
+**Phase 4 - scalar LLVM backend**
+
+- Recorded the scalar LLVM ABI in `COMPILER_ARCHITECTURE.md` and decision D008:
+  `Int=i64`, `Float=double`, `Bool=i1`, `Char=i8`, borrowed pre-runtime
+  `String=ptr`, and `Unit=void` for function results.
+- Lowered verified MIR functions, locals, constants, unary/binary operations,
+  declaration-bound calls, branches, and returns to LLVM 22 IR.
+- Added a C-compatible native entry point, baseline `x86-64` target machine,
+  LLVM verification, the O2 module pipeline, object emission, and assembly
+  emission.
+- Implemented `emit-ir` and moved LLVM-enabled `build`, `run`, and `emit-asm`
+  to the production LLVM path with the pinned Clang driver performing native
+  linking. Windows child processes use direct Unicode process creation so paths
+  and forwarded arguments are not interpreted by a shell.
+- Added temporary C ABI lowering for scalar `print` and content-based string
+  equality. Borrowed string constants are explicitly limited to the pre-runtime
+  phase.
+- Preserved and independently validated the C++ MIR transpiler with
+  `ROCKETC_ENABLE_LLVM=OFF`; all 8 applicable stage0 fallback tests pass.
+- Added LLVM IR-shape, O2 promotion, object-emission, assembly, full scalar
+  operator, native execution, and CLI regressions. Debug and Release each pass
+  all 13 CTest tests.
+- Hardened Visual Studio environment activation, pinned MSVC compiler/linker/
+  librarian selection, and repaired the official LLVM archive's stale DIA SDK
+  import path at configure time without modifying downloaded dependencies.
+- Verified LLVM 22.1.6, Clang 22.1.6, Ninja 1.13.1, MSVC 19.51.36252, CMake
+  4.3.2, and Git 2.54.0. Smoke-tested LLVM-native Hello World and recursive
+  Fibonacci (output: `55`).
+
 ## Current next task
 
-**Phase 4: implement the scalar LLVM backend.**
+**Phase 5: implement the runtime ABI, ARC, strings, arrays, and slices.**
 
-- Define scalar LLVM type and ABI mappings over the existing typed MIR.
-- Lower MIR functions, locals, operations, calls, branches, and returns into LLVM IR.
-- Implement `emit-ir`, optimization, object emission, native linking, and LLVM-backed `build`, `run`, and `emit-asm`.
-- Keep the C++ backend isolated as a stage0 bootstrap fallback, while retiring production reliance on it.
-- Add IR-shape, native execution, optimization, CLI, and regression tests.
-- Update the decision journal, specification where observable behavior changes, and this handoff after the milestone.
+- Define a versioned Rocket runtime ABI and ownership conventions at function,
+  local, aggregate, and FFI boundaries.
+- Add explicit retain/release behavior to MIR and LLVM lowering while keeping
+  the C++ stage0 bootstrap reproducible.
+- Implement owned UTF-8 `String` values and replace the temporary `printf`/
+  `strcmp` lowering with Rocket runtime calls.
+- Add `Array[T]` and `Slice[T]` representation, indexing, bounds checks, and
+  deterministic destruction.
+- Add focused allocation, aliasing, lifetime, bounds-failure, native execution,
+  and leak/stress tests; document cycles as a version-1 limitation.
+- Update the decision journal, specification, architecture, and this handoff
+  after the milestone.
 
 ## New-chat prompt
 

@@ -1,0 +1,23 @@
+fn same(left: String, right: String) -> Bool:
+    return left == right
+
+fn calculate(limit: Int) -> Int:
+    var total = 0
+    for index in 0..limit:
+        if index == 2:
+            continue
+        total = total + index
+    while total < 8:
+        total = total + 1
+    return total
+
+fn main() -> Int:
+    let ratio = 3.0 / 2.0
+    let marker = 'R'
+    let enabled = true and not false
+    if enabled and same("rocket", "rocket"):
+        print(calculate(5))
+        print(ratio)
+        print(marker)
+        print("LLVM")
+    return 0

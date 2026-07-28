@@ -12,7 +12,9 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "$env{ROCKET_MSVC_COMPILER}",
+        "CMAKE_AR": "$env{ROCKET_MSVC_LIBRARIAN}",
+        "CMAKE_LINKER": "$env{ROCKET_MSVC_LINKER}",
         "LLVM_DIR": "$env{LLVM_DIR}",
         "ROCKETC_ENABLE_LLVM": "ON"
       }

@@ -2,7 +2,10 @@
 
 Rocket is an experimental, beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the compiler is designed to produce native code through LLVM.
 
-This repository currently contains an indentation-aware frontend, resolved and typed HIR, verified control-flow MIR, diagnostics, and a temporary C++ bootstrap backend that consumes MIR. LLVM 22.1.6 is pinned and verified for development, but LLVM IR lowering has not yet been implemented; the bootstrap backend is not the intended final architecture.
+This repository contains an indentation-aware frontend, resolved and typed HIR,
+verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
+optimized Windows x64 executables. The C++ MIR transpiler remains available only
+as the reproducible stage0 fallback when LLVM is explicitly disabled.
 
 ## Current language subset
 
@@ -31,7 +34,13 @@ Then try:
 ```powershell
 .\out\build\windows-debug\rocketc.exe check .\examples\hello.rocket
 .\out\build\windows-debug\rocketc.exe run .\examples\hello.rocket
+.\out\build\windows-debug\rocketc.exe emit-ir .\examples\hello.rocket
 .\out\build\windows-debug\rocketc.exe emit-asm .\examples\hello.rocket
 ```
+
+`emit-ir` prints verified, unoptimized LLVM IR. `build`, `run`, and `emit-asm`
+use LLVM's O2 pipeline; build artifacts are kept in a source-adjacent ignored
+`.rocketc` directory. To validate the preserved stage0 fallback, configure a
+separate build with `-DROCKETC_ENABLE_LLVM=OFF`.
 
 See [the language specification](docs/SPEC.md), [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
