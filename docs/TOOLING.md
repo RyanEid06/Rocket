@@ -88,6 +88,34 @@ and use the tasks in `.vscode/tasks.json` for check, run, test, and format check
 This is honest syntax/editor support; semantic language-server features remain
 future work.
 
+## Visual Studio 2026
+
+The supported Windows IDE is the purple Visual Studio Community 2026. Build and
+install the repository-owned language extension once:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\package-visualstudio-extension.ps1
+```
+
+Open `out/visualstudio/Rocket.Language.VisualStudio.vsix`, then start the IDE
+with Rocket's pinned build environment:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\open-visualstudio.ps1
+```
+
+The extension recognizes `.rocket` files and supplies syntax coloring,
+comments, brackets, and indentation. Visual Studio loads the repository's CMake
+project; its CMake Targets View exposes `rocket_demo_check`,
+`rocket_demo_run`, and `rocket_demo_test`. These run the actual compiler against
+`examples/visualstudio_demo`.
+
+Semantic IntelliSense, go-to-definition, rename, references, live Rocket
+diagnostics, and Rocket-aware debugging require the language-server and debugger
+work planned for Phase 17.
+
 ## Compiler packaging
 
 ```powershell

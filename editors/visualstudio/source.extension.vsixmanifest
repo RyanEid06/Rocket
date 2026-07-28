@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+  <Metadata>
+    <Identity Id="Rocket.Language.VisualStudio" Version="1.0.0" Language="en-US" Publisher="Rocket" />
+    <DisplayName>Rocket Language</DisplayName>
+    <Description xml:space="preserve">Rocket language recognition, TextMate syntax coloring, comments, brackets, and indentation for Visual Studio 2026.</Description>
+    <MoreInfo>https://github.com/RyanEid06/Rocket</MoreInfo>
+    <Tags>Rocket,language,TextMate,native,LLVM</Tags>
+  </Metadata>
+  <Installation InstalledByMsi="false" AllUsers="false">
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[18.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+  </Installation>
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.VsPackage" Path="Rocket.pkgdef" />
+  </Assets>
+</PackageManifest>

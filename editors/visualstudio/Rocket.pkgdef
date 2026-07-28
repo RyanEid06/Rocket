@@ -1,0 +1,5 @@
+[$RootKey$\TextMate\Repositories]
+"RocketGrammars"="$PackageFolder$\Grammars"
+
+[$RootKey$\TextMate\LanguageConfiguration\GrammarMapping]
+"source.rocket"="$PackageFolder$\rocket-language-configuration.json"

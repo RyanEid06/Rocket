@@ -39,6 +39,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1 
 
 The scripts activate the Microsoft x64 build environment and use the pinned Ninja and LLVM installation. Build output is written to `out/build/windows-debug` and `out/build/windows-release`.
 
+For the purple Visual Studio Community 2026, install the repository-owned Rocket
+extension and launch the project with the pinned toolchain environment as
+described in the [tooling guide](docs/TOOLING.md#visual-studio-2026).
+
 Then try:
 
 ```powershell

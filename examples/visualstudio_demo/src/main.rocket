@@ -1,0 +1,22 @@
+import std.collections
+
+struct Player:
+    name: String
+    score: Int
+
+fn doubled(value: Int) -> Int:
+    return value * 2
+
+fn main() -> Int:
+    let scores = [7, 11, 24]
+    var total = 0
+
+    for index in 0..3:
+        total = total + scores[index]
+
+    let player = Player("Rocket pilot", total)
+    print(player.name)
+    print(collections.length(scores))
+    print(player.score)
+    print(doubled(player.score))
+    return 0

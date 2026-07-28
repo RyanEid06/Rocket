@@ -67,7 +67,8 @@ Implemented:
 - Validated `rocket.toml` packages, package-root imports, ignored package
   artifacts, deterministic source/test discovery, ordinary-program native tests,
   an idempotent comment-preserving formatter, and stable `Rdddd` diagnostics.
-- VS Code syntax/language/snippet/problem-matcher support and a checksummed
+- VS Code syntax/language/snippet/problem-matcher support, Visual Studio 2026
+  `.rocket` recognition and CMake check/run/test targets, and a checksummed
   relocatable Windows x64 developer-package workflow.
 - Checked signed Int literals and arithmetic, including overflow and
   division-by-zero diagnostics.

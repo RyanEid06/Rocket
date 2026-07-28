@@ -93,6 +93,29 @@ if(LLVM_FOUND)
   add_dependencies(rocketc rocket_runtime)
 endif()
 
+# Visual Studio's CMake Targets View exposes these as explicit Rocket actions.
+# They operate on a real package instead of treating the compiler repository
+# root as if it were a Rocket application package.
+set(ROCKET_VISUAL_STUDIO_DEMO "${CMAKE_SOURCE_DIR}/examples/visualstudio_demo")
+add_custom_target(rocket_demo_check
+  COMMAND $<TARGET_FILE:rocketc> check "${ROCKET_VISUAL_STUDIO_DEMO}"
+  DEPENDS rocketc
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  USES_TERMINAL
+  COMMENT "Checking the Rocket Visual Studio demo")
+add_custom_target(rocket_demo_run
+  COMMAND $<TARGET_FILE:rocketc> run "${ROCKET_VISUAL_STUDIO_DEMO}"
+  DEPENDS rocketc
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  USES_TERMINAL
+  COMMENT "Running the Rocket Visual Studio demo")
+add_custom_target(rocket_demo_test
+  COMMAND $<TARGET_FILE:rocketc> test "${ROCKET_VISUAL_STUDIO_DEMO}"
+  DEPENDS rocketc
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  USES_TERMINAL
+  COMMENT "Testing the Rocket Visual Studio demo")
+
 enable_testing()
 function(add_rocketc_test name)
   add_executable(rocketc_${name}_tests tests/${name}_tests.cpp)

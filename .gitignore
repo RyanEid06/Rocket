@@ -1,4 +1,5 @@
 /build/
+/.vs/
 .langc/
 **/.rocketc/
 /dependencies/cache/

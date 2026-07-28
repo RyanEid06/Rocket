@@ -1,0 +1,5 @@
+fn main() -> Int:
+    let values = [7, 11, 24]
+    if values[0] + values[1] + values[2] == 42:
+        return 0
+    return 1
