@@ -20,6 +20,46 @@ enum class SymbolKind {
   BuiltinFunction, Function, Parameter, Local, LoopVariable, PatternBinding
 };
 
+enum class Intrinsic {
+  None,
+  Print,
+  StringByteLength,
+  StringConcat,
+  StringContains,
+  StringStartsWith,
+  StringEndsWith,
+  StringTrim,
+  StringSplit,
+  StringParseInt,
+  StringFromInt,
+  CollectionsLength,
+  CollectionsReverse,
+  CollectionsJoin,
+  FileReadText,
+  FileWriteText,
+  FileAppendText,
+  FileExists,
+  FileRemove,
+  FileList,
+  PathJoin,
+  PathBasename,
+  PathExtension,
+  PathNormalize,
+  JsonParse,
+  JsonStringify,
+  CsvParse,
+  CsvEncode,
+  RandomSeed,
+  RandomInt,
+  RandomFloat,
+  ProcessRun,
+  ProcessEnvironment,
+  ProcessWorkingDirectory,
+  TimeUnixMilliseconds,
+  TimeMonotonicMilliseconds,
+  TimeSleepMilliseconds,
+};
+
 struct HirSymbol {
   SymbolId id = InvalidSymbol;
   SymbolKind kind = SymbolKind::Local;
@@ -28,6 +68,7 @@ struct HirSymbol {
   bool mutableBinding = false;
   Location location;
   std::vector<Type> parameterTypes;
+  Intrinsic intrinsic = Intrinsic::None;
 };
 
 enum class HirExprKind {
@@ -290,9 +331,16 @@ private:
     std::vector<Type> parameters;
     Type result = Type::Invalid;
   };
+  struct StandardFunction {
+    std::vector<std::string> typeParameters;
+    std::vector<Type> parameterTypes;
+    Type result = Type::Invalid;
+    Intrinsic intrinsic = Intrinsic::None;
+  };
 
   SymbolId addSymbol(SymbolKind kind, const std::string& name, Type type, bool mutableBinding,
-                     const Location& location, std::vector<Type> parameterTypes = {});
+                     const Location& location, std::vector<Type> parameterTypes = {},
+                     Intrinsic intrinsic = Intrinsic::None);
   HirFunction lowerFunction(const Function& function, SymbolId symbol);
   HirFunction lowerSpecialization(const PendingSpecialization& specialization);
   HirBlock lowerBlock(const std::vector<std::unique_ptr<Stmt>>& body, Type returnType, bool nested);
@@ -311,6 +359,7 @@ private:
                               const std::vector<std::unique_ptr<HirExpr>>& arguments,
                               const Location& location);
   void registerBuiltinTypes();
+  void registerStandardLibrary();
   void registerTypeDeclarations();
   SymbolId findVariable(const std::string& name) const;
   bool definitelyReturns(const HirBlock& body) const;
@@ -322,6 +371,7 @@ private:
   std::unordered_map<std::string, const Function*> genericFunctions_;
   std::unordered_map<std::string, std::uint32_t> typeDeclarations_;
   std::unordered_map<std::string, VariantTarget> variants_;
+  std::unordered_map<std::string, StandardFunction> standardFunctions_;
   std::unordered_map<std::string, SymbolId> specializations_;
   std::vector<PendingSpecialization> pendingSpecializations_;
   std::vector<SymbolId> functionSymbols_;

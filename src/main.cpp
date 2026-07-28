@@ -233,7 +233,8 @@ int main(int argc, char** argv) {
   }
   if (command == "emit-asm") {
     const fs::path assemblyPath = artifactDirectory / (sourcePath.stem().string() + ".s");
-    const std::string compile = "g++ -std=c++20 -O2 -S -masm=intel " +
+    const std::string compile = "g++ -std=c++20 -O2 -S -masm=intel -I " +
+                                quote(fs::path(ROCKETC_SOURCE_INCLUDE_PATH)) + " " +
                                 quote(generatedPath) + " -o " + quote(assemblyPath);
     if (invokeShell(compile) != 0) return 1;
     std::string assembly;
@@ -242,7 +243,9 @@ int main(int argc, char** argv) {
     return 0;
   }
   const fs::path executablePath = artifactDirectory / (sourcePath.stem().string() + ".exe");
-  const std::string compile = "g++ -std=c++20 -O2 " + quote(generatedPath) + " -o " +
+  const std::string compile = "g++ -std=c++20 -O2 -I " +
+                              quote(fs::path(ROCKETC_SOURCE_INCLUDE_PATH)) + " " +
+                              quote(generatedPath) + " -o " +
                               quote(executablePath);
   if (invokeShell(compile) != 0) return 1;
 #endif

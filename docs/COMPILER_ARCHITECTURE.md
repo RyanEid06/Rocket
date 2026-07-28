@@ -158,3 +158,17 @@ and a managed-field mask. Construction retains managed fields, managed field
 reads return +1, and destruction releases fields in declaration order. This
 opaque representation keeps generic specializations and nested aggregate types
 on the same stable pointer ABI while scalar fields retain their native widths.
+
+## Standard-library boundary
+
+The module loader recognizes the reserved `std.*` namespace as virtual source
+modules. HIR owns the public signatures and assigns an explicit `Intrinsic`
+identity to each referenced library function. MIR verifies those calls by
+resolved symbol and concrete parameter types; backends do not infer a library
+operation from its source spelling.
+
+LLVM lowers standard intrinsics to the `rocket_std_*` portion of runtime ABI v1.
+It uses the opaque String, Array, and aggregate representations, so `Option`,
+`Result`, JSON, and nested CSV data participate in ordinary MIR ARC. The Stage 0
+C++ backend maps the same intrinsic identities to an isolated RAII compatibility
+header, preserving no-LLVM bootstrap support for Phase 7 programs.

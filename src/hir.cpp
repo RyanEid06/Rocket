@@ -25,10 +25,10 @@ bool containsTypeParameter(const Type& type) {
 
 SymbolId HirLowerer::addSymbol(SymbolKind kind, const std::string& name, Type type,
                                bool mutableBinding, const Location& location,
-                               std::vector<Type> parameterTypes) {
+                               std::vector<Type> parameterTypes, Intrinsic intrinsic) {
   const SymbolId id = static_cast<SymbolId>(hir_.symbols.size());
   hir_.symbols.push_back({id, kind, name, std::move(type), mutableBinding, location,
-                          std::move(parameterTypes)});
+                          std::move(parameterTypes), intrinsic});
   return id;
 }
 
@@ -57,11 +57,123 @@ void HirLowerer::registerBuiltinTypes() {
   typeDeclarations_.emplace(result.name, static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
   hir_.typeDeclarations.push_back(std::move(result));
 
+  const Type jsonType{TypeKind::Enum, "std.json.Json"};
+  const Type jsonFieldType{TypeKind::Struct, "std.json.JsonField"};
+  HirTypeDeclaration jsonField;
+  jsonField.kind = HirTypeDeclKind::Struct;
+  jsonField.name = "std.json.JsonField";
+  jsonField.location = {"<standard-library>", 1, 1};
+  jsonField.publicDeclaration = true;
+  jsonField.builtin = true;
+  jsonField.fields = {{"key", Type::String, jsonField.location},
+                      {"value", jsonType, jsonField.location}};
+  typeDeclarations_.emplace(jsonField.name,
+                            static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+  hir_.typeDeclarations.push_back(std::move(jsonField));
+
+  HirTypeDeclaration json;
+  json.kind = HirTypeDeclKind::Enum;
+  json.name = "std.json.Json";
+  json.location = {"<standard-library>", 1, 1};
+  json.publicDeclaration = true;
+  json.builtin = true;
+  json.variants = {
+      {"std.json.Null", json.location, {}},
+      {"std.json.Boolean", json.location, {Type::Bool}},
+      {"std.json.Integer", json.location, {Type::Int}},
+      {"std.json.Decimal", json.location, {Type::Float}},
+      {"std.json.Text", json.location, {Type::String}},
+      {"std.json.List", json.location, {arrayType(jsonType)}},
+      {"std.json.Object", json.location, {arrayType(jsonFieldType)}},
+  };
+  typeDeclarations_.emplace(json.name,
+                            static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+  hir_.typeDeclarations.push_back(std::move(json));
+
   for (std::uint32_t declaration = 0; declaration < hir_.typeDeclarations.size(); ++declaration) {
     const auto& type = hir_.typeDeclarations[declaration];
     for (std::uint32_t variant = 0; variant < type.variants.size(); ++variant)
       variants_.emplace(type.variants[variant].name, VariantTarget{declaration, variant});
   }
+}
+
+void HirLowerer::registerStandardLibrary() {
+  standardFunctions_.clear();
+  const Type optionString{TypeKind::Enum, "Option", {Type::String}};
+  const Type json{TypeKind::Enum, "std.json.Json"};
+  const Type nestedStrings = arrayType(arrayType(Type::String));
+  auto result = [](Type success) {
+    return Type{TypeKind::Enum, "Result", {std::move(success), Type::String}};
+  };
+  auto add = [&](std::string name, std::vector<Type> parameters, Type returned,
+                 Intrinsic intrinsic, std::vector<std::string> typeParameters = {}) {
+    standardFunctions_.emplace(
+        std::move(name),
+        StandardFunction{std::move(typeParameters), std::move(parameters),
+                         std::move(returned), intrinsic});
+  };
+
+  add("std.string.byte_length", {Type::String}, Type::Int, Intrinsic::StringByteLength);
+  add("std.string.concat", {Type::String, Type::String}, Type::String,
+      Intrinsic::StringConcat);
+  add("std.string.contains", {Type::String, Type::String}, Type::Bool,
+      Intrinsic::StringContains);
+  add("std.string.starts_with", {Type::String, Type::String}, Type::Bool,
+      Intrinsic::StringStartsWith);
+  add("std.string.ends_with", {Type::String, Type::String}, Type::Bool,
+      Intrinsic::StringEndsWith);
+  add("std.string.trim", {Type::String}, Type::String, Intrinsic::StringTrim);
+  add("std.string.split", {Type::String, Type::String}, arrayType(Type::String),
+      Intrinsic::StringSplit);
+  add("std.string.parse_int", {Type::String}, result(Type::Int),
+      Intrinsic::StringParseInt);
+  add("std.string.from_int", {Type::Int}, Type::String, Intrinsic::StringFromInt);
+
+  const Type t = typeParameter("T");
+  add("std.collections.length", {arrayType(t)}, Type::Int,
+      Intrinsic::CollectionsLength, {"T"});
+  add("std.collections.slice_length", {sliceType(t)}, Type::Int,
+      Intrinsic::CollectionsLength, {"T"});
+  add("std.collections.reverse", {arrayType(t)}, arrayType(t),
+      Intrinsic::CollectionsReverse, {"T"});
+  add("std.collections.join", {arrayType(Type::String), Type::String}, Type::String,
+      Intrinsic::CollectionsJoin);
+
+  add("std.file.read_text", {Type::String}, result(Type::String), Intrinsic::FileReadText);
+  add("std.file.write_text", {Type::String, Type::String}, result(Type::Bool),
+      Intrinsic::FileWriteText);
+  add("std.file.append_text", {Type::String, Type::String}, result(Type::Bool),
+      Intrinsic::FileAppendText);
+  add("std.file.exists", {Type::String}, Type::Bool, Intrinsic::FileExists);
+  add("std.file.remove", {Type::String}, result(Type::Bool), Intrinsic::FileRemove);
+  add("std.file.list", {Type::String}, result(arrayType(Type::String)), Intrinsic::FileList);
+
+  add("std.path.join", {Type::String, Type::String}, Type::String, Intrinsic::PathJoin);
+  add("std.path.basename", {Type::String}, Type::String, Intrinsic::PathBasename);
+  add("std.path.extension", {Type::String}, Type::String, Intrinsic::PathExtension);
+  add("std.path.normalize", {Type::String}, Type::String, Intrinsic::PathNormalize);
+
+  add("std.json.parse", {Type::String}, result(json), Intrinsic::JsonParse);
+  add("std.json.stringify", {json}, Type::String, Intrinsic::JsonStringify);
+  add("std.csv.parse", {Type::String}, result(nestedStrings), Intrinsic::CsvParse);
+  add("std.csv.encode", {nestedStrings}, Type::String, Intrinsic::CsvEncode);
+
+  add("std.random.seed", {Type::Int}, Type::Unit, Intrinsic::RandomSeed);
+  add("std.random.int", {Type::Int, Type::Int}, Type::Int, Intrinsic::RandomInt);
+  add("std.random.float", {}, Type::Float, Intrinsic::RandomFloat);
+
+  add("std.process.run", {Type::String, arrayType(Type::String)}, result(Type::Int),
+      Intrinsic::ProcessRun);
+  add("std.process.environment", {Type::String}, optionString,
+      Intrinsic::ProcessEnvironment);
+  add("std.process.working_directory", {}, result(Type::String),
+      Intrinsic::ProcessWorkingDirectory);
+
+  add("std.time.unix_milliseconds", {}, Type::Int, Intrinsic::TimeUnixMilliseconds);
+  add("std.time.monotonic_milliseconds", {}, Type::Int,
+      Intrinsic::TimeMonotonicMilliseconds);
+  add("std.time.sleep_milliseconds", {Type::Int}, Type::Unit,
+      Intrinsic::TimeSleepMilliseconds);
 }
 
 void HirLowerer::registerTypeDeclarations() {
@@ -152,14 +264,16 @@ std::optional<HirModule> HirLowerer::lower() {
   typeDeclarations_.clear();
   variants_.clear();
   specializations_.clear();
+  standardFunctions_.clear();
   pendingSpecializations_.clear();
   functionSymbols_.clear();
 
   registerBuiltinTypes();
+  registerStandardLibrary();
   registerTypeDeclarations();
 
   const SymbolId print = addSymbol(SymbolKind::BuiltinFunction, "print", Type::Unit, false,
-                                   {"<builtin>", 1, 1});
+                                   {"<builtin>", 1, 1}, {}, Intrinsic::Print);
   functions_.emplace("print", print);
 
   for (const auto& function : ast_.functions) {
@@ -786,6 +900,71 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       return std::make_unique<HirAggregateExpr>(expression.location, std::move(result),
                                                  *aggregateDeclaration, tag,
                                                  std::move(arguments));
+    }
+
+    auto standard = standardFunctions_.find(name);
+    if (standard != standardFunctions_.end()) {
+      const StandardFunction& definition = standard->second;
+      std::vector<std::unique_ptr<HirExpr>> arguments;
+      for (std::size_t index = 0; index < call.arguments.size(); ++index) {
+        std::optional<Type> argumentExpected;
+        if (index < definition.parameterTypes.size() &&
+            !containsTypeParameter(definition.parameterTypes[index]))
+          argumentExpected = definition.parameterTypes[index];
+        arguments.push_back(lowerExpression(*call.arguments[index], argumentExpected));
+      }
+      if (arguments.size() != definition.parameterTypes.size())
+        diagnostics_.error(expression.location, "standard function '" + name + "' expects " +
+                                                 std::to_string(definition.parameterTypes.size()) +
+                                                 " argument(s)");
+      Substitutions inferred;
+      for (std::size_t index = 0;
+           index < arguments.size() && index < definition.parameterTypes.size(); ++index) {
+        if (!inferTypeArguments(definition.parameterTypes[index], arguments[index]->type,
+                                inferred, arguments[index]->location))
+          diagnostics_.error(arguments[index]->location, "argument type is " +
+                                                          typeName(arguments[index]->type) +
+                                                          ", expected " +
+                                                          typeName(definition.parameterTypes[index]));
+      }
+      std::string key = name;
+      if (!definition.typeParameters.empty()) key += '[';
+      for (std::size_t index = 0; index < definition.typeParameters.size(); ++index) {
+        const auto& parameter = definition.typeParameters[index];
+        auto found = inferred.find(parameter);
+        if (found == inferred.end()) {
+          diagnostics_.error(expression.location, "cannot infer standard-library type argument '" +
+                                                   parameter + "'");
+          inferred.emplace(parameter, Type::Invalid);
+          found = inferred.find(parameter);
+        }
+        if (index) key += ',';
+        key += typeName(found->second);
+      }
+      if (!definition.typeParameters.empty()) key += ']';
+      std::vector<Type> parameterTypes;
+      for (const auto& parameter : definition.parameterTypes)
+        parameterTypes.push_back(substitute(parameter, inferred));
+      const Type result = substitute(definition.result, inferred);
+      SymbolId callee = InvalidSymbol;
+      if (auto found = specializations_.find(key); found != specializations_.end()) {
+        callee = found->second;
+      } else {
+        callee = addSymbol(SymbolKind::BuiltinFunction, key, result, false,
+                           {"<standard-library>", 1, 1}, parameterTypes,
+                           definition.intrinsic);
+        specializations_.emplace(key, callee);
+      }
+      for (std::size_t index = 0;
+           index < arguments.size() && index < parameterTypes.size(); ++index)
+        if (arguments[index]->type != Type::Invalid &&
+            arguments[index]->type != parameterTypes[index])
+          diagnostics_.error(arguments[index]->location, "argument type is " +
+                                                          typeName(arguments[index]->type) +
+                                                          ", expected " +
+                                                          typeName(parameterTypes[index]));
+      return std::make_unique<HirCallExpr>(expression.location, result, callee,
+                                           std::move(arguments));
     }
 
     auto generic = genericFunctions_.find(name);

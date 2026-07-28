@@ -18,6 +18,7 @@ stage0 fallback when LLVM is explicitly disabled.
 - Generic structs and functions, payload enums, exhaustive `match`, and field access
 - `Option[T]`, `Result[T, E]`, and exception-free postfix `?` propagation
 - Package-relative `import` modules with explicit `pub` visibility
+- Typed `std` modules for strings, collections, files, paths, JSON, CSV, randomness, processes, and time
 - Arithmetic, comparisons, `and`/`or`/`not`, and function calls
 - Assignment, `if`/`else`, `while`, integer `for` ranges, `break`, `continue`, and `return`
 - Built-in `print`
@@ -53,4 +54,4 @@ separate build with:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Debug
 ```
 
-See [the language specification](docs/SPEC.md), [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
+See [the language specification](docs/SPEC.md), [standard-library reference](docs/STDLIB.md), [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).

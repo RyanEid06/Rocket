@@ -56,6 +56,9 @@ Implemented:
   propagation lowered to explicit MIR control flow.
 - Package-relative source modules with `import`, `pub` visibility, qualified
   deterministic symbols, alias diagnostics, and import-cycle detection.
+- Typed virtual standard modules for strings, generic collections, UTF-8 paths
+  and files, JSON, CSV, deterministic randomness, direct processes, environment,
+  and wall/monotonic time, with ordinary `Option`/`Result` failures.
 - Checked signed Int literals and arithmetic, including overflow and
   division-by-zero diagnostics.
 - Isolated MIR-to-C++ stage0 backend that remains buildable when LLVM is disabled.
@@ -67,8 +70,7 @@ Implemented:
 Not implemented yet:
 
 - A broader golden diagnostic catalog.
-- Practical standard library, formatter, test runner, package layout, editor
-  support, and self-hosting.
+- Formatter, test runner, package layout, editor support, and self-hosting.
 
 ## Canonical build commands
 
@@ -240,17 +242,37 @@ Known limitations remain those in the implementation-state list above; no langua
 - Hardened MSVC discovery to include a temporarily incomplete Visual Studio
   installer instance when its C++ workload remains present.
 
+**Phase 7 - practical standard library**
+
+- Reserved `std.*` as a virtual module namespace and added statically checked
+  HIR intrinsic signatures for strings, generic collections, files, paths,
+  JSON, CSV, deterministic randomness, processes, environment, and time.
+- Added the `rocket_std_*` ABI implementation over managed runtime values.
+  Expected I/O, conversion, parsing, and process failures return ordinary
+  `Option`/`Result` aggregates and obey the existing MIR ARC contract.
+- Added the nominal `std.json.Json` and `JsonField` types, recursive RFC-style
+  parsing/stringification, CSV quoting and CRLF encoding, UTF-8 Windows paths,
+  direct no-shell process spawning, sorted directory listing, and unbiased
+  half-open random integer ranges.
+- Extended LLVM intrinsic lowering and the permanent C++ Stage 0 backend. The
+  no-LLVM backend includes an isolated RAII library implementation and compiles
+  and runs the same full Phase 7 integration fixture as the production backend.
+- Added direct runtime/lifetime tests, compiler checks, LLVM IR coverage, native
+  all-module execution, the Draft 0.7 specification, decision D011, and the
+  standard-library reference. Debug and Release pass all 29 tests; the
+  LLVM-disabled Debug build passes all 16 applicable tests, including the full
+  native parity fixture.
+
 ## Current next task
 
-**Phase 7: build the practical standard library.**
+**Phase 8: finish the developer tooling and package experience.**
 
-- Define the stable standard-library module namespace and native ABI boundary.
-- Add core collection helpers, UTF-8 String utilities, and file/path APIs.
-- Add JSON and CSV parsing/serialization with explicit `Result` failures.
-- Add deterministic/random seeding APIs, process execution, environment access,
-  and wall-clock/monotonic time APIs.
-- Add focused runtime, compiler, module, native integration, failure, and
-  lifetime tests plus practical examples and reference documentation.
+- Add a deterministic formatter and `--check` workflow.
+- Add a package-aware Rocket test runner and stable package layout.
+- Expand stable diagnostic codes and golden coverage.
+- Add VS Code syntax, language configuration, snippets, and build/test tasks.
+- Complete beginner and tooling documentation, packaging scripts, regressions,
+  and release validation before self-hosting begins.
 
 ## New-chat prompt
 

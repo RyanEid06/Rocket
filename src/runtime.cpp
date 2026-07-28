@@ -364,6 +364,10 @@ std::uint64_t rocket_rt_collection_length(const void* collection) {
   return collectionView(collection).length;
 }
 
+std::uint32_t rocket_rt_collection_element_kind(const void* collection) {
+  return collectionView(collection).owner->elementKind;
+}
+
 std::int64_t rocket_rt_index_int(const void* collection, std::int64_t index) {
   const CollectionView view = collectionView(collection);
   return static_cast<const std::int64_t*>(view.owner->elements)[

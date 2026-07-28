@@ -101,6 +101,7 @@ private:
 
     bool valid = true;
     for (const auto& import : module.ast.imports) {
+      if (import.name.rfind("std.", 0) == 0) continue;
       std::filesystem::path importedPath = packageRoot_;
       std::size_t start = 0;
       while (start < import.name.size()) {
@@ -160,6 +161,8 @@ private:
     const std::string member = spelling.substr(dot + 1);
     auto alias = module.aliases.find(prefix);
     if (alias == module.aliases.end()) return std::nullopt;
+    if (alias->second.rfind("std.", 0) == 0)
+      return qualified(alias->second, member);
     auto imported = modules_.find(alias->second);
     if (imported == modules_.end()) return std::nullopt;
     const auto& target = imported->second;
@@ -222,6 +225,8 @@ private:
       const std::string member = spelling.substr(dot + 1);
       auto alias = module.aliases.find(prefix);
       if (alias != module.aliases.end()) {
+        if (alias->second.rfind("std.", 0) == 0)
+          return qualified(alias->second, member);
         const auto& imported = modules_.at(alias->second);
         if (imported.publicFunctions.contains(member) ||
             imported.publicTypes.contains(member) ||

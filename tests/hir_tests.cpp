@@ -117,8 +117,8 @@ int main() {
       phase6Diagnostics);
   rocket::test::expect(phase6.has_value(), "Phase 6 program lowers to HIR", failures);
   if (phase6.has_value()) {
-    rocket::test::expect(phase6->typeDeclarations.size() == 3,
-                         "HIR records Option, Result, and user type declarations", failures);
+    rocket::test::expect(phase6->typeDeclarations.size() == 5,
+                         "HIR records Option, Result, JSON, and user type declarations", failures);
     rocket::test::expect(phase6->functions.size() == 2 &&
                              phase6->symbols[phase6->functions[1].symbol].name ==
                                  "identity[Int]",

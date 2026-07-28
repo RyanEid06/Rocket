@@ -22,6 +22,7 @@ private:
   static std::string cppType(Type type);
   static std::string escaped(const std::string& text);
   static std::string escapedCharacter(const std::string& text);
+  static const char* standardFunctionName(Intrinsic intrinsic);
   std::string functionName(SymbolId symbol) const;
   static std::string localName(MirLocalId local);
 

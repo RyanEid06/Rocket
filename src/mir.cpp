@@ -701,8 +701,20 @@ bool verifyMir(const MirModule& module, std::string& error) {
             error = "call result type mismatch"; return false;
           }
           if (kind == SymbolKind::BuiltinFunction) {
-            if (instruction.value.arguments.size() != 1 || instruction.value.type != Type::Unit) {
-              error = "invalid built-in call"; return false;
+            if (callee.intrinsic == Intrinsic::Print) {
+              if (instruction.value.arguments.size() != 1 ||
+                  instruction.value.type != Type::Unit) {
+                error = "invalid print call"; return false;
+              }
+            } else {
+              if (callee.intrinsic == Intrinsic::None ||
+                  instruction.value.arguments.size() != callee.parameterTypes.size()) {
+                error = "invalid standard-library call"; return false;
+              }
+              for (std::size_t i = 0; i < instruction.value.arguments.size(); ++i)
+                if (instruction.value.arguments[i].type != callee.parameterTypes[i]) {
+                  error = "standard-library argument type mismatch"; return false;
+                }
             }
           } else {
             if (instruction.value.arguments.size() != callee.parameterTypes.size()) {

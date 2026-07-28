@@ -1,4 +1,4 @@
-# Rocket Language Specification - Draft 0.6
+# Rocket Language Specification - Draft 0.7
 
 This document freezes the syntax implemented by the first compiler slice. Later incompatible changes require a recorded design decision.
 
@@ -189,4 +189,20 @@ recursively, cycles are errors, and declarations receive deterministic fully
 qualified identities. A command compiles the complete source graph into one
 native artifact; independent binary module artifacts are not part of draft 0.6.
 
-`Option[T]` represents possible absence and `Result[T, E]` represents recoverable failure. Their spelling and semantics are fixed, but parsing and exhaustive matching are scheduled after enums and generics.
+## Standard modules
+
+Imports whose complete path starts with `std.` resolve to compiler-provided
+modules rather than package files. Their function signatures are statically
+checked and lower to typed MIR calls. The stable Phase 7 modules are
+`std.string`, `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`,
+`std.random`, `std.process`, and `std.time`.
+
+Standard APIs use the same `Option` and `Result` enums as user code. File,
+process, conversion, JSON, and CSV failures are recoverable values. No standard
+function throws a language exception. Process execution receives one program
+and an `Array[String]` of arguments and does not invoke a command shell.
+
+`std.json.Json` and `std.json.JsonField` are nominal built-in declarations and
+may appear in type annotations and exhaustive matches. Other library calls use
+existing scalar, collection, `Option`, or `Result` types. Complete signatures
+and deterministic behavior are specified in `STDLIB.md`.

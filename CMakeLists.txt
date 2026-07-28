@@ -13,7 +13,7 @@ if(ROCKETC_ENABLE_LLVM)
   find_package(LLVM CONFIG QUIET)
 endif()
 
-add_library(rocket_runtime STATIC src/runtime.cpp)
+add_library(rocket_runtime STATIC src/runtime.cpp src/stdlib.cpp)
 target_include_directories(rocket_runtime PUBLIC src)
 if(MSVC)
   target_compile_options(rocket_runtime PRIVATE /W4 /permissive-)
@@ -79,6 +79,8 @@ endif()
 
 add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
+file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/src" ROCKETC_SOURCE_INCLUDE_PATH)
+target_compile_definitions(rocketc PRIVATE ROCKETC_SOURCE_INCLUDE_PATH="${ROCKETC_SOURCE_INCLUDE_PATH}")
 if(LLVM_FOUND)
   file(TO_CMAKE_PATH "${LLVM_TOOLS_BINARY_DIR}/clang.exe" ROCKETC_CLANG_PATH)
   target_compile_definitions(rocketc PRIVATE
@@ -109,6 +111,10 @@ add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
 add_test(NAME runtime COMMAND rocketc_runtime_tests)
 
+add_executable(rocketc_stdlib_tests tests/stdlib_tests.cpp)
+target_link_libraries(rocketc_stdlib_tests PRIVATE rocket_runtime)
+add_test(NAME stdlib COMMAND rocketc_stdlib_tests)
+
 add_test(NAME cli_check_hello
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
 
@@ -116,6 +122,8 @@ add_test(NAME cli_check_phase6_types
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_types.rocket")
 add_test(NAME cli_check_phase6_modules
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_modules.rocket")
+add_test(NAME cli_check_phase7_stdlib
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
 add_test(NAME cli_phase6_visibility
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -165,6 +173,16 @@ if(LLVM_FOUND)
   set_tests_properties(cli_run_phase6_modules PROPERTIES
     PASS_REGULAR_EXPRESSION "6[\r\n]+4")
 
+  add_test(NAME cli_emit_ir_phase7_stdlib
+    COMMAND rocketc emit-ir "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
+  set_tests_properties(cli_emit_ir_phase7_stdlib PROPERTIES
+    PASS_REGULAR_EXPRESSION "rocket_std_json_parse")
+
+  add_test(NAME cli_run_phase7_stdlib
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
+  set_tests_properties(cli_run_phase7_stdlib PROPERTIES
+    PASS_REGULAR_EXPRESSION "Rocket Standard Library[\r\n]+23")
+
   add_test(NAME cli_array_bounds_failure
     COMMAND ${CMAKE_COMMAND}
       "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -192,4 +210,9 @@ if(LLVM_FOUND)
       "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/int_division_zero.rocket"
       "-DEXPECTED=rocket runtime error: Int division by zero"
       -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+else()
+  add_test(NAME cli_run_stage0_phase7_stdlib
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
+  set_tests_properties(cli_run_stage0_phase7_stdlib PROPERTIES
+    PASS_REGULAR_EXPRESSION "Rocket Standard Library[\r\n]+23")
 endif()

@@ -88,3 +88,19 @@ lowers to explicit MIR control flow rather than exceptions. Module imports form
 a checked source graph with public visibility and deterministic qualified
 symbols; draft 0.6 deliberately emits one artifact for the graph instead of
 freezing a binary module format before the packaging milestone.
+
+## D011 - Typed virtual standard modules
+
+**Accepted.** The curated `std.*` namespace is compiler-provided in Phase 7.
+HIR registers exact generic and concrete signatures and records a closed
+intrinsic identity only for functions referenced by a program. MIR verifies
+these calls, LLVM lowers them to `rocket_std_*` ABI v1 functions, and the
+runtime returns ARC-managed `Option`/`Result` values for expected failure. This
+keeps OS and parsing behavior outside the language core without depending on a
+package system that does not yet exist.
+
+JSON is a nominal built-in enum so Rocket code can inspect data with exhaustive
+matching. Process execution accepts a separated program and argument array and
+never invokes a shell. Randomness is deterministic and non-cryptographic. The
+Stage 0 backend carries an isolated RAII implementation of the same surface and
+is regression-tested against the production backend.

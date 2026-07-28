@@ -1,0 +1,96 @@
+import std.string
+import std.collections
+import std.file
+import std.path
+import std.json
+import std.csv
+import std.random
+import std.process
+import std.time
+
+fn main() -> Int:
+    let joined = string.concat("Rocket", " Standard Library")
+    print(joined)
+    print(string.byte_length(joined))
+    print(string.contains(joined, "Standard"))
+    print(string.starts_with(joined, "Rocket"))
+    print(string.ends_with(joined, "Library"))
+    print(string.trim("  trimmed  "))
+    let parts = string.split("alpha,beta,gamma", ",")
+    print(collections.length(parts))
+    print(collections.join(collections.reverse(parts), "-"))
+    let parsed_int = string.parse_int("42")
+    match parsed_int:
+        case Ok(value):
+            print(string.from_int(value))
+        case Err(error):
+            print(error)
+
+    let combined_path = path.join("folder", "file.txt")
+    print(path.basename(combined_path))
+    print(path.extension(combined_path))
+
+    let write_result = file.write_text("phase7_temp.txt", "file-data")
+    match write_result:
+        case Ok(written):
+            print(written)
+        case Err(error):
+            print(error)
+    print(file.exists("phase7_temp.txt"))
+    let read_result = file.read_text("phase7_temp.txt")
+    match read_result:
+        case Ok(contents):
+            print(contents)
+        case Err(error):
+            print(error)
+    let remove_result = file.remove("phase7_temp.txt")
+    match remove_result:
+        case Ok(removed):
+            print(removed)
+        case Err(error):
+            print(error)
+
+    let json_result = json.parse("{\"name\":\"Rocket\",\"ok\":true,\"values\":[1,2]}")
+    match json_result:
+        case Ok(value):
+            print(json.stringify(value))
+        case Err(error):
+            print(error)
+
+    let csv_result = csv.parse("name,value\nrocket,7")
+    match csv_result:
+        case Ok(rows):
+            print(csv.encode(rows))
+        case Err(error):
+            print(error)
+
+    random.seed(12345)
+    let random_value = random.int(1, 10)
+    print(random_value >= 1 and random_value < 10)
+    let random_ratio = random.float()
+    print(random_ratio >= 0.0 and random_ratio < 1.0)
+
+    let environment = process.environment("PATH")
+    match environment:
+        case Some(value):
+            print(string.byte_length(value) > 0)
+        case None:
+            print(false)
+    let process_result = process.run("cmd.exe", ["/c", "exit", "0"])
+    match process_result:
+        case Ok(code):
+            print(code)
+        case Err(error):
+            print(error)
+    let directory = process.working_directory()
+    match directory:
+        case Ok(value):
+            print(string.byte_length(value) > 0)
+        case Err(error):
+            print(error)
+
+    print(time.unix_milliseconds() > 0)
+    let before = time.monotonic_milliseconds()
+    time.sleep_milliseconds(0)
+    print(time.monotonic_milliseconds() >= before)
+    return 0

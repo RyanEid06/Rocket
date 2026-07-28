@@ -327,8 +327,11 @@ private:
     if (value.kind == MirRvalueKind::Tag)
       return lowerTag(value, locals, error);
 
-    if (mir_.symbols[value.callee].kind == SymbolKind::BuiltinFunction)
-      return lowerPrint(value, locals, error);
+    if (mir_.symbols[value.callee].kind == SymbolKind::BuiltinFunction) {
+      if (mir_.symbols[value.callee].intrinsic == Intrinsic::Print)
+        return lowerPrint(value, locals, error);
+      return lowerStandard(value, locals, error);
+    }
 
     std::vector<llvm::Value*> arguments;
     arguments.reserve(value.arguments.size());
@@ -723,6 +726,84 @@ private:
       builder_.CreateCall(print, {lowered});
     }
     return zero(Type::Unit);
+  }
+
+  static const char* standardRuntimeName(Intrinsic intrinsic) {
+    switch (intrinsic) {
+    case Intrinsic::StringByteLength: return "rocket_std_string_byte_length";
+    case Intrinsic::StringConcat: return "rocket_std_string_concat";
+    case Intrinsic::StringContains: return "rocket_std_string_contains";
+    case Intrinsic::StringStartsWith: return "rocket_std_string_starts_with";
+    case Intrinsic::StringEndsWith: return "rocket_std_string_ends_with";
+    case Intrinsic::StringTrim: return "rocket_std_string_trim";
+    case Intrinsic::StringSplit: return "rocket_std_string_split";
+    case Intrinsic::StringParseInt: return "rocket_std_string_parse_int";
+    case Intrinsic::StringFromInt: return "rocket_std_string_from_int";
+    case Intrinsic::CollectionsLength: return "rocket_std_collections_length";
+    case Intrinsic::CollectionsReverse: return "rocket_std_collections_reverse";
+    case Intrinsic::CollectionsJoin: return "rocket_std_collections_join";
+    case Intrinsic::FileReadText: return "rocket_std_file_read_text";
+    case Intrinsic::FileWriteText: return "rocket_std_file_write_text";
+    case Intrinsic::FileAppendText: return "rocket_std_file_append_text";
+    case Intrinsic::FileExists: return "rocket_std_file_exists";
+    case Intrinsic::FileRemove: return "rocket_std_file_remove";
+    case Intrinsic::FileList: return "rocket_std_file_list";
+    case Intrinsic::PathJoin: return "rocket_std_path_join";
+    case Intrinsic::PathBasename: return "rocket_std_path_basename";
+    case Intrinsic::PathExtension: return "rocket_std_path_extension";
+    case Intrinsic::PathNormalize: return "rocket_std_path_normalize";
+    case Intrinsic::JsonParse: return "rocket_std_json_parse";
+    case Intrinsic::JsonStringify: return "rocket_std_json_stringify";
+    case Intrinsic::CsvParse: return "rocket_std_csv_parse";
+    case Intrinsic::CsvEncode: return "rocket_std_csv_encode";
+    case Intrinsic::RandomSeed: return "rocket_std_random_seed";
+    case Intrinsic::RandomInt: return "rocket_std_random_int";
+    case Intrinsic::RandomFloat: return "rocket_std_random_float";
+    case Intrinsic::ProcessRun: return "rocket_std_process_run";
+    case Intrinsic::ProcessEnvironment: return "rocket_std_process_environment";
+    case Intrinsic::ProcessWorkingDirectory: return "rocket_std_process_working_directory";
+    case Intrinsic::TimeUnixMilliseconds: return "rocket_std_time_unix_milliseconds";
+    case Intrinsic::TimeMonotonicMilliseconds: return "rocket_std_time_monotonic_milliseconds";
+    case Intrinsic::TimeSleepMilliseconds: return "rocket_std_time_sleep_milliseconds";
+    default: return nullptr;
+    }
+  }
+
+  llvm::Type* standardRuntimeType(const Type& type) {
+    if (type == Type::Unit) return llvm::Type::getVoidTy(context_);
+    if (type == Type::Bool) return llvm::Type::getInt8Ty(context_);
+    return valueType(type);
+  }
+
+  llvm::Value* lowerStandard(const MirRvalue& value,
+                             const std::vector<llvm::AllocaInst*>& locals,
+                             std::string& error) {
+    const HirSymbol& symbol = mir_.symbols[value.callee];
+    const char* runtimeName = standardRuntimeName(symbol.intrinsic);
+    if (!runtimeName) {
+      error = "unknown standard-library intrinsic reached LLVM lowering";
+      return nullptr;
+    }
+    std::vector<llvm::Type*> parameterTypes;
+    std::vector<llvm::Value*> arguments;
+    for (const auto& argument : value.arguments) {
+      llvm::Value* lowered = lowerOperand(argument, locals, error);
+      if (!lowered) return nullptr;
+      llvm::Type* runtimeType = standardRuntimeType(argument.type);
+      if (argument.type == Type::Bool)
+        lowered = builder_.CreateZExt(lowered, runtimeType, "std.bool");
+      parameterTypes.push_back(runtimeType);
+      arguments.push_back(lowered);
+    }
+    llvm::FunctionCallee function = module_->getOrInsertFunction(
+        runtimeName,
+        llvm::FunctionType::get(standardRuntimeType(value.type), parameterTypes, false));
+    llvm::CallInst* call = builder_.CreateCall(function, arguments,
+                                                value.type == Type::Unit ? "" : "std.call");
+    if (value.type == Type::Unit) return zero(Type::Unit);
+    if (value.type == Type::Bool)
+      return builder_.CreateTrunc(call, llvm::Type::getInt1Ty(context_), "std.bool.result");
+    return call;
   }
 
   bool lowerTerminator(const MirTerminator& terminator, const MirFunction& function,
