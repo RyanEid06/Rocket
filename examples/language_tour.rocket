@@ -1,0 +1,35 @@
+import std.collections
+import std.string
+
+struct Pair[T]:
+    first: T
+    second: T
+
+enum Message:
+    Number(Int)
+    Text(String)
+
+fn parse_and_increment(text: String) -> Result[Int, String]:
+    let value = string.parse_int(text)?
+    return Ok(value + 1)
+
+fn main() -> Int:
+    let pair = Pair(10, 20)
+    let values = [pair.first, pair.second, 30]
+    let middle = values[1..3]
+    print(collections.slice_length(middle))
+
+    let result = parse_and_increment("41")
+    match result:
+        case Ok(value):
+            print(value)
+        case Err(error):
+            print(error)
+
+    let message = Text("done")
+    match message:
+        case Number(value):
+            print(value)
+        case Text(text):
+            print(text)
+    return 0

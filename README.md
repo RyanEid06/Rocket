@@ -60,7 +60,10 @@ separate build with:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Debug
 ```
 
-See [the language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md), [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md), [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
+See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
+[language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md),
+[diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md),
+[project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
 ## Rocket 1.0 release
 
