@@ -79,5 +79,47 @@ int main() {
   rocket::SemanticAnalyzer badLogicalAnalyzer(badLogicalModule, badLogicalDiagnostics);
   badLogicalAnalyzer.analyze();
   rocket::test::expect(badLogicalDiagnostics.hasErrors(), "logical operators reject non-Bool operands", failures);
+
+  rocket::Diagnostics collectionDiagnostics;
+  auto collectionModule = rocket::test::parse(
+      "fn head(values: Slice[String]) -> String:\n"
+      "    return values[0]\n"
+      "fn main() -> Int:\n"
+      "    let values = [\"zero\", \"one\", \"two\"]\n"
+      "    let tail = values[1..3]\n"
+      "    print(head(tail))\n"
+      "    return 0\n",
+      collectionDiagnostics);
+  rocket::SemanticAnalyzer collectionAnalyzer(collectionModule, collectionDiagnostics);
+  collectionAnalyzer.analyze();
+  rocket::test::expect(!collectionDiagnostics.hasErrors(),
+                       "typed Array and Slice operations pass analysis", failures);
+
+  rocket::Diagnostics mixedArrayDiagnostics;
+  auto mixedArrayModule = rocket::test::parse(
+      "fn main() -> Int:\n    let values = [1, 2.0]\n    return 0\n",
+      mixedArrayDiagnostics);
+  rocket::SemanticAnalyzer mixedArrayAnalyzer(mixedArrayModule, mixedArrayDiagnostics);
+  mixedArrayAnalyzer.analyze();
+  rocket::test::expect(mixedArrayDiagnostics.hasErrors(),
+                       "Array literals reject mixed element types", failures);
+
+  rocket::Diagnostics badIndexDiagnostics;
+  auto badIndexModule = rocket::test::parse(
+      "fn main() -> Int:\n    let values = [1, 2]\n    print(values[true])\n    return 0\n",
+      badIndexDiagnostics);
+  rocket::SemanticAnalyzer badIndexAnalyzer(badIndexModule, badIndexDiagnostics);
+  badIndexAnalyzer.analyze();
+  rocket::test::expect(badIndexDiagnostics.hasErrors(),
+                       "collection indices require Int", failures);
+
+  rocket::Diagnostics literalRangeDiagnostics;
+  auto literalRangeModule = rocket::test::parse(
+      "fn main() -> Int:\n    let too_large = 9223372036854775808\n    return 0\n",
+      literalRangeDiagnostics);
+  rocket::SemanticAnalyzer literalRangeAnalyzer(literalRangeModule, literalRangeDiagnostics);
+  literalRangeAnalyzer.analyze();
+  rocket::test::expect(literalRangeDiagnostics.hasErrors(),
+                       "out-of-range Int literals are rejected", failures);
   return rocket::test::finish(failures, "sema");
 }

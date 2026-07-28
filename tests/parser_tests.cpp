@@ -52,5 +52,26 @@ int main() {
   const auto& logicalRoot = static_cast<const rocket::BinaryExpr&>(*condition);
   rocket::test::expect(logicalRoot.op == rocket::TokenKind::KwOr,
                        "or has lower precedence than and", failures);
+
+  rocket::Diagnostics collectionDiagnostics;
+  auto collectionModule = rocket::test::parse(
+      "fn head(values: Slice[Int]) -> Int:\n"
+      "    return values[0]\n"
+      "fn main() -> Int:\n"
+      "    let values = [10, 20, 30]\n"
+      "    let middle = values[1..3]\n"
+      "    return head(middle)\n",
+      collectionDiagnostics);
+  rocket::test::expect(!collectionDiagnostics.hasErrors(),
+                       "collection types, literals, indexing, and slicing parse", failures);
+  rocket::test::expect(collectionModule.functions[0].parameters[0].typeName == "Slice[Int]",
+                       "built-in collection type arguments are preserved", failures);
+  const auto& arrayBinding = static_cast<const rocket::BindingStmt&>(
+      *collectionModule.functions[1].body[0]);
+  const auto& sliceBinding = static_cast<const rocket::BindingStmt&>(
+      *collectionModule.functions[1].body[1]);
+  rocket::test::expect(arrayBinding.initializer->kind == rocket::ExprKind::Array &&
+                           sliceBinding.initializer->kind == rocket::ExprKind::Slice,
+                       "aggregate postfix syntax has explicit AST nodes", failures);
   return rocket::test::finish(failures, "parser");
 }

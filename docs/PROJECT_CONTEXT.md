@@ -25,8 +25,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket is a C++ `stage0` compiler with a production LLVM backend. It is not yet
-self-hosted.
+Rocket is a C++ `stage0` compiler with a production LLVM backend and a statically
+linked runtime ABI. It is not yet self-hosted.
 
 Implemented:
 
@@ -37,19 +37,28 @@ Implemented:
 - Scalar MIR-to-LLVM lowering with a verified Windows x64 ABI, O2 optimization,
   object and assembly emission, native linking, and working `emit-ir`, `build`,
   `run`, and `emit-asm` commands.
-- Temporary C ABI shims for scalar `print` and borrowed string-literal equality;
-  the owned string/runtime ABI is the next milestone.
+- Versioned runtime ABI v1 with explicit MIR ARC, borrowed managed parameters,
+  owned managed returns, deterministic local cleanup, and runtime-backed scalar
+  printing.
+- Owned immutable UTF-8 String values with explicit byte lengths, allocation,
+  content equality, and deterministic destruction.
+- Typed `Array[T]` literals and retained `Slice[T]` views for scalar and String
+  elements, with checked indexing, exclusive slicing, and managed-element
+  destruction.
+- Checked signed Int literals and arithmetic, including overflow and
+  division-by-zero diagnostics.
 - Isolated MIR-to-C++ stage0 backend that remains buildable when LLVM is disabled.
 - Hello World, recursive Fibonacci, lexer/parser/sema/HIR/MIR/bootstrap-codegen/
-  LLVM-codegen suites, a golden diagnostic fixture, and native CLI regressions.
+  LLVM-codegen/runtime suites, a golden diagnostic fixture, native lifetime and
+  bounds regressions, and allocation stress coverage.
 - Pinned LLVM 22.1.6, Ninja 1.13.1, and MSVC Windows x64 development setup.
 
 Not implemented yet:
 
 - Complete control-flow return analysis and a broader golden diagnostic catalog.
-- Runtime ABI, ARC, owned UTF-8 strings, arrays, slices, structs, enums,
-  generics, modules, `Option`, `Result`, standard library, formatter, test
-  runner, package layout, editor support, and self-hosting.
+- Structs, enums, general generics, pattern matching, modules, `Option`,
+  `Result`, standard library, formatter, test runner, package layout, editor
+  support, and self-hosting.
 
 ## Canonical build commands
 
@@ -166,22 +175,50 @@ Known limitations remain those in the implementation-state list above; no langua
   4.3.2, and Git 2.54.0. Smoke-tested LLVM-native Hello World and recursive
   Fibonacci (output: `55`).
 
+**Phase 5 - runtime, ownership, and collections**
+
+- Recorded runtime ABI v1 and decision D009. Managed parameters borrow at +0,
+  managed results return at +1, non-parameter managed MIR locals own one
+  reference, and copies/replacements/function exits contain explicit verified
+  retain/release instructions.
+- Added the statically linked Rocket runtime with opaque ARC allocations,
+  deterministic type destructors, UTF-8 validation, length-aware owned String
+  values, runtime-backed printing, and content equality. Removed generated-code
+  dependence on temporary `printf` and `strcmp` calls.
+- Added non-empty typed `Array[T]` literals and exclusive `Slice[T]` views for
+  Int, Float, Bool, Char, and String. Slices retain and flatten onto their
+  backing Array; indexing and slicing perform signed bounds checks; Arrays
+  retain and release managed String elements.
+- Added compile-time signed Int literal range checks and runtime checks for
+  signed addition, subtraction, multiplication, negation, division overflow,
+  and division by zero in both LLVM and stage0 backends.
+- Added lexer/parser/sema/HIR/MIR/backend coverage, native aliasing and managed
+  function-boundary regressions, expected bounds/arithmetic failures, and a
+  10,000-iteration String/Array/Slice leak stress test.
+- Added `scripts/build-stage0.ps1`. The LLVM-disabled Debug stage0 build passes
+  all 9 applicable tests and successfully compiles/runs the collection fixture
+  through generated C++, including the expected checked-overflow exit.
+- Verified the pinned LLVM 22.1.6, Ninja 1.13.1, MSVC 19.51.36252, CMake 4.3.2,
+  and Git 2.54.0 toolchain. Debug and Release each pass all 19 tests.
+
 ## Current next task
 
-**Phase 5: implement the runtime ABI, ARC, strings, arrays, and slices.**
+**Phase 6: implement structs, enums, generics, pattern matching, `Option`,
+`Result`, error propagation, and modules.**
 
-- Define a versioned Rocket runtime ABI and ownership conventions at function,
-  local, aggregate, and FFI boundaries.
-- Add explicit retain/release behavior to MIR and LLVM lowering while keeping
-  the C++ stage0 bootstrap reproducible.
-- Implement owned UTF-8 `String` values and replace the temporary `printf`/
-  `strcmp` lowering with Rocket runtime calls.
-- Add `Array[T]` and `Slice[T]` representation, indexing, bounds checks, and
-  deterministic destruction.
-- Add focused allocation, aliasing, lifetime, bounds-failure, native execution,
-  and leak/stress tests; document cycles as a version-1 limitation.
-- Update the decision journal, specification, architecture, and this handoff
-  after the milestone.
+- Replace the closed built-in `Type` enumeration with a structural type
+  representation that can express user-defined and nested generic types while
+  preserving the concrete Phase 5 collection ABI.
+- Specify and implement struct declarations, field access, aggregate
+  construction, layout, ARC destruction, and backend lowering.
+- Add enums, payload variants, exhaustive pattern matching, and general generic
+  specialization; define managed aggregate cycle behavior explicitly.
+- Implement `Option[T]`, `Result[T, E]`, and `?` without exceptions or universal
+  null.
+- Add module files, imports, visibility, deterministic symbol identity across
+  modules, cycle diagnostics, and separate compilation rules.
+- Add focused parser/type/MIR/backend/native tests and update the specification,
+  architecture, decisions, and this handoff after the milestone.
 
 ## New-chat prompt
 

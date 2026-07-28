@@ -1,0 +1,30 @@
+fn first(values: Slice[String]) -> String:
+    return values[0]
+
+fn second(values: Array[Int]) -> Int:
+    return values[1]
+
+fn numbers() -> Array[Int]:
+    return [10, 20, 30, 40]
+
+fn middle(values: Array[Int]) -> Slice[Int]:
+    return values[1..3]
+
+fn main() -> Int:
+    let names = ["zero", "rocket", "tail"]
+    let view = names[1..3]
+    let nested = view[0..1]
+    var chosen = first(nested)
+    chosen = first(view)
+    print(chosen)
+    let integers = numbers()
+    let middle_values = middle(integers)
+    print(middle_values[1])
+    print(second(integers))
+    let flags = [false, true]
+    print(flags[1])
+    let ratios = [1.5, 2.5]
+    print(ratios[0])
+    let markers = ['R', 'T']
+    print(markers[0])
+    return 0

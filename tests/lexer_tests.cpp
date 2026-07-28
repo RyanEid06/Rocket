@@ -29,6 +29,16 @@ int main() {
   rocket::test::expect(logicalTokens[2].kind == rocket::TokenKind::KwNot, "not keyword is recognized", failures);
   rocket::test::expect(logicalTokens[4].kind == rocket::TokenKind::KwOr, "or keyword is recognized", failures);
 
+  rocket::Diagnostics collectionDiagnostics;
+  rocket::Lexer collectionLexer("test.rocket", "let values = [1, 2]\n",
+                                 collectionDiagnostics);
+  const auto collectionTokens = collectionLexer.lex();
+  rocket::test::expect(!collectionDiagnostics.hasErrors(),
+                       "Array delimiters lex", failures);
+  rocket::test::expect(collectionTokens[3].kind == rocket::TokenKind::LBracket &&
+                           collectionTokens[7].kind == rocket::TokenKind::RBracket,
+                       "square brackets have dedicated tokens", failures);
+
   rocket::Diagnostics badIndentation;
   rocket::Lexer badLexer("test.rocket", "fn main() -> Int:\n   return 0\n", badIndentation);
   badLexer.lex();

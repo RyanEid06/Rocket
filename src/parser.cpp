@@ -51,17 +51,26 @@ Function Parser::parseFunction() {
     do {
       const Token param = consume(TokenKind::Identifier, "expected parameter name");
       consume(TokenKind::Colon, "expected ':' after parameter name");
-      const Token type = consume(TokenKind::Identifier, "expected parameter type");
-      parameters.push_back({param.text, type.text, param.location});
+      const std::string type = parseTypeName();
+      parameters.push_back({param.text, type, param.location});
     } while (match(TokenKind::Comma));
   }
   consume(TokenKind::RParen, "expected ')' after parameters");
   consume(TokenKind::Arrow, "expected '->' and an explicit return type");
-  const Token returnType = consume(TokenKind::Identifier, "expected return type");
+  const std::string returnType = parseTypeName();
   consume(TokenKind::Colon, "expected ':' before function body");
   consume(TokenKind::Newline, "expected newline after function signature");
   auto body = parseBlock();
-  return {name.text, start.location, std::move(parameters), returnType.text, std::move(body)};
+  return {name.text, start.location, std::move(parameters), returnType, std::move(body)};
+}
+
+std::string Parser::parseTypeName() {
+  const Token outer = consume(TokenKind::Identifier, "expected type");
+  if (outer.text != "Array" && outer.text != "Slice") return outer.text;
+  consume(TokenKind::LBracket, "expected '[' after collection type");
+  const Token element = consume(TokenKind::Identifier, "expected collection element type");
+  consume(TokenKind::RBracket, "expected ']' after collection element type");
+  return outer.text + "[" + element.text + "]";
 }
 
 std::vector<std::unique_ptr<Stmt>> Parser::parseBlock() {
@@ -224,19 +233,48 @@ std::unique_ptr<Expr> Parser::parseUnary() {
 
 std::unique_ptr<Expr> Parser::parseCall() {
   auto expression = parsePrimary();
-  while (match(TokenKind::LParen)) {
-    const Location location = previous().location;
-    std::vector<std::unique_ptr<Expr>> arguments;
-    if (!at(TokenKind::RParen)) {
-      do { arguments.push_back(parseExpression()); } while (match(TokenKind::Comma));
+  while (true) {
+    if (match(TokenKind::LParen)) {
+      const Location location = previous().location;
+      std::vector<std::unique_ptr<Expr>> arguments;
+      if (!at(TokenKind::RParen)) {
+        do { arguments.push_back(parseExpression()); } while (match(TokenKind::Comma));
+      }
+      consume(TokenKind::RParen, "expected ')' after arguments");
+      expression = std::make_unique<CallExpr>(location, std::move(expression),
+                                              std::move(arguments));
+      continue;
     }
-    consume(TokenKind::RParen, "expected ')' after arguments");
-    expression = std::make_unique<CallExpr>(location, std::move(expression), std::move(arguments));
+    if (match(TokenKind::LBracket)) {
+      const Location location = previous().location;
+      auto first = parseExpression();
+      if (match(TokenKind::DotDot)) {
+        auto end = parseExpression();
+        consume(TokenKind::RBracket, "expected ']' after slice bounds");
+        expression = std::make_unique<SliceExpr>(location, std::move(expression),
+                                                 std::move(first), std::move(end));
+      } else {
+        consume(TokenKind::RBracket, "expected ']' after index");
+        expression = std::make_unique<IndexExpr>(location, std::move(expression),
+                                                 std::move(first));
+      }
+      continue;
+    }
+    break;
   }
   return expression;
 }
 
 std::unique_ptr<Expr> Parser::parsePrimary() {
+  if (match(TokenKind::LBracket)) {
+    const Location location = previous().location;
+    std::vector<std::unique_ptr<Expr>> elements;
+    if (!at(TokenKind::RBracket)) {
+      do { elements.push_back(parseExpression()); } while (match(TokenKind::Comma));
+    }
+    consume(TokenKind::RBracket, "expected ']' after Array literal");
+    return std::make_unique<ArrayExpr>(location, std::move(elements));
+  }
   if (match(TokenKind::Integer)) return std::make_unique<LiteralExpr>(ExprKind::Integer, previous().location, previous().text);
   if (match(TokenKind::Float)) return std::make_unique<LiteralExpr>(ExprKind::Float, previous().location, previous().text);
   if (match(TokenKind::Character)) return std::make_unique<LiteralExpr>(ExprKind::Character, previous().location, previous().text);

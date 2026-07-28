@@ -48,5 +48,51 @@ int main() {
     rocket::test::expect(!rocket::verifyMir(invalid, verifierError),
                          "MIR verifier rejects invalid block targets", failures);
   }
+
+  rocket::Diagnostics ownershipDiagnostics;
+  auto ownershipMir = rocket::test::lowerToMir(
+      "fn identity(value: String) -> String:\n"
+      "    return value\n"
+      "fn main() -> Int:\n"
+      "    var first = \"rocket\"\n"
+      "    let alias = first\n"
+      "    first = identity(alias)\n"
+      "    print(first)\n"
+      "    return 0\n",
+      ownershipDiagnostics);
+  rocket::test::expect(ownershipMir.has_value(), "managed String source lowers to MIR", failures);
+  if (ownershipMir.has_value()) {
+    std::string verifierError;
+    rocket::test::expect(rocket::verifyMir(*ownershipMir, verifierError),
+                         "ARC-annotated MIR verifies: " + verifierError, failures);
+    const std::string dump = rocket::dumpMir(*ownershipMir);
+    rocket::test::expect(dump.find("retain") != std::string::npos &&
+                             dump.find("release") != std::string::npos,
+                         "MIR makes managed copies and cleanup explicit", failures);
+  }
+
+
+  rocket::Diagnostics collectionDiagnostics;
+  auto collectionMir = rocket::test::lowerToMir(
+      "fn main() -> Int:\n"
+      "    let values = [10, 20, 30]\n"
+      "    let tail = values[1..3]\n"
+      "    print(tail[0])\n"
+      "    return 0\n",
+      collectionDiagnostics);
+  rocket::test::expect(collectionMir.has_value(), "collections lower to MIR", failures);
+  if (collectionMir.has_value()) {
+    std::string verifierError;
+    rocket::test::expect(rocket::verifyMir(*collectionMir, verifierError),
+                         "collection MIR verifies: " + verifierError, failures);
+    const std::string dump = rocket::dumpMir(*collectionMir);
+    rocket::test::expect(dump.find("array 10 20 30") != std::string::npos &&
+                             dump.find("slice") != std::string::npos &&
+                             dump.find("index") != std::string::npos,
+                         "MIR represents construction, slicing, and indexing explicitly",
+                         failures);
+    rocket::test::expect(dump.find("release") != std::string::npos,
+                         "Array and Slice values participate in MIR ARC", failures);
+  }
   return rocket::test::finish(failures, "mir");
 }

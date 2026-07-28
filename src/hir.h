@@ -28,7 +28,7 @@ struct HirSymbol {
   std::vector<Type> parameterTypes;
 };
 
-enum class HirExprKind { Literal, Name, Unary, Binary, Call };
+enum class HirExprKind { Literal, Name, Unary, Binary, Call, Array, Index, Slice };
 
 struct HirExpr {
   HirExpr(HirExprKind kind, Location location, Type type)
@@ -76,6 +76,32 @@ struct HirCallExpr final : HirExpr {
         arguments(std::move(arguments)) {}
   SymbolId callee;
   std::vector<std::unique_ptr<HirExpr>> arguments;
+};
+
+struct HirArrayExpr final : HirExpr {
+  HirArrayExpr(Location location, Type type, std::vector<std::unique_ptr<HirExpr>> elements)
+      : HirExpr(HirExprKind::Array, std::move(location), type),
+        elements(std::move(elements)) {}
+  std::vector<std::unique_ptr<HirExpr>> elements;
+};
+
+struct HirIndexExpr final : HirExpr {
+  HirIndexExpr(Location location, Type type, std::unique_ptr<HirExpr> collection,
+               std::unique_ptr<HirExpr> index)
+      : HirExpr(HirExprKind::Index, std::move(location), type),
+        collection(std::move(collection)), index(std::move(index)) {}
+  std::unique_ptr<HirExpr> collection;
+  std::unique_ptr<HirExpr> index;
+};
+
+struct HirSliceExpr final : HirExpr {
+  HirSliceExpr(Location location, Type type, std::unique_ptr<HirExpr> collection,
+               std::unique_ptr<HirExpr> start, std::unique_ptr<HirExpr> end)
+      : HirExpr(HirExprKind::Slice, std::move(location), type),
+        collection(std::move(collection)), start(std::move(start)), end(std::move(end)) {}
+  std::unique_ptr<HirExpr> collection;
+  std::unique_ptr<HirExpr> start;
+  std::unique_ptr<HirExpr> end;
 };
 
 enum class HirStmtKind { Binding, Assignment, Return, Expression, If, While, For, Break, Continue };

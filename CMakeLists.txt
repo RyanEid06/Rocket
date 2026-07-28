@@ -13,6 +13,14 @@ if(ROCKETC_ENABLE_LLVM)
   find_package(LLVM CONFIG QUIET)
 endif()
 
+add_library(rocket_runtime STATIC src/runtime.cpp)
+target_include_directories(rocket_runtime PUBLIC src)
+if(MSVC)
+  target_compile_options(rocket_runtime PRIVATE /W4 /permissive-)
+else()
+  target_compile_options(rocket_runtime PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 add_library(rocketc_core
   src/lexer.cpp
   src/parser.cpp
@@ -72,7 +80,10 @@ add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
 if(LLVM_FOUND)
   file(TO_CMAKE_PATH "${LLVM_TOOLS_BINARY_DIR}/clang.exe" ROCKETC_CLANG_PATH)
-  target_compile_definitions(rocketc PRIVATE ROCKETC_CLANG_PATH="${ROCKETC_CLANG_PATH}")
+  target_compile_definitions(rocketc PRIVATE
+    ROCKETC_CLANG_PATH="${ROCKETC_CLANG_PATH}"
+    ROCKETC_RUNTIME_LIBRARY_PATH="$<TARGET_FILE:rocket_runtime>")
+  add_dependencies(rocketc rocket_runtime)
 endif()
 
 enable_testing()
@@ -92,6 +103,10 @@ if(LLVM_FOUND)
   add_rocketc_test(llvm_codegen)
 endif()
 add_rocketc_test(diagnostics)
+
+add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
+target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
+add_test(NAME runtime COMMAND rocketc_runtime_tests)
 
 add_test(NAME cli_check_hello
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
@@ -116,4 +131,37 @@ if(LLVM_FOUND)
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/llvm_operators.rocket")
   set_tests_properties(cli_run_llvm_operators PROPERTIES
     PASS_REGULAR_EXPRESSION "operators-ok")
+
+  add_test(NAME cli_run_runtime_collections
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/runtime_collections.rocket")
+  set_tests_properties(cli_run_runtime_collections PROPERTIES
+    PASS_REGULAR_EXPRESSION "rocket[\r\n]+30[\r\n]+20[\r\n]+1[\r\n]+1.5[\r\n]+R")
+
+  add_test(NAME cli_array_bounds_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/array_bounds.rocket"
+      "-DEXPECTED=rocket runtime error: index 3 out of bounds for length 3"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_slice_bounds_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/slice_bounds.rocket"
+      "-DEXPECTED=rocket runtime error: slice 1..4 out of bounds for length 3"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_int_overflow_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/int_overflow.rocket"
+      "-DEXPECTED=rocket runtime error: Int arithmetic overflow"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_int_division_zero_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/int_division_zero.rocket"
+      "-DEXPECTED=rocket runtime error: Int division by zero"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
 endif()

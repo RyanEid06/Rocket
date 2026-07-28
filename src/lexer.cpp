@@ -35,6 +35,8 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::KwNot: return "not";
   case TokenKind::LParen: return "(";
   case TokenKind::RParen: return ")";
+  case TokenKind::LBracket: return "[";
+  case TokenKind::RBracket: return "]";
   case TokenKind::Colon: return ":";
   case TokenKind::Comma: return ",";
   case TokenKind::Arrow: return "->";
@@ -160,6 +162,8 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
     switch (c) {
     case '(': emit(TokenKind::LParen, "(", lineNumber, column); ++i; break;
     case ')': emit(TokenKind::RParen, ")", lineNumber, column); ++i; break;
+    case '[': emit(TokenKind::LBracket, "[", lineNumber, column); ++i; break;
+    case ']': emit(TokenKind::RBracket, "]", lineNumber, column); ++i; break;
     case ':': emit(TokenKind::Colon, ":", lineNumber, column); ++i; break;
     case ',': emit(TokenKind::Comma, ",", lineNumber, column); ++i; break;
     case '+': emit(TokenKind::Plus, "+", lineNumber, column); ++i; break;

@@ -40,6 +40,7 @@ private:
   std::unique_ptr<Expr> parseUnary();
   std::unique_ptr<Expr> parseCall();
   std::unique_ptr<Expr> parsePrimary();
+  std::string parseTypeName();
 
   const std::vector<Token>& tokens_;
   Diagnostics& diagnostics_;

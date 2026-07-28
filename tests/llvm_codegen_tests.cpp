@@ -35,8 +35,17 @@ int main() {
                          "Bool parameters use the i1 ABI", failures);
     rocket::test::expect(ir.find("br i1") != std::string::npos,
                          "MIR branches lower to LLVM conditional branches", failures);
-    rocket::test::expect(ir.find("call i32 (ptr, ...) @printf") != std::string::npos,
-                         "scalar print calls lower through the C ABI", failures);
+    rocket::test::expect(ir.find("@rocket_rt_print_string") != std::string::npos &&
+                             ir.find("@rocket_rt_print_float") != std::string::npos &&
+                             ir.find("@printf") == std::string::npos,
+                         "scalar print calls lower through the Rocket runtime ABI", failures);
+    rocket::test::expect(ir.find("@rocket_rt_string_new") != std::string::npos &&
+                             ir.find("@rocket_rt_release") != std::string::npos,
+                         "owned String construction and cleanup are explicit in LLVM IR",
+                         failures);
+    rocket::test::expect(ir.find("@llvm.smul.with.overflow.i64") != std::string::npos &&
+                             ir.find("@rocket_rt_panic_integer_overflow") != std::string::npos,
+                         "Int arithmetic lowers with overflow checks", failures);
     rocket::test::expect(ir.find("define i32 @main()") != std::string::npos,
                          "module exports a native C main entrypoint", failures);
 
@@ -58,6 +67,34 @@ int main() {
                          "native object output is non-empty", failures);
     std::error_code removeError;
     std::filesystem::remove(objectPath, removeError);
+  }
+
+
+  rocket::Diagnostics collectionDiagnostics;
+  auto collectionMir = rocket::test::lowerToMir(
+      "fn head(values: Slice[String]) -> String:\n"
+      "    return values[0]\n"
+      "fn main() -> Int:\n"
+      "    let values = [\"zero\", \"one\", \"two\"]\n"
+      "    let tail = values[1..3]\n"
+      "    print(head(tail))\n"
+      "    return 0\n",
+      collectionDiagnostics);
+  rocket::test::expect(collectionMir.has_value(),
+                       "collection LLVM fixture lowers to MIR", failures);
+  if (collectionMir.has_value()) {
+    std::string error;
+    std::string ir;
+    rocket::test::expect(rocket::generateLlvmIr(*collectionMir, false, ir, error),
+                         "collection MIR lowers to valid LLVM IR: " + error, failures);
+    rocket::test::expect(ir.find("@rocket_rt_array_new") != std::string::npos &&
+                             ir.find("@rocket_rt_array_set_string") != std::string::npos,
+                         "Array literals lower through the runtime ABI", failures);
+    rocket::test::expect(ir.find("@rocket_rt_slice_new") != std::string::npos &&
+                             ir.find("@rocket_rt_index_string") != std::string::npos,
+                         "Slice creation and checked indexing use runtime calls", failures);
+    rocket::test::expect(ir.find("define ptr @rocket_fn_head_") != std::string::npos,
+                         "managed collection functions use opaque pointer ABI values", failures);
   }
   return rocket::test::finish(failures, "llvm_codegen");
 }

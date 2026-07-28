@@ -52,3 +52,23 @@ entry point. Temporary `printf` and `strcmp` calls support scalar printing and
 string equality only until the Phase 5 runtime ABI replaces them. The C++ MIR
 transpiler is retained exclusively as a build-time stage0 fallback when LLVM is
 disabled.
+
+## D009 - Runtime ABI v1, ARC, and retained slices
+
+**Accepted.** Managed `String`, `Array[T]`, and `Slice[T]` values use opaque
+pointers across the version-1 C ABI. Function parameters borrow managed values
+at +0, function results return them at +1, and non-parameter MIR locals own one
+reference. MIR contains explicit retain/release instructions so ownership is
+verified independently of LLVM; replacement retains before releasing, and
+function exits deterministically clean owning locals. ABI v1 reference counts
+are non-atomic because Rocket 1.0 has no threading model. Cycles remain a
+documented limitation.
+
+Strings own valid UTF-8 bytes and carry an explicit byte length. Arrays own
+contiguous storage and retain managed String elements. Slices are immutable,
+exclusive-end views that retain and flatten onto a backing Array, preventing a
+dangling view. Built-in collection element types are limited to the scalar
+types and String until general generics. Index/slice bounds, signed Int
+overflow, and Int division by zero terminate through deterministic runtime
+diagnostics. The C++ stage0 fallback maps the same semantics to RAII containers
+and checked helpers.

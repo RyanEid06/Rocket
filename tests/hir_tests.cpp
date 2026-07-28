@@ -72,5 +72,32 @@ int main() {
     rocket::test::expect(call.callee == forward->functions[1].symbol,
                          "function signatures resolve before body traversal", failures);
   }
+
+
+  rocket::Diagnostics collectionDiagnostics;
+  auto collections = rocket::test::lowerToHir(
+      "fn head(values: Slice[Int]) -> Int:\n"
+      "    return values[0]\n"
+      "fn main() -> Int:\n"
+      "    let values = [10, 20, 30]\n"
+      "    let tail = values[1..3]\n"
+      "    return head(tail)\n",
+      collectionDiagnostics);
+  rocket::test::expect(collections.has_value(),
+                       "collection program lowers to typed HIR", failures);
+  if (collections.has_value()) {
+    const auto& arrayBinding = static_cast<const rocket::HirBindingStmt&>(
+        *collections->functions[1].body[0]);
+    const auto& sliceBinding = static_cast<const rocket::HirBindingStmt&>(
+        *collections->functions[1].body[1]);
+    rocket::test::expect(arrayBinding.initializer->type == rocket::Type::ArrayInt &&
+                             sliceBinding.initializer->type == rocket::Type::SliceInt,
+                         "HIR records concrete built-in collection element types", failures);
+    const auto& headReturn = static_cast<const rocket::HirReturnStmt&>(
+        *collections->functions[0].body[0]);
+    rocket::test::expect(headReturn.value->kind == rocket::HirExprKind::Index &&
+                             headReturn.value->type == rocket::Type::Int,
+                         "HIR index expressions carry their element type", failures);
+  }
   return rocket::test::finish(failures, "hir");
 }

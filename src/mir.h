@@ -26,7 +26,7 @@ struct MirOperand {
   static MirOperand localValue(Type type, MirLocalId local);
 };
 
-enum class MirRvalueKind { Use, Unary, Binary, Call };
+enum class MirRvalueKind { Use, Unary, Binary, Call, Array, Index, Slice };
 
 struct MirRvalue {
   MirRvalueKind kind = MirRvalueKind::Use;
@@ -34,6 +34,7 @@ struct MirRvalue {
   TokenKind op = TokenKind::End;
   MirOperand left;
   MirOperand right;
+  MirOperand end;
   SymbolId callee = InvalidSymbol;
   std::vector<MirOperand> arguments;
 
@@ -41,11 +42,22 @@ struct MirRvalue {
   static MirRvalue unary(Type type, TokenKind op, MirOperand operand);
   static MirRvalue binary(Type type, TokenKind op, MirOperand left, MirOperand right);
   static MirRvalue call(Type type, SymbolId callee, std::vector<MirOperand> arguments);
+  static MirRvalue array(Type type, std::vector<MirOperand> elements);
+  static MirRvalue index(Type type, MirOperand collection, MirOperand index);
+  static MirRvalue slice(Type type, MirOperand collection, MirOperand start, MirOperand end);
 };
 
+enum class MirInstructionKind { Assign, Retain, Release };
+
 struct MirInstruction {
+  MirInstructionKind kind = MirInstructionKind::Assign;
   MirLocalId destination = InvalidMirLocal;
   MirRvalue value;
+  MirOperand arcOperand;
+
+  static MirInstruction assign(MirLocalId destination, MirRvalue value);
+  static MirInstruction retain(MirOperand operand);
+  static MirInstruction release(MirOperand operand);
 };
 
 enum class MirTerminatorKind { Goto, Branch, Return };
@@ -105,6 +117,9 @@ private:
   MirLocalId localForSymbol(SymbolId symbol);
   MirLocalId addInstruction(MirBlockId block, MirRvalue value,
                             MirLocalId destination = InvalidMirLocal);
+  void addRetain(MirBlockId block, MirOperand operand);
+  void addRelease(MirBlockId block, MirOperand operand);
+  void releaseOwnedLocals(MirBlockId block);
   MirOperand materialize(MirBlockId block, MirOperand operand);
   MirBlockId addBlock();
   void terminate(MirBlockId block, MirTerminator terminator);

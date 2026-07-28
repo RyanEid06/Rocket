@@ -1,5 +1,7 @@
 #include "hir.h"
 
+#include <charconv>
+#include <cstdint>
 #include <unordered_set>
 #include <utility>
 
@@ -208,9 +210,15 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement, Type 
 
 std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
   switch (expression.kind) {
-  case ExprKind::Integer:
+  case ExprKind::Integer: {
+    const auto& literal = static_cast<const LiteralExpr&>(expression).value;
+    std::int64_t parsed = 0;
+    const auto result = std::from_chars(literal.data(), literal.data() + literal.size(), parsed);
+    if (result.ec == std::errc::result_out_of_range)
+      diagnostics_.error(expression.location, "Int literal is outside the signed 64-bit range");
     return std::make_unique<HirLiteralExpr>(expression.location, Type::Int,
-                                            static_cast<const LiteralExpr&>(expression).value);
+                                            literal);
+  }
   case ExprKind::Float:
     return std::make_unique<HirLiteralExpr>(expression.location, Type::Float,
                                             static_cast<const LiteralExpr&>(expression).value);
@@ -265,7 +273,11 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
           break;
         case TokenKind::EqualEqual:
         case TokenKind::BangEqual:
-          result = Type::Bool;
+          if (isCollectionType(left->type))
+            diagnostics_.error(expression.location,
+                               "Array and Slice equality is not available yet");
+          else
+            result = Type::Bool;
           break;
         case TokenKind::Less:
         case TokenKind::LessEqual:
@@ -316,6 +328,9 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
     if (signature.kind == SymbolKind::BuiltinFunction) {
       if (arguments.size() != 1)
         diagnostics_.error(expression.location, "print expects exactly one argument");
+      else if (isCollectionType(arguments[0]->type))
+        diagnostics_.error(arguments[0]->location,
+                           "print does not accept Array or Slice values");
       return std::make_unique<HirCallExpr>(expression.location, Type::Unit, callee,
                                            std::move(arguments));
     }
@@ -333,6 +348,62 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
     }
     return std::make_unique<HirCallExpr>(expression.location, signature.type, callee,
                                          std::move(arguments));
+  }
+  case ExprKind::Array: {
+    const auto& array = static_cast<const ArrayExpr&>(expression);
+    std::vector<std::unique_ptr<HirExpr>> elements;
+    for (const auto& element : array.elements)
+      elements.push_back(lowerExpression(*element));
+    if (elements.empty()) {
+      diagnostics_.error(expression.location,
+                         "empty Array literals need an element type (not yet supported)");
+      return std::make_unique<HirArrayExpr>(expression.location, Type::Invalid,
+                                            std::move(elements));
+    }
+    const Type elementType = elements.front()->type;
+    const Type result = arrayType(elementType);
+    if (result == Type::Invalid && elementType != Type::Invalid)
+      diagnostics_.error(expression.location,
+                         "Array elements must be Int, Float, Bool, Char, or String");
+    for (std::size_t index = 1; index < elements.size(); ++index) {
+      if (elements[index]->type != Type::Invalid && elementType != Type::Invalid &&
+          elements[index]->type != elementType)
+        diagnostics_.error(elements[index]->location,
+                           "Array literal elements must have one type; found " +
+                               std::string(typeName(elements[index]->type)) +
+                               ", expected " + typeName(elementType));
+    }
+    return std::make_unique<HirArrayExpr>(expression.location, result, std::move(elements));
+  }
+  case ExprKind::Index: {
+    const auto& index = static_cast<const IndexExpr&>(expression);
+    auto collection = lowerExpression(*index.collection);
+    auto offset = lowerExpression(*index.index);
+    if (collection->type != Type::Invalid && !isCollectionType(collection->type))
+      diagnostics_.error(index.collection->location,
+                         "indexing requires an Array or Slice value");
+    if (offset->type != Type::Invalid && offset->type != Type::Int)
+      diagnostics_.error(index.index->location, "collection index must have type Int");
+    const Type result = collectionElementType(collection->type);
+    return std::make_unique<HirIndexExpr>(expression.location, result,
+                                          std::move(collection), std::move(offset));
+  }
+  case ExprKind::Slice: {
+    const auto& slice = static_cast<const SliceExpr&>(expression);
+    auto collection = lowerExpression(*slice.collection);
+    auto start = lowerExpression(*slice.start);
+    auto end = lowerExpression(*slice.end);
+    if (collection->type != Type::Invalid && !isCollectionType(collection->type))
+      diagnostics_.error(slice.collection->location,
+                         "slicing requires an Array or Slice value");
+    if (start->type != Type::Invalid && start->type != Type::Int)
+      diagnostics_.error(slice.start->location, "slice start must have type Int");
+    if (end->type != Type::Invalid && end->type != Type::Int)
+      diagnostics_.error(slice.end->location, "slice end must have type Int");
+    const Type result = sliceType(collectionElementType(collection->type));
+    return std::make_unique<HirSliceExpr>(expression.location, result,
+                                          std::move(collection), std::move(start),
+                                          std::move(end));
   }
   }
   return std::make_unique<HirLiteralExpr>(expression.location, Type::Invalid, "0");

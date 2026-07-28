@@ -57,6 +57,56 @@ MirRvalue MirRvalue::call(Type type, SymbolId callee, std::vector<MirOperand> ar
   return result;
 }
 
+MirRvalue MirRvalue::array(Type type, std::vector<MirOperand> elements) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::Array;
+  result.type = type;
+  result.arguments = std::move(elements);
+  return result;
+}
+
+MirRvalue MirRvalue::index(Type type, MirOperand collection, MirOperand index) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::Index;
+  result.type = type;
+  result.left = std::move(collection);
+  result.right = std::move(index);
+  return result;
+}
+
+MirRvalue MirRvalue::slice(Type type, MirOperand collection, MirOperand start,
+                           MirOperand end) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::Slice;
+  result.type = type;
+  result.left = std::move(collection);
+  result.right = std::move(start);
+  result.end = std::move(end);
+  return result;
+}
+
+MirInstruction MirInstruction::assign(MirLocalId destination, MirRvalue value) {
+  MirInstruction result;
+  result.kind = MirInstructionKind::Assign;
+  result.destination = destination;
+  result.value = std::move(value);
+  return result;
+}
+
+MirInstruction MirInstruction::retain(MirOperand operand) {
+  MirInstruction result;
+  result.kind = MirInstructionKind::Retain;
+  result.arcOperand = std::move(operand);
+  return result;
+}
+
+MirInstruction MirInstruction::release(MirOperand operand) {
+  MirInstruction result;
+  result.kind = MirInstructionKind::Release;
+  result.arcOperand = std::move(operand);
+  return result;
+}
+
 MirTerminator MirTerminator::goTo(MirBlockId target) {
   MirTerminator result;
   result.kind = MirTerminatorKind::Goto;
@@ -107,7 +157,10 @@ MirFunction MirLowerer::lowerFunction(const HirFunction& function) {
 
   const MirBlockId entry = addBlock();
   auto current = lowerBlock(function.body, entry);
-  if (current.has_value()) terminate(*current, MirTerminator::returnValue(std::nullopt));
+  if (current.has_value()) {
+    releaseOwnedLocals(*current);
+    terminate(*current, MirTerminator::returnValue(std::nullopt));
+  }
   return result;
 }
 
@@ -140,6 +193,8 @@ std::optional<MirBlockId> MirLowerer::lowerStatement(const HirStmt& statement,
     const auto& returned = static_cast<const HirReturnStmt&>(statement);
     std::optional<MirOperand> value;
     if (returned.value) value = lowerExpression(*returned.value, current);
+    if (value.has_value() && isManagedType(value->type)) addRetain(current, *value);
+    releaseOwnedLocals(current);
     terminate(current, MirTerminator::returnValue(std::move(value)));
     return std::nullopt;
   }
@@ -229,7 +284,10 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
   switch (expression.kind) {
   case HirExprKind::Literal: {
     const auto& literal = static_cast<const HirLiteralExpr&>(expression);
-    return MirOperand::constantValue(literal.type, literal.value);
+    MirOperand value = MirOperand::constantValue(literal.type, literal.value);
+    if (!isManagedType(literal.type)) return value;
+    const MirLocalId result = addInstruction(current, MirRvalue::use(std::move(value)));
+    return MirOperand::localValue(literal.type, result);
   }
   case HirExprKind::Name: {
     const auto& name = static_cast<const HirNameExpr&>(expression);
@@ -260,6 +318,34 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
     const MirLocalId result = addInstruction(
         current, MirRvalue::call(call.type, call.callee, std::move(arguments)));
     return MirOperand::localValue(call.type, result);
+  }
+  case HirExprKind::Array: {
+    const auto& array = static_cast<const HirArrayExpr&>(expression);
+    std::vector<MirOperand> elements;
+    elements.reserve(array.elements.size());
+    for (const auto& element : array.elements)
+      elements.push_back(lowerExpression(*element, current));
+    const MirLocalId result =
+        addInstruction(current, MirRvalue::array(array.type, std::move(elements)));
+    return MirOperand::localValue(array.type, result);
+  }
+  case HirExprKind::Index: {
+    const auto& index = static_cast<const HirIndexExpr&>(expression);
+    MirOperand collection = lowerExpression(*index.collection, current);
+    MirOperand offset = lowerExpression(*index.index, current);
+    const MirLocalId result = addInstruction(
+        current, MirRvalue::index(index.type, std::move(collection), std::move(offset)));
+    return MirOperand::localValue(index.type, result);
+  }
+  case HirExprKind::Slice: {
+    const auto& slice = static_cast<const HirSliceExpr&>(expression);
+    MirOperand collection = lowerExpression(*slice.collection, current);
+    MirOperand start = lowerExpression(*slice.start, current);
+    MirOperand end = lowerExpression(*slice.end, current);
+    const MirLocalId result = addInstruction(
+        current, MirRvalue::slice(slice.type, std::move(collection), std::move(start),
+                                  std::move(end)));
+    return MirOperand::localValue(slice.type, result);
   }
   }
   return MirOperand::constantValue(Type::Invalid, "");
@@ -305,8 +391,30 @@ MirLocalId MirLowerer::localForSymbol(SymbolId symbol) {
 MirLocalId MirLowerer::addInstruction(MirBlockId block, MirRvalue value,
                                       MirLocalId destination) {
   if (destination == InvalidMirLocal) destination = addLocal(value.type);
-  function_->blocks[block].instructions.push_back({destination, std::move(value)});
+  if (isManagedType(value.type)) {
+    if (value.kind == MirRvalueKind::Use && value.left.kind == MirOperandKind::Local)
+      addRetain(block, value.left);
+    addRelease(block, MirOperand::localValue(value.type, destination));
+  }
+  function_->blocks[block].instructions.push_back(
+      MirInstruction::assign(destination, std::move(value)));
   return destination;
+}
+
+void MirLowerer::addRetain(MirBlockId block, MirOperand operand) {
+  function_->blocks[block].instructions.push_back(MirInstruction::retain(std::move(operand)));
+}
+
+void MirLowerer::addRelease(MirBlockId block, MirOperand operand) {
+  function_->blocks[block].instructions.push_back(MirInstruction::release(std::move(operand)));
+}
+
+void MirLowerer::releaseOwnedLocals(MirBlockId block) {
+  for (MirLocalId local = 0; local < function_->locals.size(); ++local) {
+    const MirLocal& description = function_->locals[local];
+    if (isManagedType(description.type) && !description.parameter)
+      addRelease(block, MirOperand::localValue(description.type, local));
+  }
 }
 
 MirOperand MirLowerer::materialize(MirBlockId block, MirOperand operand) {
@@ -379,6 +487,13 @@ bool verifyMir(const MirModule& module, std::string& error) {
     for (const auto& block : function.blocks) {
       if (!block.terminator.has_value()) { error = "basic block has no terminator"; return false; }
       for (const auto& instruction : block.instructions) {
+        if (instruction.kind != MirInstructionKind::Assign) {
+          if (!verifyOperand(instruction.arcOperand, function, error)) return false;
+          if (!isManagedType(instruction.arcOperand.type)) {
+            error = "ARC instruction operand is not managed"; return false;
+          }
+          continue;
+        }
         if (instruction.destination >= function.locals.size()) {
           error = "instruction has invalid destination"; return false;
         }
@@ -419,12 +534,13 @@ bool verifyMir(const MirModule& module, std::string& error) {
                                        (operandType == Type::Int || operandType == Type::Float);
           const bool validComparison = (ordering || equality) &&
                                        instruction.value.type == Type::Bool &&
+                                       !isCollectionType(operandType) &&
                                        (!ordering || operandType == Type::Int ||
                                         operandType == Type::Float);
           if (!validArithmetic && !validComparison) {
             error = "invalid binary operation"; return false;
           }
-        } else {
+        } else if (instruction.value.kind == MirRvalueKind::Call) {
           if (instruction.value.callee >= module.symbols.size()) {
             error = "call has invalid callee symbol"; return false;
           }
@@ -451,6 +567,37 @@ bool verifyMir(const MirModule& module, std::string& error) {
                 error = "call argument type mismatch"; return false;
               }
             }
+          }
+        } else if (instruction.value.kind == MirRvalueKind::Array) {
+          if (!isArrayType(instruction.value.type) || instruction.value.arguments.empty()) {
+            error = "invalid Array construction"; return false;
+          }
+          const Type element = collectionElementType(instruction.value.type);
+          for (const auto& operand : instruction.value.arguments) {
+            if (!verifyOperand(operand, function, error)) return false;
+            if (operand.type != element) {
+              error = "Array element type mismatch"; return false;
+            }
+          }
+        } else if (instruction.value.kind == MirRvalueKind::Index) {
+          if (!verifyOperand(instruction.value.left, function, error) ||
+              !verifyOperand(instruction.value.right, function, error)) return false;
+          if (!isCollectionType(instruction.value.left.type) ||
+              instruction.value.right.type != Type::Int ||
+              collectionElementType(instruction.value.left.type) != instruction.value.type) {
+            error = "invalid collection index operation"; return false;
+          }
+        } else if (instruction.value.kind == MirRvalueKind::Slice) {
+          if (!verifyOperand(instruction.value.left, function, error) ||
+              !verifyOperand(instruction.value.right, function, error) ||
+              !verifyOperand(instruction.value.end, function, error)) return false;
+          if (!isCollectionType(instruction.value.left.type) ||
+              instruction.value.right.type != Type::Int ||
+              instruction.value.end.type != Type::Int ||
+              !isSliceType(instruction.value.type) ||
+              collectionElementType(instruction.value.left.type) !=
+                  collectionElementType(instruction.value.type)) {
+            error = "invalid collection slice operation"; return false;
           }
         }
       }
@@ -483,6 +630,12 @@ std::string dumpMir(const MirModule& module) {
       out << "bb" << blockId << ":\n";
       const auto& block = function.blocks[blockId];
       for (const auto& instruction : block.instructions) {
+        if (instruction.kind != MirInstructionKind::Assign) {
+          out << "  " << (instruction.kind == MirInstructionKind::Retain ? "retain " : "release ");
+          operandText(instruction.arcOperand, out);
+          out << " : " << typeName(instruction.arcOperand.type) << "\n";
+          continue;
+        }
         out << "  %" << instruction.destination << " = ";
         switch (instruction.value.kind) {
         case MirRvalueKind::Use:
@@ -495,6 +648,21 @@ std::string dumpMir(const MirModule& module) {
         case MirRvalueKind::Call:
           out << "call @" << module.symbols[instruction.value.callee].name;
           for (const auto& argument : instruction.value.arguments) { out << ' '; operandText(argument, out); }
+          break;
+        case MirRvalueKind::Array:
+          out << "array";
+          for (const auto& element : instruction.value.arguments) {
+            out << ' '; operandText(element, out);
+          }
+          break;
+        case MirRvalueKind::Index:
+          out << "index "; operandText(instruction.value.left, out);
+          out << ' '; operandText(instruction.value.right, out);
+          break;
+        case MirRvalueKind::Slice:
+          out << "slice "; operandText(instruction.value.left, out);
+          out << ' '; operandText(instruction.value.right, out);
+          out << ' '; operandText(instruction.value.end, out);
           break;
         }
         out << " : " << typeName(instruction.value.type) << "\n";

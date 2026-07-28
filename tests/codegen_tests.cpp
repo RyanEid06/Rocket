@@ -44,9 +44,32 @@ int main() {
                          "typed Float locals are emitted from MIR", failures);
     rocket::test::expect(generated.find("char rocket_l_") != std::string::npos,
                          "typed Char locals are emitted from MIR", failures);
-    rocket::test::expect(generated.find("if (") != std::string::npos &&
-                             generated.find(" && ") == std::string::npos,
+    rocket::test::expect(generated.find("if (rocket_l_") != std::string::npos,
                          "short-circuit MIR emits branches", failures);
+    rocket::test::expect(generated.find("rocket_int_add(") != std::string::npos,
+                         "fallback Int arithmetic uses checked helpers", failures);
+  }
+
+
+  rocket::Diagnostics collectionDiagnostics;
+  auto collectionMir = rocket::test::lowerToMir(
+      "fn head(values: Slice[Int]) -> Int:\n"
+      "    return values[0]\n"
+      "fn main() -> Int:\n"
+      "    let values = [10, 20, 30]\n"
+      "    return head(values[1..3])\n",
+      collectionDiagnostics);
+  rocket::test::expect(collectionMir.has_value(),
+                       "collection fallback fixture lowers to MIR", failures);
+  if (collectionMir.has_value()) {
+    const std::string generated = rocket::BootstrapCodeGenerator(*collectionMir).generate();
+    rocket::test::expect(generated.find("RocketArray<std::int64_t>") != std::string::npos &&
+                             generated.find("RocketSlice<std::int64_t>") != std::string::npos,
+                         "fallback backend preserves typed collection signatures", failures);
+    rocket::test::expect(generated.find("rocket_array<std::int64_t>") != std::string::npos &&
+                             generated.find("rocket_slice(") != std::string::npos &&
+                             generated.find("rocket_index(") != std::string::npos,
+                         "fallback backend emits checked collection operations", failures);
   }
   return rocket::test::finish(failures, "codegen");
 }

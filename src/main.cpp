@@ -227,7 +227,8 @@ int main(int argc, char** argv) {
     return 1;
   }
   if (invokeExecutable(fs::path(ROCKETC_CLANG_PATH),
-                       {objectPath.string(), "-o", executablePath.string()}) != 0)
+                       {objectPath.string(), ROCKETC_RUNTIME_LIBRARY_PATH,
+                        "-o", executablePath.string()}) != 0)
     return 1;
 #else
   rocket::BootstrapCodeGenerator generator(*compilation.mir);

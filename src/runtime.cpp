@@ -1,0 +1,386 @@
+#include "runtime.h"
+
+#include <atomic>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+
+namespace {
+
+inline constexpr std::uint32_t RuntimeAbiVersion = 1;
+
+struct AllocationHeader {
+  std::uint64_t references;
+  void (*destroy)(AllocationHeader*);
+  std::uint32_t objectKind;
+  std::uint32_t reserved;
+};
+
+inline constexpr std::uint32_t ObjectString = 1;
+inline constexpr std::uint32_t ObjectArray = 2;
+inline constexpr std::uint32_t ObjectSlice = 3;
+
+struct RuntimeString {
+  AllocationHeader header;
+  std::uint64_t byteLength;
+  std::uint8_t bytes[1];
+};
+
+struct RuntimeArray {
+  AllocationHeader header;
+  std::uint32_t elementKind;
+  std::uint32_t reserved;
+  std::uint64_t length;
+  void* elements;
+};
+
+struct RuntimeSlice {
+  AllocationHeader header;
+  RuntimeArray* owner;
+  std::uint64_t offset;
+  std::uint64_t length;
+};
+
+struct CollectionView {
+  const RuntimeArray* owner;
+  std::uint64_t offset;
+  std::uint64_t length;
+};
+
+std::atomic<std::uint64_t> liveAllocations = 0;
+
+[[noreturn]] void runtimeFailure(const char* message) {
+  std::fputs("rocket runtime error: ", stderr);
+  std::fputs(message, stderr);
+  std::fputc('\n', stderr);
+  std::exit(101);
+}
+
+bool continuation(std::uint8_t byte) { return (byte & 0xc0U) == 0x80U; }
+
+bool validUtf8(const std::uint8_t* bytes, std::uint64_t length) {
+  std::uint64_t index = 0;
+  while (index < length) {
+    const std::uint8_t first = bytes[index++];
+    if (first <= 0x7fU) continue;
+    if (first >= 0xc2U && first <= 0xdfU) {
+      if (index >= length || !continuation(bytes[index])) return false;
+      ++index;
+      continue;
+    }
+    if (first >= 0xe0U && first <= 0xefU) {
+      if (index + 1 >= length || !continuation(bytes[index]) ||
+          !continuation(bytes[index + 1]))
+        return false;
+      if (first == 0xe0U && bytes[index] < 0xa0U) return false;
+      if (first == 0xedU && bytes[index] >= 0xa0U) return false;
+      index += 2;
+      continue;
+    }
+    if (first >= 0xf0U && first <= 0xf4U) {
+      if (index + 2 >= length || !continuation(bytes[index]) ||
+          !continuation(bytes[index + 1]) || !continuation(bytes[index + 2]))
+        return false;
+      if (first == 0xf0U && bytes[index] < 0x90U) return false;
+      if (first == 0xf4U && bytes[index] >= 0x90U) return false;
+      index += 3;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+void destroyString(AllocationHeader* header) {
+  std::free(header);
+  liveAllocations.fetch_sub(1, std::memory_order_relaxed);
+}
+
+std::size_t elementSize(std::uint32_t elementKind) {
+  switch (elementKind) {
+  case ROCKET_ELEMENT_INT: return sizeof(std::int64_t);
+  case ROCKET_ELEMENT_FLOAT: return sizeof(double);
+  case ROCKET_ELEMENT_BOOL:
+  case ROCKET_ELEMENT_CHAR: return sizeof(std::uint8_t);
+  case ROCKET_ELEMENT_STRING: return sizeof(RocketString*);
+  default: runtimeFailure("invalid Array element kind");
+  }
+}
+
+void destroyArray(AllocationHeader* header) {
+  auto* array = reinterpret_cast<RuntimeArray*>(header);
+  if (array->elementKind == ROCKET_ELEMENT_STRING) {
+    auto** strings = static_cast<RocketString**>(array->elements);
+    for (std::uint64_t index = 0; index < array->length; ++index)
+      rocket_rt_release(strings[index]);
+  }
+  std::free(array->elements);
+  std::free(array);
+  liveAllocations.fetch_sub(1, std::memory_order_relaxed);
+}
+
+void destroySlice(AllocationHeader* header) {
+  auto* slice = reinterpret_cast<RuntimeSlice*>(header);
+  rocket_rt_release(slice->owner);
+  std::free(slice);
+  liveAllocations.fetch_sub(1, std::memory_order_relaxed);
+}
+
+AllocationHeader* headerFor(void* object) {
+  return static_cast<AllocationHeader*>(object);
+}
+
+const RuntimeString* stringFor(const RocketString* string) {
+  return reinterpret_cast<const RuntimeString*>(string);
+}
+
+RuntimeArray* arrayFor(RocketArray* array) {
+  return reinterpret_cast<RuntimeArray*>(array);
+}
+
+CollectionView collectionView(const void* collection) {
+  if (!collection) runtimeFailure("null collection");
+  const auto* header = static_cast<const AllocationHeader*>(collection);
+  if (header->objectKind == ObjectArray) {
+    const auto* array = static_cast<const RuntimeArray*>(collection);
+    return {array, 0, array->length};
+  }
+  if (header->objectKind == ObjectSlice) {
+    const auto* slice = static_cast<const RuntimeSlice*>(collection);
+    return {slice->owner, slice->offset, slice->length};
+  }
+  runtimeFailure("value is not an Array or Slice");
+}
+
+[[noreturn]] void indexFailure(std::int64_t index, std::uint64_t length) {
+  std::fprintf(stderr, "rocket runtime error: index %" PRId64
+                       " out of bounds for length %" PRIu64 "\n",
+               index, length);
+  std::exit(101);
+}
+
+[[noreturn]] void sliceFailure(std::int64_t start, std::int64_t end,
+                               std::uint64_t length) {
+  std::fprintf(stderr, "rocket runtime error: slice %" PRId64 "..%" PRId64
+                       " out of bounds for length %" PRIu64 "\n",
+               start, end, length);
+  std::exit(101);
+}
+
+std::uint64_t checkedIndex(const CollectionView& view, std::int64_t index,
+                           std::uint32_t expectedKind) {
+  if (view.owner->elementKind != expectedKind)
+    runtimeFailure("collection element kind does not match generated code");
+  if (index < 0 || static_cast<std::uint64_t>(index) >= view.length)
+    indexFailure(index, view.length);
+  return view.offset + static_cast<std::uint64_t>(index);
+}
+
+RuntimeArray* checkedArray(RocketArray* array, std::int64_t index,
+                           std::uint32_t expectedKind) {
+  RuntimeArray* runtimeArray = arrayFor(array);
+  if (!runtimeArray || runtimeArray->header.objectKind != ObjectArray)
+    runtimeFailure("array initializer received an invalid Array");
+  if (runtimeArray->elementKind != expectedKind)
+    runtimeFailure("array initializer element kind mismatch");
+  if (index < 0 || static_cast<std::uint64_t>(index) >= runtimeArray->length)
+    indexFailure(index, runtimeArray->length);
+  return runtimeArray;
+}
+
+} // namespace
+
+extern "C" {
+
+std::uint32_t rocket_rt_abi_version() { return RuntimeAbiVersion; }
+
+void rocket_rt_retain(void* object) {
+  if (!object) return;
+  AllocationHeader* header = headerFor(object);
+  if (header->references == std::numeric_limits<std::uint64_t>::max())
+    runtimeFailure("reference count overflow");
+  ++header->references;
+}
+
+void rocket_rt_release(void* object) {
+  if (!object) return;
+  AllocationHeader* header = headerFor(object);
+  if (header->references == 0) runtimeFailure("reference count underflow");
+  --header->references;
+  if (header->references == 0) header->destroy(header);
+}
+
+RocketString* rocket_rt_string_new(const std::uint8_t* bytes, std::uint64_t length) {
+  if (length != 0 && !bytes) runtimeFailure("null UTF-8 input");
+  if (length != 0 && !validUtf8(bytes, length)) runtimeFailure("invalid UTF-8 string");
+  if (length > std::numeric_limits<std::size_t>::max() -
+                   offsetof(RuntimeString, bytes) - 1)
+    runtimeFailure("string allocation is too large");
+
+  const std::size_t allocationSize =
+      offsetof(RuntimeString, bytes) + static_cast<std::size_t>(length) + 1;
+  auto* string = static_cast<RuntimeString*>(std::malloc(allocationSize));
+  if (!string) runtimeFailure("out of memory while allocating String");
+  string->header = {1, destroyString, ObjectString, 0};
+  string->byteLength = length;
+  if (length != 0) std::memcpy(string->bytes, bytes, static_cast<std::size_t>(length));
+  string->bytes[length] = 0;
+  liveAllocations.fetch_add(1, std::memory_order_relaxed);
+  return reinterpret_cast<RocketString*>(string);
+}
+
+std::uint8_t rocket_rt_string_equal(const RocketString* left, const RocketString* right) {
+  if (left == right) return 1;
+  if (!left || !right) return 0;
+  const RuntimeString* leftString = stringFor(left);
+  const RuntimeString* rightString = stringFor(right);
+  if (leftString->byteLength != rightString->byteLength) return 0;
+  return static_cast<std::uint8_t>(
+      leftString->byteLength == 0 ||
+      std::memcmp(leftString->bytes, rightString->bytes,
+                  static_cast<std::size_t>(leftString->byteLength)) == 0);
+}
+
+std::uint64_t rocket_rt_string_byte_length(const RocketString* string) {
+  return string ? stringFor(string)->byteLength : 0;
+}
+
+const std::uint8_t* rocket_rt_string_bytes(const RocketString* string) {
+  return string ? stringFor(string)->bytes : nullptr;
+}
+
+RocketArray* rocket_rt_array_new(std::uint32_t elementKind, std::uint64_t length) {
+  const std::size_t size = elementSize(elementKind);
+  if (length > std::numeric_limits<std::size_t>::max() / size)
+    runtimeFailure("Array allocation is too large");
+  auto* array = static_cast<RuntimeArray*>(std::malloc(sizeof(RuntimeArray)));
+  if (!array) runtimeFailure("out of memory while allocating Array");
+  void* elements = nullptr;
+  if (length != 0) {
+    elements = std::calloc(static_cast<std::size_t>(length), size);
+    if (!elements) {
+      std::free(array);
+      runtimeFailure("out of memory while allocating Array elements");
+    }
+  }
+  array->header = {1, destroyArray, ObjectArray, 0};
+  array->elementKind = elementKind;
+  array->reserved = 0;
+  array->length = length;
+  array->elements = elements;
+  liveAllocations.fetch_add(1, std::memory_order_relaxed);
+  return reinterpret_cast<RocketArray*>(array);
+}
+
+void rocket_rt_array_set_int(RocketArray* array, std::int64_t index, std::int64_t value) {
+  RuntimeArray* checked = checkedArray(array, index, ROCKET_ELEMENT_INT);
+  static_cast<std::int64_t*>(checked->elements)[index] = value;
+}
+
+void rocket_rt_array_set_float(RocketArray* array, std::int64_t index, double value) {
+  RuntimeArray* checked = checkedArray(array, index, ROCKET_ELEMENT_FLOAT);
+  static_cast<double*>(checked->elements)[index] = value;
+}
+
+void rocket_rt_array_set_bool(RocketArray* array, std::int64_t index, std::uint8_t value) {
+  RuntimeArray* checked = checkedArray(array, index, ROCKET_ELEMENT_BOOL);
+  static_cast<std::uint8_t*>(checked->elements)[index] = value ? 1 : 0;
+}
+
+void rocket_rt_array_set_char(RocketArray* array, std::int64_t index, std::uint8_t value) {
+  RuntimeArray* checked = checkedArray(array, index, ROCKET_ELEMENT_CHAR);
+  static_cast<std::uint8_t*>(checked->elements)[index] = value;
+}
+
+void rocket_rt_array_set_string(RocketArray* array, std::int64_t index, RocketString* value) {
+  RuntimeArray* checked = checkedArray(array, index, ROCKET_ELEMENT_STRING);
+  auto** elements = static_cast<RocketString**>(checked->elements);
+  rocket_rt_retain(value);
+  rocket_rt_release(elements[index]);
+  elements[index] = value;
+}
+
+RocketSlice* rocket_rt_slice_new(void* collection, std::int64_t start, std::int64_t end) {
+  const CollectionView view = collectionView(collection);
+  if (start < 0 || end < start || static_cast<std::uint64_t>(end) > view.length)
+    sliceFailure(start, end, view.length);
+  auto* slice = static_cast<RuntimeSlice*>(std::malloc(sizeof(RuntimeSlice)));
+  if (!slice) runtimeFailure("out of memory while allocating Slice");
+  rocket_rt_retain(const_cast<RuntimeArray*>(view.owner));
+  slice->header = {1, destroySlice, ObjectSlice, 0};
+  slice->owner = const_cast<RuntimeArray*>(view.owner);
+  slice->offset = view.offset + static_cast<std::uint64_t>(start);
+  slice->length = static_cast<std::uint64_t>(end - start);
+  liveAllocations.fetch_add(1, std::memory_order_relaxed);
+  return reinterpret_cast<RocketSlice*>(slice);
+}
+
+std::uint64_t rocket_rt_collection_length(const void* collection) {
+  return collectionView(collection).length;
+}
+
+std::int64_t rocket_rt_index_int(const void* collection, std::int64_t index) {
+  const CollectionView view = collectionView(collection);
+  return static_cast<const std::int64_t*>(view.owner->elements)[
+      checkedIndex(view, index, ROCKET_ELEMENT_INT)];
+}
+
+double rocket_rt_index_float(const void* collection, std::int64_t index) {
+  const CollectionView view = collectionView(collection);
+  return static_cast<const double*>(view.owner->elements)[
+      checkedIndex(view, index, ROCKET_ELEMENT_FLOAT)];
+}
+
+std::uint8_t rocket_rt_index_bool(const void* collection, std::int64_t index) {
+  const CollectionView view = collectionView(collection);
+  return static_cast<const std::uint8_t*>(view.owner->elements)[
+      checkedIndex(view, index, ROCKET_ELEMENT_BOOL)];
+}
+
+std::uint8_t rocket_rt_index_char(const void* collection, std::int64_t index) {
+  const CollectionView view = collectionView(collection);
+  return static_cast<const std::uint8_t*>(view.owner->elements)[
+      checkedIndex(view, index, ROCKET_ELEMENT_CHAR)];
+}
+
+RocketString* rocket_rt_index_string(const void* collection, std::int64_t index) {
+  const CollectionView view = collectionView(collection);
+  RocketString* value = static_cast<RocketString**>(view.owner->elements)[
+      checkedIndex(view, index, ROCKET_ELEMENT_STRING)];
+  rocket_rt_retain(value);
+  return value;
+}
+
+void rocket_rt_panic_integer_overflow() { runtimeFailure("Int arithmetic overflow"); }
+
+void rocket_rt_panic_division_by_zero() { runtimeFailure("Int division by zero"); }
+
+void rocket_rt_print_int(std::int64_t value) { std::printf("%" PRId64 "\n", value); }
+
+void rocket_rt_print_float(double value) { std::printf("%g\n", value); }
+
+void rocket_rt_print_bool(std::uint8_t value) { std::printf("%u\n", value ? 1U : 0U); }
+
+void rocket_rt_print_char(std::uint8_t value) {
+  std::fwrite(&value, 1, 1, stdout);
+  std::fputc('\n', stdout);
+}
+
+void rocket_rt_print_string(const RocketString* value) {
+  if (!value) runtimeFailure("attempted to print an invalid String");
+  const RuntimeString* string = stringFor(value);
+  if (string->byteLength != 0)
+    std::fwrite(string->bytes, 1, static_cast<std::size_t>(string->byteLength), stdout);
+  std::fputc('\n', stdout);
+}
+
+void rocket_rt_print_unit() { std::fputs("()\n", stdout); }
+
+std::uint64_t rocket_rt_debug_live_allocations() {
+  return liveAllocations.load(std::memory_order_relaxed);
+}
+
+} // extern "C"

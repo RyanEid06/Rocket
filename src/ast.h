@@ -8,7 +8,9 @@
 
 namespace rocket {
 
-enum class ExprKind { Integer, Float, Character, String, Bool, Name, Unary, Binary, Call };
+enum class ExprKind {
+  Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, Array, Index, Slice
+};
 
 struct Expr {
   explicit Expr(ExprKind kind, Location location) : kind(kind), location(std::move(location)) {}
@@ -47,6 +49,31 @@ struct CallExpr final : Expr {
         arguments(std::move(arguments)) {}
   std::unique_ptr<Expr> callee;
   std::vector<std::unique_ptr<Expr>> arguments;
+};
+
+struct ArrayExpr final : Expr {
+  ArrayExpr(Location location, std::vector<std::unique_ptr<Expr>> elements)
+      : Expr(ExprKind::Array, std::move(location)), elements(std::move(elements)) {}
+  std::vector<std::unique_ptr<Expr>> elements;
+};
+
+struct IndexExpr final : Expr {
+  IndexExpr(Location location, std::unique_ptr<Expr> collection,
+            std::unique_ptr<Expr> index)
+      : Expr(ExprKind::Index, std::move(location)), collection(std::move(collection)),
+        index(std::move(index)) {}
+  std::unique_ptr<Expr> collection;
+  std::unique_ptr<Expr> index;
+};
+
+struct SliceExpr final : Expr {
+  SliceExpr(Location location, std::unique_ptr<Expr> collection,
+            std::unique_ptr<Expr> start, std::unique_ptr<Expr> end)
+      : Expr(ExprKind::Slice, std::move(location)), collection(std::move(collection)),
+        start(std::move(start)), end(std::move(end)) {}
+  std::unique_ptr<Expr> collection;
+  std::unique_ptr<Expr> start;
+  std::unique_ptr<Expr> end;
 };
 
 enum class StmtKind { Binding, Assignment, Return, Expression, If, While, For, Break, Continue };

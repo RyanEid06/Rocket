@@ -5,6 +5,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
@@ -19,6 +20,8 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
 
+#include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -87,6 +90,17 @@ private:
     case Type::Bool: return llvm::Type::getInt1Ty(context_);
     case Type::Char: return llvm::Type::getInt8Ty(context_);
     case Type::String: return llvm::PointerType::getUnqual(context_);
+    case Type::ArrayInt:
+    case Type::ArrayFloat:
+    case Type::ArrayBool:
+    case Type::ArrayChar:
+    case Type::ArrayString:
+    case Type::SliceInt:
+    case Type::SliceFloat:
+    case Type::SliceBool:
+    case Type::SliceChar:
+    case Type::SliceString:
+      return llvm::PointerType::getUnqual(context_);
     case Type::Unit: return llvm::Type::getInt8Ty(context_);
     case Type::Invalid: break;
     }
@@ -109,6 +123,16 @@ private:
     case Type::Unit:
       return llvm::ConstantInt::get(llvm::Type::getInt8Ty(context_), 0);
     case Type::String:
+    case Type::ArrayInt:
+    case Type::ArrayFloat:
+    case Type::ArrayBool:
+    case Type::ArrayChar:
+    case Type::ArrayString:
+    case Type::SliceInt:
+    case Type::SliceFloat:
+    case Type::SliceBool:
+    case Type::SliceChar:
+    case Type::SliceString:
       return llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(context_));
     case Type::Invalid: break;
     }
@@ -193,6 +217,18 @@ private:
     for (MirBlockId blockId = 0; blockId < function.blocks.size(); ++blockId) {
       builder_.SetInsertPoint(blocks[blockId]);
       for (const auto& instruction : function.blocks[blockId].instructions) {
+        if (instruction.kind != MirInstructionKind::Assign) {
+          llvm::Value* object = lowerOperand(instruction.arcOperand, locals, error);
+          if (!object) return false;
+          const char* name = instruction.kind == MirInstructionKind::Retain
+                                 ? "rocket_rt_retain"
+                                 : "rocket_rt_release";
+          llvm::FunctionCallee operation = module_->getOrInsertFunction(
+              name, llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                             {llvm::PointerType::getUnqual(context_)}, false));
+          builder_.CreateCall(operation, {object});
+          continue;
+        }
         llvm::Value* value = lowerRvalue(instruction.value, locals, error);
         if (!value) return false;
         llvm::AllocaInst* destination = locals[instruction.destination];
@@ -229,9 +265,34 @@ private:
       return llvm::ConstantInt::get(llvm::Type::getInt8Ty(context_),
                                     static_cast<unsigned char>(operand.constant[0]));
     case Type::String:
-      return builder_.CreateGlobalString(operand.constant, "str", 0, module_.get());
+    {
+      llvm::Value* bytes = builder_.CreateGlobalString(operand.constant, "str", 0, module_.get());
+      llvm::FunctionCallee constructor = module_->getOrInsertFunction(
+          "rocket_rt_string_new",
+          llvm::FunctionType::get(llvm::PointerType::getUnqual(context_),
+                                  {llvm::PointerType::getUnqual(context_),
+                                   llvm::Type::getInt64Ty(context_)},
+                                  false));
+      return builder_.CreateCall(
+          constructor,
+          {bytes, llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_),
+                                         operand.constant.size())},
+          "string.new");
+    }
     case Type::Unit:
       return zero(Type::Unit);
+    case Type::ArrayInt:
+    case Type::ArrayFloat:
+    case Type::ArrayBool:
+    case Type::ArrayChar:
+    case Type::ArrayString:
+    case Type::SliceInt:
+    case Type::SliceFloat:
+    case Type::SliceBool:
+    case Type::SliceChar:
+    case Type::SliceString:
+      error = "aggregate constant reached LLVM lowering";
+      return nullptr;
     case Type::Invalid:
       error = "invalid operand type reached LLVM lowering";
       return nullptr;
@@ -251,7 +312,9 @@ private:
       if (!operand) return nullptr;
       if (value.op == TokenKind::KwNot) return builder_.CreateNot(operand, "not");
       if (value.type == Type::Float) return builder_.CreateFNeg(operand, "fneg");
-      return builder_.CreateNeg(operand, "neg");
+      return lowerCheckedInteger(
+          llvm::Intrinsic::ssub_with_overflow,
+          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), 0), operand, "neg");
     }
 
     if (value.kind == MirRvalueKind::Binary) {
@@ -260,6 +323,15 @@ private:
       if (!left || !right) return nullptr;
       return lowerBinary(value, left, right, error);
     }
+
+    if (value.kind == MirRvalueKind::Array)
+      return lowerArray(value, locals, error);
+
+    if (value.kind == MirRvalueKind::Index)
+      return lowerIndex(value, locals, error);
+
+    if (value.kind == MirRvalueKind::Slice)
+      return lowerSlice(value, locals, error);
 
     if (mir_.symbols[value.callee].kind == SymbolKind::BuiltinFunction)
       return lowerPrint(value, locals, error);
@@ -277,22 +349,138 @@ private:
     return call;
   }
 
+  static std::uint32_t runtimeElementKind(Type element) {
+    switch (element) {
+    case Type::Int: return 1;
+    case Type::Float: return 2;
+    case Type::Bool: return 3;
+    case Type::Char: return 4;
+    case Type::String: return 5;
+    default: return 0;
+    }
+  }
+
+  static const char* runtimeElementSuffix(Type element) {
+    switch (element) {
+    case Type::Int: return "int";
+    case Type::Float: return "float";
+    case Type::Bool: return "bool";
+    case Type::Char: return "char";
+    case Type::String: return "string";
+    default: return "invalid";
+    }
+  }
+
+  llvm::Type* runtimeElementType(Type element) {
+    return element == Type::Bool ? llvm::Type::getInt8Ty(context_) : valueType(element);
+  }
+
+  bool lowerCollectionOperands(const MirRvalue& value,
+                               const std::vector<llvm::AllocaInst*>& locals,
+                               llvm::Value*& collection, llvm::Value*& first,
+                               llvm::Value*& second, std::string& error) {
+    collection = lowerOperand(value.left, locals, error);
+    first = lowerOperand(value.right, locals, error);
+    second = value.kind == MirRvalueKind::Slice
+                 ? lowerOperand(value.end, locals, error)
+                 : nullptr;
+    return collection && first && (value.kind != MirRvalueKind::Slice || second);
+  }
+
+  llvm::Value* lowerArray(const MirRvalue& value,
+                          const std::vector<llvm::AllocaInst*>& locals,
+                          std::string& error) {
+    const Type element = collectionElementType(value.type);
+    llvm::FunctionCallee constructor = module_->getOrInsertFunction(
+        "rocket_rt_array_new",
+        llvm::FunctionType::get(llvm::PointerType::getUnqual(context_),
+                                {llvm::Type::getInt32Ty(context_),
+                                 llvm::Type::getInt64Ty(context_)}, false));
+    llvm::Value* array = builder_.CreateCall(
+        constructor,
+        {builder_.getInt32(runtimeElementKind(element)),
+         llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), value.arguments.size())},
+        "array.new");
+
+    const std::string setterName =
+        std::string("rocket_rt_array_set_") + runtimeElementSuffix(element);
+    llvm::FunctionCallee setter = module_->getOrInsertFunction(
+        setterName,
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                {llvm::PointerType::getUnqual(context_),
+                                 llvm::Type::getInt64Ty(context_),
+                                 runtimeElementType(element)}, false));
+    for (std::size_t index = 0; index < value.arguments.size(); ++index) {
+      llvm::Value* elementValue = lowerOperand(value.arguments[index], locals, error);
+      if (!elementValue) return nullptr;
+      if (element == Type::Bool)
+        elementValue = builder_.CreateZExt(elementValue, llvm::Type::getInt8Ty(context_),
+                                           "array.bool");
+      builder_.CreateCall(
+          setter,
+          {array, llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), index),
+           elementValue});
+    }
+    return array;
+  }
+
+  llvm::Value* lowerIndex(const MirRvalue& value,
+                          const std::vector<llvm::AllocaInst*>& locals,
+                          std::string& error) {
+    llvm::Value* collection = nullptr;
+    llvm::Value* index = nullptr;
+    llvm::Value* unused = nullptr;
+    if (!lowerCollectionOperands(value, locals, collection, index, unused, error))
+      return nullptr;
+    const std::string functionName =
+        std::string("rocket_rt_index_") + runtimeElementSuffix(value.type);
+    llvm::FunctionCallee getter = module_->getOrInsertFunction(
+        functionName,
+        llvm::FunctionType::get(runtimeElementType(value.type),
+                                {llvm::PointerType::getUnqual(context_),
+                                 llvm::Type::getInt64Ty(context_)}, false));
+    llvm::Value* result = builder_.CreateCall(getter, {collection, index}, "index");
+    if (value.type == Type::Bool)
+      return builder_.CreateTrunc(result, llvm::Type::getInt1Ty(context_), "index.bool");
+    return result;
+  }
+
+  llvm::Value* lowerSlice(const MirRvalue& value,
+                          const std::vector<llvm::AllocaInst*>& locals,
+                          std::string& error) {
+    llvm::Value* collection = nullptr;
+    llvm::Value* start = nullptr;
+    llvm::Value* end = nullptr;
+    if (!lowerCollectionOperands(value, locals, collection, start, end, error))
+      return nullptr;
+    llvm::FunctionCallee constructor = module_->getOrInsertFunction(
+        "rocket_rt_slice_new",
+        llvm::FunctionType::get(llvm::PointerType::getUnqual(context_),
+                                {llvm::PointerType::getUnqual(context_),
+                                 llvm::Type::getInt64Ty(context_),
+                                 llvm::Type::getInt64Ty(context_)}, false));
+    return builder_.CreateCall(constructor, {collection, start, end}, "slice.new");
+  }
+
   llvm::Value* lowerBinary(const MirRvalue& value, llvm::Value* left, llvm::Value* right,
                            std::string& error) {
     const bool floating = value.left.type == Type::Float;
     switch (value.op) {
     case TokenKind::Plus:
       return floating ? builder_.CreateFAdd(left, right, "fadd")
-                      : builder_.CreateAdd(left, right, "add");
+                      : lowerCheckedInteger(llvm::Intrinsic::sadd_with_overflow,
+                                            left, right, "add");
     case TokenKind::Minus:
       return floating ? builder_.CreateFSub(left, right, "fsub")
-                      : builder_.CreateSub(left, right, "sub");
+                      : lowerCheckedInteger(llvm::Intrinsic::ssub_with_overflow,
+                                            left, right, "sub");
     case TokenKind::Star:
       return floating ? builder_.CreateFMul(left, right, "fmul")
-                      : builder_.CreateMul(left, right, "mul");
+                      : lowerCheckedInteger(llvm::Intrinsic::smul_with_overflow,
+                                            left, right, "mul");
     case TokenKind::Slash:
       return floating ? builder_.CreateFDiv(left, right, "fdiv")
-                      : builder_.CreateSDiv(left, right, "div");
+                      : lowerCheckedDivision(left, right);
     case TokenKind::EqualEqual:
     case TokenKind::BangEqual:
       return lowerEquality(value.op, value.left.type, left, right);
@@ -314,6 +502,52 @@ private:
     }
   }
 
+  void guardRuntimeFailure(llvm::Value* failed, const char* runtimeFunction,
+                           const char* label) {
+    llvm::Function* function = builder_.GetInsertBlock()->getParent();
+    llvm::BasicBlock* failure = llvm::BasicBlock::Create(
+        context_, std::string(label) + ".fail", function);
+    llvm::BasicBlock* continuation = llvm::BasicBlock::Create(
+        context_, std::string(label) + ".ok", function);
+    builder_.CreateCondBr(failed, failure, continuation);
+    builder_.SetInsertPoint(failure);
+    llvm::FunctionCallee panic = module_->getOrInsertFunction(
+        runtimeFunction,
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context_), false));
+    builder_.CreateCall(panic, {});
+    builder_.CreateUnreachable();
+    builder_.SetInsertPoint(continuation);
+  }
+
+  llvm::Value* lowerCheckedInteger(llvm::Intrinsic::ID intrinsic, llvm::Value* left,
+                                   llvm::Value* right, const char* name) {
+    llvm::Function* operation = llvm::Intrinsic::getOrInsertDeclaration(
+        module_.get(), intrinsic, {llvm::Type::getInt64Ty(context_)});
+    llvm::Value* pair = builder_.CreateCall(operation, {left, right},
+                                            std::string(name) + ".checked");
+    llvm::Value* result = builder_.CreateExtractValue(pair, {0}, name);
+    llvm::Value* overflow = builder_.CreateExtractValue(pair, {1},
+                                                        std::string(name) + ".overflow");
+    guardRuntimeFailure(overflow, "rocket_rt_panic_integer_overflow", name);
+    return result;
+  }
+
+  llvm::Value* lowerCheckedDivision(llvm::Value* left, llvm::Value* right) {
+    llvm::Value* zero = builder_.CreateICmpEQ(
+        right, llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), 0), "div.zero");
+    guardRuntimeFailure(zero, "rocket_rt_panic_division_by_zero", "div.zero");
+    llvm::Value* minimum = builder_.CreateICmpEQ(
+        left, llvm::ConstantInt::getSigned(llvm::Type::getInt64Ty(context_),
+                                           std::numeric_limits<std::int64_t>::min()),
+        "div.minimum");
+    llvm::Value* negativeOne = builder_.CreateICmpEQ(
+        right, llvm::ConstantInt::getSigned(llvm::Type::getInt64Ty(context_), -1),
+        "div.negative_one");
+    guardRuntimeFailure(builder_.CreateAnd(minimum, negativeOne, "div.overflow"),
+                        "rocket_rt_panic_integer_overflow", "div.overflow");
+    return builder_.CreateSDiv(left, right, "div");
+  }
+
   llvm::Value* lowerEquality(TokenKind op, Type type, llvm::Value* left,
                              llvm::Value* right) {
     const bool equal = op == TokenKind::EqualEqual;
@@ -323,14 +557,15 @@ private:
       return equal ? builder_.CreateFCmpOEQ(left, right, "feq")
                    : builder_.CreateFCmpUNE(left, right, "fne");
     if (type == Type::String) {
-      llvm::FunctionCallee strcmpFunction = module_->getOrInsertFunction(
-          "strcmp", llvm::FunctionType::get(llvm::Type::getInt32Ty(context_),
-                                             {llvm::PointerType::getUnqual(context_),
-                                              llvm::PointerType::getUnqual(context_)},
-                                             false));
-      llvm::Value* comparison = builder_.CreateCall(strcmpFunction, {left, right}, "strcmp");
-      return equal ? builder_.CreateICmpEQ(comparison, builder_.getInt32(0), "streq")
-                   : builder_.CreateICmpNE(comparison, builder_.getInt32(0), "strne");
+      llvm::FunctionCallee equality = module_->getOrInsertFunction(
+          "rocket_rt_string_equal",
+          llvm::FunctionType::get(llvm::Type::getInt8Ty(context_),
+                                  {llvm::PointerType::getUnqual(context_),
+                                   llvm::PointerType::getUnqual(context_)},
+                                  false));
+      llvm::Value* comparison = builder_.CreateCall(equality, {left, right}, "string.equal");
+      llvm::Value* isEqual = builder_.CreateICmpNE(comparison, builder_.getInt8(0), "streq");
+      return equal ? isEqual : builder_.CreateNot(isEqual, "strne");
     }
     return equal ? builder_.CreateICmpEQ(left, right, "eq")
                  : builder_.CreateICmpNE(left, right, "ne");
@@ -343,35 +578,61 @@ private:
     llvm::Value* lowered = lowerOperand(argument, locals, error);
     if (!lowered) return nullptr;
 
-    const char* format = nullptr;
+    const char* runtimeFunction = nullptr;
+    llvm::Type* runtimeArgumentType = nullptr;
     switch (argument.type) {
-    case Type::Int: format = "%lld\n"; break;
-    case Type::Float: format = "%g\n"; break;
+    case Type::Int:
+      runtimeFunction = "rocket_rt_print_int";
+      runtimeArgumentType = llvm::Type::getInt64Ty(context_);
+      break;
+    case Type::Float:
+      runtimeFunction = "rocket_rt_print_float";
+      runtimeArgumentType = llvm::Type::getDoubleTy(context_);
+      break;
     case Type::Bool:
-      format = "%d\n";
-      lowered = builder_.CreateZExt(lowered, llvm::Type::getInt32Ty(context_), "bool.print");
+      runtimeFunction = "rocket_rt_print_bool";
+      runtimeArgumentType = llvm::Type::getInt8Ty(context_);
+      lowered = builder_.CreateZExt(lowered, runtimeArgumentType, "bool.print");
       break;
     case Type::Char:
-      format = "%c\n";
-      lowered = builder_.CreateZExt(lowered, llvm::Type::getInt32Ty(context_), "char.print");
+      runtimeFunction = "rocket_rt_print_char";
+      runtimeArgumentType = llvm::Type::getInt8Ty(context_);
       break;
-    case Type::String: format = "%s\n"; break;
+    case Type::String:
+      runtimeFunction = "rocket_rt_print_string";
+      runtimeArgumentType = llvm::PointerType::getUnqual(context_);
+      break;
     case Type::Unit:
-      format = "()\n";
+      runtimeFunction = "rocket_rt_print_unit";
       break;
+    case Type::ArrayInt:
+    case Type::ArrayFloat:
+    case Type::ArrayBool:
+    case Type::ArrayChar:
+    case Type::ArrayString:
+    case Type::SliceInt:
+    case Type::SliceFloat:
+    case Type::SliceBool:
+    case Type::SliceChar:
+    case Type::SliceString:
+      error = "aggregate print reached LLVM lowering";
+      return nullptr;
     case Type::Invalid:
       error = "invalid print argument reached LLVM lowering";
       return nullptr;
     }
 
-    llvm::FunctionCallee printfFunction = module_->getOrInsertFunction(
-        "printf", llvm::FunctionType::get(llvm::Type::getInt32Ty(context_),
-                                           {llvm::PointerType::getUnqual(context_)}, true));
-    llvm::Value* formatString = builder_.CreateGlobalString(format, "fmt", 0, module_.get());
-    if (argument.type == Type::Unit)
-      builder_.CreateCall(printfFunction, {formatString});
-    else
-      builder_.CreateCall(printfFunction, {formatString, lowered});
+    if (argument.type == Type::Unit) {
+      llvm::FunctionCallee print = module_->getOrInsertFunction(
+          runtimeFunction, llvm::FunctionType::get(llvm::Type::getVoidTy(context_), false));
+      builder_.CreateCall(print, {});
+    } else {
+      llvm::FunctionCallee print = module_->getOrInsertFunction(
+          runtimeFunction,
+          llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                  {runtimeArgumentType}, false));
+      builder_.CreateCall(print, {lowered});
+    }
     return zero(Type::Unit);
   }
 
