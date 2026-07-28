@@ -31,15 +31,15 @@ Implemented:
 
 - Indentation-aware lexer with line/column locations.
 - Parser and AST for functions, bindings, assignment, `if`/`else`, `while`, integer `for` ranges, loop control, returns, calls, arithmetic, comparisons, logical operators, and scalar literals.
-- Semantic checks for `Int`, `Float`, `Bool`, `Char`, `String`, `Unit`, scopes, mutability, loop context, function calls, local inference, and basic return analysis.
-- Temporary C++ transpiler for `rocketc check`, `build`, `run`, and `emit-asm`.
-- Hello World, recursive Fibonacci, lexer/parser/sema/codegen suites, a golden diagnostic fixture, and a CLI check test.
+- Resolved HIR with deterministic declaration symbols, lexical name resolution, resolved calls, and checked expression types.
+- Typed, basic-block MIR with explicit locals, operations, short-circuit branches, loop edges, and terminators, plus structural/type verification.
+- Temporary MIR-to-C++ backend for `rocketc check`, `build`, `run`, and `emit-asm`.
+- Hello World, recursive Fibonacci, lexer/parser/sema/HIR/MIR/codegen suites, a golden diagnostic fixture, and CLI checks.
 - Pinned LLVM 22.1.6, Ninja 1.13.1, and MSVC Windows x64 development setup.
 
 Not implemented yet:
 
 - Complete control-flow return analysis and a broader golden diagnostic catalog.
-- Typed HIR/MIR.
 - LLVM IR lowering; `emit-ir` is currently a stub.
 - Runtime ABI, ARC, arrays, structs, enums, generics, modules, `Option`, `Result`, standard library, formatter, test runner, package layout, editor support, and self-hosting.
 
@@ -118,15 +118,26 @@ Known limitations remain those in the implementation-state list above; no langua
 - Verified Debug and Release builds; each configuration passed all 6 CTest tests.
 - Smoke-tested the MSVC-built Debug CLI across all Phase 2 features (output: `29`, `1.5`, `R`).
 
+**Phase 3 - compiler architecture**
+
+- Specified the resolved HIR and typed MIR invariants in `COMPILER_ARCHITECTURE.md` and recorded decision D007.
+- Added deterministic `SymbolId` allocation, lexical resolution, declaration-bound calls, and checked types on every HIR expression.
+- Added typed MIR locals, instructions, basic blocks, explicit branches, loop edges, returns, and a verifier for symbol, local, type, call, and control-flow invariants.
+- Lowered `and` and `or` into explicit short-circuit control flow and fixed range-bound evaluation to once, left-to-right, before iteration.
+- Moved the temporary C++ bootstrap backend from raw AST consumption to verified MIR consumption.
+- Added focused HIR and MIR suites and updated bootstrap-codegen regression coverage; Debug and Release each pass all 8 CTest tests.
+- Verified the pinned LLVM 22.1.6, Ninja 1.13.1, MSVC 19.51.36252, CMake 4.3.2, and Git 2.54.0 toolchain.
+- Smoke-tested Hello World, recursive Fibonacci (output: `55`), and MIR-lowered scalar control flow (output: `8`, `2`).
+
 ## Current next task
 
-**Phase 3: introduce resolved HIR and typed MIR.**
+**Phase 4: implement the scalar LLVM backend.**
 
-- Specify stable resolved symbols and the HIR/MIR invariants before implementation.
-- Lower parsed AST into resolved HIR with every name and call bound to a declaration.
-- Lower typed HIR into control-flow-oriented MIR with explicit locals, operations, branches, loops, and returns.
-- Move bootstrap code generation to consume MIR rather than the raw AST.
-- Add focused resolution, typing, MIR-shape, and regression tests.
+- Define scalar LLVM type and ABI mappings over the existing typed MIR.
+- Lower MIR functions, locals, operations, calls, branches, and returns into LLVM IR.
+- Implement `emit-ir`, optimization, object emission, native linking, and LLVM-backed `build`, `run`, and `emit-asm`.
+- Keep the C++ backend isolated as a stage0 bootstrap fallback, while retiring production reliance on it.
+- Add IR-shape, native execution, optimization, CLI, and regression tests.
 - Update the decision journal, specification where observable behavior changes, and this handoff after the milestone.
 
 ## New-chat prompt

@@ -2,7 +2,7 @@
 
 Rocket is an experimental, beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the compiler is designed to produce native code through LLVM.
 
-This repository currently contains the first vertical slice: an indentation-aware frontend, basic semantic analysis, diagnostics, and a temporary C++ bootstrap backend. LLVM 22.1.6 is pinned and verified for development, but LLVM IR lowering has not yet been implemented; the bootstrap backend is not the intended final architecture.
+This repository currently contains an indentation-aware frontend, resolved and typed HIR, verified control-flow MIR, diagnostics, and a temporary C++ bootstrap backend that consumes MIR. LLVM 22.1.6 is pinned and verified for development, but LLVM IR lowering has not yet been implemented; the bootstrap backend is not the intended final architecture.
 
 ## Current language subset
 

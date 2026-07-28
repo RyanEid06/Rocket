@@ -1,4 +1,4 @@
-# Rocket Language Specification - Draft 0.2
+# Rocket Language Specification - Draft 0.3
 
 This document freezes the syntax implemented by the first compiler slice. Later incompatible changes require a recorded design decision.
 
@@ -42,7 +42,7 @@ for index in 0..10:
     print(index)
 ```
 
-Conditions must have type `Bool`. A range uses integer bounds and excludes its end (`0..10` produces 0 through 9). The loop variable is an immutable `Int`; `break` and `continue` are valid only inside loop bodies. Every non-`Unit` function must return a value on every path; complete control-flow proof is scheduled for semantic milestone 2.
+Conditions must have type `Bool`. A range uses integer bounds and excludes its end (`0..10` produces 0 through 9). Both bounds are evaluated once, from left to right, before iteration. The loop variable is an immutable `Int`; `break` and `continue` are valid only inside loop bodies. Every non-`Unit` function must return a value on every path; complete control-flow proof is scheduled for semantic milestone 2.
 
 ## Expressions
 

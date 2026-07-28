@@ -23,3 +23,13 @@
 ## D006 - Scalar control-flow slice
 
 **Accepted.** Assignment is restricted to existing `var` bindings and must preserve their inferred type. Integer `for` ranges use `start..end` with an exclusive end; loop variables are immutable. `break` and `continue` are loop-only statements. `Float` is a distinct scalar type with no implicit conversion from `Int`, and `Char` is a single escaped byte literal in the stage0 bootstrap implementation.
+
+## D007 - Resolved HIR and typed control-flow MIR
+
+**Accepted.** The parsed AST remains a syntax-only representation. Resolution and
+type checking produce HIR whose declarations have deterministic `SymbolId`
+values and whose expressions carry checked types. HIR lowers into typed,
+basic-block MIR with explicit locals, instructions, branches, loop edges, and
+returns. All backends, including the temporary C++ bootstrap backend, consume
+verified MIR. Integer range bounds are evaluated once from left to right before
+iteration. See `COMPILER_ARCHITECTURE.md` for the representation invariants.

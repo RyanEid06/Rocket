@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ast.h"
+#include "mir.h"
 
 #include <ostream>
 #include <string>
@@ -9,22 +9,23 @@ namespace rocket {
 
 class BootstrapCodeGenerator {
 public:
-  explicit BootstrapCodeGenerator(const Module& module) : module_(module) {}
+  explicit BootstrapCodeGenerator(const MirModule& module) : module_(module) {}
   std::string generate() const;
 
 private:
-  void emitFunction(std::ostream& out, const Function& function) const;
-  void emitBlock(std::ostream& out, const std::vector<std::unique_ptr<Stmt>>& body,
-                 int indentation) const;
-  void emitStatement(std::ostream& out, const Stmt& statement, int indentation) const;
-  void emitExpression(std::ostream& out, const Expr& expression) const;
-  static std::string cppType(const std::string& type);
+  void emitFunction(std::ostream& out, const MirFunction& function) const;
+  void emitInstruction(std::ostream& out, const MirInstruction& instruction) const;
+  void emitTerminator(std::ostream& out, const MirTerminator& terminator,
+                      Type functionResult) const;
+  void emitRvalue(std::ostream& out, const MirRvalue& value) const;
+  void emitOperand(std::ostream& out, const MirOperand& operand) const;
+  static std::string cppType(Type type);
   static std::string escaped(const std::string& text);
   static std::string escapedCharacter(const std::string& text);
-  static std::string functionName(const std::string& name);
-  static std::string variableName(const std::string& name);
+  std::string functionName(SymbolId symbol) const;
+  static std::string localName(MirLocalId local);
 
-  const Module& module_;
+  const MirModule& module_;
 };
 
 } // namespace rocket

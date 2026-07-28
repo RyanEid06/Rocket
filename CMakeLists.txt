@@ -13,7 +13,10 @@ endif()
 add_library(rocketc_core
   src/lexer.cpp
   src/parser.cpp
+  src/type.cpp
+  src/hir.cpp
   src/sema.cpp
+  src/mir.cpp
   src/codegen.cpp
 )
 target_include_directories(rocketc_core PUBLIC src)
@@ -24,7 +27,7 @@ else()
 endif()
 
 if(LLVM_FOUND)
-  message(STATUS "LLVM ${LLVM_PACKAGE_VERSION} found; the bootstrap backend remains active until scalar LLVM lowering is implemented")
+  message(STATUS "LLVM ${LLVM_PACKAGE_VERSION} found; the bootstrap backend remains active until the Phase 4 scalar LLVM lowering is implemented")
   target_compile_definitions(rocketc_core PUBLIC ROCKETC_LLVM_DISCOVERED=1)
 else()
   message(STATUS "LLVM not found; using the milestone bootstrap C++ backend")
@@ -43,6 +46,8 @@ endfunction()
 add_rocketc_test(lexer)
 add_rocketc_test(parser)
 add_rocketc_test(sema)
+add_rocketc_test(hir)
+add_rocketc_test(mir)
 add_rocketc_test(codegen)
 add_rocketc_test(diagnostics)
 

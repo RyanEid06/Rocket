@@ -1,5 +1,6 @@
 #include "codegen.h"
 #include "lexer.h"
+#include "mir.h"
 #include "parser.h"
 #include "sema.h"
 
@@ -7,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -29,6 +31,8 @@ bool readFile(const fs::path& path, std::string& result) {
 struct Compilation {
   rocket::Diagnostics diagnostics;
   rocket::Module module;
+  std::optional<rocket::HirModule> hir;
+  std::optional<rocket::MirModule> mir;
 };
 
 Compilation compileFrontend(const fs::path& path) {
@@ -44,7 +48,17 @@ Compilation compileFrontend(const fs::path& path) {
   result.module = parser.parseModule();
   if (!result.diagnostics.hasErrors()) {
     rocket::SemanticAnalyzer analyzer(result.module, result.diagnostics);
-    analyzer.analyze();
+    result.hir = analyzer.analyzeToHir();
+  }
+  if (result.hir.has_value()) {
+    rocket::MirLowerer lowerer(*result.hir);
+    result.mir = lowerer.lower();
+    std::string verifierError;
+    if (!rocket::verifyMir(*result.mir, verifierError)) {
+      result.diagnostics.error({path.string(), 1, 1},
+                               "internal MIR verification failed: " + verifierError);
+      result.mir.reset();
+    }
   }
   return result;
 }
@@ -92,9 +106,9 @@ int main(int argc, char** argv) {
   }
   if (command == "emit-ir") {
 #ifdef ROCKETC_LLVM_DISCOVERED
-    std::cerr << "rocketc: LLVM was discovered, but IR lowering is scheduled for milestone 5\n";
+    std::cerr << "rocketc: LLVM was discovered, but IR lowering is scheduled for Phase 4\n";
 #else
-    std::cerr << "rocketc: LLVM is not installed; emit-ir requires the milestone 5 LLVM backend\n";
+    std::cerr << "rocketc: LLVM is not installed; emit-ir requires the Phase 4 LLVM backend\n";
 #endif
     return 2;
   }
@@ -102,7 +116,7 @@ int main(int argc, char** argv) {
     usage(); return 2;
   }
 
-  rocket::BootstrapCodeGenerator generator(compilation.module);
+  rocket::BootstrapCodeGenerator generator(*compilation.mir);
   fs::path generatedPath;
   if (!writeGenerated(sourcePath, generator.generate(), generatedPath)) {
     std::cerr << "rocketc: could not write bootstrap backend output\n";
