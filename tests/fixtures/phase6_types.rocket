@@ -1,0 +1,50 @@
+struct Pair[T]:
+    first: T
+    second: T
+
+enum Message:
+    Number(Int)
+    Text(String)
+
+fn identity[T](value: T) -> T:
+    return value
+
+fn maybe_number(present: Bool) -> Option[Int]:
+    if present:
+        return Some(42)
+    return None()
+
+fn read_number(valid: Bool) -> Result[Int, String]:
+    if valid:
+        return Ok(9)
+    return Err("invalid")
+
+fn increment(valid: Bool) -> Result[Int, String]:
+    let value = read_number(valid)?
+    return Ok(value + 1)
+
+fn main() -> Int:
+    let pair = Pair(10, 20)
+    print(pair.first)
+    let pairs: Array[Pair[Int]] = [pair]
+    print(pairs[0].second)
+    print(identity("generic"))
+    let maybe = maybe_number(true)
+    match maybe:
+        case Some(value):
+            print(value)
+        case None:
+            print(0)
+    let result = increment(true)
+    match result:
+        case Ok(value):
+            print(value)
+        case Err(message):
+            print(message)
+    let message = Text("matched")
+    match message:
+        case Number(value):
+            print(value)
+        case Text(text):
+            print(text)
+    return 0

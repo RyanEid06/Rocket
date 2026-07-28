@@ -68,6 +68,35 @@ int main() {
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
                        "scalar Array storage is destroyed deterministically", failures);
 
+  RocketString* aggregateText = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("payload"), 7);
+  RocketAggregate* aggregate = rocket_rt_aggregate_new(3, 3, std::uint64_t{1} << 2);
+  rocket_rt_aggregate_set_int(aggregate, 0, 42);
+  rocket_rt_aggregate_set_float(aggregate, 1, 1.5);
+  rocket_rt_aggregate_set_managed(aggregate, 2, aggregateText);
+  rocket_rt_release(aggregateText);
+  rocket::test::expect(rocket_rt_aggregate_tag(aggregate) == 3 &&
+                           rocket_rt_aggregate_get_int(aggregate, 0) == 42 &&
+                           rocket_rt_aggregate_get_float(aggregate, 1) == 1.5,
+                       "aggregate runtime preserves tags and scalar fields", failures);
+  void* aggregatePayload = rocket_rt_aggregate_get_managed(aggregate, 2);
+  rocket::test::expect(rocket_rt_string_byte_length(
+                           static_cast<RocketString*>(aggregatePayload)) == 7,
+                       "managed aggregate fields return an owned value", failures);
+  RocketArray* aggregates = rocket_rt_array_new(ROCKET_ELEMENT_MANAGED, 1);
+  rocket_rt_array_set_managed(aggregates, 0, aggregate);
+  rocket_rt_release(aggregate);
+  void* indexedAggregate = rocket_rt_index_managed(aggregates, 0);
+  rocket::test::expect(rocket_rt_aggregate_tag(
+                           static_cast<RocketAggregate*>(indexedAggregate)) == 3,
+                       "collections retain nested aggregate elements", failures);
+  rocket_rt_release(aggregatePayload);
+  rocket_rt_release(indexedAggregate);
+  rocket_rt_release(aggregates);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "aggregate destruction releases managed fields and nested collections",
+                       failures);
+
   for (std::int64_t iteration = 0; iteration < 10000; ++iteration) {
     RocketString* value = rocket_rt_string_new(
         reinterpret_cast<const std::uint8_t*>("stress"), 6);
@@ -79,8 +108,16 @@ int main() {
     RocketString* throughSlice = rocket_rt_index_string(slice, 0);
     rocket_rt_release(throughSlice);
     rocket_rt_release(slice);
+
+    RocketString* field = rocket_rt_string_new(
+        reinterpret_cast<const std::uint8_t*>("field"), 5);
+    RocketAggregate* aggregateValue = rocket_rt_aggregate_new(0, 1, 1);
+    rocket_rt_aggregate_set_managed(aggregateValue, 0, field);
+    rocket_rt_release(field);
+    rocket_rt_release(aggregateValue);
   }
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
-                       "allocation stress leaves no String, Array, or Slice leaks", failures);
+                       "allocation stress leaves no String, Array, Slice, or aggregate leaks",
+                       failures);
   return rocket::test::finish(failures, "runtime");
 }

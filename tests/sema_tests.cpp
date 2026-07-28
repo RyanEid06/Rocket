@@ -121,5 +121,30 @@ int main() {
   literalRangeAnalyzer.analyze();
   rocket::test::expect(literalRangeDiagnostics.hasErrors(),
                        "out-of-range Int literals are rejected", failures);
+
+  rocket::Diagnostics matchDiagnostics;
+  auto matchModule = rocket::test::parse(
+      "fn main() -> Int:\n"
+      "    let value: Option[Int] = Some(1)\n"
+      "    match value:\n"
+      "        case Some(number):\n"
+      "            return number\n",
+      matchDiagnostics);
+  rocket::SemanticAnalyzer matchAnalyzer(matchModule, matchDiagnostics);
+  matchAnalyzer.analyze();
+  rocket::test::expect(matchDiagnostics.hasErrors(),
+                       "non-exhaustive enum matches are rejected", failures);
+
+  rocket::Diagnostics propagationDiagnostics;
+  auto propagationModule = rocket::test::parse(
+      "fn bad(value: Result[Int, String]) -> Int:\n"
+      "    return value?\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      propagationDiagnostics);
+  rocket::SemanticAnalyzer propagationAnalyzer(propagationModule, propagationDiagnostics);
+  propagationAnalyzer.analyze();
+  rocket::test::expect(propagationDiagnostics.hasErrors(),
+                       "error propagation requires a compatible function return type", failures);
   return rocket::test::finish(failures, "sema");
 }

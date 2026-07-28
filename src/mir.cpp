@@ -85,6 +85,34 @@ MirRvalue MirRvalue::slice(Type type, MirOperand collection, MirOperand start,
   return result;
 }
 
+MirRvalue MirRvalue::aggregate(Type type, std::uint32_t declaration, std::uint32_t tag,
+                               std::vector<MirOperand> arguments) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::Aggregate;
+  result.type = std::move(type);
+  result.declaration = declaration;
+  result.tag = tag;
+  result.arguments = std::move(arguments);
+  return result;
+}
+
+MirRvalue MirRvalue::field(Type type, MirOperand aggregate, std::uint32_t field) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::Field;
+  result.type = std::move(type);
+  result.left = std::move(aggregate);
+  result.tag = field;
+  return result;
+}
+
+MirRvalue MirRvalue::tagOf(MirOperand aggregate) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::Tag;
+  result.type = Type::Int;
+  result.left = std::move(aggregate);
+  return result;
+}
+
 MirInstruction MirInstruction::assign(MirLocalId destination, MirRvalue value) {
   MirInstruction result;
   result.kind = MirInstructionKind::Assign;
@@ -134,6 +162,7 @@ MirTerminator MirTerminator::returnValue(std::optional<MirOperand> returned) {
 MirModule MirLowerer::lower() {
   mir_ = {};
   mir_.symbols = hir_.symbols;
+  mir_.typeDeclarations = hir_.typeDeclarations;
   for (const auto& function : hir_.functions)
     mir_.functions.push_back(lowerFunction(function));
   function_ = nullptr;
@@ -276,6 +305,47 @@ std::optional<MirBlockId> MirLowerer::lowerStatement(const HirStmt& statement,
   case HirStmtKind::Continue:
     terminate(current, MirTerminator::goTo(loops_.back().continueTarget));
     return std::nullopt;
+  case HirStmtKind::Match: {
+    const auto& match = static_cast<const HirMatchStmt&>(statement);
+    MirOperand matched = lowerExpression(*match.value, current);
+    matched = materialize(current, std::move(matched));
+    std::vector<MirBlockId> liveArms;
+    MirBlockId testBlock = current;
+    for (std::size_t index = 0; index < match.cases.size(); ++index) {
+      const auto& matchCase = match.cases[index];
+      const MirBlockId bodyBlock = addBlock();
+      const bool finalCase = index + 1 == match.cases.size();
+      if (!matchCase.tag.has_value() || finalCase) {
+        terminate(testBlock, MirTerminator::goTo(bodyBlock));
+      } else {
+        const MirLocalId tag = addInstruction(testBlock, MirRvalue::tagOf(matched));
+        const MirLocalId matches = addInstruction(
+            testBlock, MirRvalue::binary(
+                           Type::Bool, TokenKind::EqualEqual,
+                           MirOperand::localValue(Type::Int, tag),
+                           MirOperand::constantValue(Type::Int,
+                                                     std::to_string(*matchCase.tag))));
+        const MirBlockId nextTest = addBlock();
+        terminate(testBlock,
+                  MirTerminator::branch(MirOperand::localValue(Type::Bool, matches),
+                                        bodyBlock, nextTest));
+        testBlock = nextTest;
+      }
+      for (std::size_t field = 0; field < matchCase.bindings.size(); ++field) {
+        const SymbolId symbol = matchCase.bindings[field];
+        addInstruction(bodyBlock,
+                       MirRvalue::field(hir_.symbol(symbol).type, matched,
+                                        static_cast<std::uint32_t>(field)),
+                       localForSymbol(symbol));
+      }
+      auto bodyEnd = lowerBlock(matchCase.body, bodyBlock);
+      if (bodyEnd.has_value()) liveArms.push_back(*bodyEnd);
+    }
+    if (liveArms.empty()) return std::nullopt;
+    const MirBlockId join = addBlock();
+    for (const MirBlockId arm : liveArms) terminate(arm, MirTerminator::goTo(join));
+    return join;
+  }
   }
   return current;
 }
@@ -346,6 +416,61 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
         current, MirRvalue::slice(slice.type, std::move(collection), std::move(start),
                                   std::move(end)));
     return MirOperand::localValue(slice.type, result);
+  }
+  case HirExprKind::Aggregate: {
+    const auto& aggregate = static_cast<const HirAggregateExpr&>(expression);
+    std::vector<MirOperand> arguments;
+    for (const auto& argument : aggregate.arguments)
+      arguments.push_back(lowerExpression(*argument, current));
+    const MirLocalId result = addInstruction(
+        current, MirRvalue::aggregate(aggregate.type, aggregate.declaration,
+                                     aggregate.tag, std::move(arguments)));
+    return MirOperand::localValue(aggregate.type, result);
+  }
+  case HirExprKind::Field: {
+    const auto& field = static_cast<const HirFieldExpr&>(expression);
+    MirOperand value = lowerExpression(*field.value, current);
+    const MirLocalId result = addInstruction(
+        current, MirRvalue::field(field.type, std::move(value), field.field));
+    return MirOperand::localValue(field.type, result);
+  }
+  case HirExprKind::Propagate: {
+    const auto& propagate = static_cast<const HirPropagateExpr&>(expression);
+    MirOperand value = lowerExpression(*propagate.value, current);
+    value = materialize(current, std::move(value));
+    const MirLocalId tag = addInstruction(current, MirRvalue::tagOf(value));
+    const MirLocalId success = addInstruction(
+        current, MirRvalue::binary(Type::Bool, TokenKind::EqualEqual,
+                                   MirOperand::localValue(Type::Int, tag),
+                                   MirOperand::constantValue(Type::Int, "0")));
+    const MirBlockId successBlock = addBlock();
+    const MirBlockId failureBlock = addBlock();
+    const MirBlockId joinBlock = addBlock();
+    terminate(current,
+              MirTerminator::branch(MirOperand::localValue(Type::Bool, success),
+                                    successBlock, failureBlock));
+
+    std::vector<MirOperand> failurePayload;
+    if (propagate.functionResult.declaration == "Result") {
+      const Type errorType = propagate.value->type.arguments[1];
+      const MirLocalId error = addInstruction(
+          failureBlock, MirRvalue::field(errorType, value, 0));
+      failurePayload.push_back(MirOperand::localValue(errorType, error));
+    }
+    const MirLocalId failure = addInstruction(
+        failureBlock,
+        MirRvalue::aggregate(propagate.functionResult, propagate.declaration, 1,
+                             std::move(failurePayload)));
+    MirOperand returned = MirOperand::localValue(propagate.functionResult, failure);
+    addRetain(failureBlock, returned);
+    releaseOwnedLocals(failureBlock);
+    terminate(failureBlock, MirTerminator::returnValue(returned));
+
+    const MirLocalId payload = addInstruction(
+        successBlock, MirRvalue::field(propagate.type, value, 0));
+    terminate(successBlock, MirTerminator::goTo(joinBlock));
+    current = joinBlock;
+    return MirOperand::localValue(propagate.type, payload);
   }
   }
   return MirOperand::constantValue(Type::Invalid, "");
@@ -450,6 +575,26 @@ const char* operandText(const MirOperand& operand, std::ostringstream& out) {
   return "";
 }
 
+Type specializeType(const Type& pattern, const HirTypeDeclaration& declaration,
+                    const Type& concrete) {
+  if (pattern.kind == TypeKind::TypeParameter) {
+    for (std::size_t index = 0; index < declaration.typeParameters.size(); ++index)
+      if (declaration.typeParameters[index] == pattern.declaration)
+        return concrete.arguments[index];
+    return Type::Invalid;
+  }
+  Type result = pattern;
+  for (auto& argument : result.arguments)
+    argument = specializeType(argument, declaration, concrete);
+  return result;
+}
+
+const HirTypeDeclaration* declarationFor(const MirModule& module, const Type& type) {
+  for (const auto& declaration : module.typeDeclarations)
+    if (declaration.name == type.declaration) return &declaration;
+  return nullptr;
+}
+
 } // namespace
 
 bool verifyMir(const MirModule& module, std::string& error) {
@@ -535,6 +680,7 @@ bool verifyMir(const MirModule& module, std::string& error) {
           const bool validComparison = (ordering || equality) &&
                                        instruction.value.type == Type::Bool &&
                                        !isCollectionType(operandType) &&
+                                       !isAggregateType(operandType) &&
                                        (!ordering || operandType == Type::Int ||
                                         operandType == Type::Float);
           if (!validArithmetic && !validComparison) {
@@ -569,7 +715,7 @@ bool verifyMir(const MirModule& module, std::string& error) {
             }
           }
         } else if (instruction.value.kind == MirRvalueKind::Array) {
-          if (!isArrayType(instruction.value.type) || instruction.value.arguments.empty()) {
+          if (!isArrayType(instruction.value.type)) {
             error = "invalid Array construction"; return false;
           }
           const Type element = collectionElementType(instruction.value.type);
@@ -598,6 +744,69 @@ bool verifyMir(const MirModule& module, std::string& error) {
               collectionElementType(instruction.value.left.type) !=
                   collectionElementType(instruction.value.type)) {
             error = "invalid collection slice operation"; return false;
+          }
+        } else if (instruction.value.kind == MirRvalueKind::Aggregate) {
+          if (instruction.value.declaration >= module.typeDeclarations.size()) {
+            error = "aggregate construction has invalid declaration"; return false;
+          }
+          const auto& declaration = module.typeDeclarations[instruction.value.declaration];
+          const bool expectedStruct = declaration.kind == HirTypeDeclKind::Struct;
+          if (instruction.value.type.declaration != declaration.name ||
+              (expectedStruct && instruction.value.type.kind != TypeKind::Struct) ||
+              (!expectedStruct && instruction.value.type.kind != TypeKind::Enum)) {
+            error = "aggregate construction type does not match declaration"; return false;
+          }
+          const std::vector<Type>* patterns = nullptr;
+          std::vector<Type> structPatterns;
+          if (expectedStruct) {
+            if (instruction.value.tag != 0) {
+              error = "struct construction has nonzero tag"; return false;
+            }
+            for (const auto& field : declaration.fields) structPatterns.push_back(field.type);
+            patterns = &structPatterns;
+          } else {
+            if (instruction.value.tag >= declaration.variants.size()) {
+              error = "enum construction has invalid tag"; return false;
+            }
+            patterns = &declaration.variants[instruction.value.tag].payloadTypes;
+          }
+          if (instruction.value.arguments.size() != patterns->size()) {
+            error = "aggregate construction field count mismatch"; return false;
+          }
+          for (std::size_t index = 0; index < patterns->size(); ++index) {
+            if (!verifyOperand(instruction.value.arguments[index], function, error)) return false;
+            if (instruction.value.arguments[index].type !=
+                specializeType((*patterns)[index], declaration, instruction.value.type)) {
+              error = "aggregate construction field type mismatch"; return false;
+            }
+          }
+        } else if (instruction.value.kind == MirRvalueKind::Field) {
+          if (!verifyOperand(instruction.value.left, function, error) ||
+              !isAggregateType(instruction.value.left.type)) {
+            error = "invalid aggregate field operand"; return false;
+          }
+          const auto* declaration = declarationFor(module, instruction.value.left.type);
+          if (!declaration) { error = "field has unknown aggregate declaration"; return false; }
+          bool matchingField = false;
+          if (declaration->kind == HirTypeDeclKind::Struct) {
+            if (instruction.value.tag < declaration->fields.size())
+              matchingField = instruction.value.type == specializeType(
+                  declaration->fields[instruction.value.tag].type, *declaration,
+                  instruction.value.left.type);
+          } else {
+            for (const auto& variant : declaration->variants)
+              if (instruction.value.tag < variant.payloadTypes.size() &&
+                  instruction.value.type == specializeType(
+                      variant.payloadTypes[instruction.value.tag], *declaration,
+                      instruction.value.left.type))
+                matchingField = true;
+          }
+          if (!matchingField) { error = "aggregate field type mismatch"; return false; }
+        } else if (instruction.value.kind == MirRvalueKind::Tag) {
+          if (!verifyOperand(instruction.value.left, function, error) ||
+              instruction.value.left.type.kind != TypeKind::Enum ||
+              instruction.value.type != Type::Int) {
+            error = "invalid enum tag operation"; return false;
           }
         }
       }
@@ -663,6 +872,20 @@ std::string dumpMir(const MirModule& module) {
           out << "slice "; operandText(instruction.value.left, out);
           out << ' '; operandText(instruction.value.right, out);
           out << ' '; operandText(instruction.value.end, out);
+          break;
+        case MirRvalueKind::Aggregate:
+          out << "aggregate @" << module.typeDeclarations[instruction.value.declaration].name
+              << '#' << instruction.value.tag;
+          for (const auto& argument : instruction.value.arguments) {
+            out << ' '; operandText(argument, out);
+          }
+          break;
+        case MirRvalueKind::Field:
+          out << "field "; operandText(instruction.value.left, out);
+          out << '.' << instruction.value.tag;
+          break;
+        case MirRvalueKind::Tag:
+          out << "tag "; operandText(instruction.value.left, out);
           break;
         }
         out << " : " << typeName(instruction.value.type) << "\n";

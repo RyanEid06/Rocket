@@ -73,5 +73,29 @@ int main() {
   rocket::test::expect(arrayBinding.initializer->kind == rocket::ExprKind::Array &&
                            sliceBinding.initializer->kind == rocket::ExprKind::Slice,
                        "aggregate postfix syntax has explicit AST nodes", failures);
+
+  rocket::Diagnostics phase6Diagnostics;
+  auto phase6 = rocket::test::parse(
+      "struct Box[T]:\n"
+      "    value: T\n"
+      "enum Maybe[T]:\n"
+      "    Present(T)\n"
+      "    Missing\n"
+      "fn unwrap[T](value: T) -> T:\n"
+      "    return value\n"
+      "fn main() -> Int:\n"
+      "    let boxed: Box[Int] = Box(7)\n"
+      "    let result: Result[Int, String] = Ok(boxed.value)\n"
+      "    match result:\n"
+      "        case Ok(value):\n"
+      "            return value\n"
+      "        case Err(message):\n"
+      "            return 0\n",
+      phase6Diagnostics);
+  rocket::test::expect(!phase6Diagnostics.hasErrors() && phase6.structs.size() == 1 &&
+                           phase6.enums.size() == 1 && phase6.functions.size() == 2,
+                       "Phase 6 type declarations and generic functions parse", failures);
+  rocket::test::expect(phase6.functions[1].body[2]->kind == rocket::StmtKind::Match,
+                       "match cases have an explicit AST statement", failures);
   return rocket::test::finish(failures, "parser");
 }

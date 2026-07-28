@@ -8,6 +8,13 @@ $ninjaRoot = Join-Path $installedRoot $manifest.portable.ninja.installDirectory
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Visual Studio Installer was not found.' }
 $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+# Visual Studio can temporarily report an installed instance as incomplete
+# while its installer services refresh. The native tools remain usable in that
+# state, and `-all` is the documented way to include such instances.
+if (-not $vsPath) {
+    $vsPath = & $vswhere -all -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath |
+        Select-Object -First 1
+}
 if (-not $vsPath) { throw 'Microsoft C++ Build Tools are not installed.' }
 $devShell = Join-Path $vsPath 'Common7\Tools\Launch-VsDevShell.ps1'
 try {

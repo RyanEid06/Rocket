@@ -1,4 +1,4 @@
-# Rocket Language Specification - Draft 0.5
+# Rocket Language Specification - Draft 0.6
 
 This document freezes the syntax implemented by the first compiler slice. Later incompatible changes require a recorded design decision.
 
@@ -14,9 +14,11 @@ fn add(left: Int, right: Int) -> Int:
 ```
 
 Public function boundaries are explicit. Built-in types are `Int`, `Float`,
-`Bool`, `Char`, `String`, `Unit`, `Array[T]`, and `Slice[T]`. In this draft,
-collection element type `T` may be `Int`, `Float`, `Bool`, `Char`, or `String`.
-General nested types follow the generics milestone.
+`Bool`, `Char`, `String`, `Unit`, `Array[T]`, `Slice[T]`, `Option[T]`, and
+`Result[T, E]`. Type arguments nest without a fixed depth. User structs,
+enums, and functions may declare type parameters in brackets. Generic function
+calls infer every type argument from value arguments and are specialized to
+concrete functions before MIR lowering.
 
 Every executable module defines `fn main() -> Int`. Its result becomes the
 native process exit status. A `Unit` function returns with bare `return` or by
@@ -28,6 +30,7 @@ literal.
 ```rocket
 let name = "Ada"   # immutable
 var count = 0       # mutable
+let answer: Option[Int] = None()
 count = 1
 ```
 
@@ -82,8 +85,9 @@ let scores = [10, 20, 30, 40]       # Array[Int]
 let names = ["Ada", "Grace"]       # Array[String]
 ```
 
-Every element must have exactly the same type. Empty literals and nested
-collection element types wait for general type inference and generics.
+Every element must have exactly the same type. Nested managed values are
+supported. An empty literal is valid when an `Array[T]` type is supplied by a
+binding, argument, or return context.
 Arrays are immutable collections in this draft; a `var` may be assigned a new
 whole Array, but individual elements cannot be assigned.
 
@@ -103,14 +107,86 @@ view over the same retained backing Array.
 
 ## Ownership and lifetime
 
-`String`, `Array[T]`, and `Slice[T]` are managed values. Assignment and local
+`String`, `Array[T]`, `Slice[T]`, structs, and enums are managed values. Assignment and local
 aliasing preserve the value through automatic reference counting; programmers
 do not write retain or release operations. Destruction is deterministic when
-the last owning reference is released. Arrays release managed String elements,
-and Slices release their backing Array. Reference-count cycles cannot currently
-be formed with the implemented immutable collections, but cycles introduced by
-future aggregate types are a documented Rocket 1.0 limitation.
+the last owning reference is released. Arrays release managed elements, Slices
+release their backing Array, and aggregate destructors release every managed
+field. Reference-count cycles are a documented Rocket 1.0 limitation. Current
+immutable aggregate construction does not provide a source-level operation that
+can create a self-cycle.
 
-## Reserved future types
+## Structs and generics
+
+Structs are immutable product values with positional construction and named
+field access:
+
+```rocket
+pub struct Pair[T]:
+    first: T
+    second: T
+
+fn identity[T](value: T) -> T:
+    return value
+
+let pair = Pair(identity(10), 20)
+print(pair.first)
+```
+
+Every constructor argument must match its declared field. Type arguments are
+inferred from constructor values or supplied by an expected type. Fields cannot
+be assigned after construction. Aggregate equality is intentionally not
+implicit; programs match enums or compare individual fields.
+
+## Enums and pattern matching
+
+Enums are tagged alternatives. A variant may carry zero or more positional
+payload values:
+
+```rocket
+enum Message:
+    Number(Int)
+    Text(String)
+
+match message:
+    case Number(value):
+        print(value)
+    case Text(text):
+        print(text)
+```
+
+`match` accepts enum values, binds payloads immutably, rejects duplicate cases,
+and must cover every variant unless its final case is `_`. A wildcard cannot
+bind payload values. Match arms are statement blocks; a match is considered to
+return when every exhaustive arm returns.
+
+## Option, Result, and propagation
+
+`Option[T]` has `Some(T)` and `None`. `Result[T, E]` has `Ok(T)` and `Err(E)`.
+They are ordinary built-in generic enums and use the same exhaustive matching
+rules as user enums. Null and exceptions do not exist.
+
+Postfix `?` unwraps `Some` or `Ok`. On `None`, it returns `None` from an
+`Option[...]` function. On `Err(error)`, it returns a newly typed `Err(error)`
+from a `Result[..., E]` function; the error type must match exactly.
+
+## Modules and visibility
+
+Each `.rocket` file is a module. The root file imports package-relative module
+paths, where dots map to directories:
+
+```rocket
+import utilities.math
+
+fn main() -> Int:
+    return math.doubled(21)
+```
+
+The final path component is the local module alias; the complete import path is
+also accepted. Cross-file functions, structs, enums, and enum variants are
+accessible only when their declaration is marked `pub`. Imports are loaded
+recursively, cycles are errors, and declarations receive deterministic fully
+qualified identities. A command compiles the complete source graph into one
+native artifact; independent binary module artifacts are not part of draft 0.6.
 
 `Option[T]` represents possible absence and `Result[T, E]` represents recoverable failure. Their spelling and semantics are fixed, but parsing and exhaustive matching are scheduled after enums and generics.

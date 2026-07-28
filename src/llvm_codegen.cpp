@@ -84,25 +84,20 @@ public:
 
 private:
   llvm::Type* valueType(Type type) {
-    switch (type) {
-    case Type::Int: return llvm::Type::getInt64Ty(context_);
-    case Type::Float: return llvm::Type::getDoubleTy(context_);
-    case Type::Bool: return llvm::Type::getInt1Ty(context_);
-    case Type::Char: return llvm::Type::getInt8Ty(context_);
-    case Type::String: return llvm::PointerType::getUnqual(context_);
-    case Type::ArrayInt:
-    case Type::ArrayFloat:
-    case Type::ArrayBool:
-    case Type::ArrayChar:
-    case Type::ArrayString:
-    case Type::SliceInt:
-    case Type::SliceFloat:
-    case Type::SliceBool:
-    case Type::SliceChar:
-    case Type::SliceString:
+    switch (type.kind) {
+    case TypeKind::Int: return llvm::Type::getInt64Ty(context_);
+    case TypeKind::Float: return llvm::Type::getDoubleTy(context_);
+    case TypeKind::Bool: return llvm::Type::getInt1Ty(context_);
+    case TypeKind::Char: return llvm::Type::getInt8Ty(context_);
+    case TypeKind::String:
+    case TypeKind::Array:
+    case TypeKind::Slice:
+    case TypeKind::Struct:
+    case TypeKind::Enum:
       return llvm::PointerType::getUnqual(context_);
-    case Type::Unit: return llvm::Type::getInt8Ty(context_);
-    case Type::Invalid: break;
+    case TypeKind::Unit: return llvm::Type::getInt8Ty(context_);
+    case TypeKind::TypeParameter:
+    case TypeKind::Invalid: break;
     }
     return nullptr;
   }
@@ -112,29 +107,24 @@ private:
   }
 
   llvm::Constant* zero(Type type) {
-    switch (type) {
-    case Type::Int:
+    switch (type.kind) {
+    case TypeKind::Int:
       return llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), 0);
-    case Type::Float:
+    case TypeKind::Float:
       return llvm::ConstantFP::get(llvm::Type::getDoubleTy(context_), 0.0);
-    case Type::Bool:
+    case TypeKind::Bool:
       return llvm::ConstantInt::getFalse(context_);
-    case Type::Char:
-    case Type::Unit:
+    case TypeKind::Char:
+    case TypeKind::Unit:
       return llvm::ConstantInt::get(llvm::Type::getInt8Ty(context_), 0);
-    case Type::String:
-    case Type::ArrayInt:
-    case Type::ArrayFloat:
-    case Type::ArrayBool:
-    case Type::ArrayChar:
-    case Type::ArrayString:
-    case Type::SliceInt:
-    case Type::SliceFloat:
-    case Type::SliceBool:
-    case Type::SliceChar:
-    case Type::SliceString:
+    case TypeKind::String:
+    case TypeKind::Array:
+    case TypeKind::Slice:
+    case TypeKind::Struct:
+    case TypeKind::Enum:
       return llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(context_));
-    case Type::Invalid: break;
+    case TypeKind::TypeParameter:
+    case TypeKind::Invalid: break;
     }
     return nullptr;
   }
@@ -250,21 +240,21 @@ private:
                                  "load." + std::to_string(operand.local));
     }
 
-    switch (operand.type) {
-    case Type::Int:
+    switch (operand.type.kind) {
+    case TypeKind::Int:
       return llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), operand.constant, 10);
-    case Type::Float:
+    case TypeKind::Float:
       return llvm::ConstantFP::get(llvm::Type::getDoubleTy(context_), operand.constant);
-    case Type::Bool:
+    case TypeKind::Bool:
       return llvm::ConstantInt::getBool(context_, operand.constant == "true");
-    case Type::Char:
+    case TypeKind::Char:
       if (operand.constant.size() != 1) {
         error = "invalid Char constant reached LLVM lowering";
         return nullptr;
       }
       return llvm::ConstantInt::get(llvm::Type::getInt8Ty(context_),
                                     static_cast<unsigned char>(operand.constant[0]));
-    case Type::String:
+    case TypeKind::String:
     {
       llvm::Value* bytes = builder_.CreateGlobalString(operand.constant, "str", 0, module_.get());
       llvm::FunctionCallee constructor = module_->getOrInsertFunction(
@@ -279,21 +269,16 @@ private:
                                          operand.constant.size())},
           "string.new");
     }
-    case Type::Unit:
+    case TypeKind::Unit:
       return zero(Type::Unit);
-    case Type::ArrayInt:
-    case Type::ArrayFloat:
-    case Type::ArrayBool:
-    case Type::ArrayChar:
-    case Type::ArrayString:
-    case Type::SliceInt:
-    case Type::SliceFloat:
-    case Type::SliceBool:
-    case Type::SliceChar:
-    case Type::SliceString:
+    case TypeKind::Array:
+    case TypeKind::Slice:
+    case TypeKind::Struct:
+    case TypeKind::Enum:
       error = "aggregate constant reached LLVM lowering";
       return nullptr;
-    case Type::Invalid:
+    case TypeKind::TypeParameter:
+    case TypeKind::Invalid:
       error = "invalid operand type reached LLVM lowering";
       return nullptr;
     }
@@ -333,6 +318,15 @@ private:
     if (value.kind == MirRvalueKind::Slice)
       return lowerSlice(value, locals, error);
 
+    if (value.kind == MirRvalueKind::Aggregate)
+      return lowerAggregate(value, locals, error);
+
+    if (value.kind == MirRvalueKind::Field)
+      return lowerField(value, locals, error);
+
+    if (value.kind == MirRvalueKind::Tag)
+      return lowerTag(value, locals, error);
+
     if (mir_.symbols[value.callee].kind == SymbolKind::BuiltinFunction)
       return lowerPrint(value, locals, error);
 
@@ -350,29 +344,56 @@ private:
   }
 
   static std::uint32_t runtimeElementKind(Type element) {
-    switch (element) {
-    case Type::Int: return 1;
-    case Type::Float: return 2;
-    case Type::Bool: return 3;
-    case Type::Char: return 4;
-    case Type::String: return 5;
+    switch (element.kind) {
+    case TypeKind::Int: return 1;
+    case TypeKind::Float: return 2;
+    case TypeKind::Bool: return 3;
+    case TypeKind::Char: return 4;
+    case TypeKind::String: return 5;
+    case TypeKind::Array:
+    case TypeKind::Slice:
+    case TypeKind::Struct:
+    case TypeKind::Enum: return 6;
     default: return 0;
     }
   }
 
   static const char* runtimeElementSuffix(Type element) {
-    switch (element) {
-    case Type::Int: return "int";
-    case Type::Float: return "float";
-    case Type::Bool: return "bool";
-    case Type::Char: return "char";
-    case Type::String: return "string";
+    switch (element.kind) {
+    case TypeKind::Int: return "int";
+    case TypeKind::Float: return "float";
+    case TypeKind::Bool: return "bool";
+    case TypeKind::Char: return "char";
+    case TypeKind::String: return "string";
+    case TypeKind::Array:
+    case TypeKind::Slice:
+    case TypeKind::Struct:
+    case TypeKind::Enum: return "managed";
     default: return "invalid";
     }
   }
 
   llvm::Type* runtimeElementType(Type element) {
     return element == Type::Bool ? llvm::Type::getInt8Ty(context_) : valueType(element);
+  }
+
+  static const char* aggregateSuffix(const Type& type) {
+    switch (type.kind) {
+    case TypeKind::Int: return "int";
+    case TypeKind::Float: return "float";
+    case TypeKind::Bool: return "bool";
+    case TypeKind::Char: return "char";
+    case TypeKind::String:
+    case TypeKind::Array:
+    case TypeKind::Slice:
+    case TypeKind::Struct:
+    case TypeKind::Enum: return "managed";
+    default: return "invalid";
+    }
+  }
+
+  llvm::Type* aggregateRuntimeType(const Type& type) {
+    return type == Type::Bool ? llvm::Type::getInt8Ty(context_) : valueType(type);
   }
 
   bool lowerCollectionOperands(const MirRvalue& value,
@@ -460,6 +481,79 @@ private:
                                  llvm::Type::getInt64Ty(context_),
                                  llvm::Type::getInt64Ty(context_)}, false));
     return builder_.CreateCall(constructor, {collection, start, end}, "slice.new");
+  }
+
+  llvm::Value* lowerAggregate(const MirRvalue& value,
+                              const std::vector<llvm::AllocaInst*>& locals,
+                              std::string& error) {
+    std::uint64_t managedMask = 0;
+    for (std::size_t index = 0; index < value.arguments.size(); ++index)
+      if (isManagedType(value.arguments[index].type)) managedMask |= std::uint64_t{1} << index;
+    llvm::FunctionCallee constructor = module_->getOrInsertFunction(
+        "rocket_rt_aggregate_new",
+        llvm::FunctionType::get(llvm::PointerType::getUnqual(context_),
+                                {llvm::Type::getInt32Ty(context_),
+                                 llvm::Type::getInt32Ty(context_),
+                                 llvm::Type::getInt64Ty(context_)}, false));
+    llvm::Value* aggregate = builder_.CreateCall(
+        constructor,
+        {builder_.getInt32(value.tag),
+         builder_.getInt32(static_cast<std::uint32_t>(value.arguments.size())),
+         llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), managedMask)},
+        "aggregate.new");
+    for (std::size_t index = 0; index < value.arguments.size(); ++index) {
+      const Type& fieldType = value.arguments[index].type;
+      llvm::Value* field = lowerOperand(value.arguments[index], locals, error);
+      if (!field) return nullptr;
+      if (fieldType == Type::Bool)
+        field = builder_.CreateZExt(field, llvm::Type::getInt8Ty(context_),
+                                    "aggregate.bool");
+      const std::string setterName =
+          std::string("rocket_rt_aggregate_set_") + aggregateSuffix(fieldType);
+      llvm::FunctionCallee setter = module_->getOrInsertFunction(
+          setterName,
+          llvm::FunctionType::get(llvm::Type::getVoidTy(context_),
+                                  {llvm::PointerType::getUnqual(context_),
+                                   llvm::Type::getInt32Ty(context_),
+                                   aggregateRuntimeType(fieldType)}, false));
+      builder_.CreateCall(setter,
+                          {aggregate, builder_.getInt32(static_cast<std::uint32_t>(index)),
+                           field});
+    }
+    return aggregate;
+  }
+
+  llvm::Value* lowerField(const MirRvalue& value,
+                          const std::vector<llvm::AllocaInst*>& locals,
+                          std::string& error) {
+    llvm::Value* aggregate = lowerOperand(value.left, locals, error);
+    if (!aggregate) return nullptr;
+    const std::string getterName =
+        std::string("rocket_rt_aggregate_get_") + aggregateSuffix(value.type);
+    llvm::FunctionCallee getter = module_->getOrInsertFunction(
+        getterName,
+        llvm::FunctionType::get(aggregateRuntimeType(value.type),
+                                {llvm::PointerType::getUnqual(context_),
+                                 llvm::Type::getInt32Ty(context_)}, false));
+    llvm::Value* result = builder_.CreateCall(
+        getter, {aggregate, builder_.getInt32(value.tag)}, "aggregate.field");
+    if (value.type == Type::Bool)
+      return builder_.CreateTrunc(result, llvm::Type::getInt1Ty(context_),
+                                  "aggregate.field.bool");
+    return result;
+  }
+
+  llvm::Value* lowerTag(const MirRvalue& value,
+                        const std::vector<llvm::AllocaInst*>& locals,
+                        std::string& error) {
+    llvm::Value* aggregate = lowerOperand(value.left, locals, error);
+    if (!aggregate) return nullptr;
+    llvm::FunctionCallee getter = module_->getOrInsertFunction(
+        "rocket_rt_aggregate_tag",
+        llvm::FunctionType::get(llvm::Type::getInt32Ty(context_),
+                                {llvm::PointerType::getUnqual(context_)}, false));
+    llvm::Value* tag = builder_.CreateCall(getter, {aggregate}, "aggregate.tag");
+    return builder_.CreateZExt(tag, llvm::Type::getInt64Ty(context_), "aggregate.tag.int");
   }
 
   llvm::Value* lowerBinary(const MirRvalue& value, llvm::Value* left, llvm::Value* right,
@@ -580,44 +674,39 @@ private:
 
     const char* runtimeFunction = nullptr;
     llvm::Type* runtimeArgumentType = nullptr;
-    switch (argument.type) {
-    case Type::Int:
+    switch (argument.type.kind) {
+    case TypeKind::Int:
       runtimeFunction = "rocket_rt_print_int";
       runtimeArgumentType = llvm::Type::getInt64Ty(context_);
       break;
-    case Type::Float:
+    case TypeKind::Float:
       runtimeFunction = "rocket_rt_print_float";
       runtimeArgumentType = llvm::Type::getDoubleTy(context_);
       break;
-    case Type::Bool:
+    case TypeKind::Bool:
       runtimeFunction = "rocket_rt_print_bool";
       runtimeArgumentType = llvm::Type::getInt8Ty(context_);
       lowered = builder_.CreateZExt(lowered, runtimeArgumentType, "bool.print");
       break;
-    case Type::Char:
+    case TypeKind::Char:
       runtimeFunction = "rocket_rt_print_char";
       runtimeArgumentType = llvm::Type::getInt8Ty(context_);
       break;
-    case Type::String:
+    case TypeKind::String:
       runtimeFunction = "rocket_rt_print_string";
       runtimeArgumentType = llvm::PointerType::getUnqual(context_);
       break;
-    case Type::Unit:
+    case TypeKind::Unit:
       runtimeFunction = "rocket_rt_print_unit";
       break;
-    case Type::ArrayInt:
-    case Type::ArrayFloat:
-    case Type::ArrayBool:
-    case Type::ArrayChar:
-    case Type::ArrayString:
-    case Type::SliceInt:
-    case Type::SliceFloat:
-    case Type::SliceBool:
-    case Type::SliceChar:
-    case Type::SliceString:
+    case TypeKind::Array:
+    case TypeKind::Slice:
+    case TypeKind::Struct:
+    case TypeKind::Enum:
       error = "aggregate print reached LLVM lowering";
       return nullptr;
-    case Type::Invalid:
+    case TypeKind::TypeParameter:
+    case TypeKind::Invalid:
       error = "invalid print argument reached LLVM lowering";
       return nullptr;
     }

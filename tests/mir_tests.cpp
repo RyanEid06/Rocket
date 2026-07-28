@@ -94,5 +94,31 @@ int main() {
     rocket::test::expect(dump.find("release") != std::string::npos,
                          "Array and Slice values participate in MIR ARC", failures);
   }
+  rocket::Diagnostics phase6Diagnostics;
+  auto phase6Mir = rocket::test::lowerToMir(
+      "struct Pair:\n"
+      "    first: Int\n"
+      "    second: Int\n"
+      "fn main() -> Int:\n"
+      "    let pair = Pair(3, 4)\n"
+      "    let maybe: Option[Int] = Some(pair.second)\n"
+      "    match maybe:\n"
+      "        case Some(value):\n"
+      "            return value\n"
+      "        case None:\n"
+      "            return 0\n",
+      phase6Diagnostics);
+  rocket::test::expect(phase6Mir.has_value(), "aggregates and match lower to MIR", failures);
+  if (phase6Mir.has_value()) {
+    std::string verifierError;
+    rocket::test::expect(rocket::verifyMir(*phase6Mir, verifierError),
+                         "Phase 6 MIR verifies: " + verifierError, failures);
+    const std::string dump = rocket::dumpMir(*phase6Mir);
+    rocket::test::expect(dump.find("aggregate @Pair#0") != std::string::npos &&
+                             dump.find("tag") != std::string::npos &&
+                             dump.find("field") != std::string::npos,
+                         "MIR explicitly represents aggregate construction and matching",
+                         failures);
+  }
   return rocket::test::finish(failures, "mir");
 }

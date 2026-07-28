@@ -72,3 +72,19 @@ types and String until general generics. Index/slice bounds, signed Int
 overflow, and Int division by zero terminate through deterministic runtime
 diagnostics. The C++ stage0 fallback maps the same semantics to RAII containers
 and checked helpers.
+
+## D010 - Structural nominal types and ahead-of-MIR specialization
+
+**Accepted.** Rocket types are structural compiler values containing a kind,
+nominal declaration identity, and nested arguments. Structs and enums use
+nominal equality; collections use structural element equality. Generic
+functions infer type arguments from value operands and are monomorphized before
+MIR, keeping MIR fully concrete and both backends free of generic semantics.
+
+Structs and enums share an opaque ARC aggregate runtime representation with a
+tag, typed slots, and a managed-field mask. `Option` and `Result` are built-in
+generic enums, exhaustive `match` is their normal elimination form, and `?`
+lowers to explicit MIR control flow rather than exceptions. Module imports form
+a checked source graph with public visibility and deterministic qualified
+symbols; draft 0.6 deliberately emits one artifact for the graph instead of
+freezing a binary module format before the packaging milestone.

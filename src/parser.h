@@ -24,12 +24,16 @@ private:
   void skipNewlines();
   void synchronize();
 
-  Function parseFunction();
+  Function parseFunction(bool isPublic);
+  StructDecl parseStruct(bool isPublic);
+  EnumDecl parseEnum(bool isPublic);
+  std::vector<std::string> parseTypeParameters();
   std::vector<std::unique_ptr<Stmt>> parseBlock();
   std::unique_ptr<Stmt> parseStatement();
   std::unique_ptr<Stmt> parseIf();
   std::unique_ptr<Stmt> parseWhile();
   std::unique_ptr<Stmt> parseFor();
+  std::unique_ptr<Stmt> parseMatch();
   std::unique_ptr<Expr> parseExpression();
   std::unique_ptr<Expr> parseOr();
   std::unique_ptr<Expr> parseAnd();

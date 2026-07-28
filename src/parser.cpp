@@ -31,20 +31,50 @@ Module Parser::parseModule() {
   Module module;
   skipNewlines();
   while (!at(TokenKind::End)) {
-    if (!at(TokenKind::KwFn)) {
-      diagnostics_.error(current().location, "top-level declarations must begin with 'fn'");
+    if (match(TokenKind::KwImport)) {
+      const Token start = previous();
+      const Token first = consume(TokenKind::Identifier, "expected module name after 'import'");
+      std::string name = first.text;
+      while (match(TokenKind::Dot)) {
+        name += "." + consume(TokenKind::Identifier, "expected module name after '.'").text;
+      }
+      consume(TokenKind::Newline, "expected newline after import");
+      module.imports.push_back({std::move(name), start.location});
+      skipNewlines();
+      continue;
+    }
+    const bool isPublic = match(TokenKind::KwPub);
+    if (at(TokenKind::KwFn)) {
+      module.functions.push_back(parseFunction(isPublic));
+    } else if (at(TokenKind::KwStruct)) {
+      module.structs.push_back(parseStruct(isPublic));
+    } else if (at(TokenKind::KwEnum)) {
+      module.enums.push_back(parseEnum(isPublic));
+    } else {
+      diagnostics_.error(current().location,
+                         "expected 'fn', 'struct', 'enum', or 'import' at top level");
       synchronize();
       continue;
     }
-    module.functions.push_back(parseFunction());
     skipNewlines();
   }
   return module;
 }
 
-Function Parser::parseFunction() {
+std::vector<std::string> Parser::parseTypeParameters() {
+  std::vector<std::string> parameters;
+  if (!match(TokenKind::LBracket)) return parameters;
+  do {
+    parameters.push_back(consume(TokenKind::Identifier, "expected type parameter").text);
+  } while (match(TokenKind::Comma));
+  consume(TokenKind::RBracket, "expected ']' after type parameters");
+  return parameters;
+}
+
+Function Parser::parseFunction(bool isPublic) {
   const Token start = consume(TokenKind::KwFn, "expected 'fn'");
   const Token name = consume(TokenKind::Identifier, "expected function name");
+  auto typeParameters = parseTypeParameters();
   consume(TokenKind::LParen, "expected '(' after function name");
   std::vector<Parameter> parameters;
   if (!at(TokenKind::RParen)) {
@@ -61,16 +91,70 @@ Function Parser::parseFunction() {
   consume(TokenKind::Colon, "expected ':' before function body");
   consume(TokenKind::Newline, "expected newline after function signature");
   auto body = parseBlock();
-  return {name.text, start.location, std::move(parameters), returnType, std::move(body)};
+  return {name.text, start.location, isPublic, std::move(typeParameters),
+          std::move(parameters), returnType, std::move(body)};
+}
+
+StructDecl Parser::parseStruct(bool isPublic) {
+  const Token start = consume(TokenKind::KwStruct, "expected 'struct'");
+  const Token name = consume(TokenKind::Identifier, "expected struct name");
+  auto typeParameters = parseTypeParameters();
+  consume(TokenKind::Colon, "expected ':' after struct name");
+  consume(TokenKind::Newline, "expected newline after struct declaration");
+  consume(TokenKind::Indent, "expected an indented struct body");
+  std::vector<TypeField> fields;
+  while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+    if (match(TokenKind::Newline)) continue;
+    const Token field = consume(TokenKind::Identifier, "expected field name");
+    consume(TokenKind::Colon, "expected ':' after field name");
+    fields.push_back({field.text, parseTypeName(), field.location});
+    consume(TokenKind::Newline, "expected newline after field");
+  }
+  consume(TokenKind::Dedent, "expected end of struct body");
+  return {name.text, start.location, isPublic, std::move(typeParameters), std::move(fields)};
+}
+
+EnumDecl Parser::parseEnum(bool isPublic) {
+  const Token start = consume(TokenKind::KwEnum, "expected 'enum'");
+  const Token name = consume(TokenKind::Identifier, "expected enum name");
+  auto typeParameters = parseTypeParameters();
+  consume(TokenKind::Colon, "expected ':' after enum name");
+  consume(TokenKind::Newline, "expected newline after enum declaration");
+  consume(TokenKind::Indent, "expected an indented enum body");
+  std::vector<EnumVariant> variants;
+  while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+    if (match(TokenKind::Newline)) continue;
+    const Token variant = consume(TokenKind::Identifier, "expected variant name");
+    std::vector<std::string> payloadTypes;
+    if (match(TokenKind::LParen)) {
+      if (!at(TokenKind::RParen)) {
+        do { payloadTypes.push_back(parseTypeName()); } while (match(TokenKind::Comma));
+      }
+      consume(TokenKind::RParen, "expected ')' after variant payload types");
+    }
+    consume(TokenKind::Newline, "expected newline after enum variant");
+    variants.push_back({variant.text, variant.location, std::move(payloadTypes)});
+  }
+  consume(TokenKind::Dedent, "expected end of enum body");
+  return {name.text, start.location, isPublic, std::move(typeParameters), std::move(variants)};
 }
 
 std::string Parser::parseTypeName() {
   const Token outer = consume(TokenKind::Identifier, "expected type");
-  if (outer.text != "Array" && outer.text != "Slice") return outer.text;
-  consume(TokenKind::LBracket, "expected '[' after collection type");
-  const Token element = consume(TokenKind::Identifier, "expected collection element type");
-  consume(TokenKind::RBracket, "expected ']' after collection element type");
-  return outer.text + "[" + element.text + "]";
+  std::string result = outer.text;
+  while (match(TokenKind::Dot))
+    result += "." + consume(TokenKind::Identifier, "expected type name after '.'").text;
+  if (!match(TokenKind::LBracket)) return result;
+  result += '[';
+  bool first = true;
+  do {
+    if (!first) result += ", ";
+    result += parseTypeName();
+    first = false;
+  } while (match(TokenKind::Comma));
+  consume(TokenKind::RBracket, "expected ']' after type arguments");
+  result += ']';
+  return result;
 }
 
 std::vector<std::unique_ptr<Stmt>> Parser::parseBlock() {
@@ -91,10 +175,13 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
     const Token keyword = previous();
     const bool isMutable = keyword.kind == TokenKind::KwVar;
     const Token name = consume(TokenKind::Identifier, "expected binding name");
+    std::string declaredType;
+    if (match(TokenKind::Colon)) declaredType = parseTypeName();
     consume(TokenKind::Equal, "expected '=' after binding name");
     auto value = parseExpression();
     consume(TokenKind::Newline, "expected newline after binding");
-    return std::make_unique<BindingStmt>(keyword.location, isMutable, name.text, std::move(value));
+    return std::make_unique<BindingStmt>(keyword.location, isMutable, name.text,
+                                         std::move(declaredType), std::move(value));
   }
   if (match(TokenKind::KwReturn)) {
     const Token keyword = previous();
@@ -106,6 +193,7 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
   if (at(TokenKind::KwIf)) return parseIf();
   if (at(TokenKind::KwWhile)) return parseWhile();
   if (at(TokenKind::KwFor)) return parseFor();
+  if (at(TokenKind::KwMatch)) return parseMatch();
   if (match(TokenKind::KwBreak)) {
     const Token keyword = previous();
     consume(TokenKind::Newline, "expected newline after 'break'");
@@ -127,6 +215,39 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
   auto expression = parseExpression();
   consume(TokenKind::Newline, "expected newline after expression");
   return std::make_unique<ExprStmt>(location, std::move(expression));
+}
+
+std::unique_ptr<Stmt> Parser::parseMatch() {
+  const Token keyword = consume(TokenKind::KwMatch, "expected 'match'");
+  auto value = parseExpression();
+  consume(TokenKind::Colon, "expected ':' after match value");
+  consume(TokenKind::Newline, "expected newline after match value");
+  consume(TokenKind::Indent, "expected an indented match body");
+  std::vector<MatchCase> cases;
+  while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+    if (match(TokenKind::Newline)) continue;
+    consume(TokenKind::KwCase, "expected 'case' in match body");
+    const Token variant = consume(TokenKind::Identifier, "expected variant name or '_'");
+    std::string variantName = variant.text;
+    while (match(TokenKind::Dot))
+      variantName += "." + consume(TokenKind::Identifier,
+                                    "expected variant name after '.'").text;
+    MatchPattern pattern{variant.location, variantName, variantName == "_", {}};
+    if (match(TokenKind::LParen)) {
+      if (!at(TokenKind::RParen)) {
+        do {
+          pattern.bindings.push_back(
+              consume(TokenKind::Identifier, "expected pattern binding").text);
+        } while (match(TokenKind::Comma));
+      }
+      consume(TokenKind::RParen, "expected ')' after pattern bindings");
+    }
+    consume(TokenKind::Colon, "expected ':' after pattern");
+    consume(TokenKind::Newline, "expected newline after pattern");
+    cases.push_back({std::move(pattern), parseBlock()});
+  }
+  consume(TokenKind::Dedent, "expected end of match body");
+  return std::make_unique<MatchStmt>(keyword.location, std::move(value), std::move(cases));
 }
 
 std::unique_ptr<Stmt> Parser::parseIf() {
@@ -258,6 +379,17 @@ std::unique_ptr<Expr> Parser::parseCall() {
         expression = std::make_unique<IndexExpr>(location, std::move(expression),
                                                  std::move(first));
       }
+      continue;
+    }
+    if (match(TokenKind::Dot)) {
+      const Token field = consume(TokenKind::Identifier, "expected field name after '.'");
+      expression = std::make_unique<FieldExpr>(field.location, std::move(expression),
+                                               field.text);
+      continue;
+    }
+    if (match(TokenKind::Question)) {
+      expression = std::make_unique<PropagateExpr>(previous().location,
+                                                   std::move(expression));
       continue;
     }
     break;

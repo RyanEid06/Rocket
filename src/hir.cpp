@@ -2,49 +2,186 @@
 
 #include <charconv>
 #include <cstdint>
+#include <sstream>
 #include <unordered_set>
 #include <utility>
 
 namespace rocket {
 
+namespace {
+
+Type typeParameter(const std::string& name) {
+  return Type{TypeKind::TypeParameter, name};
+}
+
+bool containsTypeParameter(const Type& type) {
+  if (type.kind == TypeKind::TypeParameter) return true;
+  for (const auto& argument : type.arguments)
+    if (containsTypeParameter(argument)) return true;
+  return false;
+}
+
+} // namespace
+
 SymbolId HirLowerer::addSymbol(SymbolKind kind, const std::string& name, Type type,
                                bool mutableBinding, const Location& location,
                                std::vector<Type> parameterTypes) {
   const SymbolId id = static_cast<SymbolId>(hir_.symbols.size());
-  hir_.symbols.push_back({id, kind, name, type, mutableBinding, location,
+  hir_.symbols.push_back({id, kind, name, std::move(type), mutableBinding, location,
                           std::move(parameterTypes)});
   return id;
+}
+
+void HirLowerer::registerBuiltinTypes() {
+  HirTypeDeclaration option;
+  option.kind = HirTypeDeclKind::Enum;
+  option.name = "Option";
+  option.location = {"<builtin>", 1, 1};
+  option.publicDeclaration = true;
+  option.builtin = true;
+  option.typeParameters = {"T"};
+  option.variants = {{"Some", option.location, {typeParameter("T")}},
+                     {"None", option.location, {}}};
+  typeDeclarations_.emplace(option.name, static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+  hir_.typeDeclarations.push_back(std::move(option));
+
+  HirTypeDeclaration result;
+  result.kind = HirTypeDeclKind::Enum;
+  result.name = "Result";
+  result.location = {"<builtin>", 1, 1};
+  result.publicDeclaration = true;
+  result.builtin = true;
+  result.typeParameters = {"T", "E"};
+  result.variants = {{"Ok", result.location, {typeParameter("T")}},
+                     {"Err", result.location, {typeParameter("E")}}};
+  typeDeclarations_.emplace(result.name, static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+  hir_.typeDeclarations.push_back(std::move(result));
+
+  for (std::uint32_t declaration = 0; declaration < hir_.typeDeclarations.size(); ++declaration) {
+    const auto& type = hir_.typeDeclarations[declaration];
+    for (std::uint32_t variant = 0; variant < type.variants.size(); ++variant)
+      variants_.emplace(type.variants[variant].name, VariantTarget{declaration, variant});
+  }
+}
+
+void HirLowerer::registerTypeDeclarations() {
+  for (const auto& structure : ast_.structs) {
+    if (typeDeclarations_.contains(structure.name)) {
+      diagnostics_.error(structure.location, "duplicate type '" + structure.name + "'");
+      continue;
+    }
+    const std::uint32_t index = static_cast<std::uint32_t>(hir_.typeDeclarations.size());
+    typeDeclarations_.emplace(structure.name, index);
+    hir_.typeDeclarations.push_back({HirTypeDeclKind::Struct, structure.name,
+                                     structure.location, structure.publicDeclaration, false,
+                                     structure.typeParameters, {}, {}});
+  }
+  for (const auto& enumeration : ast_.enums) {
+    if (typeDeclarations_.contains(enumeration.name)) {
+      diagnostics_.error(enumeration.location, "duplicate type '" + enumeration.name + "'");
+      continue;
+    }
+    const std::uint32_t index = static_cast<std::uint32_t>(hir_.typeDeclarations.size());
+    typeDeclarations_.emplace(enumeration.name, index);
+    hir_.typeDeclarations.push_back({HirTypeDeclKind::Enum, enumeration.name,
+                                     enumeration.location, enumeration.publicDeclaration, false,
+                                     enumeration.typeParameters, {}, {}});
+  }
+
+  auto makeParameters = [&](const std::vector<std::string>& names, const Location& location) {
+    Substitutions substitutions;
+    for (const auto& name : names) {
+      if (!substitutions.emplace(name, typeParameter(name)).second)
+        diagnostics_.error(location, "duplicate type parameter '" + name + "'");
+    }
+    return substitutions;
+  };
+
+  for (const auto& structure : ast_.structs) {
+    auto found = typeDeclarations_.find(structure.name);
+    if (found == typeDeclarations_.end()) continue;
+    auto& target = hir_.typeDeclarations[found->second];
+    if (target.location.file != structure.location.file ||
+        target.location.line != structure.location.line)
+      continue;
+    const Substitutions parameters = makeParameters(structure.typeParameters, structure.location);
+    std::unordered_set<std::string> fields;
+    for (const auto& field : structure.fields) {
+      if (!fields.insert(field.name).second)
+        diagnostics_.error(field.location, "duplicate field '" + field.name + "'");
+      target.fields.push_back({field.name, resolveType(field.typeName, field.location, parameters),
+                               field.location});
+    }
+  }
+
+  for (const auto& enumeration : ast_.enums) {
+    auto found = typeDeclarations_.find(enumeration.name);
+    if (found == typeDeclarations_.end()) continue;
+    auto& target = hir_.typeDeclarations[found->second];
+    if (target.location.file != enumeration.location.file ||
+        target.location.line != enumeration.location.line)
+      continue;
+    const Substitutions parameters = makeParameters(enumeration.typeParameters,
+                                                    enumeration.location);
+    std::unordered_set<std::string> localVariants;
+    if (enumeration.variants.empty())
+      diagnostics_.error(enumeration.location, "enum must declare at least one variant");
+    for (const auto& variant : enumeration.variants) {
+      if (!localVariants.insert(variant.name).second)
+        diagnostics_.error(variant.location, "duplicate variant '" + variant.name + "'");
+      if (variants_.contains(variant.name)) {
+        diagnostics_.error(variant.location,
+                           "variant name '" + variant.name + "' is already declared");
+      } else {
+        variants_.emplace(variant.name,
+                          VariantTarget{found->second,
+                                        static_cast<std::uint32_t>(target.variants.size())});
+      }
+      HirVariant lowered{variant.name, variant.location, {}};
+      for (const auto& payload : variant.payloadTypes)
+        lowered.payloadTypes.push_back(resolveType(payload, variant.location, parameters));
+      target.variants.push_back(std::move(lowered));
+    }
+  }
 }
 
 std::optional<HirModule> HirLowerer::lower() {
   hir_ = {};
   functions_.clear();
+  genericFunctions_.clear();
+  typeDeclarations_.clear();
+  variants_.clear();
+  specializations_.clear();
+  pendingSpecializations_.clear();
   functionSymbols_.clear();
+
+  registerBuiltinTypes();
+  registerTypeDeclarations();
 
   const SymbolId print = addSymbol(SymbolKind::BuiltinFunction, "print", Type::Unit, false,
                                    {"<builtin>", 1, 1});
   functions_.emplace("print", print);
 
   for (const auto& function : ast_.functions) {
-    std::vector<Type> parameters;
-    for (const auto& parameter : function.parameters) {
-      const Type type = typeFromName(parameter.typeName);
-      if (type == Type::Invalid)
-        diagnostics_.error(parameter.location, "unknown type '" + parameter.typeName + "'");
-      parameters.push_back(type);
+    if (functions_.contains(function.name) || genericFunctions_.contains(function.name)) {
+      diagnostics_.error(function.location, "duplicate function '" + function.name + "'");
+      functionSymbols_.push_back(InvalidSymbol);
+      continue;
     }
-    const Type result = typeFromName(function.returnType);
-    if (result == Type::Invalid)
-      diagnostics_.error(function.location, "unknown return type '" + function.returnType + "'");
+    if (!function.typeParameters.empty()) {
+      genericFunctions_.emplace(function.name, &function);
+      functionSymbols_.push_back(InvalidSymbol);
+      continue;
+    }
 
+    std::vector<Type> parameters;
+    for (const auto& parameter : function.parameters)
+      parameters.push_back(resolveType(parameter.typeName, parameter.location));
+    const Type result = resolveType(function.returnType, function.location);
     const SymbolId symbol = addSymbol(SymbolKind::Function, function.name, result, false,
                                       function.location, parameters);
     functionSymbols_.push_back(symbol);
-    if (functions_.contains(function.name)) {
-      diagnostics_.error(function.location, "duplicate function '" + function.name + "'");
-    } else {
-      functions_.emplace(function.name, symbol);
-    }
+    functions_.emplace(function.name, symbol);
   }
 
   auto main = functions_.find("main");
@@ -57,14 +194,103 @@ std::optional<HirModule> HirLowerer::lower() {
                          "entry point must have signature fn main() -> Int");
   }
 
-  for (std::size_t i = 0; i < ast_.functions.size(); ++i)
-    hir_.functions.push_back(lowerFunction(ast_.functions[i], functionSymbols_[i]));
+  for (std::size_t index = 0; index < ast_.functions.size(); ++index) {
+    if (functionSymbols_[index] != InvalidSymbol)
+      hir_.functions.push_back(lowerFunction(ast_.functions[index], functionSymbols_[index]));
+  }
+  for (std::size_t index = 0; index < pendingSpecializations_.size(); ++index) {
+    const PendingSpecialization specialization = pendingSpecializations_[index];
+    hir_.functions.push_back(lowerSpecialization(specialization));
+  }
 
   if (diagnostics_.hasErrors()) return std::nullopt;
   return std::move(hir_);
 }
 
+Type HirLowerer::resolveType(const std::string& spelling, const Location& location,
+                             const Substitutions& substitutions) {
+  const Type parsed = typeFromName(spelling);
+  if (parsed == Type::Invalid) {
+    diagnostics_.error(location, "invalid type syntax '" + spelling + "'");
+    return Type::Invalid;
+  }
+  return resolveParsedType(parsed, location, substitutions);
+}
+
+Type HirLowerer::resolveParsedType(const Type& parsed, const Location& location,
+                                   const Substitutions& substitutions) {
+  if (parsed.kind == TypeKind::Struct && parsed.arguments.empty()) {
+    auto parameter = substitutions.find(parsed.declaration);
+    if (parameter != substitutions.end()) return parameter->second;
+  }
+  if (parsed.kind == TypeKind::Array || parsed.kind == TypeKind::Slice) {
+    Type argument = resolveParsedType(parsed.arguments.at(0), location, substitutions);
+    if (argument == Type::Unit)
+      diagnostics_.error(location, "collections cannot contain Unit values");
+    return parsed.kind == TypeKind::Array ? arrayType(argument) : sliceType(argument);
+  }
+  if (parsed.kind != TypeKind::Struct) return parsed;
+
+  auto found = typeDeclarations_.find(parsed.declaration);
+  if (found == typeDeclarations_.end()) {
+    diagnostics_.error(location, "unknown type '" + parsed.declaration + "'");
+    return Type::Invalid;
+  }
+  const auto& declaration = hir_.typeDeclarations[found->second];
+  if (parsed.arguments.size() != declaration.typeParameters.size()) {
+    diagnostics_.error(location, "type '" + parsed.declaration + "' expects " +
+                                     std::to_string(declaration.typeParameters.size()) +
+                                     " type argument(s)");
+    return Type::Invalid;
+  }
+  std::vector<Type> arguments;
+  for (const auto& argument : parsed.arguments)
+    arguments.push_back(resolveParsedType(argument, location, substitutions));
+  return Type{declaration.kind == HirTypeDeclKind::Struct ? TypeKind::Struct : TypeKind::Enum,
+              declaration.name, std::move(arguments)};
+}
+
+Type HirLowerer::substitute(const Type& pattern, const Substitutions& substitutions) const {
+  if (pattern.kind == TypeKind::TypeParameter) {
+    auto found = substitutions.find(pattern.declaration);
+    return found == substitutions.end() ? pattern : found->second;
+  }
+  Type result = pattern;
+  for (auto& argument : result.arguments) argument = substitute(argument, substitutions);
+  return result;
+}
+
+bool HirLowerer::inferTypeArguments(const Type& pattern, const Type& actual,
+                                    Substitutions& substitutions,
+                                    const Location& location) {
+  if (pattern.kind == TypeKind::TypeParameter) {
+    auto [found, inserted] = substitutions.emplace(pattern.declaration, actual);
+    if (!inserted && found->second != actual) {
+      diagnostics_.error(location, "conflicting inferences for type parameter '" +
+                                       pattern.declaration + "'");
+      return false;
+    }
+    return true;
+  }
+  if (pattern.kind != actual.kind || pattern.declaration != actual.declaration ||
+      pattern.arguments.size() != actual.arguments.size())
+    return false;
+  bool valid = true;
+  for (std::size_t index = 0; index < pattern.arguments.size(); ++index)
+    valid = inferTypeArguments(pattern.arguments[index], actual.arguments[index],
+                               substitutions, location) && valid;
+  return valid;
+}
+
+std::uint32_t HirLowerer::findTypeDeclaration(const Type& type) const {
+  auto found = typeDeclarations_.find(type.declaration);
+  return found == typeDeclarations_.end() ? static_cast<std::uint32_t>(-1) : found->second;
+}
+
 HirFunction HirLowerer::lowerFunction(const Function& function, SymbolId symbol) {
+  currentSubstitutions_.clear();
+  const HirSymbol signature = hir_.symbol(symbol);
+  currentReturnType_ = signature.type;
   scopes_.clear();
   scopes_.emplace_back();
   loopDepth_ = 0;
@@ -72,25 +298,57 @@ HirFunction HirLowerer::lowerFunction(const Function& function, SymbolId symbol)
   HirFunction result;
   result.symbol = symbol;
   result.location = function.location;
-  result.result = typeFromName(function.returnType);
+  result.result = signature.type;
 
   std::unordered_set<std::string> names;
-  for (const auto& parameter : function.parameters) {
-    const Type type = typeFromName(parameter.typeName);
+  for (std::size_t index = 0; index < function.parameters.size(); ++index) {
+    const auto& parameter = function.parameters[index];
+    const Type type = signature.parameterTypes[index];
     const SymbolId parameterSymbol = addSymbol(SymbolKind::Parameter, parameter.name, type, false,
                                                 parameter.location);
     result.parameters.push_back({parameterSymbol});
-    if (!names.insert(parameter.name).second) {
+    if (!names.insert(parameter.name).second)
       diagnostics_.error(parameter.location, "duplicate parameter '" + parameter.name + "'");
-    } else {
+    else
       scopes_.back().emplace(parameter.name, parameterSymbol);
-    }
   }
 
   result.body = lowerBlock(function.body, result.result, false);
   if (result.result != Type::Unit && !definitelyReturns(result.body))
     diagnostics_.error(function.location, "function '" + function.name +
-                                           "' may finish without returning " + function.returnType);
+                                           "' may finish without returning " +
+                                           typeName(result.result));
+  return result;
+}
+
+HirFunction HirLowerer::lowerSpecialization(const PendingSpecialization& specialization) {
+  currentSubstitutions_ = specialization.substitutions;
+  currentReturnType_ = specialization.result;
+  scopes_.clear();
+  scopes_.emplace_back();
+  loopDepth_ = 0;
+
+  HirFunction result;
+  result.symbol = specialization.symbol;
+  result.location = specialization.function->location;
+  result.result = specialization.result;
+  std::unordered_set<std::string> names;
+  for (std::size_t index = 0; index < specialization.function->parameters.size(); ++index) {
+    const auto& parameter = specialization.function->parameters[index];
+    const SymbolId parameterSymbol = addSymbol(SymbolKind::Parameter, parameter.name,
+                                                specialization.parameters[index], false,
+                                                parameter.location);
+    result.parameters.push_back({parameterSymbol});
+    if (!names.insert(parameter.name).second)
+      diagnostics_.error(parameter.location, "duplicate parameter '" + parameter.name + "'");
+    else
+      scopes_.back().emplace(parameter.name, parameterSymbol);
+  }
+  result.body = lowerBlock(specialization.function->body, result.result, false);
+  if (result.result != Type::Unit && !definitelyReturns(result.body))
+    diagnostics_.error(specialization.function->location,
+                       "generic specialization '" + hir_.symbol(result.symbol).name +
+                           "' may finish without returning " + typeName(result.result));
   return result;
 }
 
@@ -104,49 +362,58 @@ HirBlock HirLowerer::lowerBlock(const std::vector<std::unique_ptr<Stmt>>& body,
   return result;
 }
 
-std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement, Type returnType) {
+std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
+                                                    Type returnType) {
   switch (statement.kind) {
   case StmtKind::Binding: {
     const auto& binding = static_cast<const BindingStmt&>(statement);
-    auto initializer = lowerExpression(*binding.initializer);
-    const SymbolId symbol = addSymbol(SymbolKind::Local, binding.name, initializer->type,
+    std::optional<Type> declared;
+    if (!binding.declaredType.empty())
+      declared = resolveType(binding.declaredType, binding.location, currentSubstitutions_);
+    auto initializer = lowerExpression(*binding.initializer, declared);
+    const Type bindingType = declared.value_or(initializer->type);
+    if (declared.has_value() && initializer->type != Type::Invalid &&
+        initializer->type != *declared)
+      diagnostics_.error(binding.location, "initializer type is " +
+                                                typeName(initializer->type) + ", expected " +
+                                                typeName(*declared));
+    const SymbolId symbol = addSymbol(SymbolKind::Local, binding.name, bindingType,
                                       binding.mutableBinding, binding.location);
-    if (scopes_.back().contains(binding.name)) {
+    if (scopes_.back().contains(binding.name))
       diagnostics_.error(binding.location,
                          "duplicate binding '" + binding.name + "' in this scope");
-    } else {
+    else
       scopes_.back().emplace(binding.name, symbol);
-    }
     return std::make_unique<HirBindingStmt>(binding.location, symbol, std::move(initializer));
   }
   case StmtKind::Assignment: {
     const auto& assignment = static_cast<const AssignmentStmt&>(statement);
     const SymbolId target = findVariable(assignment.name);
-    auto value = lowerExpression(*assignment.value);
+    const std::optional<Type> expected =
+        target == InvalidSymbol ? std::nullopt : std::optional<Type>(hir_.symbol(target).type);
+    auto value = lowerExpression(*assignment.value, expected);
     if (target == InvalidSymbol) {
       diagnostics_.error(assignment.location,
                          "cannot assign to undefined name '" + assignment.name + "'");
     } else {
       const auto& symbol = hir_.symbol(target);
-      if (!symbol.mutableBinding) {
+      if (!symbol.mutableBinding)
         diagnostics_.error(assignment.location,
                            "cannot assign to immutable binding '" + assignment.name + "'");
-      } else if (value->type != Type::Invalid && value->type != symbol.type) {
-        diagnostics_.error(assignment.location,
-                           "assignment type is " + std::string(typeName(value->type)) +
-                               ", expected " + typeName(symbol.type));
-      }
+      else if (value->type != Type::Invalid && value->type != symbol.type)
+        diagnostics_.error(assignment.location, "assignment type is " +
+                                                    typeName(value->type) + ", expected " +
+                                                    typeName(symbol.type));
     }
     return std::make_unique<HirAssignmentStmt>(assignment.location, target, std::move(value));
   }
   case StmtKind::Return: {
     const auto& returned = static_cast<const ReturnStmt&>(statement);
-    auto value = returned.value ? lowerExpression(*returned.value) : nullptr;
+    auto value = returned.value ? lowerExpression(*returned.value, returnType) : nullptr;
     const Type actual = value ? value->type : Type::Unit;
     if (actual != Type::Invalid && returnType != Type::Invalid && actual != returnType)
-      diagnostics_.error(returned.location,
-                         "return type is " + std::string(typeName(actual)) + ", expected " +
-                             typeName(returnType));
+      diagnostics_.error(returned.location, "return type is " + typeName(actual) +
+                                                ", expected " + typeName(returnType));
     return std::make_unique<HirReturnStmt>(returned.location, std::move(value));
   }
   case StmtKind::Expression: {
@@ -156,8 +423,8 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement, Type 
   }
   case StmtKind::If: {
     const auto& branch = static_cast<const IfStmt&>(statement);
-    auto condition = lowerExpression(*branch.condition);
-    if (condition->type != Type::Bool)
+    auto condition = lowerExpression(*branch.condition, Type::Bool);
+    if (condition->type != Type::Invalid && condition->type != Type::Bool)
       diagnostics_.error(branch.condition->location, "if condition must have type Bool");
     auto thenBody = lowerBlock(branch.thenBody, returnType, true);
     auto elseBody = lowerBlock(branch.elseBody, returnType, true);
@@ -166,8 +433,8 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement, Type 
   }
   case StmtKind::While: {
     const auto& loop = static_cast<const WhileStmt&>(statement);
-    auto condition = lowerExpression(*loop.condition);
-    if (condition->type != Type::Bool)
+    auto condition = lowerExpression(*loop.condition, Type::Bool);
+    if (condition->type != Type::Invalid && condition->type != Type::Bool)
       diagnostics_.error(loop.condition->location, "while condition must have type Bool");
     ++loopDepth_;
     auto body = lowerBlock(loop.body, returnType, true);
@@ -176,13 +443,12 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement, Type 
   }
   case StmtKind::For: {
     const auto& loop = static_cast<const ForStmt&>(statement);
-    auto start = lowerExpression(*loop.start);
-    auto end = lowerExpression(*loop.end);
+    auto start = lowerExpression(*loop.start, Type::Int);
+    auto end = lowerExpression(*loop.end, Type::Int);
     if (start->type != Type::Invalid && start->type != Type::Int)
       diagnostics_.error(loop.start->location, "range start must have type Int");
     if (end->type != Type::Invalid && end->type != Type::Int)
       diagnostics_.error(loop.end->location, "range end must have type Int");
-
     scopes_.emplace_back();
     const SymbolId variable = addSymbol(SymbolKind::LoopVariable, loop.name, Type::Int, false,
                                         loop.location);
@@ -204,11 +470,150 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement, Type 
         statement.kind == StmtKind::Break ? HirStmtKind::Break : HirStmtKind::Continue,
         statement.location);
   }
+  case StmtKind::Match: {
+    const auto& match = static_cast<const MatchStmt&>(statement);
+    auto value = lowerExpression(*match.value);
+    const std::uint32_t declarationIndex = findTypeDeclaration(value->type);
+    const HirTypeDeclaration* declaration = nullptr;
+    if (value->type.kind != TypeKind::Enum ||
+        declarationIndex == static_cast<std::uint32_t>(-1)) {
+      diagnostics_.error(match.value->location, "match requires an enum value");
+    } else {
+      declaration = &hir_.typeDeclarations[declarationIndex];
+    }
+
+    Substitutions substitutions;
+    if (declaration)
+      for (std::size_t index = 0; index < declaration->typeParameters.size(); ++index)
+        substitutions.emplace(declaration->typeParameters[index], value->type.arguments[index]);
+    std::unordered_set<std::uint32_t> seen;
+    bool wildcardSeen = false;
+    std::vector<HirMatchCase> cases;
+    for (std::size_t caseIndex = 0; caseIndex < match.cases.size(); ++caseIndex) {
+      const auto& sourceCase = match.cases[caseIndex];
+      scopes_.emplace_back();
+      HirMatchCase lowered{sourceCase.pattern.location, std::nullopt, {}, {}};
+      if (sourceCase.pattern.wildcard) {
+        if (wildcardSeen)
+          diagnostics_.error(sourceCase.pattern.location, "duplicate wildcard match case");
+        wildcardSeen = true;
+        if (caseIndex + 1 != match.cases.size())
+          diagnostics_.error(sourceCase.pattern.location,
+                             "wildcard match case must be last");
+        if (!sourceCase.pattern.bindings.empty())
+          diagnostics_.error(sourceCase.pattern.location,
+                             "wildcard pattern cannot bind payload values");
+      } else if (declaration) {
+        std::optional<std::uint32_t> tag;
+        for (std::uint32_t index = 0; index < declaration->variants.size(); ++index)
+          if (declaration->variants[index].name == sourceCase.pattern.variant) tag = index;
+        if (!tag.has_value()) {
+          diagnostics_.error(sourceCase.pattern.location, "enum '" + declaration->name +
+                                                              "' has no variant '" +
+                                                              sourceCase.pattern.variant + "'");
+        } else {
+          lowered.tag = tag;
+          if (!seen.insert(*tag).second)
+            diagnostics_.error(sourceCase.pattern.location,
+                               "duplicate match case for '" + sourceCase.pattern.variant + "'");
+          const auto& payloads = declaration->variants[*tag].payloadTypes;
+          if (payloads.size() != sourceCase.pattern.bindings.size())
+            diagnostics_.error(sourceCase.pattern.location, "variant '" +
+                                                            sourceCase.pattern.variant +
+                                                            "' binds " +
+                                                            std::to_string(payloads.size()) +
+                                                            " value(s)");
+          std::unordered_set<std::string> bindingNames;
+          for (std::size_t index = 0;
+               index < payloads.size() && index < sourceCase.pattern.bindings.size(); ++index) {
+            const std::string& name = sourceCase.pattern.bindings[index];
+            if (!bindingNames.insert(name).second)
+              diagnostics_.error(sourceCase.pattern.location,
+                                 "duplicate pattern binding '" + name + "'");
+            const SymbolId symbol = addSymbol(SymbolKind::PatternBinding, name,
+                                               substitute(payloads[index], substitutions), false,
+                                               sourceCase.pattern.location);
+            scopes_.back().emplace(name, symbol);
+            lowered.bindings.push_back(symbol);
+          }
+        }
+      }
+      lowered.body = lowerBlock(sourceCase.body, returnType, false);
+      scopes_.pop_back();
+      cases.push_back(std::move(lowered));
+    }
+    if (declaration && !wildcardSeen && seen.size() != declaration->variants.size()) {
+      std::string missing;
+      for (std::uint32_t index = 0; index < declaration->variants.size(); ++index) {
+        if (seen.contains(index)) continue;
+        if (!missing.empty()) missing += ", ";
+        missing += declaration->variants[index].name;
+      }
+      diagnostics_.error(match.location, "non-exhaustive match; missing " + missing);
+    }
+    return std::make_unique<HirMatchStmt>(match.location, std::move(value), declarationIndex,
+                                          std::move(cases));
+  }
   }
   return std::make_unique<HirLoopControlStmt>(HirStmtKind::Break, statement.location);
 }
 
-std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
+SymbolId HirLowerer::specializeFunction(
+    const Function& function, const std::vector<std::unique_ptr<HirExpr>>& arguments,
+    const Location& location) {
+  Substitutions parameterMarkers;
+  for (const auto& parameter : function.typeParameters)
+    parameterMarkers.emplace(parameter, typeParameter(parameter));
+  if (arguments.size() != function.parameters.size()) {
+    diagnostics_.error(location, "generic function '" + function.name + "' expects " +
+                                     std::to_string(function.parameters.size()) + " argument(s)");
+    return InvalidSymbol;
+  }
+
+  std::vector<Type> patterns;
+  Substitutions inferred;
+  for (std::size_t index = 0; index < function.parameters.size(); ++index) {
+    Type pattern = resolveType(function.parameters[index].typeName,
+                               function.parameters[index].location, parameterMarkers);
+    patterns.push_back(pattern);
+    if (!inferTypeArguments(pattern, arguments[index]->type, inferred,
+                            arguments[index]->location))
+      diagnostics_.error(arguments[index]->location, "argument type " +
+                                                       typeName(arguments[index]->type) +
+                                                       " does not match generic parameter " +
+                                                       typeName(pattern));
+  }
+  for (const auto& parameter : function.typeParameters) {
+    if (!inferred.contains(parameter)) {
+      diagnostics_.error(location, "cannot infer type argument '" + parameter +
+                                       "' for generic function '" + function.name + "'");
+      inferred.emplace(parameter, Type::Invalid);
+    }
+  }
+
+  std::string key = function.name + "[";
+  for (std::size_t index = 0; index < function.typeParameters.size(); ++index) {
+    if (index) key += ",";
+    key += typeName(inferred.at(function.typeParameters[index]));
+  }
+  key += ']';
+  auto existing = specializations_.find(key);
+  if (existing != specializations_.end()) return existing->second;
+
+  std::vector<Type> parameters;
+  for (const auto& pattern : patterns) parameters.push_back(substitute(pattern, inferred));
+  Type resultPattern = resolveType(function.returnType, function.location, parameterMarkers);
+  Type result = substitute(resultPattern, inferred);
+  const SymbolId symbol = addSymbol(SymbolKind::Function, key, result, false,
+                                    function.location, parameters);
+  specializations_.emplace(key, symbol);
+  pendingSpecializations_.push_back({&function, symbol, std::move(inferred),
+                                     std::move(parameters), std::move(result)});
+  return symbol;
+}
+
+std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
+                                                     std::optional<Type> expected) {
   switch (expression.kind) {
   case ExprKind::Integer: {
     const auto& literal = static_cast<const LiteralExpr&>(expression).value;
@@ -216,8 +621,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
     const auto result = std::from_chars(literal.data(), literal.data() + literal.size(), parsed);
     if (result.ec == std::errc::result_out_of_range)
       diagnostics_.error(expression.location, "Int literal is outside the signed 64-bit range");
-    return std::make_unique<HirLiteralExpr>(expression.location, Type::Int,
-                                            literal);
+    return std::make_unique<HirLiteralExpr>(expression.location, Type::Int, literal);
   }
   case ExprKind::Float:
     return std::make_unique<HirLiteralExpr>(expression.location, Type::Float,
@@ -258,7 +662,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
   case ExprKind::Binary: {
     const auto& binary = static_cast<const BinaryExpr&>(expression);
     auto left = lowerExpression(*binary.left);
-    auto right = lowerExpression(*binary.right);
+    auto right = lowerExpression(*binary.right, left->type);
     Type result = Type::Invalid;
     if (left->type != Type::Invalid && right->type != Type::Invalid) {
       if (left->type != right->type) {
@@ -273,11 +677,10 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
           break;
         case TokenKind::EqualEqual:
         case TokenKind::BangEqual:
-          if (isCollectionType(left->type))
+          if (isCollectionType(left->type) || isAggregateType(left->type))
             diagnostics_.error(expression.location,
-                               "Array and Slice equality is not available yet");
-          else
-            result = Type::Bool;
+                               "aggregate equality is not available; match or compare fields");
+          else result = Type::Bool;
           break;
         case TokenKind::Less:
         case TokenKind::LessEqual:
@@ -286,7 +689,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
           if (left->type != Type::Int && left->type != Type::Float)
             diagnostics_.error(expression.location,
                                "ordering operators require Int or Float operands");
-          result = Type::Bool;
+          else result = Type::Bool;
           break;
         case TokenKind::Plus:
         case TokenKind::Minus:
@@ -306,104 +709,243 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression) {
   }
   case ExprKind::Call: {
     const auto& call = static_cast<const CallExpr&>(expression);
-    std::vector<std::unique_ptr<HirExpr>> arguments;
-    for (const auto& argument : call.arguments)
-      arguments.push_back(lowerExpression(*argument));
-
     if (call.callee->kind != ExprKind::Name) {
-      diagnostics_.error(expression.location, "call target must be a function name");
+      std::vector<std::unique_ptr<HirExpr>> arguments;
+      for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
+      diagnostics_.error(expression.location, "call target must be a function or constructor name");
       return std::make_unique<HirCallExpr>(expression.location, Type::Invalid, InvalidSymbol,
                                            std::move(arguments));
     }
     const std::string& name = static_cast<const LiteralExpr&>(*call.callee).value;
+
+    std::optional<std::uint32_t> aggregateDeclaration;
+    std::uint32_t tag = 0;
+    bool structConstructor = false;
+    auto typeTarget = typeDeclarations_.find(name);
+    if (typeTarget != typeDeclarations_.end() &&
+        hir_.typeDeclarations[typeTarget->second].kind == HirTypeDeclKind::Struct) {
+      aggregateDeclaration = typeTarget->second;
+      structConstructor = true;
+    } else {
+      auto variant = variants_.find(name);
+      if (variant != variants_.end()) {
+        aggregateDeclaration = variant->second.declaration;
+        tag = variant->second.variant;
+      }
+    }
+
+    if (aggregateDeclaration.has_value()) {
+      const auto& declaration = hir_.typeDeclarations[*aggregateDeclaration];
+      std::vector<Type> patterns;
+      if (structConstructor) {
+        for (const auto& field : declaration.fields) patterns.push_back(field.type);
+      } else {
+        patterns = declaration.variants[tag].payloadTypes;
+      }
+      Substitutions substitutions;
+      if (expected.has_value() && expected->declaration == declaration.name &&
+          expected->arguments.size() == declaration.typeParameters.size())
+        for (std::size_t index = 0; index < declaration.typeParameters.size(); ++index)
+          substitutions.emplace(declaration.typeParameters[index], expected->arguments[index]);
+      std::vector<std::unique_ptr<HirExpr>> arguments;
+      for (std::size_t index = 0; index < call.arguments.size(); ++index) {
+        std::optional<Type> argumentExpected;
+        if (index < patterns.size()) {
+          Type candidate = substitute(patterns[index], substitutions);
+          if (!containsTypeParameter(candidate)) argumentExpected = candidate;
+        }
+        arguments.push_back(lowerExpression(*call.arguments[index], argumentExpected));
+        if (index < patterns.size())
+          inferTypeArguments(patterns[index], arguments.back()->type, substitutions,
+                             arguments.back()->location);
+      }
+      if (arguments.size() != patterns.size())
+        diagnostics_.error(expression.location, "constructor '" + name + "' expects " +
+                                                 std::to_string(patterns.size()) + " argument(s)");
+      std::vector<Type> typeArguments;
+      for (const auto& parameter : declaration.typeParameters) {
+        auto inferred = substitutions.find(parameter);
+        if (inferred == substitutions.end()) {
+          diagnostics_.error(expression.location, "cannot infer type argument '" + parameter +
+                                                   "' for constructor '" + name +
+                                                   "'; add a binding type annotation");
+          typeArguments.push_back(Type::Invalid);
+        } else {
+          typeArguments.push_back(inferred->second);
+        }
+      }
+      for (std::size_t index = 0; index < arguments.size() && index < patterns.size(); ++index) {
+        const Type required = substitute(patterns[index], substitutions);
+        if (arguments[index]->type != Type::Invalid && arguments[index]->type != required)
+          diagnostics_.error(arguments[index]->location, "constructor argument type is " +
+                                                          typeName(arguments[index]->type) +
+                                                          ", expected " + typeName(required));
+      }
+      Type result{declaration.kind == HirTypeDeclKind::Struct ? TypeKind::Struct : TypeKind::Enum,
+                  declaration.name, std::move(typeArguments)};
+      return std::make_unique<HirAggregateExpr>(expression.location, std::move(result),
+                                                 *aggregateDeclaration, tag,
+                                                 std::move(arguments));
+    }
+
+    auto generic = genericFunctions_.find(name);
+    if (generic != genericFunctions_.end()) {
+      std::vector<std::unique_ptr<HirExpr>> arguments;
+      for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
+      const SymbolId callee = specializeFunction(*generic->second, arguments, expression.location);
+      const Type result = callee == InvalidSymbol ? Type::Invalid : hir_.symbol(callee).type;
+      return std::make_unique<HirCallExpr>(expression.location, result, callee,
+                                           std::move(arguments));
+    }
+
     auto found = functions_.find(name);
     if (found == functions_.end()) {
-      diagnostics_.error(call.callee->location, "unknown function '" + name + "'");
+      std::vector<std::unique_ptr<HirExpr>> arguments;
+      for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
+      diagnostics_.error(call.callee->location, "unknown function or constructor '" + name + "'");
       return std::make_unique<HirCallExpr>(expression.location, Type::Invalid, InvalidSymbol,
                                            std::move(arguments));
     }
-
     const SymbolId callee = found->second;
-    const auto& signature = hir_.symbol(callee);
+    const HirSymbol signature = hir_.symbol(callee);
+    std::vector<std::unique_ptr<HirExpr>> arguments;
+    for (std::size_t index = 0; index < call.arguments.size(); ++index) {
+      std::optional<Type> argumentExpected;
+      if (signature.kind != SymbolKind::BuiltinFunction &&
+          index < signature.parameterTypes.size())
+        argumentExpected = signature.parameterTypes[index];
+      arguments.push_back(lowerExpression(*call.arguments[index], argumentExpected));
+    }
     if (signature.kind == SymbolKind::BuiltinFunction) {
       if (arguments.size() != 1)
         diagnostics_.error(expression.location, "print expects exactly one argument");
-      else if (isCollectionType(arguments[0]->type))
-        diagnostics_.error(arguments[0]->location,
-                           "print does not accept Array or Slice values");
+      else if (isCollectionType(arguments[0]->type) || isAggregateType(arguments[0]->type))
+        diagnostics_.error(arguments[0]->location, "print does not accept aggregate values");
       return std::make_unique<HirCallExpr>(expression.location, Type::Unit, callee,
                                            std::move(arguments));
     }
-
     if (arguments.size() != signature.parameterTypes.size())
-      diagnostics_.error(expression.location,
-                         "function '" + name + "' expects " +
-                             std::to_string(signature.parameterTypes.size()) + " argument(s)");
-    for (std::size_t i = 0; i < arguments.size() && i < signature.parameterTypes.size(); ++i) {
-      if (arguments[i]->type != Type::Invalid &&
-          arguments[i]->type != signature.parameterTypes[i])
-        diagnostics_.error(arguments[i]->location,
-                           "argument type is " + std::string(typeName(arguments[i]->type)) +
-                               ", expected " + typeName(signature.parameterTypes[i]));
-    }
+      diagnostics_.error(expression.location, "function '" + name + "' expects " +
+                                                 std::to_string(signature.parameterTypes.size()) +
+                                                 " argument(s)");
+    for (std::size_t index = 0;
+         index < arguments.size() && index < signature.parameterTypes.size(); ++index)
+      if (arguments[index]->type != Type::Invalid &&
+          arguments[index]->type != signature.parameterTypes[index])
+        diagnostics_.error(arguments[index]->location, "argument type is " +
+                                                        typeName(arguments[index]->type) +
+                                                        ", expected " +
+                                                        typeName(signature.parameterTypes[index]));
     return std::make_unique<HirCallExpr>(expression.location, signature.type, callee,
                                          std::move(arguments));
   }
   case ExprKind::Array: {
     const auto& array = static_cast<const ArrayExpr&>(expression);
+    std::optional<Type> expectedElement;
+    if (expected.has_value() && isArrayType(*expected))
+      expectedElement = collectionElementType(*expected);
     std::vector<std::unique_ptr<HirExpr>> elements;
     for (const auto& element : array.elements)
-      elements.push_back(lowerExpression(*element));
+      elements.push_back(lowerExpression(*element, expectedElement));
     if (elements.empty()) {
-      diagnostics_.error(expression.location,
-                         "empty Array literals need an element type (not yet supported)");
-      return std::make_unique<HirArrayExpr>(expression.location, Type::Invalid,
+      if (!expectedElement.has_value()) {
+        diagnostics_.error(expression.location,
+                           "empty Array literal requires an Array[T] context");
+        return std::make_unique<HirArrayExpr>(expression.location, Type::Invalid,
+                                              std::move(elements));
+      }
+      return std::make_unique<HirArrayExpr>(expression.location, arrayType(*expectedElement),
                                             std::move(elements));
     }
-    const Type elementType = elements.front()->type;
+    const Type elementType = expectedElement.value_or(elements.front()->type);
     const Type result = arrayType(elementType);
-    if (result == Type::Invalid && elementType != Type::Invalid)
-      diagnostics_.error(expression.location,
-                         "Array elements must be Int, Float, Bool, Char, or String");
-    for (std::size_t index = 1; index < elements.size(); ++index) {
-      if (elements[index]->type != Type::Invalid && elementType != Type::Invalid &&
-          elements[index]->type != elementType)
-        diagnostics_.error(elements[index]->location,
-                           "Array literal elements must have one type; found " +
-                               std::string(typeName(elements[index]->type)) +
-                               ", expected " + typeName(elementType));
-    }
+    for (const auto& element : elements)
+      if (element->type != Type::Invalid && element->type != elementType)
+        diagnostics_.error(element->location, "Array literal elements must have one type; found " +
+                                                 typeName(element->type) + ", expected " +
+                                                 typeName(elementType));
     return std::make_unique<HirArrayExpr>(expression.location, result, std::move(elements));
   }
   case ExprKind::Index: {
     const auto& index = static_cast<const IndexExpr&>(expression);
     auto collection = lowerExpression(*index.collection);
-    auto offset = lowerExpression(*index.index);
+    auto offset = lowerExpression(*index.index, Type::Int);
     if (collection->type != Type::Invalid && !isCollectionType(collection->type))
-      diagnostics_.error(index.collection->location,
-                         "indexing requires an Array or Slice value");
+      diagnostics_.error(index.collection->location, "indexing requires an Array or Slice value");
     if (offset->type != Type::Invalid && offset->type != Type::Int)
       diagnostics_.error(index.index->location, "collection index must have type Int");
-    const Type result = collectionElementType(collection->type);
-    return std::make_unique<HirIndexExpr>(expression.location, result,
+    return std::make_unique<HirIndexExpr>(expression.location,
+                                          collectionElementType(collection->type),
                                           std::move(collection), std::move(offset));
   }
   case ExprKind::Slice: {
     const auto& slice = static_cast<const SliceExpr&>(expression);
     auto collection = lowerExpression(*slice.collection);
-    auto start = lowerExpression(*slice.start);
-    auto end = lowerExpression(*slice.end);
+    auto start = lowerExpression(*slice.start, Type::Int);
+    auto end = lowerExpression(*slice.end, Type::Int);
     if (collection->type != Type::Invalid && !isCollectionType(collection->type))
-      diagnostics_.error(slice.collection->location,
-                         "slicing requires an Array or Slice value");
+      diagnostics_.error(slice.collection->location, "slicing requires an Array or Slice value");
     if (start->type != Type::Invalid && start->type != Type::Int)
       diagnostics_.error(slice.start->location, "slice start must have type Int");
     if (end->type != Type::Invalid && end->type != Type::Int)
       diagnostics_.error(slice.end->location, "slice end must have type Int");
-    const Type result = sliceType(collectionElementType(collection->type));
-    return std::make_unique<HirSliceExpr>(expression.location, result,
-                                          std::move(collection), std::move(start),
-                                          std::move(end));
+    return std::make_unique<HirSliceExpr>(expression.location,
+                                          sliceType(collectionElementType(collection->type)),
+                                          std::move(collection), std::move(start), std::move(end));
+  }
+  case ExprKind::Field: {
+    const auto& field = static_cast<const FieldExpr&>(expression);
+    auto value = lowerExpression(*field.value);
+    const std::uint32_t declarationIndex = findTypeDeclaration(value->type);
+    if (value->type.kind != TypeKind::Struct ||
+        declarationIndex == static_cast<std::uint32_t>(-1)) {
+      diagnostics_.error(expression.location, "field access requires a struct value");
+      return std::make_unique<HirFieldExpr>(expression.location, Type::Invalid,
+                                            std::move(value), 0);
+    }
+    const auto& declaration = hir_.typeDeclarations[declarationIndex];
+    std::optional<std::uint32_t> index;
+    for (std::uint32_t candidate = 0; candidate < declaration.fields.size(); ++candidate)
+      if (declaration.fields[candidate].name == field.field) index = candidate;
+    if (!index.has_value()) {
+      diagnostics_.error(expression.location, "struct '" + declaration.name +
+                                                  "' has no field '" + field.field + "'");
+      return std::make_unique<HirFieldExpr>(expression.location, Type::Invalid,
+                                            std::move(value), 0);
+    }
+    Substitutions substitutions;
+    for (std::size_t argument = 0; argument < declaration.typeParameters.size(); ++argument)
+      substitutions.emplace(declaration.typeParameters[argument], value->type.arguments[argument]);
+    const Type result = substitute(declaration.fields[*index].type, substitutions);
+    return std::make_unique<HirFieldExpr>(expression.location, result, std::move(value), *index);
+  }
+  case ExprKind::Propagate: {
+    const auto& propagate = static_cast<const PropagateExpr&>(expression);
+    auto value = lowerExpression(*propagate.value);
+    const std::uint32_t declarationIndex = findTypeDeclaration(value->type);
+    if (value->type.kind != TypeKind::Enum ||
+        declarationIndex == static_cast<std::uint32_t>(-1) ||
+        (value->type.declaration != "Option" && value->type.declaration != "Result")) {
+      diagnostics_.error(expression.location, "'?' requires Option[T] or Result[T, E]");
+      return std::make_unique<HirPropagateExpr>(expression.location, Type::Invalid,
+                                                std::move(value), currentReturnType_,
+                                                declarationIndex);
+    }
+    if (currentReturnType_.kind != TypeKind::Enum ||
+        currentReturnType_.declaration != value->type.declaration) {
+      diagnostics_.error(expression.location, "'?' in this function requires return type " +
+                                                  value->type.declaration + "[...]");
+    } else if (value->type.declaration == "Result" &&
+               value->type.arguments[1] != currentReturnType_.arguments[1]) {
+      diagnostics_.error(expression.location, "'?' error type is " +
+                                                  typeName(value->type.arguments[1]) +
+                                                  ", function returns " +
+                                                  typeName(currentReturnType_.arguments[1]));
+    }
+    const Type success = value->type.arguments.front();
+    return std::make_unique<HirPropagateExpr>(expression.location, success,
+                                              std::move(value), currentReturnType_,
+                                              declarationIndex);
   }
   }
   return std::make_unique<HirLiteralExpr>(expression.location, Type::Invalid, "0");
@@ -425,6 +967,15 @@ bool HirLowerer::definitelyReturns(const HirBlock& body) const {
       if (!branch.elseBody.empty() && definitelyReturns(branch.thenBody) &&
           definitelyReturns(branch.elseBody))
         return true;
+    }
+    if (statement->kind == HirStmtKind::Match) {
+      const auto& match = static_cast<const HirMatchStmt&>(*statement);
+      if (!match.cases.empty()) {
+        bool allReturn = true;
+        for (const auto& matchCase : match.cases)
+          allReturn = definitelyReturns(matchCase.body) && allReturn;
+        if (allReturn) return true;
+      }
     }
   }
   return false;

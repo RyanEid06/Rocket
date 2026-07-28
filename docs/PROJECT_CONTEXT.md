@@ -31,9 +31,14 @@ linked runtime ABI. It is not yet self-hosted.
 Implemented:
 
 - Indentation-aware lexer with line/column locations.
-- Parser and AST for functions, bindings, assignment, `if`/`else`, `while`, integer `for` ranges, loop control, returns, calls, arithmetic, comparisons, logical operators, and scalar literals.
-- Resolved HIR with deterministic declaration symbols, lexical name resolution, resolved calls, and checked expression types.
-- Typed, basic-block MIR with explicit locals, operations, short-circuit branches, loop edges, and terminators, plus structural/type verification.
+- Parser and AST for functions, bindings, assignment, control flow, structs,
+  enums, generics, exhaustive matches, imports, aggregate expressions, and `?`.
+- Resolved HIR with structural nested types, deterministic declaration symbols,
+  lexical name resolution, concrete generic specializations, resolved aggregate
+  fields/variants, and checked expression types.
+- Typed, basic-block MIR with explicit locals, aggregate construction/field/tag
+  operations, propagation branches, short-circuit branches, loop edges, and
+  terminators, plus structural/type verification.
 - Scalar MIR-to-LLVM lowering with a verified Windows x64 ABI, O2 optimization,
   object and assembly emission, native linking, and working `emit-ir`, `build`,
   `run`, and `emit-asm` commands.
@@ -42,9 +47,15 @@ Implemented:
   printing.
 - Owned immutable UTF-8 String values with explicit byte lengths, allocation,
   content equality, and deterministic destruction.
-- Typed `Array[T]` literals and retained `Slice[T]` views for scalar and String
-  elements, with checked indexing, exclusive slicing, and managed-element
-  destruction.
+- Typed `Array[T]` literals and retained `Slice[T]` views for nested scalar and
+  managed elements, with checked indexing, exclusive slicing, and
+  managed-element destruction.
+- Opaque ARC structs and enums with scalar/managed fields, generic constructors,
+  payload variants, exhaustive pattern matching, and deterministic destruction.
+- Built-in generic `Option[T]` and `Result[T, E]` enums plus exception-free `?`
+  propagation lowered to explicit MIR control flow.
+- Package-relative source modules with `import`, `pub` visibility, qualified
+  deterministic symbols, alias diagnostics, and import-cycle detection.
 - Checked signed Int literals and arithmetic, including overflow and
   division-by-zero diagnostics.
 - Isolated MIR-to-C++ stage0 backend that remains buildable when LLVM is disabled.
@@ -55,9 +66,8 @@ Implemented:
 
 Not implemented yet:
 
-- Complete control-flow return analysis and a broader golden diagnostic catalog.
-- Structs, enums, general generics, pattern matching, modules, `Option`,
-  `Result`, standard library, formatter, test runner, package layout, editor
+- A broader golden diagnostic catalog.
+- Practical standard library, formatter, test runner, package layout, editor
   support, and self-hosting.
 
 ## Canonical build commands
@@ -201,24 +211,46 @@ Known limitations remain those in the implementation-state list above; no langua
 - Verified the pinned LLVM 22.1.6, Ninja 1.13.1, MSVC 19.51.36252, CMake 4.3.2,
   and Git 2.54.0 toolchain. Debug and Release each pass all 19 tests.
 
+**Phase 6 - structural types, algebraic data types, and modules**
+
+- Replaced the closed built-in type enumeration with structural values carrying
+  nominal declaration identities and recursively nested type arguments while
+  preserving the Phase 5 collection ABI.
+- Added immutable generic structs, positional construction, field access,
+  payload enums, exhaustive `match`/`case`, immutable payload bindings, and
+  complete match-based return analysis.
+- Added inferred generic-function specialization before MIR with deterministic
+  canonical specialization symbols and concrete backend signatures.
+- Implemented built-in `Option[T]` and `Result[T, E]` enums plus postfix `?` as
+  explicit MIR success/failure branches and owned early returns.
+- Added opaque ARC aggregate runtime storage, managed-field masks, managed
+  aggregate collection elements, nested aggregate destruction, and a
+  10,000-iteration aggregate lifetime stress extension.
+- Added recursive package-relative module loading, `pub` visibility, module
+  aliases, fully qualified deterministic declarations, missing/private access
+  diagnostics, and import-cycle detection. Draft 0.6 compiles a checked source
+  graph into one artifact rather than freezing a binary module format.
+- Extended both the LLVM production backend and C++ stage0 fallback. The
+  LLVM-disabled Debug compiler passes all 13 applicable tests and compiles/runs
+  the full Phase 6 fixture through generated C++.
+- Added focused parser, semantic, HIR, MIR, runtime, module, LLVM-native, and
+  negative diagnostic coverage. Debug and Release each pass all 25 tests; the
+  native type-system fixture prints `10`, `20`, `generic`, `42`, `10`,
+  `matched`, and the module fixture prints `6`, `4`.
+- Hardened MSVC discovery to include a temporarily incomplete Visual Studio
+  installer instance when its C++ workload remains present.
+
 ## Current next task
 
-**Phase 6: implement structs, enums, generics, pattern matching, `Option`,
-`Result`, error propagation, and modules.**
+**Phase 7: build the practical standard library.**
 
-- Replace the closed built-in `Type` enumeration with a structural type
-  representation that can express user-defined and nested generic types while
-  preserving the concrete Phase 5 collection ABI.
-- Specify and implement struct declarations, field access, aggregate
-  construction, layout, ARC destruction, and backend lowering.
-- Add enums, payload variants, exhaustive pattern matching, and general generic
-  specialization; define managed aggregate cycle behavior explicitly.
-- Implement `Option[T]`, `Result[T, E]`, and `?` without exceptions or universal
-  null.
-- Add module files, imports, visibility, deterministic symbol identity across
-  modules, cycle diagnostics, and separate compilation rules.
-- Add focused parser/type/MIR/backend/native tests and update the specification,
-  architecture, decisions, and this handoff after the milestone.
+- Define the stable standard-library module namespace and native ABI boundary.
+- Add core collection helpers, UTF-8 String utilities, and file/path APIs.
+- Add JSON and CSV parsing/serialization with explicit `Result` failures.
+- Add deterministic/random seeding APIs, process execution, environment access,
+  and wall-clock/monotonic time APIs.
+- Add focused runtime, compiler, module, native integration, failure, and
+  lifetime tests plus practical examples and reference documentation.
 
 ## New-chat prompt
 

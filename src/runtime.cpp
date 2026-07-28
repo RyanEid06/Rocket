@@ -22,6 +22,7 @@ struct AllocationHeader {
 inline constexpr std::uint32_t ObjectString = 1;
 inline constexpr std::uint32_t ObjectArray = 2;
 inline constexpr std::uint32_t ObjectSlice = 3;
+inline constexpr std::uint32_t ObjectAggregate = 4;
 
 struct RuntimeString {
   AllocationHeader header;
@@ -42,6 +43,14 @@ struct RuntimeSlice {
   RuntimeArray* owner;
   std::uint64_t offset;
   std::uint64_t length;
+};
+
+struct RuntimeAggregate {
+  AllocationHeader header;
+  std::uint32_t tag;
+  std::uint32_t fieldCount;
+  std::uint64_t managedMask;
+  std::uint64_t* fields;
 };
 
 struct CollectionView {
@@ -106,19 +115,31 @@ std::size_t elementSize(std::uint32_t elementKind) {
   case ROCKET_ELEMENT_BOOL:
   case ROCKET_ELEMENT_CHAR: return sizeof(std::uint8_t);
   case ROCKET_ELEMENT_STRING: return sizeof(RocketString*);
+  case ROCKET_ELEMENT_MANAGED: return sizeof(void*);
   default: runtimeFailure("invalid Array element kind");
   }
 }
 
 void destroyArray(AllocationHeader* header) {
   auto* array = reinterpret_cast<RuntimeArray*>(header);
-  if (array->elementKind == ROCKET_ELEMENT_STRING) {
-    auto** strings = static_cast<RocketString**>(array->elements);
+  if (array->elementKind == ROCKET_ELEMENT_STRING ||
+      array->elementKind == ROCKET_ELEMENT_MANAGED) {
+    auto** strings = static_cast<void**>(array->elements);
     for (std::uint64_t index = 0; index < array->length; ++index)
       rocket_rt_release(strings[index]);
   }
   std::free(array->elements);
   std::free(array);
+  liveAllocations.fetch_sub(1, std::memory_order_relaxed);
+}
+
+void destroyAggregate(AllocationHeader* header) {
+  auto* aggregate = reinterpret_cast<RuntimeAggregate*>(header);
+  for (std::uint32_t index = 0; index < aggregate->fieldCount; ++index)
+    if ((aggregate->managedMask & (std::uint64_t{1} << index)) != 0)
+      rocket_rt_release(reinterpret_cast<void*>(aggregate->fields[index]));
+  std::free(aggregate->fields);
+  std::free(aggregate);
   liveAllocations.fetch_sub(1, std::memory_order_relaxed);
 }
 
@@ -189,6 +210,19 @@ RuntimeArray* checkedArray(RocketArray* array, std::int64_t index,
   if (index < 0 || static_cast<std::uint64_t>(index) >= runtimeArray->length)
     indexFailure(index, runtimeArray->length);
   return runtimeArray;
+}
+
+RuntimeAggregate* checkedAggregate(RocketAggregate* aggregate, std::uint32_t field) {
+  auto* runtime = reinterpret_cast<RuntimeAggregate*>(aggregate);
+  if (!runtime || runtime->header.objectKind != ObjectAggregate)
+    runtimeFailure("aggregate operation received an invalid value");
+  if (field >= runtime->fieldCount) runtimeFailure("aggregate field index out of bounds");
+  return runtime;
+}
+
+const RuntimeAggregate* checkedAggregate(const RocketAggregate* aggregate,
+                                         std::uint32_t field) {
+  return checkedAggregate(const_cast<RocketAggregate*>(aggregate), field);
 }
 
 } // namespace
@@ -303,6 +337,14 @@ void rocket_rt_array_set_string(RocketArray* array, std::int64_t index, RocketSt
   elements[index] = value;
 }
 
+void rocket_rt_array_set_managed(RocketArray* array, std::int64_t index, void* value) {
+  RuntimeArray* checked = checkedArray(array, index, ROCKET_ELEMENT_MANAGED);
+  auto** elements = static_cast<void**>(checked->elements);
+  rocket_rt_retain(value);
+  rocket_rt_release(elements[index]);
+  elements[index] = value;
+}
+
 RocketSlice* rocket_rt_slice_new(void* collection, std::int64_t start, std::int64_t end) {
   const CollectionView view = collectionView(collection);
   if (start < 0 || end < start || static_cast<std::uint64_t>(end) > view.length)
@@ -350,6 +392,108 @@ RocketString* rocket_rt_index_string(const void* collection, std::int64_t index)
   const CollectionView view = collectionView(collection);
   RocketString* value = static_cast<RocketString**>(view.owner->elements)[
       checkedIndex(view, index, ROCKET_ELEMENT_STRING)];
+  rocket_rt_retain(value);
+  return value;
+}
+
+void* rocket_rt_index_managed(const void* collection, std::int64_t index) {
+  const CollectionView view = collectionView(collection);
+  void* value = static_cast<void**>(view.owner->elements)[
+      checkedIndex(view, index, ROCKET_ELEMENT_MANAGED)];
+  rocket_rt_retain(value);
+  return value;
+}
+
+RocketAggregate* rocket_rt_aggregate_new(std::uint32_t tag, std::uint32_t fieldCount,
+                                         std::uint64_t managedMask) {
+  if (fieldCount > 64) runtimeFailure("aggregates are limited to 64 fields in ABI v1");
+  auto* aggregate = static_cast<RuntimeAggregate*>(std::malloc(sizeof(RuntimeAggregate)));
+  if (!aggregate) runtimeFailure("out of memory while allocating aggregate");
+  std::uint64_t* fields = nullptr;
+  if (fieldCount != 0) {
+    fields = static_cast<std::uint64_t*>(std::calloc(fieldCount, sizeof(std::uint64_t)));
+    if (!fields) {
+      std::free(aggregate);
+      runtimeFailure("out of memory while allocating aggregate fields");
+    }
+  }
+  aggregate->header = {1, destroyAggregate, ObjectAggregate, 0};
+  aggregate->tag = tag;
+  aggregate->fieldCount = fieldCount;
+  aggregate->managedMask = managedMask;
+  aggregate->fields = fields;
+  liveAllocations.fetch_add(1, std::memory_order_relaxed);
+  return reinterpret_cast<RocketAggregate*>(aggregate);
+}
+
+std::uint32_t rocket_rt_aggregate_tag(const RocketAggregate* aggregate) {
+  const auto* runtime = reinterpret_cast<const RuntimeAggregate*>(aggregate);
+  if (!runtime || runtime->header.objectKind != ObjectAggregate)
+    runtimeFailure("tag operation received an invalid enum");
+  return runtime->tag;
+}
+
+void rocket_rt_aggregate_set_int(RocketAggregate* aggregate, std::uint32_t field,
+                                 std::int64_t value) {
+  checkedAggregate(aggregate, field)->fields[field] = static_cast<std::uint64_t>(value);
+}
+
+void rocket_rt_aggregate_set_float(RocketAggregate* aggregate, std::uint32_t field,
+                                   double value) {
+  auto* checked = checkedAggregate(aggregate, field);
+  std::memcpy(&checked->fields[field], &value, sizeof(value));
+}
+
+void rocket_rt_aggregate_set_bool(RocketAggregate* aggregate, std::uint32_t field,
+                                  std::uint8_t value) {
+  checkedAggregate(aggregate, field)->fields[field] = value ? 1 : 0;
+}
+
+void rocket_rt_aggregate_set_char(RocketAggregate* aggregate, std::uint32_t field,
+                                  std::uint8_t value) {
+  checkedAggregate(aggregate, field)->fields[field] = value;
+}
+
+void rocket_rt_aggregate_set_managed(RocketAggregate* aggregate, std::uint32_t field,
+                                     void* value) {
+  auto* checked = checkedAggregate(aggregate, field);
+  if ((checked->managedMask & (std::uint64_t{1} << field)) == 0)
+    runtimeFailure("aggregate managed-field mask mismatch");
+  void* previous = reinterpret_cast<void*>(checked->fields[field]);
+  rocket_rt_retain(value);
+  rocket_rt_release(previous);
+  checked->fields[field] = reinterpret_cast<std::uint64_t>(value);
+}
+
+std::int64_t rocket_rt_aggregate_get_int(const RocketAggregate* aggregate,
+                                         std::uint32_t field) {
+  return static_cast<std::int64_t>(checkedAggregate(aggregate, field)->fields[field]);
+}
+
+double rocket_rt_aggregate_get_float(const RocketAggregate* aggregate,
+                                     std::uint32_t field) {
+  double value = 0.0;
+  const auto* checked = checkedAggregate(aggregate, field);
+  std::memcpy(&value, &checked->fields[field], sizeof(value));
+  return value;
+}
+
+std::uint8_t rocket_rt_aggregate_get_bool(const RocketAggregate* aggregate,
+                                          std::uint32_t field) {
+  return checkedAggregate(aggregate, field)->fields[field] != 0 ? 1 : 0;
+}
+
+std::uint8_t rocket_rt_aggregate_get_char(const RocketAggregate* aggregate,
+                                          std::uint32_t field) {
+  return static_cast<std::uint8_t>(checkedAggregate(aggregate, field)->fields[field]);
+}
+
+void* rocket_rt_aggregate_get_managed(const RocketAggregate* aggregate,
+                                      std::uint32_t field) {
+  const auto* checked = checkedAggregate(aggregate, field);
+  if ((checked->managedMask & (std::uint64_t{1} << field)) == 0)
+    runtimeFailure("aggregate managed-field mask mismatch");
+  void* value = reinterpret_cast<void*>(checked->fields[field]);
   rocket_rt_retain(value);
   return value;
 }

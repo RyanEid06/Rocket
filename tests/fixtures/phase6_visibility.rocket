@@ -1,0 +1,4 @@
+import modules.math
+
+fn main() -> Int:
+    return math.hidden()

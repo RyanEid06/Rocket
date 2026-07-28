@@ -1,6 +1,7 @@
 #include "codegen.h"
 #include "lexer.h"
 #include "mir.h"
+#include "module_loader.h"
 #include "parser.h"
 #include "sema.h"
 #ifdef ROCKETC_HAS_LLVM
@@ -44,15 +45,8 @@ struct Compilation {
 
 Compilation compileFrontend(const fs::path& path) {
   Compilation result;
-  std::string source;
-  if (!readFile(path, source)) {
-    result.diagnostics.error({path.string(), 1, 1}, "could not read source file");
-    return result;
-  }
-  rocket::Lexer lexer(path.string(), std::move(source), result.diagnostics);
-  auto tokens = lexer.lex();
-  rocket::Parser parser(tokens, result.diagnostics);
-  result.module = parser.parseModule();
+  auto loaded = rocket::loadModuleGraph(path, result.diagnostics);
+  if (loaded.has_value()) result.module = std::move(*loaded);
   if (!result.diagnostics.hasErrors()) {
     rocket::SemanticAnalyzer analyzer(result.module, result.diagnostics);
     result.hir = analyzer.analyzeToHir();

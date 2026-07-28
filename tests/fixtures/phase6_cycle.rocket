@@ -1,0 +1,4 @@
+import modules.cycle_a
+
+fn main() -> Int:
+    return 0

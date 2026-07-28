@@ -48,6 +48,34 @@ must not inspect the AST or HIR.
 Future aggregate and generic types must extend these invariants without
 weakening them.
 
+## Structural types and specialization
+
+- `Type` is an immutable structural value with a kind, nominal declaration
+  identity, and recursively nested arguments. Scalar constants remain canonical
+  values; `Array[T]`, `Slice[T]`, structs, and enums no longer consume cases in
+  a closed built-in enumeration.
+- HIR contains a deterministic type-declaration table for structs and enums.
+  Field and variant payload types may contain type-parameter nodes and are
+  substituted with concrete nominal arguments at each use.
+- Generic functions are inferred from concrete call operands and monomorphized
+  before MIR. The specialization key is the function name plus canonical
+  structural type spellings, so repeated and recursive calls reuse one symbol.
+- HIR match cases store resolved enum tags and payload symbols. Exhaustiveness,
+  duplicate variants, binding arity, wildcard position, and return paths are
+  checked before MIR.
+- MIR represents aggregate construction, field extraction, enum tag reads, and
+  propagation explicitly. `?` becomes a success branch plus an early owned
+  `None`/`Err` return; backends never reconstruct its semantics.
+
+## Source module graph
+
+The module loader resolves package-relative imports before HIR. It diagnoses
+unreadable files, alias conflicts, private cross-module access, and DFS import
+cycles. Public references are rewritten to deterministic fully qualified names.
+Dependencies are traversed in stable postorder and the source graph is lowered
+as one compilation unit in draft 0.6. This preserves deterministic symbol IDs
+without introducing an unstable binary module format before packaging.
+
 ## Scalar LLVM backend
 
 The production backend consumes only verified MIR and maps scalar values to the
@@ -62,6 +90,7 @@ following LLVM types on the Windows x64 target:
 | `String` | opaque `ptr` | `ptr` (+1 owned) |
 | `Array[T]` | opaque `ptr` | `ptr` (+1 owned) |
 | `Slice[T]` | opaque `ptr` | `ptr` (+1 owned) |
+| struct / enum | opaque `ptr` | `ptr` (+1 owned) |
 | `Unit` | internal `i8` placeholder | `void` |
 
 - MIR locals begin as entry-block stack slots initialized to the scalar zero or
@@ -114,7 +143,7 @@ length and trailing zero for C interoperability. The trailing zero is not part
 of equality or length. Runtime printing uses the explicit length.
 
 `Array[T]` owns contiguous zero-initialized element storage. Arrays of String
-retain every stored element and release them in deterministic order at
+or another managed type retain every stored element and release them in deterministic order at
 destruction. `Slice[T]` stores an owning reference to the backing Array plus an
 offset and length; slicing a Slice flattens offsets while retaining the same
 owner. Index and slice functions validate signed bounds before accessing data.
@@ -123,3 +152,9 @@ The runtime reports bounds failures, invalid UTF-8, allocation failures,
 reference-count corruption, integer overflow, and integer division by zero to
 standard error and exits with status 101. Reference-count cycles remain a
 documented Rocket 1.0 limitation.
+
+Runtime aggregates store a deterministic enum tag, up to 64 typed field slots,
+and a managed-field mask. Construction retains managed fields, managed field
+reads return +1, and destruction releases fields in declaration order. This
+opaque representation keeps generic specializations and nested aggregate types
+on the same stable pointer ABI while scalar fields retain their native widths.

@@ -33,6 +33,12 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::KwAnd: return "and";
   case TokenKind::KwOr: return "or";
   case TokenKind::KwNot: return "not";
+  case TokenKind::KwStruct: return "struct";
+  case TokenKind::KwEnum: return "enum";
+  case TokenKind::KwMatch: return "match";
+  case TokenKind::KwCase: return "case";
+  case TokenKind::KwPub: return "pub";
+  case TokenKind::KwImport: return "import";
   case TokenKind::LParen: return "(";
   case TokenKind::RParen: return ")";
   case TokenKind::LBracket: return "[";
@@ -44,7 +50,9 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::Minus: return "-";
   case TokenKind::Star: return "*";
   case TokenKind::Slash: return "/";
+  case TokenKind::Dot: return ".";
   case TokenKind::DotDot: return "..";
+  case TokenKind::Question: return "?";
   case TokenKind::Equal: return "=";
   case TokenKind::EqualEqual: return "==";
   case TokenKind::BangEqual: return "!=";
@@ -69,7 +77,10 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       {"break", TokenKind::KwBreak}, {"continue", TokenKind::KwContinue},
       {"return", TokenKind::KwReturn}, {"true", TokenKind::KwTrue},
       {"false", TokenKind::KwFalse}, {"and", TokenKind::KwAnd},
-      {"or", TokenKind::KwOr}, {"not", TokenKind::KwNot}};
+      {"or", TokenKind::KwOr}, {"not", TokenKind::KwNot},
+      {"struct", TokenKind::KwStruct}, {"enum", TokenKind::KwEnum},
+      {"match", TokenKind::KwMatch}, {"case", TokenKind::KwCase},
+      {"pub", TokenKind::KwPub}, {"import", TokenKind::KwImport}};
 
   std::size_t i = start;
   while (i < text.size()) {
@@ -169,11 +180,12 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
     case '+': emit(TokenKind::Plus, "+", lineNumber, column); ++i; break;
     case '*': emit(TokenKind::Star, "*", lineNumber, column); ++i; break;
     case '/': emit(TokenKind::Slash, "/", lineNumber, column); ++i; break;
+    case '?': emit(TokenKind::Question, "?", lineNumber, column); ++i; break;
     case '.':
       if (i + 1 < text.size() && text[i + 1] == '.') {
         emit(TokenKind::DotDot, "..", lineNumber, column); i += 2;
       } else {
-        diagnostics_.error({file_, lineNumber, column}, "expected '..' for a range"); ++i;
+        emit(TokenKind::Dot, ".", lineNumber, column); ++i;
       }
       break;
     case '-': two('>', TokenKind::Arrow, TokenKind::Minus); break;

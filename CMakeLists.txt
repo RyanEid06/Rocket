@@ -24,6 +24,7 @@ endif()
 add_library(rocketc_core
   src/lexer.cpp
   src/parser.cpp
+  src/module_loader.cpp
   src/type.cpp
   src/hir.cpp
   src/sema.cpp
@@ -111,6 +112,23 @@ add_test(NAME runtime COMMAND rocketc_runtime_tests)
 add_test(NAME cli_check_hello
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
 
+add_test(NAME cli_check_phase6_types
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_types.rocket")
+add_test(NAME cli_check_phase6_modules
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_modules.rocket")
+add_test(NAME cli_phase6_visibility
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_visibility.rocket"
+    "-DEXPECTED=has no public callable 'hidden'"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+add_test(NAME cli_phase6_import_cycle
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_cycle.rocket"
+    "-DEXPECTED=import cycle detected"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+
 if(LLVM_FOUND)
   add_test(NAME cli_emit_ir
     COMMAND rocketc emit-ir "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
@@ -136,6 +154,16 @@ if(LLVM_FOUND)
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/runtime_collections.rocket")
   set_tests_properties(cli_run_runtime_collections PROPERTIES
     PASS_REGULAR_EXPRESSION "rocket[\r\n]+30[\r\n]+20[\r\n]+1[\r\n]+1.5[\r\n]+R")
+
+  add_test(NAME cli_run_phase6_types
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_types.rocket")
+  set_tests_properties(cli_run_phase6_types PROPERTIES
+    PASS_REGULAR_EXPRESSION "10[\r\n]+20[\r\n]+generic[\r\n]+42[\r\n]+10[\r\n]+matched")
+
+  add_test(NAME cli_run_phase6_modules
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_modules.rocket")
+  set_tests_properties(cli_run_phase6_modules PROPERTIES
+    PASS_REGULAR_EXPRESSION "6[\r\n]+4")
 
   add_test(NAME cli_array_bounds_failure
     COMMAND ${CMAKE_COMMAND}

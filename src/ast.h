@@ -9,7 +9,8 @@
 namespace rocket {
 
 enum class ExprKind {
-  Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, Array, Index, Slice
+  Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, Array, Index, Slice,
+  Field, Propagate
 };
 
 struct Expr {
@@ -76,7 +77,23 @@ struct SliceExpr final : Expr {
   std::unique_ptr<Expr> end;
 };
 
-enum class StmtKind { Binding, Assignment, Return, Expression, If, While, For, Break, Continue };
+struct FieldExpr final : Expr {
+  FieldExpr(Location location, std::unique_ptr<Expr> value, std::string field)
+      : Expr(ExprKind::Field, std::move(location)), value(std::move(value)),
+        field(std::move(field)) {}
+  std::unique_ptr<Expr> value;
+  std::string field;
+};
+
+struct PropagateExpr final : Expr {
+  PropagateExpr(Location location, std::unique_ptr<Expr> value)
+      : Expr(ExprKind::Propagate, std::move(location)), value(std::move(value)) {}
+  std::unique_ptr<Expr> value;
+};
+
+enum class StmtKind {
+  Binding, Assignment, Return, Expression, If, While, For, Break, Continue, Match
+};
 
 struct Stmt {
   explicit Stmt(StmtKind kind, Location location) : kind(kind), location(std::move(location)) {}
@@ -87,11 +104,13 @@ struct Stmt {
 
 struct BindingStmt final : Stmt {
   BindingStmt(Location location, bool mutableBinding, std::string name,
-              std::unique_ptr<Expr> initializer)
+              std::string declaredType, std::unique_ptr<Expr> initializer)
       : Stmt(StmtKind::Binding, std::move(location)), mutableBinding(mutableBinding),
-        name(std::move(name)), initializer(std::move(initializer)) {}
+        name(std::move(name)), declaredType(std::move(declaredType)),
+        initializer(std::move(initializer)) {}
   bool mutableBinding;
   std::string name;
+  std::string declaredType;
   std::unique_ptr<Expr> initializer;
 };
 
@@ -149,16 +168,71 @@ struct LoopControlStmt final : Stmt {
   LoopControlStmt(StmtKind kind, Location location) : Stmt(kind, std::move(location)) {}
 };
 
+struct MatchPattern {
+  Location location;
+  std::string variant;
+  bool wildcard = false;
+  std::vector<std::string> bindings;
+};
+
+struct MatchCase {
+  MatchPattern pattern;
+  std::vector<std::unique_ptr<Stmt>> body;
+};
+
+struct MatchStmt final : Stmt {
+  MatchStmt(Location location, std::unique_ptr<Expr> value,
+            std::vector<MatchCase> cases)
+      : Stmt(StmtKind::Match, std::move(location)), value(std::move(value)),
+        cases(std::move(cases)) {}
+  std::unique_ptr<Expr> value;
+  std::vector<MatchCase> cases;
+};
+
 struct Parameter { std::string name; std::string typeName; Location location; };
 
 struct Function {
   std::string name;
   Location location;
+  bool publicDeclaration = false;
+  std::vector<std::string> typeParameters;
   std::vector<Parameter> parameters;
   std::string returnType;
   std::vector<std::unique_ptr<Stmt>> body;
 };
 
-struct Module { std::vector<Function> functions; };
+struct TypeField { std::string name; std::string typeName; Location location; };
+
+struct StructDecl {
+  std::string name;
+  Location location;
+  bool publicDeclaration = false;
+  std::vector<std::string> typeParameters;
+  std::vector<TypeField> fields;
+};
+
+struct EnumVariant {
+  std::string name;
+  Location location;
+  std::vector<std::string> payloadTypes;
+};
+
+struct EnumDecl {
+  std::string name;
+  Location location;
+  bool publicDeclaration = false;
+  std::vector<std::string> typeParameters;
+  std::vector<EnumVariant> variants;
+};
+
+struct ImportDecl { std::string name; Location location; };
+
+struct Module {
+  std::string name;
+  std::vector<ImportDecl> imports;
+  std::vector<StructDecl> structs;
+  std::vector<EnumDecl> enums;
+  std::vector<Function> functions;
+};
 
 } // namespace rocket

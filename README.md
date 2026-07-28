@@ -5,8 +5,8 @@ Rocket is an experimental, beginner-friendly, statically typed language for nati
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
 optimized Windows x64 executables. Its linked ABI-v1 runtime provides ARC,
-owned UTF-8 strings, checked integer arithmetic, arrays, slices, and safe bounds
-failures. The C++ MIR transpiler remains available only as the reproducible
+owned UTF-8 strings, checked integer arithmetic, nested collections, structs,
+enums, and safe bounds failures. The C++ MIR transpiler remains available only as the reproducible
 stage0 fallback when LLVM is explicitly disabled.
 
 ## Current language subset
@@ -15,6 +15,9 @@ stage0 fallback when LLVM is explicitly disabled.
 - Inferred immutable `let` and mutable `var` bindings
 - `Int`, `Float`, `Bool`, `Char`, `String`, and `Unit`
 - Owned `Array[T]` literals, retained `Slice[T]` views, and checked indexing
+- Generic structs and functions, payload enums, exhaustive `match`, and field access
+- `Option[T]`, `Result[T, E]`, and exception-free postfix `?` propagation
+- Package-relative `import` modules with explicit `pub` visibility
 - Arithmetic, comparisons, `and`/`or`/`not`, and function calls
 - Assignment, `if`/`else`, `while`, integer `for` ranges, `break`, `continue`, and `return`
 - Built-in `print`

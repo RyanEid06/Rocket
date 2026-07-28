@@ -15,8 +15,9 @@ enum class TokenKind {
   Identifier, Integer, Float, Character, String,
   KwFn, KwLet, KwVar, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue,
   KwReturn, KwTrue, KwFalse, KwAnd, KwOr, KwNot,
+  KwStruct, KwEnum, KwMatch, KwCase, KwPub, KwImport,
   LParen, RParen, LBracket, RBracket, Colon, Comma, Arrow,
-  Plus, Minus, Star, Slash, DotDot,
+  Plus, Minus, Star, Slash, Dot, DotDot, Question,
   Equal, EqualEqual, BangEqual,
   Less, LessEqual, Greater, GreaterEqual
 };

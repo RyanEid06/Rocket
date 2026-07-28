@@ -99,5 +99,36 @@ int main() {
                              headReturn.value->type == rocket::Type::Int,
                          "HIR index expressions carry their element type", failures);
   }
+
+  rocket::Diagnostics phase6Diagnostics;
+  auto phase6 = rocket::test::lowerToHir(
+      "struct Box[T]:\n"
+      "    value: T\n"
+      "fn identity[T](value: T) -> T:\n"
+      "    return value\n"
+      "fn main() -> Int:\n"
+      "    let boxed = Box(identity(7))\n"
+      "    let maybe: Option[Int] = Some(boxed.value)\n"
+      "    match maybe:\n"
+      "        case Some(value):\n"
+      "            return value\n"
+      "        case None:\n"
+      "            return 0\n",
+      phase6Diagnostics);
+  rocket::test::expect(phase6.has_value(), "Phase 6 program lowers to HIR", failures);
+  if (phase6.has_value()) {
+    rocket::test::expect(phase6->typeDeclarations.size() == 3,
+                         "HIR records Option, Result, and user type declarations", failures);
+    rocket::test::expect(phase6->functions.size() == 2 &&
+                             phase6->symbols[phase6->functions[1].symbol].name ==
+                                 "identity[Int]",
+                         "generic calls create deterministic concrete specializations", failures);
+    const auto& binding = static_cast<const rocket::HirBindingStmt&>(
+        *phase6->functions[0].body[0]);
+    rocket::test::expect(binding.initializer->kind == rocket::HirExprKind::Aggregate &&
+                             binding.initializer->type ==
+                                 rocket::Type{rocket::TypeKind::Struct, "Box", {rocket::Type::Int}},
+                         "aggregate construction carries a structural generic type", failures);
+  }
   return rocket::test::finish(failures, "hir");
 }

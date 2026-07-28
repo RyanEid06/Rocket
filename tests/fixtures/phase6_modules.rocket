@@ -1,0 +1,12 @@
+import modules.math
+
+fn main() -> Int:
+    let pair: math.Pair[Int] = math.Pair(3, 4)
+    print(math.doubled(pair.first))
+    let signal = math.Value(pair.second)
+    match signal:
+        case math.Value(value):
+            print(value)
+        case math.Empty:
+            print(0)
+    return 0

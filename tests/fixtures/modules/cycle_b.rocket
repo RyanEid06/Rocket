@@ -1,0 +1,4 @@
+import modules.cycle_a
+
+pub fn from_b() -> Int:
+    return 2

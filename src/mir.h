@@ -26,7 +26,7 @@ struct MirOperand {
   static MirOperand localValue(Type type, MirLocalId local);
 };
 
-enum class MirRvalueKind { Use, Unary, Binary, Call, Array, Index, Slice };
+enum class MirRvalueKind { Use, Unary, Binary, Call, Array, Index, Slice, Aggregate, Field, Tag };
 
 struct MirRvalue {
   MirRvalueKind kind = MirRvalueKind::Use;
@@ -36,6 +36,8 @@ struct MirRvalue {
   MirOperand right;
   MirOperand end;
   SymbolId callee = InvalidSymbol;
+  std::uint32_t declaration = 0;
+  std::uint32_t tag = 0;
   std::vector<MirOperand> arguments;
 
   static MirRvalue use(MirOperand operand);
@@ -45,6 +47,10 @@ struct MirRvalue {
   static MirRvalue array(Type type, std::vector<MirOperand> elements);
   static MirRvalue index(Type type, MirOperand collection, MirOperand index);
   static MirRvalue slice(Type type, MirOperand collection, MirOperand start, MirOperand end);
+  static MirRvalue aggregate(Type type, std::uint32_t declaration, std::uint32_t tag,
+                             std::vector<MirOperand> arguments);
+  static MirRvalue field(Type type, MirOperand aggregate, std::uint32_t field);
+  static MirRvalue tagOf(MirOperand aggregate);
 };
 
 enum class MirInstructionKind { Assign, Retain, Release };
@@ -97,6 +103,7 @@ struct MirFunction {
 
 struct MirModule {
   std::vector<HirSymbol> symbols;
+  std::vector<HirTypeDeclaration> typeDeclarations;
   std::vector<MirFunction> functions;
 };
 

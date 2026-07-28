@@ -15,7 +15,7 @@ public:
   std::optional<HirModule> analyzeToHir();
 
   static Type typeFromName(const std::string& name) { return rocket::typeFromName(name); }
-  static const char* typeName(Type type) { return rocket::typeName(type); }
+  static std::string typeName(const Type& type) { return rocket::typeName(type); }
 
 private:
   const Module& module_;
