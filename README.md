@@ -1,13 +1,14 @@
-# Rocket
+# Rocket 1.0
 
-Rocket is an experimental, beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the compiler is designed to produce native code through LLVM.
+Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
 optimized Windows x64 executables. Its linked ABI-v1 runtime provides ARC,
 owned UTF-8 strings, checked integer arithmetic, nested collections, structs,
-enums, and safe bounds failures. The C++ MIR transpiler remains available only as the reproducible
-stage0 fallback when LLVM is explicitly disabled.
+enums, and safe bounds failures. The production compiler is written in Rocket
+and deterministically bootstraps through stage3. The C++ MIR transpiler remains
+available only as the reproducible stage0 fallback when LLVM is explicitly disabled.
 
 ## Current language subset
 
@@ -33,6 +34,7 @@ First install the pinned development dependencies once, then verify and build wi
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\dependencies\verify.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Configuration Debug
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Configuration Release
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1 -Configuration Release
 ```
 
 The scripts activate the Microsoft x64 build environment and use the pinned Ninja and LLVM installation. Build output is written to `out/build/windows-debug` and `out/build/windows-release`.
@@ -59,3 +61,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.p
 ```
 
 See [the language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md), [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md), [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
+
+## Rocket 1.0 release
+
+Build the checksummed, relocation-tested, self-contained Windows x64 archive:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compiler.ps1 -Configuration Release
+```
+
+The package uses the Rocket-written stage3 compiler and includes the runtime,
+pinned Clang/LLD, compiler-rt resources, and native static link libraries. See
+[the Rocket 1.0 release contract](docs/RELEASE_1_0.md) for compatibility,
+limitations, and the complete validation matrix.

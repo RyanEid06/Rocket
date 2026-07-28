@@ -1,6 +1,8 @@
-# Rocket Language Specification - Draft 0.9 (self-hosting work in progress)
+# Rocket Language Specification 1.0
 
-This document freezes the syntax implemented by the first compiler slice. Later incompatible changes require a recorded design decision.
+This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
+may clarify wording or add APIs without changing valid 1.0 program behavior;
+incompatible language changes require a recorded decision and a new major version.
 
 ## Layout and comments
 

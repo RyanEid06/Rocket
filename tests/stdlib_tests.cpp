@@ -161,6 +161,10 @@ int main(int argc, char** argv) {
   rocket_rt_release(environment);
   rocket_rt_release(environmentName);
   rocket_std_process_set_arguments(argc, argv);
+  RocketAggregate* executablePath = rocket_std_process_executable_path();
+  rocket::test::expect(rocket_rt_aggregate_tag(executablePath) == 0,
+                       "process.executable_path returns the normalized compiler path", failures);
+  rocket_rt_release(executablePath);
   RocketArray* arguments = rocket_std_process_arguments();
   RocketString* lastArgument = argc >= 2
                                    ? rocket_rt_index_string(arguments, argc - 2)

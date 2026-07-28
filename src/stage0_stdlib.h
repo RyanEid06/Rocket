@@ -591,13 +591,28 @@ inline RocketAggregate rocket_std_process_run(const std::string& program,
 }
 
 inline std::vector<std::string> rocket_stage0_process_arguments;
+inline std::string rocket_stage0_process_executable_path;
 inline void rocket_std_process_set_arguments(int count, char** arguments) {
   rocket_stage0_process_arguments.clear();
+  rocket_stage0_process_executable_path.clear();
+  if (count > 0 && arguments && arguments[0]) {
+    try {
+      rocket_stage0_process_executable_path = rocket_stage0_path_string(
+          std::filesystem::absolute(std::filesystem::path(arguments[0])).lexically_normal());
+    } catch (const std::exception&) {
+      rocket_stage0_process_executable_path = arguments[0];
+    }
+  }
   for (int index = 1; index < count; ++index)
     rocket_stage0_process_arguments.emplace_back(arguments[index] ? arguments[index] : "");
 }
 inline RocketArray<std::string> rocket_std_process_arguments() {
   return std::make_shared<std::vector<std::string>>(rocket_stage0_process_arguments);
+}
+inline RocketAggregate rocket_std_process_executable_path() {
+  if (rocket_stage0_process_executable_path.empty())
+    return rocket_stage0_error("the executable path is unavailable");
+  return rocket_stage0_ok(rocket_stage0_process_executable_path);
 }
 inline RocketAggregate rocket_std_process_environment(const std::string& name) {
 #ifdef _WIN32

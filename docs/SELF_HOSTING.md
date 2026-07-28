@@ -15,7 +15,7 @@ IR, then uses pinned Clang/LLD only as the object/link driver.
 
 ## Bootstrap implementation subset
 
-The compiler sources use the frozen pre-1.0 Rocket syntax plus these specified
+The compiler sources use the frozen Rocket 1.0 syntax plus these specified
 standard APIs:
 
 - checked `string.byte_at` and `string.slice` for source traversal;

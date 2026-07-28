@@ -1,4 +1,4 @@
-# Rocket Diagnostic Catalog - Draft 0.8
+# Rocket Diagnostic Catalog 1.0
 
 Compiler diagnostics use the stable shape:
 

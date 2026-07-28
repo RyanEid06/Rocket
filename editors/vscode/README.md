@@ -5,7 +5,7 @@ bracket behavior, snippets, and the `$rocket` problem matcher for coded
 compiler diagnostics.
 
 For local development, copy or link this directory into the VS Code extensions
-directory as `rocket-lang.rocket-language-0.8.0`, then reload VS Code. The
+directory as `rocket-lang.rocket-language-1.0.0`, then reload VS Code. The
 repository tasks in `.vscode/tasks.json` use the Debug compiler build.
 
 The extension deliberately contains no language server. Completion, rename,

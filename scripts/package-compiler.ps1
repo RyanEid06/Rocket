@@ -1,24 +1,25 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
-    [string]$Configuration = 'Release',
-    [switch]$SkipToolchain
+    [string]$Configuration = 'Release'
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$version = '0.8.0'
+$version = '1.0.0'
 $configurationName = $Configuration.ToLowerInvariant()
 $buildDirectory = Join-Path $projectRoot "out\build\windows-$configurationName"
+$bootstrapDirectory = Join-Path $projectRoot "out\bootstrap\windows-$configurationName"
 $packageParent = Join-Path $projectRoot 'out\package'
 $packageRoot = Join-Path $packageParent "rocket-$version-windows-x64"
 $archive = "$packageRoot.zip"
 
-# Both destructive targets are fixed descendants of out/package.
+# Every replaced path is a fixed descendant of out/package.
 $resolvedParent = [System.IO.Path]::GetFullPath($packageParent)
 $resolvedPackage = [System.IO.Path]::GetFullPath($packageRoot)
-if (-not $resolvedPackage.StartsWith($resolvedParent + [System.IO.Path]::DirectorySeparatorChar,
-                                     [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not $resolvedPackage.StartsWith(
+        $resolvedParent + [System.IO.Path]::DirectorySeparatorChar,
+        [System.StringComparison]::OrdinalIgnoreCase)) {
     throw 'Refusing to package outside out/package.'
 }
 
@@ -26,46 +27,110 @@ if (-not $resolvedPackage.StartsWith($resolvedParent + [System.IO.Path]::Directo
     (Join-Path $projectRoot 'scripts\build.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+    (Join-Path $projectRoot 'scripts\bootstrap.ps1') `
+    -Configuration $Configuration -SkipStage0Build
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+. (Join-Path $projectRoot 'dependencies\activate.ps1')
+
+$llvmRoot = Join-Path $projectRoot 'dependencies\installed\llvm-22.1.6'
+$msvcLibraryDirectory = Join-Path $env:VCToolsInstallDir 'lib\x64'
+$ucrtLibraryDirectory = Join-Path $env:WindowsSdkDir `
+    ("Lib\{0}ucrt\x64" -f $env:WindowsSDKVersion)
+$umLibraryDirectory = Join-Path $env:WindowsSdkDir `
+    ("Lib\{0}um\x64" -f $env:WindowsSDKVersion)
+
+$requiredFiles = @(
+    (Join-Path $bootstrapDirectory 'stage3.exe')
+    (Join-Path $buildDirectory 'rocketc.exe')
+    (Join-Path $buildDirectory 'rocket_runtime.lib')
+    (Join-Path $llvmRoot 'bin\clang.exe')
+    (Join-Path $llvmRoot 'bin\lld-link.exe')
+)
+foreach ($required in $requiredFiles) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Missing release input: $required"
+    }
+}
+foreach ($required in $msvcLibraryDirectory, $ucrtLibraryDirectory, $umLibraryDirectory) {
+    if (-not (Test-Path -LiteralPath $required -PathType Container)) {
+        throw "Missing native library directory: $required"
+    }
+}
+
 if (Test-Path -LiteralPath $packageRoot) {
     Remove-Item -LiteralPath $packageRoot -Recurse -Force
 }
 if (Test-Path -LiteralPath $archive) {
     Remove-Item -LiteralPath $archive -Force
 }
-New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
 
-Copy-Item -LiteralPath (Join-Path $buildDirectory 'rocketc.exe') -Destination $packageRoot
-Copy-Item -LiteralPath (Join-Path $buildDirectory 'rocket_runtime.lib') -Destination $packageRoot
+$binDirectory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 'bin') -Force
+$libDirectory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 'lib') -Force
+$stage0Directory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 'stage0') -Force
+
+Copy-Item -LiteralPath (Join-Path $bootstrapDirectory 'stage3.exe') `
+    -Destination (Join-Path $binDirectory 'rocketc.exe')
+Copy-Item -LiteralPath (Join-Path $buildDirectory 'rocketc.exe') `
+    -Destination (Join-Path $stage0Directory 'rocketc-stage0.exe')
+Copy-Item -LiteralPath (Join-Path $buildDirectory 'rocket_runtime.lib') `
+    -Destination (Join-Path $libDirectory 'rocket_runtime.lib')
+Copy-Item -LiteralPath (Join-Path $llvmRoot 'bin\clang.exe') -Destination $binDirectory
+Copy-Item -LiteralPath (Join-Path $llvmRoot 'bin\lld-link.exe') -Destination $binDirectory
+
+# Clang locates its compiler-rt builtins relative to bin/../lib/clang.
+Copy-Item -LiteralPath (Join-Path $llvmRoot 'lib\clang') `
+    -Destination (Join-Path $libDirectory 'clang') -Recurse
+
+foreach ($entry in @(
+        @{ Source = $msvcLibraryDirectory; Name = 'msvc' },
+        @{ Source = $ucrtLibraryDirectory; Name = 'ucrt' },
+        @{ Source = $umLibraryDirectory; Name = 'um' }
+    )) {
+    $destination = New-Item -ItemType Directory `
+        -Path (Join-Path $libDirectory $entry.Name) -Force
+    Get-ChildItem -LiteralPath $entry.Source -Filter '*.lib' -File |
+        Copy-Item -Destination $destination
+}
+
 Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $packageRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'editors') -Destination $packageRoot -Recurse
-
-if (-not $SkipToolchain) {
-    $llvmBin = Join-Path $projectRoot 'dependencies\installed\llvm-22.1.6\bin'
-    $toolchain = Join-Path $packageRoot 'toolchain'
-    New-Item -ItemType Directory -Path $toolchain -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $llvmBin 'clang.exe') -Destination $toolchain
-    Copy-Item -LiteralPath (Join-Path $llvmBin 'lld-link.exe') -Destination $toolchain
-}
+Copy-Item -LiteralPath (Join-Path $bootstrapDirectory 'SHA256SUMS.txt') `
+    -Destination (Join-Path $packageRoot 'BOOTSTRAP_SHA256SUMS.txt')
 
 $packageNote = @"
-# Rocket compiler developer package $version
+# Rocket 1.0.0 for Windows x64
 
-Run ``rocketc.exe --version`` to verify the compiler. The bundled runtime library
-is discovered beside the compiler and the optional Clang driver under
-``toolchain`` is preferred over the development-tree fallback.
+``bin\rocketc.exe`` is the production self-hosted Rocket compiler. It discovers
+the bundled runtime, Clang/LLD, compiler-rt resources, and native link libraries
+relative to its own executable, so no Visual Studio, Windows SDK, LLVM, or
+activated developer shell is required to compile Rocket programs.
 
-This pre-1.0 Windows x64 package still requires the MSVC Build Tools and Windows
-SDK environment for native linking. A fully self-contained compiler is the
-Rocket 1.0 distribution milestone, not a Phase 8 claim.
+``stage0\rocketc-stage0.exe`` preserves the C++ bootstrap compiler used to
+reproduce stage1. ``BOOTSTRAP_SHA256SUMS.txt`` records the deterministic
+stage2/stage3 proof; ``SHA256SUMS.txt`` covers every distributed file.
+
+Supported target: Windows x64. See ``docs\RELEASE_1_0.md`` for the frozen
+language surface, compatibility policy, limitations, and validation matrix.
 "@
-Set-Content -LiteralPath (Join-Path $packageRoot 'PACKAGE.md') -Value $packageNote -Encoding utf8
+Set-Content -LiteralPath (Join-Path $packageRoot 'PACKAGE.md') `
+    -Value $packageNote -Encoding utf8
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+    (Join-Path $projectRoot 'scripts\verify-distribution.ps1') `
+    -PackageRoot $packageRoot
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Get-ChildItem -LiteralPath $packageRoot -Recurse -File |
     Sort-Object FullName |
     Get-FileHash -Algorithm SHA256 |
-    ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($_.Path.Substring($packageRoot.Length + 1))" } |
+    ForEach-Object {
+        "$($_.Hash.ToLowerInvariant())  $($_.Path.Substring($packageRoot.Length + 1))"
+    } |
     Set-Content -LiteralPath (Join-Path $packageRoot 'SHA256SUMS.txt') -Encoding ascii
 
-Compress-Archive -LiteralPath $packageRoot -DestinationPath $archive -CompressionLevel Optimal
-Write-Output "Packaged Rocket $version at $archive"
+Compress-Archive -LiteralPath $packageRoot -DestinationPath $archive `
+    -CompressionLevel Optimal
+Write-Output "Packaged self-contained Rocket $version at $archive"

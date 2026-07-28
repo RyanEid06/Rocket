@@ -1,0 +1,78 @@
+[CmdletBinding()]
+param(
+    [string]$Compiler = '',
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Release'
+)
+
+$ErrorActionPreference = 'Stop'
+$projectRoot = Split-Path $PSScriptRoot -Parent
+$configurationName = $Configuration.ToLowerInvariant()
+if (-not $Compiler) {
+    $Compiler = Join-Path $projectRoot "out\bootstrap\windows-$configurationName\stage3.exe"
+}
+$Compiler = [System.IO.Path]::GetFullPath($Compiler)
+if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
+    throw "Conformance compiler does not exist: $Compiler"
+}
+
+$fixtures = Join-Path $projectRoot 'tests\fixtures'
+$reportDirectory = Join-Path $projectRoot 'out\conformance'
+New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
+$reportPath = Join-Path $reportDirectory "rocket-1.0-$configurationName.txt"
+$results = [System.Collections.Generic.List[string]]::new()
+
+function Invoke-ConformanceCase {
+    param(
+        [string]$Name,
+        [string[]]$Arguments,
+        [int]$ExpectedStatus = 0,
+        [string]$ExpectedPattern = ''
+    )
+    $savedPreference = $script:ErrorActionPreference
+    $script:ErrorActionPreference = 'Continue'
+    $output = & $Compiler @Arguments 2>&1
+    $status = $LASTEXITCODE
+    $script:ErrorActionPreference = $savedPreference
+    $text = $output -join "`n"
+    if ($status -ne $ExpectedStatus) {
+        throw "Conformance case '$Name' returned $status, expected $ExpectedStatus.`n$text"
+    }
+    if ($ExpectedPattern -and $text -notmatch $ExpectedPattern) {
+        throw "Conformance case '$Name' did not match '$ExpectedPattern'.`n$text"
+    }
+    $results.Add("PASS  $Name  status=$status")
+}
+
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.0\.0$'
+Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
+Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
+Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
+Invoke-ConformanceCase 'types-check' @('check', (Join-Path $fixtures 'phase6_types.rocket'))
+Invoke-ConformanceCase 'modules-check' @('check', (Join-Path $fixtures 'phase6_modules.rocket'))
+Invoke-ConformanceCase 'stdlib-check' @('check', (Join-Path $fixtures 'phase7_stdlib.rocket'))
+Invoke-ConformanceCase 'bootstrap-primitives-check' @('check', (Join-Path $fixtures 'phase9_bootstrap_primitives.rocket'))
+Invoke-ConformanceCase 'hello-run' @('run', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'Hello from Rocket'
+Invoke-ConformanceCase 'operators-run' @('run', (Join-Path $fixtures 'llvm_operators.rocket'))
+Invoke-ConformanceCase 'collections-run' @('run', (Join-Path $fixtures 'runtime_collections.rocket'))
+Invoke-ConformanceCase 'types-run' @('run', (Join-Path $fixtures 'phase6_types.rocket'))
+Invoke-ConformanceCase 'modules-run' @('run', (Join-Path $fixtures 'phase6_modules.rocket'))
+Invoke-ConformanceCase 'stdlib-run' @('run', (Join-Path $fixtures 'phase7_stdlib.rocket'))
+Invoke-ConformanceCase 'package-check' @('check', (Join-Path $fixtures 'phase8_package')) 0 'check succeeded'
+Invoke-ConformanceCase 'package-format' @('fmt', (Join-Path $fixtures 'phase8_package'), '--check') 0 'format check succeeded'
+Invoke-ConformanceCase 'package-run' @('run', (Join-Path $fixtures 'phase8_package')) 0 '(?m)^42$'
+Invoke-ConformanceCase 'package-test' @('test', (Join-Path $fixtures 'phase8_package')) 0 '2 passed; 0 failed'
+Invoke-ConformanceCase 'private-visibility-diagnostic' @('check', (Join-Path $fixtures 'phase6_visibility.rocket')) 1 'R3003'
+Invoke-ConformanceCase 'import-cycle-diagnostic' @('check', (Join-Path $fixtures 'phase6_cycle.rocket')) 1 'R3002'
+Invoke-ConformanceCase 'checked-overflow' @('run', (Join-Path $fixtures 'int_overflow.rocket')) 101 'Int arithmetic overflow'
+
+$header = @(
+    'Rocket 1.0 conformance report'
+    "compiler  $Compiler"
+    "sha256  $((Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant())"
+    "configuration  $Configuration"
+    "cases  $($results.Count)"
+    ''
+)
+Set-Content -LiteralPath $reportPath -Value ($header + $results) -Encoding utf8
+Write-Output "Rocket 1.0 conformance passed: $($results.Count) cases ($reportPath)"

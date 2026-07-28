@@ -104,6 +104,7 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::RandomFloat: return "rocket_std_random_float";
   case Intrinsic::ProcessRun: return "rocket_std_process_run";
   case Intrinsic::ProcessArguments: return "rocket_std_process_arguments";
+  case Intrinsic::ProcessExecutablePath: return "rocket_std_process_executable_path";
   case Intrinsic::ProcessEnvironment: return "rocket_std_process_environment";
   case Intrinsic::ProcessWorkingDirectory: return "rocket_std_process_working_directory";
   case Intrinsic::TimeUnixMilliseconds: return "rocket_std_time_unix_milliseconds";

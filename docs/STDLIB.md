@@ -1,6 +1,6 @@
-# Rocket Standard Library - Draft 0.9
+# Rocket Standard Library 1.0
 
-The Phase 7 library is a set of built-in source modules. Import a module by its
+The Rocket 1.0 library is a set of built-in source modules. Import a module by its
 stable name; no package file or downloaded dependency is required:
 
 ```rocket
@@ -109,7 +109,8 @@ in `[0.0, 1.0)`. Phase 7 randomness is deterministic and not cryptographic.
 and returns `Result[Int, String]` containing the exit code. It never invokes a
 command shell or parses a command string. `process.arguments()` returns an
 `Array[String]` containing arguments after the executable name in original
-order. `process.environment(name)` returns `Option[String]`;
+order. `process.executable_path()` returns the normalized executable path as
+`Result[String, String]`. `process.environment(name)` returns `Option[String]`;
 `process.working_directory()` returns `Result[String, String]`.
 
 ## `std.time`

@@ -1,6 +1,6 @@
 [package]
 name = "rocket_compiler"
-version = "0.9.0"
+version = "1.0.0"
 entry = "src/main.rocket"
 
 [test]

@@ -2,7 +2,7 @@
   "name": "rocket-language",
   "displayName": "Rocket Language",
   "description": "Syntax, snippets, diagnostics, and language configuration for Rocket.",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "publisher": "rocket-lang",
   "license": "UNLICENSED",
   "engines": {

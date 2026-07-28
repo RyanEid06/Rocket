@@ -25,8 +25,10 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket is a C++ `stage0` compiler with a production LLVM backend and a statically
-linked runtime ABI. It is not yet self-hosted.
+Rocket 1.0 is self-hosted. The production `rocketc` is written in Rocket,
+bootstraps deterministically through stage3, emits canonical LLVM IR, and links
+against the statically linked runtime ABI v1. The C++20 compiler remains the
+reproducible `stage0` implementation.
 
 Implemented:
 
@@ -71,11 +73,17 @@ Implemented:
   LLVM-codegen/runtime suites, a golden diagnostic fixture, native lifetime and
   bounds regressions, and allocation stress coverage.
 - Pinned LLVM 22.1.6, Ninja 1.13.1, and MSVC Windows x64 development setup.
+- A self-contained, checksummed Windows x64 distribution with executable-relative
+  toolchain discovery, an isolated relocation test, and a separately named
+  stage0 compiler.
+- Frozen Rocket 1.0 language, standard-library, diagnostic, manifest, formatter,
+  CLI, and runtime ABI contracts with conformance and performance gates.
 
 Not implemented yet:
 
-- Self-hosting, semantic language-server features, and the self-contained 1.0
-  distribution.
+- Semantic language-server features, graphics bindings, concurrency, a package
+  registry, and the post-language application layers. No casino implementation
+  has begun.
 
 ## Canonical build commands
 
@@ -315,16 +323,24 @@ Known limitations remain those in the implementation-state list above; no langua
   checked-failure, formatter, and package workflows through the generated
   compiler. The LLVM-disabled stage0 remains independently buildable.
 
+**Phase 10 - Rocket 1.0 freeze and distribution**
+
+- Froze the versioned grammar, type system, standard modules, stable diagnostic
+  identities, runtime ABI v1, package manifest, formatter, and CLI contracts.
+- Added `process.executable_path()` and executable-relative self-hosted toolchain
+  discovery so the production compiler is independent of its working directory.
+- Added named 1.0 conformance and performance gates plus a self-contained
+  Windows x64 package containing stage3, the runtime, pinned Clang/LLD,
+  compiler-rt, and static native link inputs. The distribution is validated with
+  developer environment variables removed and the C++ compiler is preserved as
+  a separate stage0 artifact.
+
 ## Current next task
 
-**Phase 10: freeze and publish Rocket 1.0.**
+**Decide the post-1.0 direction with the user.**
 
-- Freeze the 1.0 grammar, type system, standard library, diagnostics, runtime
-  ABI, manifest, formatter, and CLI contracts.
-- Run the complete conformance, deterministic bootstrap, runtime ownership,
-  performance, Debug, Release, and LLVM-disabled stage0 matrices.
-- Publish and relocate-test a checksummed Windows x64 distribution containing
-  the self-hosted compiler, runtime, and pinned native toolchain.
+Rocket language phases 1 through 10 are complete. Do not begin graphics or
+casino implementation until the next scope is explicitly chosen.
 
 ## New-chat prompt
 

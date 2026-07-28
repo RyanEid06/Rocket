@@ -191,6 +191,8 @@ void HirLowerer::registerStandardLibrary() {
       Intrinsic::ProcessRun);
   add("std.process.arguments", {}, arrayType(Type::String),
       Intrinsic::ProcessArguments);
+  add("std.process.executable_path", {}, result(Type::String),
+      Intrinsic::ProcessExecutablePath);
   add("std.process.environment", {Type::String}, optionString,
       Intrinsic::ProcessEnvironment);
   add("std.process.working_directory", {}, result(Type::String),

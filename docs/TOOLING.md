@@ -1,4 +1,4 @@
-# Rocket Tooling and Packages - Draft 0.9
+# Rocket Tooling and Packages 1.0
 
 ## Create and use a package
 
@@ -83,7 +83,7 @@ source, a package directory, or a `rocket.toml` path. Program arguments follow
 
 `editors/vscode` contains the Rocket TextMate grammar, language configuration,
 snippets, and `$rocket` diagnostic matcher. Copy or link it into the VS Code
-extensions directory as `rocket-lang.rocket-language-0.8.0`, reload the editor,
+extensions directory as `rocket-lang.rocket-language-1.0.0`, reload the editor,
 and use the tasks in `.vscode/tasks.json` for check, run, test, and format check.
 This is honest syntax/editor support; semantic language-server features remain
 future work.
@@ -95,8 +95,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\package-compiler.ps1 -Configuration Release
 ```
 
-The script runs the canonical build/tests and creates a checksummed archive
-under `out/package`. The compiler prefers a sibling `rocket_runtime.lib` and
-the bundled `toolchain/clang.exe`/`lld-link.exe`, making the developer package relocatable. Before Rocket
-1.0, native linking still requires an activated MSVC Build Tools/Windows SDK
-environment; Phase 10 owns the fully self-contained distribution promise.
+The script runs the Release test matrix and deterministic bootstrap, packages
+the Rocket-written stage3 compiler, and creates a checksummed archive under
+`out/package`. `bin/rocketc.exe` locates the bundled runtime, Clang/LLD,
+compiler-rt resources, and static MSVC/UCRT/Windows SDK libraries relative to
+its executable. The verification step clears development toolchain variables,
+changes to an isolated working directory, then checks, builds, runs, and
+directly executes a native Rocket program.
+
+The preserved C++ bootstrap compiler is distributed separately as
+`stage0/rocketc-stage0.exe`; it is not the production `rocketc` command.

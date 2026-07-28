@@ -135,6 +135,7 @@ double rocket_std_random_float();
 RocketAggregate* rocket_std_process_run(RocketString* program, RocketArray* arguments);
 void rocket_std_process_set_arguments(std::int32_t count, const char* const* arguments);
 RocketArray* rocket_std_process_arguments();
+RocketAggregate* rocket_std_process_executable_path();
 RocketAggregate* rocket_std_process_environment(RocketString* name);
 RocketAggregate* rocket_std_process_working_directory();
 

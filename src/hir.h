@@ -62,6 +62,7 @@ enum class Intrinsic {
   RandomFloat,
   ProcessRun,
   ProcessArguments,
+  ProcessExecutablePath,
   ProcessEnvironment,
   ProcessWorkingDirectory,
   TimeUnixMilliseconds,

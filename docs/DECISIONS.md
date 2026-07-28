@@ -133,3 +133,19 @@ The compiler is allowed to use ordinary `std.string`, `std.collections`,
 `std.file`, `std.path`, and `std.process` APIs. Byte traversal, persistent array
 concatenation, and process arguments are public, backend-parity-tested library
 features rather than hidden bootstrap hooks.
+
+## D014 - Rocket 1.0 freeze and self-contained Windows distribution
+
+**Accepted.** The grammar, type system, ownership model, runtime ABI v1,
+standard modules, diagnostic identities, manifest, formatter, and CLI described
+by the versioned documentation are the Rocket 1.0 compatibility contract.
+Compatible 1.x releases may add APIs and diagnostics but may not silently
+change the behavior of valid 1.0 programs. An incompatible contract requires a
+new major version and a recorded decision.
+
+The production Windows x64 package contains the Rocket-written deterministic
+stage3 compiler. It resolves its runtime and pinned native toolchain relative
+to `process.executable_path()`, while the C++ compiler is retained as an
+explicitly named stage0 artifact. The archive bundles static native link inputs
+and is tested with developer-only environment variables removed and from a
+working directory outside the package.

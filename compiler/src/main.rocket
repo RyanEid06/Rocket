@@ -377,6 +377,7 @@ struct ToolchainInfo:
     valid: Bool
     clang: String
     runtime: String
+    library_directories: Array[String]
     error: String
 
 struct NativeBuildResult:
@@ -766,6 +767,9 @@ fn intrinsic_time_sleep_milliseconds() -> Int:
 
 fn intrinsic_file_create_directory() -> Int:
     return 45
+
+fn intrinsic_process_executable_path() -> Int:
+    return 46
 
 fn mir_constant() -> Int:
     return 0
@@ -2182,6 +2186,8 @@ fn standard_signature(name: String) -> StandardSignature:
         return StandardSignature(true, [], ["String", "Array[String]"], "Result[Int, String]", intrinsic_process_run())
     if name == "std.process.arguments":
         return StandardSignature(true, [], [], "Array[String]", intrinsic_process_arguments())
+    if name == "std.process.executable_path":
+        return StandardSignature(true, [], [], "Result[String, String]", intrinsic_process_executable_path())
     if name == "std.process.environment":
         return StandardSignature(true, [], ["String"], "Option[String]", intrinsic_process_environment())
     if name == "std.process.working_directory":
@@ -3445,6 +3451,8 @@ fn intrinsic_runtime_name(intrinsic: Int) -> String:
         return "@rocket_std_process_run"
     if intrinsic == intrinsic_process_arguments():
         return "@rocket_std_process_arguments"
+    if intrinsic == intrinsic_process_executable_path():
+        return "@rocket_std_process_executable_path"
     if intrinsic == intrinsic_process_environment():
         return "@rocket_std_process_environment"
     if intrinsic == intrinsic_process_working_directory():
@@ -3538,6 +3546,7 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare double @rocket_std_random_float()")
     emit_llvm_line(builder, "declare ptr @rocket_std_process_run(ptr, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_process_arguments()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_process_executable_path()")
     emit_llvm_line(builder, "declare ptr @rocket_std_process_environment(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_process_working_directory()")
     emit_llvm_line(builder, "declare i64 @rocket_std_time_unix_milliseconds()")
@@ -4020,18 +4029,38 @@ fn first_existing(paths: Array[String]) -> String:
             return paths[index]
     return ""
 
+fn executable_directory() -> String:
+    let resolved = process.executable_path()
+    match resolved:
+        case Ok(path_value):
+            return source_parent(std.path.normalize(path_value))
+        case Err(error):
+            return "."
+
+fn existing_directories(paths: Array[String]) -> Array[String]:
+    var result: Array[String] = []
+    for index in 0..collections.length(paths):
+        if file.exists(paths[index]):
+            result = append(result, std.path.normalize(paths[index]))
+    return result
+
 fn locate_toolchain() -> ToolchainInfo:
+    let compiler_directory = executable_directory()
+    var install_root = compiler_directory
+    if std.path.basename(compiler_directory) == "bin":
+        install_root = source_parent(compiler_directory)
     var clang_path = environment_or_empty("ROCKET_CLANG")
     var runtime_path = environment_or_empty("ROCKET_RUNTIME")
     if clang_path == "":
-        clang_path = first_existing(["bin/clang.exe", "dependencies/installed/llvm-22.1.6/bin/clang.exe"])
+        clang_path = first_existing([std.path.join(compiler_directory, "clang.exe"), std.path.join(install_root, "bin/clang.exe"), "bin/clang.exe", "dependencies/installed/llvm-22.1.6/bin/clang.exe"])
     if runtime_path == "":
-        runtime_path = first_existing(["lib/rocket_runtime.lib", "out/build/windows-debug/rocket_runtime.lib", "out/build/windows-release/rocket_runtime.lib"])
+        runtime_path = first_existing([std.path.join(install_root, "lib/rocket_runtime.lib"), std.path.join(compiler_directory, "rocket_runtime.lib"), "lib/rocket_runtime.lib", "out/build/windows-debug/rocket_runtime.lib", "out/build/windows-release/rocket_runtime.lib"])
+    let library_directories = existing_directories([std.path.join(install_root, "lib/msvc"), std.path.join(install_root, "lib/ucrt"), std.path.join(install_root, "lib/um")])
     if clang_path == "":
-        return ToolchainInfo(false, "", runtime_path, "could not locate the pinned clang.exe; set ROCKET_CLANG")
+        return ToolchainInfo(false, "", runtime_path, library_directories, "could not locate the pinned clang.exe; set ROCKET_CLANG")
     if runtime_path == "":
-        return ToolchainInfo(false, clang_path, "", "could not locate rocket_runtime.lib; set ROCKET_RUNTIME")
-    return ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), "")
+        return ToolchainInfo(false, clang_path, "", library_directories, "could not locate rocket_runtime.lib; set ROCKET_RUNTIME")
+    return ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), library_directories, "")
 
 fn ensure_directory(directory: String) -> Int:
     let created = file.create_directory(directory)
@@ -4079,7 +4108,13 @@ fn build_native_source(source: String, artifact_directory: String, artifact_name
         return NativeBuildResult(1, executable)
     if direct_process(toolchain.clang, ["-c", "-O2", "-Wno-override-module", ir, "-o", object]) != 0:
         return NativeBuildResult(1, executable)
-    if direct_process(toolchain.clang, [object, toolchain.runtime, "-fuse-ld=lld", "-o", executable]) != 0:
+    var link_arguments: Array[String] = [object, toolchain.runtime, "-fuse-ld=lld"]
+    for index in 0..collections.length(toolchain.library_directories):
+        link_arguments = append(link_arguments, "-L")
+        link_arguments = append(link_arguments, toolchain.library_directories[index])
+    link_arguments = append(link_arguments, "-o")
+    link_arguments = append(link_arguments, executable)
+    if direct_process(toolchain.clang, link_arguments) != 0:
         return NativeBuildResult(1, executable)
     return NativeBuildResult(0, executable)
 
@@ -4419,7 +4454,7 @@ fn emit_assembly_command(input: String, output: String) -> Int:
     return direct_process(toolchain.clang, ["-S", "-O2", "-Wno-override-module", temporary_ir, "-o", output])
 
 fn print_help() -> Unit:
-    print("Rocket compiler 0.9.0-self-hosted")
+    print("Rocket compiler 1.0.0")
     print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
@@ -4468,7 +4503,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 0.9.0-self-hosted")
+        print("rocketc 1.0.0")
         return 0
     if collections.length(arguments) == 2 and arguments[0] == "check":
         return check_command(arguments[1])

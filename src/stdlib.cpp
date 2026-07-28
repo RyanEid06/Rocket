@@ -461,6 +461,7 @@ bool stringifyJson(RocketAggregate* value, std::string& output, std::size_t dept
 
 std::uint64_t randomState = 0x4d595df4d0f33173ULL;
 std::vector<std::string> processArguments;
+std::string processExecutablePath;
 
 std::uint64_t nextRandom() {
   std::uint64_t value = randomState;
@@ -951,12 +952,30 @@ RocketAggregate* rocket_std_process_run(RocketString* program, RocketArray* argu
 
 void rocket_std_process_set_arguments(std::int32_t count, const char* const* arguments) {
   processArguments.clear();
+  processExecutablePath.clear();
   if (!arguments) return;
+  if (count > 0 && arguments[0]) {
+    try {
+      processExecutablePath = pathString(
+          std::filesystem::absolute(std::filesystem::path(arguments[0])).lexically_normal());
+    } catch (const std::exception&) {
+      processExecutablePath = arguments[0];
+    }
+  }
   for (std::int32_t index = 1; index < count; ++index)
     processArguments.emplace_back(arguments[index] ? arguments[index] : "");
 }
 
 RocketArray* rocket_std_process_arguments() { return stringArray(processArguments); }
+
+RocketAggregate* rocket_std_process_executable_path() {
+  if (processExecutablePath.empty())
+    return errorResult("the executable path is unavailable");
+  RocketString* path = makeString(processExecutablePath);
+  RocketAggregate* result = okManaged(path);
+  rocket_rt_release(path);
+  return result;
+}
 
 RocketAggregate* rocket_std_process_environment(RocketString* name) {
 #ifdef _WIN32
