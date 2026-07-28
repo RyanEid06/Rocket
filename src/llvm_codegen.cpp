@@ -737,10 +737,17 @@ private:
     case Intrinsic::StringEndsWith: return "rocket_std_string_ends_with";
     case Intrinsic::StringTrim: return "rocket_std_string_trim";
     case Intrinsic::StringSplit: return "rocket_std_string_split";
+    case Intrinsic::StringByteAt: return "rocket_std_string_byte_at";
+    case Intrinsic::StringByteValueAt: return "rocket_std_string_byte_value_at";
+    case Intrinsic::StringSlice: return "rocket_std_string_slice";
     case Intrinsic::StringParseInt: return "rocket_std_string_parse_int";
     case Intrinsic::StringFromInt: return "rocket_std_string_from_int";
+    case Intrinsic::StringBuilderNew: return "rocket_std_string_builder";
+    case Intrinsic::StringBuilderAppend: return "rocket_std_string_builder_append";
+    case Intrinsic::StringBuilderFinish: return "rocket_std_string_builder_finish";
     case Intrinsic::CollectionsLength: return "rocket_std_collections_length";
     case Intrinsic::CollectionsReverse: return "rocket_std_collections_reverse";
+    case Intrinsic::CollectionsConcat: return "rocket_std_collections_concat";
     case Intrinsic::CollectionsJoin: return "rocket_std_collections_join";
     case Intrinsic::FileReadText: return "rocket_std_file_read_text";
     case Intrinsic::FileWriteText: return "rocket_std_file_write_text";
@@ -748,6 +755,7 @@ private:
     case Intrinsic::FileExists: return "rocket_std_file_exists";
     case Intrinsic::FileRemove: return "rocket_std_file_remove";
     case Intrinsic::FileList: return "rocket_std_file_list";
+    case Intrinsic::FileCreateDirectory: return "rocket_std_file_create_directory";
     case Intrinsic::PathJoin: return "rocket_std_path_join";
     case Intrinsic::PathBasename: return "rocket_std_path_basename";
     case Intrinsic::PathExtension: return "rocket_std_path_extension";
@@ -760,6 +768,7 @@ private:
     case Intrinsic::RandomInt: return "rocket_std_random_int";
     case Intrinsic::RandomFloat: return "rocket_std_random_float";
     case Intrinsic::ProcessRun: return "rocket_std_process_run";
+    case Intrinsic::ProcessArguments: return "rocket_std_process_arguments";
     case Intrinsic::ProcessEnvironment: return "rocket_std_process_environment";
     case Intrinsic::ProcessWorkingDirectory: return "rocket_std_process_working_directory";
     case Intrinsic::TimeUnixMilliseconds: return "rocket_std_time_unix_milliseconds";
@@ -851,13 +860,24 @@ private:
       return false;
     }
 
-    auto* signature = llvm::FunctionType::get(llvm::Type::getInt32Ty(context_), false);
+    llvm::Type* int32 = llvm::Type::getInt32Ty(context_);
+    llvm::Type* pointer = llvm::PointerType::getUnqual(context_);
+    auto* signature = llvm::FunctionType::get(int32, {int32, pointer}, false);
     auto* entrypoint = llvm::Function::Create(signature, llvm::Function::ExternalLinkage,
                                                "main", *module_);
     llvm::BasicBlock* entry = llvm::BasicBlock::Create(context_, "entry", entrypoint);
     builder_.SetInsertPoint(entry);
+    auto argument = entrypoint->arg_begin();
+    llvm::Value* count = &*argument++;
+    llvm::Value* arguments = &*argument;
+    count->setName("argc");
+    arguments->setName("argv");
+    llvm::FunctionCallee setArguments = module_->getOrInsertFunction(
+        "rocket_std_process_set_arguments",
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context_), {int32, pointer}, false));
+    builder_.CreateCall(setArguments, {count, arguments});
     llvm::Value* result = builder_.CreateCall(rocketMain, {}, "rocket.main");
-    builder_.CreateRet(builder_.CreateTrunc(result, llvm::Type::getInt32Ty(context_), "exit"));
+    builder_.CreateRet(builder_.CreateTrunc(result, int32, "exit"));
     return true;
   }
 

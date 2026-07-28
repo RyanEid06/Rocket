@@ -460,6 +460,7 @@ bool stringifyJson(RocketAggregate* value, std::string& output, std::size_t dept
 }
 
 std::uint64_t randomState = 0x4d595df4d0f33173ULL;
+std::vector<std::string> processArguments;
 
 std::uint64_t nextRandom() {
   std::uint64_t value = randomState;
@@ -570,6 +571,34 @@ RocketArray* rocket_std_string_split(RocketString* value, RocketString* delimite
   return stringArray(pieces);
 }
 
+std::uint8_t rocket_std_string_byte_at(RocketString* value, std::int64_t index) {
+  const std::uint64_t length = rocket_rt_string_byte_length(value);
+  if (index < 0 || static_cast<std::uint64_t>(index) >= length) {
+    std::fprintf(stderr, "rocket runtime error: String byte index %lld out of bounds for length %llu\n",
+                 static_cast<long long>(index), static_cast<unsigned long long>(length));
+    std::exit(101);
+  }
+  return rocket_rt_string_bytes(value)[static_cast<std::uint64_t>(index)];
+}
+
+std::int64_t rocket_std_string_byte_value_at(RocketString* value, std::int64_t index) {
+  return static_cast<std::int64_t>(rocket_std_string_byte_at(value, index));
+}
+
+RocketString* rocket_std_string_slice(RocketString* value, std::int64_t start,
+                                      std::int64_t end) {
+  const std::uint64_t length = rocket_rt_string_byte_length(value);
+  if (start < 0 || end < start || static_cast<std::uint64_t>(end) > length) {
+    std::fprintf(stderr,
+                 "rocket runtime error: String byte slice %lld..%lld out of bounds for length %llu\n",
+                 static_cast<long long>(start), static_cast<long long>(end),
+                 static_cast<unsigned long long>(length));
+    std::exit(101);
+  }
+  const auto* bytes = rocket_rt_string_bytes(value) + static_cast<std::uint64_t>(start);
+  return rocket_rt_string_new(bytes, static_cast<std::uint64_t>(end - start));
+}
+
 RocketAggregate* rocket_std_string_parse_int(RocketString* value) {
   const std::string input = stringValue(value);
   std::int64_t parsed = 0;
@@ -618,6 +647,59 @@ RocketArray* rocket_std_collections_reverse(void* collection) {
     default: break;
     }
   }
+  return result;
+}
+
+RocketArray* rocket_std_collections_concat(void* left, void* right) {
+  const std::uint32_t kind = rocket_rt_collection_element_kind(left);
+  if (kind != rocket_rt_collection_element_kind(right)) {
+    std::fputs("rocket runtime error: collection concatenation element kind mismatch\n", stderr);
+    std::exit(101);
+  }
+  const std::uint64_t leftLength = rocket_rt_collection_length(left);
+  const std::uint64_t rightLength = rocket_rt_collection_length(right);
+  if (rightLength > (std::numeric_limits<std::uint64_t>::max)() - leftLength) {
+    std::fputs("rocket runtime error: collection concatenation is too large\n", stderr);
+    std::exit(101);
+  }
+  RocketArray* result = rocket_rt_array_new(kind, leftLength + rightLength);
+  auto copy = [&](void* source, std::uint64_t sourceLength, std::uint64_t offset) {
+    for (std::uint64_t index = 0; index < sourceLength; ++index) {
+      const auto sourceIndex = static_cast<std::int64_t>(index);
+      const auto resultIndex = static_cast<std::int64_t>(offset + index);
+      switch (kind) {
+      case ROCKET_ELEMENT_INT:
+        rocket_rt_array_set_int(result, resultIndex, rocket_rt_index_int(source, sourceIndex));
+        break;
+      case ROCKET_ELEMENT_FLOAT:
+        rocket_rt_array_set_float(result, resultIndex, rocket_rt_index_float(source, sourceIndex));
+        break;
+      case ROCKET_ELEMENT_BOOL:
+        rocket_rt_array_set_bool(result, resultIndex, rocket_rt_index_bool(source, sourceIndex));
+        break;
+      case ROCKET_ELEMENT_CHAR:
+        rocket_rt_array_set_char(result, resultIndex, rocket_rt_index_char(source, sourceIndex));
+        break;
+      case ROCKET_ELEMENT_STRING: {
+        RocketString* item = rocket_rt_index_string(source, sourceIndex);
+        rocket_rt_array_set_string(result, resultIndex, item);
+        rocket_rt_release(item);
+        break;
+      }
+      case ROCKET_ELEMENT_MANAGED: {
+        void* item = rocket_rt_index_managed(source, sourceIndex);
+        rocket_rt_array_set_managed(result, resultIndex, item);
+        rocket_rt_release(item);
+        break;
+      }
+      default:
+        std::fputs("rocket runtime error: invalid collection concatenation element kind\n", stderr);
+        std::exit(101);
+      }
+    }
+  };
+  copy(left, leftLength, 0);
+  copy(right, rightLength, leftLength);
   return result;
 }
 
@@ -688,6 +770,15 @@ RocketAggregate* rocket_std_file_list(RocketString* path) {
     RocketAggregate* result = okManaged(values);
     rocket_rt_release(values);
     return result;
+  } catch (const std::exception& error) { return errorResult(error.what()); }
+}
+
+RocketAggregate* rocket_std_file_create_directory(RocketString* path) {
+  try {
+    std::error_code error;
+    const bool created = std::filesystem::create_directories(pathValue(path), error);
+    if (error) return errorResult(error.message());
+    return okBool(created);
   } catch (const std::exception& error) { return errorResult(error.what()); }
 }
 
@@ -857,6 +948,15 @@ RocketAggregate* rocket_std_process_run(RocketString* program, RocketArray* argu
   return errorResult("process.run is only implemented on Windows x64");
 #endif
 }
+
+void rocket_std_process_set_arguments(std::int32_t count, const char* const* arguments) {
+  processArguments.clear();
+  if (!arguments) return;
+  for (std::int32_t index = 1; index < count; ++index)
+    processArguments.emplace_back(arguments[index] ? arguments[index] : "");
+}
+
+RocketArray* rocket_std_process_arguments() { return stringArray(processArguments); }
 
 RocketAggregate* rocket_std_process_environment(RocketString* name) {
 #ifdef _WIN32

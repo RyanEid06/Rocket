@@ -72,6 +72,20 @@ inline RocketArray<std::string> rocket_std_string_split(const std::string& value
   }
   return result;
 }
+inline char rocket_std_string_byte_at(const std::string& value, std::int64_t index) {
+  if (index < 0 || index >= static_cast<std::int64_t>(value.size())) rocket_bounds_error();
+  return value[static_cast<std::size_t>(index)];
+}
+inline std::int64_t rocket_std_string_byte_value_at(const std::string& value,
+                                                    std::int64_t index) {
+  return static_cast<unsigned char>(rocket_std_string_byte_at(value, index));
+}
+inline std::string rocket_std_string_slice(const std::string& value, std::int64_t start,
+                                           std::int64_t end) {
+  if (start < 0 || end < start || end > static_cast<std::int64_t>(value.size()))
+    rocket_bounds_error();
+  return value.substr(static_cast<std::size_t>(start), static_cast<std::size_t>(end - start));
+}
 inline RocketAggregate rocket_std_string_parse_int(const std::string& value) {
   std::int64_t parsed = 0;
   const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
@@ -81,6 +95,18 @@ inline RocketAggregate rocket_std_string_parse_int(const std::string& value) {
 }
 inline std::string rocket_std_string_from_int(std::int64_t value) {
   return std::to_string(value);
+}
+using RocketStringBuilder = std::shared_ptr<std::string>;
+inline RocketStringBuilder rocket_std_string_builder() {
+  return std::make_shared<std::string>();
+}
+inline RocketUnit rocket_std_string_builder_append(const RocketStringBuilder& builder,
+                                                    const std::string& value) {
+  builder->append(value);
+  return {};
+}
+inline std::string rocket_std_string_builder_finish(const RocketStringBuilder& builder) {
+  return *builder;
 }
 
 template <typename T>
@@ -94,6 +120,15 @@ inline std::int64_t rocket_std_collections_length(const RocketSlice<T>& values) 
 template <typename T>
 inline RocketArray<T> rocket_std_collections_reverse(const RocketArray<T>& values) {
   auto result = std::make_shared<std::vector<T>>(values->rbegin(), values->rend());
+  return result;
+}
+template <typename T>
+inline RocketArray<T> rocket_std_collections_concat(const RocketArray<T>& left,
+                                                    const RocketArray<T>& right) {
+  auto result = std::make_shared<std::vector<T>>();
+  result->reserve(left->size() + right->size());
+  result->insert(result->end(), left->begin(), left->end());
+  result->insert(result->end(), right->begin(), right->end());
   return result;
 }
 inline std::string rocket_std_collections_join(const RocketArray<std::string>& values,
@@ -157,6 +192,14 @@ inline RocketAggregate rocket_std_file_list(const std::string& path) {
       entries->push_back(rocket_stage0_path_string(entry.path().filename()));
     std::sort(entries->begin(), entries->end());
     return rocket_stage0_ok(entries);
+  } catch (const std::exception& error) { return rocket_stage0_error(error.what()); }
+}
+inline RocketAggregate rocket_std_file_create_directory(const std::string& path) {
+  try {
+    std::error_code error;
+    const bool created = std::filesystem::create_directories(rocket_stage0_path(path), error);
+    if (error) return rocket_stage0_error(error.message());
+    return rocket_stage0_ok(created);
   } catch (const std::exception& error) { return rocket_stage0_error(error.what()); }
 }
 
@@ -545,6 +588,16 @@ inline RocketAggregate rocket_std_process_run(const std::string& program,
   (void)program; (void)arguments;
   return rocket_stage0_error("process.run is only implemented on Windows x64");
 #endif
+}
+
+inline std::vector<std::string> rocket_stage0_process_arguments;
+inline void rocket_std_process_set_arguments(int count, char** arguments) {
+  rocket_stage0_process_arguments.clear();
+  for (int index = 1; index < count; ++index)
+    rocket_stage0_process_arguments.emplace_back(arguments[index] ? arguments[index] : "");
+}
+inline RocketArray<std::string> rocket_std_process_arguments() {
+  return std::make_shared<std::vector<std::string>>(rocket_stage0_process_arguments);
 }
 inline RocketAggregate rocket_std_process_environment(const std::string& name) {
 #ifdef _WIN32

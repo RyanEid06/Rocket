@@ -46,8 +46,9 @@ int main() {
     rocket::test::expect(ir.find("@llvm.smul.with.overflow.i64") != std::string::npos &&
                              ir.find("@rocket_rt_panic_integer_overflow") != std::string::npos,
                          "Int arithmetic lowers with overflow checks", failures);
-    rocket::test::expect(ir.find("define i32 @main()") != std::string::npos,
-                         "module exports a native C main entrypoint", failures);
+    rocket::test::expect(ir.find("define i32 @main(i32 %argc, ptr %argv)") != std::string::npos &&
+                             ir.find("@rocket_std_process_set_arguments") != std::string::npos,
+                         "module exports an argument-aware native C main entrypoint", failures);
 
     std::string optimized;
     error.clear();

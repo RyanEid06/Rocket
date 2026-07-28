@@ -29,6 +29,17 @@ int main() {
   rocket::test::expect(logicalTokens[2].kind == rocket::TokenKind::KwNot, "not keyword is recognized", failures);
   rocket::test::expect(logicalTokens[4].kind == rocket::TokenKind::KwOr, "or keyword is recognized", failures);
 
+  rocket::Diagnostics carriageReturnDiagnostics;
+  rocket::Lexer carriageReturnLexer("test.rocket", "let c = '\\r'\nlet s = \"line\\r\"\n",
+                                     carriageReturnDiagnostics);
+  const auto carriageReturnTokens = carriageReturnLexer.lex();
+  rocket::test::expect(!carriageReturnDiagnostics.hasErrors() &&
+                           carriageReturnTokens[3].kind == rocket::TokenKind::Character &&
+                           carriageReturnTokens[3].text == "\r" &&
+                           carriageReturnTokens[8].kind == rocket::TokenKind::String &&
+                           carriageReturnTokens[8].text == "line\r",
+                       "carriage-return escapes decode in Char and String literals", failures);
+
   rocket::Diagnostics collectionDiagnostics;
   rocket::Lexer collectionLexer("test.rocket", "let values = [1, 2]\n",
                                  collectionDiagnostics);

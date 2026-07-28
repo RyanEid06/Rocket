@@ -118,3 +118,18 @@ The canonical formatter is lexer-aligned, comment-preserving, and idempotent.
 Diagnostics expose stable categorical `Rdddd` identities separately from human
 messages. Editor integration consumes those contracts and is explicitly syntax
 support rather than an unimplemented semantic language server.
+
+## D013 - Textual LLVM IR for the self-hosted backend
+
+**Accepted.** The Rocket-written compiler emits canonical, verified textual LLVM
+IR and invokes the pinned Clang/LLD driver to create Windows x64 objects and
+executables. It does not embed LLVM through C++ or expose a privileged
+compiler-in-the-runtime operation. This keeps the compiler implementation in
+Rocket, makes stage2/stage3 comparison direct, and preserves the C++ LLVM 22
+backend permanently as reproducible Stage 0. Runtime ABI v1 remains the only
+native interface generated programs depend on.
+
+The compiler is allowed to use ordinary `std.string`, `std.collections`,
+`std.file`, `std.path`, and `std.process` APIs. Byte traversal, persistent array
+concatenation, and process arguments are public, backend-parity-tested library
+features rather than hidden bootstrap hooks.

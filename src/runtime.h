@@ -10,6 +10,7 @@ struct RocketString;
 struct RocketArray;
 struct RocketSlice;
 struct RocketAggregate;
+struct RocketStringBuilder;
 
 enum RocketElementKind : std::uint32_t {
   ROCKET_ELEMENT_INT = 1,
@@ -94,11 +95,19 @@ std::uint8_t rocket_std_string_starts_with(RocketString* value, RocketString* pr
 std::uint8_t rocket_std_string_ends_with(RocketString* value, RocketString* suffix);
 RocketString* rocket_std_string_trim(RocketString* value);
 RocketArray* rocket_std_string_split(RocketString* value, RocketString* delimiter);
+std::uint8_t rocket_std_string_byte_at(RocketString* value, std::int64_t index);
+std::int64_t rocket_std_string_byte_value_at(RocketString* value, std::int64_t index);
+RocketString* rocket_std_string_slice(RocketString* value, std::int64_t start,
+                                      std::int64_t end);
 RocketAggregate* rocket_std_string_parse_int(RocketString* value);
 RocketString* rocket_std_string_from_int(std::int64_t value);
+RocketStringBuilder* rocket_std_string_builder();
+void rocket_std_string_builder_append(RocketStringBuilder* builder, RocketString* value);
+RocketString* rocket_std_string_builder_finish(RocketStringBuilder* builder);
 
 std::int64_t rocket_std_collections_length(void* collection);
 RocketArray* rocket_std_collections_reverse(void* collection);
+RocketArray* rocket_std_collections_concat(void* left, void* right);
 RocketString* rocket_std_collections_join(RocketArray* values, RocketString* separator);
 
 RocketAggregate* rocket_std_file_read_text(RocketString* path);
@@ -107,6 +116,7 @@ RocketAggregate* rocket_std_file_append_text(RocketString* path, RocketString* c
 std::uint8_t rocket_std_file_exists(RocketString* path);
 RocketAggregate* rocket_std_file_remove(RocketString* path);
 RocketAggregate* rocket_std_file_list(RocketString* path);
+RocketAggregate* rocket_std_file_create_directory(RocketString* path);
 
 RocketString* rocket_std_path_join(RocketString* left, RocketString* right);
 RocketString* rocket_std_path_basename(RocketString* path);
@@ -123,6 +133,8 @@ std::int64_t rocket_std_random_int(std::int64_t minimum, std::int64_t maximum);
 double rocket_std_random_float();
 
 RocketAggregate* rocket_std_process_run(RocketString* program, RocketArray* arguments);
+void rocket_std_process_set_arguments(std::int32_t count, const char* const* arguments);
+RocketArray* rocket_std_process_arguments();
 RocketAggregate* rocket_std_process_environment(RocketString* name);
 RocketAggregate* rocket_std_process_working_directory();
 

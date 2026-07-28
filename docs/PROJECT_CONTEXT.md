@@ -290,15 +290,41 @@ Known limitations remain those in the implementation-state list above; no langua
   was generated and its relocated compiler executed a package with the bundled
   Clang/LLD pair and sibling runtime.
 
+**Phase 9 - self-hosted compiler**
+
+- Added the Rocket compiler package under `compiler/`. Its Rocket source owns
+  source traversal, the indentation lexer, parser, module graph, visibility,
+  type checking and generic specialization, typed HIR, verified control-flow
+  MIR, explicit ARC operations, stable diagnostics, and canonical textual LLVM
+  IR generation.
+- Added real generic structs and functions, user and built-in enum constructors,
+  exhaustive matching, `Option`/`Result` propagation, all stable standard-module
+  signatures, checked Int arithmetic, managed aggregates/collections, and the
+  runtime ABI v1 to the self-hosted pipeline.
+- Ported manifest loading, package-root module resolution, cycle and private
+  visibility diagnostics, canonical token-based formatting, and the complete
+  `check`, `build`, `run`, `test`, `fmt`, `new`, `emit-ir`, and `emit-asm` CLI.
+- Added the public compiler-building APIs `string.byte_at`,
+  `string.byte_value_at`, `string.slice`, `string.Builder`,
+  `collections.concat`, `file.create_directory`, and `process.arguments` to
+  both stage0 and the production runtime without adding privileged compile
+  hooks.
+- Added `scripts/bootstrap.ps1`. It creates genuine stage1, stage2, and stage3
+  compilers, requires byte-identical stage2/stage3 IR, records SHA-256 hashes,
+  checks version parity, and runs compiler, native runtime, standard-library,
+  checked-failure, formatter, and package workflows through the generated
+  compiler. The LLVM-disabled stage0 remains independently buildable.
+
 ## Current next task
 
-**Phase 9: self-host the Rocket compiler.**
+**Phase 10: freeze and publish Rocket 1.0.**
 
-- Specify the Rocket implementation subset needed by the compiler itself.
-- Port lexer, parser, HIR, MIR, diagnostics, module/package loading, and code
-  generation in reviewable bootstrap slices without weakening C++ Stage 0.
-- Prove deterministic `stage0 -> stage1 -> stage2 -> stage3` builds and compare
-  stage2/stage3 compiler outputs before beginning any casino implementation.
+- Freeze the 1.0 grammar, type system, standard library, diagnostics, runtime
+  ABI, manifest, formatter, and CLI contracts.
+- Run the complete conformance, deterministic bootstrap, runtime ownership,
+  performance, Debug, Release, and LLVM-disabled stage0 matrices.
+- Publish and relocate-test a checksummed Windows x64 distribution containing
+  the self-hosted compiler, runtime, and pinned native toolchain.
 
 ## New-chat prompt
 

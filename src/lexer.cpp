@@ -119,6 +119,7 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
         const char escaped = text[++i];
         switch (escaped) {
         case 'n': value.push_back('\n'); break;
+        case 'r': value.push_back('\r'); break;
         case 't': value.push_back('\t'); break;
         case '\'': value.push_back('\''); break;
         case '\\': value.push_back('\\'); break;
@@ -150,6 +151,7 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
           const char escaped = text[++i];
           switch (escaped) {
           case 'n': value.push_back('\n'); break;
+          case 'r': value.push_back('\r'); break;
           case 't': value.push_back('\t'); break;
           case '"': value.push_back('"'); break;
           case '\\': value.push_back('\\'); break;

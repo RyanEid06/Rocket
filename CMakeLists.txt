@@ -118,7 +118,7 @@ add_test(NAME runtime COMMAND rocketc_runtime_tests)
 
 add_executable(rocketc_stdlib_tests tests/stdlib_tests.cpp)
 target_link_libraries(rocketc_stdlib_tests PRIVATE rocket_runtime)
-add_test(NAME stdlib COMMAND rocketc_stdlib_tests)
+add_test(NAME stdlib COMMAND rocketc_stdlib_tests phase9-argument)
 
 add_test(NAME cli_check_hello
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
@@ -131,6 +131,68 @@ add_test(NAME cli_check_phase7_stdlib
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
 add_test(NAME cli_check_phase8_package
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
+add_test(NAME cli_check_phase9_bootstrap_primitives
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase9_bootstrap_primitives.rocket")
+add_test(NAME cli_run_phase9_bootstrap_primitives
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase9_bootstrap_primitives.rocket"
+    -- first second)
+set_tests_properties(cli_run_phase9_bootstrap_primitives PROPERTIES
+  PASS_REGULAR_EXPRESSION "Rocket[\r\n]+4[\r\n]+2")
+add_test(NAME cli_check_self_hosted_compiler
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/compiler")
+add_test(NAME cli_build_self_hosted_compiler
+  COMMAND rocketc build "${CMAKE_SOURCE_DIR}/compiler")
+set_tests_properties(cli_build_self_hosted_compiler PROPERTIES
+  FIXTURES_SETUP self_hosted_compiler)
+add_test(NAME cli_run_self_hosted_lexer_tests
+  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --self-test-lexer)
+set_tests_properties(cli_run_self_hosted_lexer_tests PROPERTIES
+  PASS_REGULAR_EXPRESSION "self-hosted lexer tests passed"
+  FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME cli_run_self_hosted_parser_tests
+  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --self-test-parser)
+set_tests_properties(cli_run_self_hosted_parser_tests PROPERTIES
+  PASS_REGULAR_EXPRESSION "self-hosted parser tests passed"
+  FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME cli_run_self_hosted_syntax_check
+  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --check-syntax
+    "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
+set_tests_properties(cli_run_self_hosted_syntax_check PROPERTIES
+  PASS_REGULAR_EXPRESSION "hello.rocket: syntax check succeeded"
+  FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME cli_run_self_hosted_hir_check
+  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --check-hir
+    "${CMAKE_SOURCE_DIR}/compiler/src/main.rocket")
+set_tests_properties(cli_run_self_hosted_hir_check PROPERTIES
+  PASS_REGULAR_EXPRESSION "main.rocket: HIR check succeeded"
+  FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME cli_run_self_hosted_mir_check
+  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --check-mir
+    "${CMAKE_SOURCE_DIR}/compiler/src/main.rocket")
+set_tests_properties(cli_run_self_hosted_mir_check PROPERTIES
+  PASS_REGULAR_EXPRESSION "main.rocket: MIR check succeeded"
+  FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME cli_self_hosted_check_package
+  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
+set_tests_properties(cli_self_hosted_check_package PROPERTIES
+  PASS_REGULAR_EXPRESSION "check succeeded"
+  FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME cli_self_hosted_fmt_package
+  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" fmt
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package" --check)
+set_tests_properties(cli_self_hosted_fmt_package PROPERTIES
+  PASS_REGULAR_EXPRESSION "format check succeeded"
+  FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME cli_self_hosted_formatter_canonical
+  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+    -File "${CMAKE_SOURCE_DIR}/tests/self_hosted_formatter_test.ps1"
+    -Compiler "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+    -WorkDirectory "${CMAKE_BINARY_DIR}/self-hosted-formatter")
+set_tests_properties(cli_self_hosted_formatter_canonical PROPERTIES
+  PASS_REGULAR_EXPRESSION "format check succeeded"
+  FIXTURES_REQUIRED self_hosted_compiler
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME cli_fmt_phase8_package
   COMMAND rocketc fmt "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package" --check)
 add_test(NAME cli_test_phase8_package
@@ -164,7 +226,7 @@ if(LLVM_FOUND)
   add_test(NAME cli_emit_ir
     COMMAND rocketc emit-ir "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
   set_tests_properties(cli_emit_ir PROPERTIES
-    PASS_REGULAR_EXPRESSION "define i32 @main\\(\\)")
+    PASS_REGULAR_EXPRESSION "define i32 @main\\(i32 %argc, ptr %argv\\)")
 
   add_test(NAME cli_emit_asm
     COMMAND rocketc emit-asm "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
@@ -205,6 +267,22 @@ if(LLVM_FOUND)
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
   set_tests_properties(cli_run_phase7_stdlib PROPERTIES
     PASS_REGULAR_EXPRESSION "Rocket Standard Library[\r\n]+23")
+
+  add_test(NAME cli_self_hosted_run_package
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
+  set_tests_properties(cli_self_hosted_run_package PROPERTIES
+    PASS_REGULAR_EXPRESSION "42"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_test(NAME cli_self_hosted_test_package
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" test
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
+  set_tests_properties(cli_self_hosted_test_package PROPERTIES
+    PASS_REGULAR_EXPRESSION "2 passed; 0 failed"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_test(NAME cli_array_bounds_failure
     COMMAND ${CMAKE_COMMAND}

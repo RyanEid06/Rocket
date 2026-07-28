@@ -1,4 +1,4 @@
-# Rocket Standard Library - Draft 0.7
+# Rocket Standard Library - Draft 0.9
 
 The Phase 7 library is a set of built-in source modules. Import a module by its
 stable name; no package file or downloaded dependency is required:
@@ -28,22 +28,37 @@ negative sleep duration, terminate through the runtime error path.
 | `ends_with(value: String, suffix: String)` | `Bool` | Suffix test |
 | `trim(value: String)` | `String` | Remove leading/trailing ASCII whitespace |
 | `split(value: String, delimiter: String)` | `Array[String]` | Split on a literal delimiter |
+| `byte_at(value: String, index: Int)` | `Char` | Read one checked UTF-8 byte |
+| `byte_value_at(value: String, index: Int)` | `Int` | Read one checked byte as 0 through 255 |
+| `slice(value: String, start: Int, end: Int)` | `String` | Copy an exclusive checked byte range |
 | `parse_int(value: String)` | `Result[Int, String]` | Parse an entire base-10 signed integer |
 | `from_int(value: Int)` | `String` | Format a base-10 signed integer |
+| `builder()` | `Builder` | Create an empty mutable text builder |
+| `builder_append(builder: Builder, value: String)` | `Unit` | Append text to a builder |
+| `builder_finish(builder: Builder)` | `String` | Copy the builder contents to an immutable String |
 
 An empty split delimiter returns an array containing the original value.
+`byte_at` and `byte_value_at` use a byte index, not a Unicode scalar index. `slice` requires valid
+exclusive bounds and its result must also be valid UTF-8; violated bounds or a
+range that splits a UTF-8 sequence are programmer-contract runtime failures.
+`Builder` is an explicitly mutable standard-library construction type intended
+for compilers, formatters, and encoders. Aliases observe appended text; only the
+immutable `String` returned by `builder_finish` crosses ordinary text APIs.
 
 ## `std.collections`
 
 `length[T](values: Array[T])` and `slice_length[T](values: Slice[T])` return an
-`Int`. `reverse[T](values: Array[T])` returns a new array. `join` combines an
-`Array[String]` with a separator. All operations preserve their inputs.
+`Int`. `reverse[T](values: Array[T])` returns a new array.
+`concat[T](left: Array[T], right: Array[T])` returns a new array containing both
+inputs in order. `join` combines an `Array[String]` with a separator. All
+operations preserve their inputs.
 
 ## `std.file` and `std.path`
 
 `file.read_text`, `write_text`, and `append_text` use binary byte-preserving I/O
-and return `Result`. `file.exists` returns `Bool`; `file.remove` returns
-`Result[Bool, String]`; `file.list` returns a lexically sorted
+and return `Result`. `file.exists` returns `Bool`; `file.create_directory`
+creates missing parent directories and returns `Result[Bool, String]`;
+`file.remove` returns `Result[Bool, String]`; `file.list` returns a lexically sorted
 `Result[Array[String], String]` containing entry names.
 
 Paths are UTF-8 at the Rocket boundary. `path.join`, `basename`, `extension`,
@@ -92,8 +107,10 @@ in `[0.0, 1.0)`. Phase 7 randomness is deterministic and not cryptographic.
 
 `process.run(program, arguments)` starts the program directly, waits for it,
 and returns `Result[Int, String]` containing the exit code. It never invokes a
-command shell or parses a command string. `process.environment(name)` returns
-`Option[String]`; `process.working_directory()` returns `Result[String, String]`.
+command shell or parses a command string. `process.arguments()` returns an
+`Array[String]` containing arguments after the executable name in original
+order. `process.environment(name)` returns `Option[String]`;
+`process.working_directory()` returns `Result[String, String]`.
 
 ## `std.time`
 

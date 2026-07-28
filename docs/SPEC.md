@@ -1,4 +1,4 @@
-# Rocket Language Specification - Draft 0.8
+# Rocket Language Specification - Draft 0.9 (self-hosting work in progress)
 
 This document freezes the syntax implemented by the first compiler slice. Later incompatible changes require a recorded design decision.
 
@@ -57,7 +57,7 @@ Conditions must have type `Bool`. A range uses integer bounds and excludes its e
 
 ## Expressions
 
-Precedence, from lowest to highest, is `or`, `and`, equality, comparison, addition/subtraction, multiplication/division, unary `not`/negation, and calls. `and`, `or`, and `not` require `Bool` operands; `and` and `or` short-circuit. `Int` and `Float` support arithmetic, ordering, and unary negation, but do not implicitly convert between each other. `Char` uses single quotes and supports `\n`, `\t`, `\\`, and `\'` escapes. Operators do not perform implicit conversions.
+Precedence, from lowest to highest, is `or`, `and`, equality, comparison, addition/subtraction, multiplication/division, unary `not`/negation, and calls. `and`, `or`, and `not` require `Bool` operands; `and` and `or` short-circuit. `Int` and `Float` support arithmetic, ordering, and unary negation, but do not implicitly convert between each other. `Char` uses single quotes and supports `\n`, `\r`, `\t`, `\\`, and `\'` escapes. String literals support the corresponding newline, carriage-return, tab, backslash, and double-quote escapes. Operators do not perform implicit conversions.
 
 `Int` is a signed 64-bit integer. Out-of-range literals are compile-time errors.
 Addition, subtraction, multiplication, unary negation, and division terminate
@@ -206,6 +206,12 @@ and an `Array[String]` of arguments and does not invoke a command shell.
 may appear in type annotations and exhaustive matches. Other library calls use
 existing scalar, collection, `Option`, or `Result` types. Complete signatures
 and deterministic behavior are specified in `STDLIB.md`.
+
+The self-hosted compiler uses ordinary public APIs rather than privileged
+syntax. `string.byte_at` and `string.slice` traverse immutable UTF-8 source by
+checked byte offsets, `collections.concat` builds persistent arrays, and
+`process.arguments` exposes command-line arguments after the executable name.
+These APIs have identical LLVM/runtime and preserved Stage 0 behavior.
 
 ## Package compilation model
 

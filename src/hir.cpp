@@ -59,6 +59,15 @@ void HirLowerer::registerBuiltinTypes() {
 
   const Type jsonType{TypeKind::Enum, "std.json.Json"};
   const Type jsonFieldType{TypeKind::Struct, "std.json.JsonField"};
+  HirTypeDeclaration stringBuilder;
+  stringBuilder.kind = HirTypeDeclKind::Struct;
+  stringBuilder.name = "std.string.Builder";
+  stringBuilder.location = {"<standard-library>", 1, 1};
+  stringBuilder.publicDeclaration = true;
+  stringBuilder.builtin = true;
+  typeDeclarations_.emplace(stringBuilder.name,
+                            static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+  hir_.typeDeclarations.push_back(std::move(stringBuilder));
   HirTypeDeclaration jsonField;
   jsonField.kind = HirTypeDeclKind::Struct;
   jsonField.name = "std.json.JsonField";
@@ -125,9 +134,21 @@ void HirLowerer::registerStandardLibrary() {
   add("std.string.trim", {Type::String}, Type::String, Intrinsic::StringTrim);
   add("std.string.split", {Type::String, Type::String}, arrayType(Type::String),
       Intrinsic::StringSplit);
+  add("std.string.byte_at", {Type::String, Type::Int}, Type::Char,
+      Intrinsic::StringByteAt);
+  add("std.string.byte_value_at", {Type::String, Type::Int}, Type::Int,
+      Intrinsic::StringByteValueAt);
+  add("std.string.slice", {Type::String, Type::Int, Type::Int}, Type::String,
+      Intrinsic::StringSlice);
   add("std.string.parse_int", {Type::String}, result(Type::Int),
       Intrinsic::StringParseInt);
   add("std.string.from_int", {Type::Int}, Type::String, Intrinsic::StringFromInt);
+  const Type stringBuilderType{TypeKind::Struct, "std.string.Builder"};
+  add("std.string.builder", {}, stringBuilderType, Intrinsic::StringBuilderNew);
+  add("std.string.builder_append", {stringBuilderType, Type::String}, Type::Unit,
+      Intrinsic::StringBuilderAppend);
+  add("std.string.builder_finish", {stringBuilderType}, Type::String,
+      Intrinsic::StringBuilderFinish);
 
   const Type t = typeParameter("T");
   add("std.collections.length", {arrayType(t)}, Type::Int,
@@ -136,6 +157,8 @@ void HirLowerer::registerStandardLibrary() {
       Intrinsic::CollectionsLength, {"T"});
   add("std.collections.reverse", {arrayType(t)}, arrayType(t),
       Intrinsic::CollectionsReverse, {"T"});
+  add("std.collections.concat", {arrayType(t), arrayType(t)}, arrayType(t),
+      Intrinsic::CollectionsConcat, {"T"});
   add("std.collections.join", {arrayType(Type::String), Type::String}, Type::String,
       Intrinsic::CollectionsJoin);
 
@@ -147,6 +170,8 @@ void HirLowerer::registerStandardLibrary() {
   add("std.file.exists", {Type::String}, Type::Bool, Intrinsic::FileExists);
   add("std.file.remove", {Type::String}, result(Type::Bool), Intrinsic::FileRemove);
   add("std.file.list", {Type::String}, result(arrayType(Type::String)), Intrinsic::FileList);
+  add("std.file.create_directory", {Type::String}, result(Type::Bool),
+      Intrinsic::FileCreateDirectory);
 
   add("std.path.join", {Type::String, Type::String}, Type::String, Intrinsic::PathJoin);
   add("std.path.basename", {Type::String}, Type::String, Intrinsic::PathBasename);
@@ -164,6 +189,8 @@ void HirLowerer::registerStandardLibrary() {
 
   add("std.process.run", {Type::String, arrayType(Type::String)}, result(Type::Int),
       Intrinsic::ProcessRun);
+  add("std.process.arguments", {}, arrayType(Type::String),
+      Intrinsic::ProcessArguments);
   add("std.process.environment", {Type::String}, optionString,
       Intrinsic::ProcessEnvironment);
   add("std.process.working_directory", {}, result(Type::String),

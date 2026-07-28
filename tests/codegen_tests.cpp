@@ -50,6 +50,21 @@ int main() {
                          "fallback Int arithmetic uses checked helpers", failures);
   }
 
+  rocket::Diagnostics escapeDiagnostics;
+  auto escapeMir = rocket::test::lowerToMir(
+      "fn main() -> Int:\n"
+      "    let text = \"line\\r\\n\\t\\\"\\\\\"\n"
+      "    print(text)\n"
+      "    return 0\n",
+      escapeDiagnostics);
+  rocket::test::expect(escapeMir.has_value(),
+                       "escaped string fixture lowers to MIR", failures);
+  if (escapeMir.has_value()) {
+    const std::string generated = rocket::BootstrapCodeGenerator(*escapeMir).generate();
+    rocket::test::expect(generated.find("line\\r") != std::string::npos,
+                         "fallback backend escapes carriage returns", failures);
+  }
+
 
   rocket::Diagnostics collectionDiagnostics;
   auto collectionMir = rocket::test::lowerToMir(

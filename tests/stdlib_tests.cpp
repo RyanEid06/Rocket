@@ -18,7 +18,7 @@ std::string value(const RocketString* text) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
   int failures = 0;
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
                        "standard-library test starts without live objects", failures);
@@ -40,6 +40,26 @@ int main() {
   RocketString* reverseJoined = rocket_std_collections_join(reversed, dash);
   rocket::test::expect(value(reverseJoined) == "Library-Rocket",
                        "collection reverse and string join preserve typed elements", failures);
+  rocket::test::expect(rocket_std_string_byte_at(joined, 0) == 'R',
+                       "string.byte_at exposes deterministic UTF-8 bytes", failures);
+  rocket::test::expect(rocket_std_string_byte_value_at(joined, 0) == 82,
+                       "string.byte_value_at exposes an unsigned numeric byte", failures);
+  RocketString* sliced = rocket_std_string_slice(joined, 0, 6);
+  rocket::test::expect(value(sliced) == "Rocket",
+                       "string.slice copies an exclusive byte range", failures);
+  RocketStringBuilder* builder = rocket_std_string_builder();
+  rocket_std_string_builder_append(builder, sliced);
+  rocket_std_string_builder_append(builder, suffix);
+  RocketString* built = rocket_std_string_builder_finish(builder);
+  rocket::test::expect(value(built) == "Rocket Library",
+                       "String Builder appends and freezes deterministic text", failures);
+  rocket_rt_release(built);
+  rocket_rt_release(builder);
+  RocketArray* concatenated = rocket_std_collections_concat(pieces, reversed);
+  rocket::test::expect(rocket_rt_collection_length(concatenated) == 4,
+                       "collections.concat preserves generic managed elements", failures);
+  rocket_rt_release(concatenated);
+  rocket_rt_release(sliced);
   rocket_rt_release(reverseJoined);
   rocket_rt_release(dash);
   rocket_rt_release(reversed);
@@ -123,12 +143,35 @@ int main() {
   rocket_rt_release(contents);
   rocket_rt_release(path);
 
+  const std::filesystem::path temporaryDirectory =
+      std::filesystem::current_path() / "rocket_stdlib_test_directory" / "nested";
+  RocketString* directoryPath = string(temporaryDirectory.string());
+  RocketAggregate* createdDirectory = rocket_std_file_create_directory(directoryPath);
+  rocket::test::expect(rocket_rt_aggregate_tag(createdDirectory) == 0 &&
+                           std::filesystem::is_directory(temporaryDirectory),
+                       "file.create_directory creates missing parents", failures);
+  std::filesystem::remove_all(temporaryDirectory.parent_path());
+  rocket_rt_release(createdDirectory);
+  rocket_rt_release(directoryPath);
+
   RocketString* environmentName = string("PATH");
   RocketAggregate* environment = rocket_std_process_environment(environmentName);
   rocket::test::expect(rocket_rt_aggregate_tag(environment) == 0,
                        "process.environment reads an existing variable as Option", failures);
   rocket_rt_release(environment);
   rocket_rt_release(environmentName);
+  rocket_std_process_set_arguments(argc, argv);
+  RocketArray* arguments = rocket_std_process_arguments();
+  RocketString* lastArgument = argc >= 2
+                                   ? rocket_rt_index_string(arguments, argc - 2)
+                                   : nullptr;
+  rocket::test::expect(argc < 2 ||
+                           (rocket_rt_collection_length(arguments) ==
+                                static_cast<std::uint64_t>(argc - 1) &&
+                            value(lastArgument) == argv[argc - 1]),
+                       "process.arguments returns arguments after the executable name", failures);
+  rocket_rt_release(lastArgument);
+  rocket_rt_release(arguments);
   const std::int64_t before = rocket_std_time_monotonic_milliseconds();
   rocket_std_time_sleep_milliseconds(0);
   rocket::test::expect(rocket_std_time_unix_milliseconds() > 0 &&

@@ -1,0 +1,24 @@
+import std.collections
+import std.process
+import std.string
+
+fn main() -> Int:
+    let source = "Rocket compiler"
+    let crlf = "line\r"
+    let name = string.slice(source, 0, 6)
+    if string.byte_at(name, 0) != 'R' or string.byte_value_at(name, 0) != 82 or string.byte_at(crlf, 4) != '\r':
+        return 1
+    let first = [1, 2]
+    let second = [3, 4]
+    let combined = collections.concat(first, second)
+    let builder = string.builder()
+    string.builder_append(builder, name)
+    string.builder_append(builder, " compiler")
+    let built = string.builder_finish(builder)
+    if built != source:
+        return 2
+    let arguments = process.arguments()
+    print(name)
+    print(combined[3])
+    print(collections.length(arguments))
+    return 0

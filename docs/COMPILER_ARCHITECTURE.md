@@ -190,3 +190,17 @@ for sorted test roots, so test execution has no alternate compiler semantics.
 Diagnostics carry a stable enum identity from their originating layer. Printing
 maps it to an `Rdddd` code consumed by golden tests and editor problem matchers;
 the human message remains free to improve within that documented category.
+
+## Self-hosted compiler
+
+The production compiler implementation is `compiler/src/main.rocket`. The C++
+implementation remains the permanent bootstrap stage0, while stage1 and later
+perform every source, HIR, MIR, diagnostic, package, formatter, CLI, and LLVM
+IR operation in Rocket. Generated compilers invoke pinned Clang/LLD only as an
+object and link driver; no runtime callback can compile Rocket source.
+
+Bootstrap MIR uses the same ownership contract as stage0 MIR: managed copies
+contain explicit retain/release effects and each return block explicitly
+transfers a managed result and releases every owning non-parameter local.
+Canonical symbol allocation and textual IR make stage2/stage3 output directly
+byte-comparable.

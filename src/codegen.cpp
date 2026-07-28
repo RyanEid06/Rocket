@@ -18,6 +18,8 @@ std::string BootstrapCodeGenerator::cppType(Type type) {
   case TypeKind::Slice:
     return "RocketSlice<" + cppType(collectionElementType(type)) + ">";
   case TypeKind::Struct:
+    if (type.declaration == "std.string.Builder") return "RocketStringBuilder";
+    return "RocketAggregate";
   case TypeKind::Enum: return "RocketAggregate";
   case TypeKind::TypeParameter:
   case TypeKind::Invalid: break;
@@ -44,6 +46,7 @@ std::string BootstrapCodeGenerator::escaped(const std::string& text) {
     case '\\': result += "\\\\"; break;
     case '"': result += "\\\""; break;
     case '\n': result += "\\n"; break;
+    case '\r': result += "\\r"; break;
     case '\t': result += "\\t"; break;
     default: result.push_back(c); break;
     }
@@ -55,6 +58,7 @@ std::string BootstrapCodeGenerator::escapedCharacter(const std::string& text) {
   if (text == "\\") return "\\\\";
   if (text == "'") return "\\'";
   if (text == "\n") return "\\n";
+  if (text == "\r") return "\\r";
   if (text == "\t") return "\\t";
   return text;
 }
@@ -68,10 +72,17 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::StringEndsWith: return "rocket_std_string_ends_with";
   case Intrinsic::StringTrim: return "rocket_std_string_trim";
   case Intrinsic::StringSplit: return "rocket_std_string_split";
+  case Intrinsic::StringByteAt: return "rocket_std_string_byte_at";
+  case Intrinsic::StringByteValueAt: return "rocket_std_string_byte_value_at";
+  case Intrinsic::StringSlice: return "rocket_std_string_slice";
   case Intrinsic::StringParseInt: return "rocket_std_string_parse_int";
   case Intrinsic::StringFromInt: return "rocket_std_string_from_int";
+  case Intrinsic::StringBuilderNew: return "rocket_std_string_builder";
+  case Intrinsic::StringBuilderAppend: return "rocket_std_string_builder_append";
+  case Intrinsic::StringBuilderFinish: return "rocket_std_string_builder_finish";
   case Intrinsic::CollectionsLength: return "rocket_std_collections_length";
   case Intrinsic::CollectionsReverse: return "rocket_std_collections_reverse";
+  case Intrinsic::CollectionsConcat: return "rocket_std_collections_concat";
   case Intrinsic::CollectionsJoin: return "rocket_std_collections_join";
   case Intrinsic::FileReadText: return "rocket_std_file_read_text";
   case Intrinsic::FileWriteText: return "rocket_std_file_write_text";
@@ -79,6 +90,7 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::FileExists: return "rocket_std_file_exists";
   case Intrinsic::FileRemove: return "rocket_std_file_remove";
   case Intrinsic::FileList: return "rocket_std_file_list";
+  case Intrinsic::FileCreateDirectory: return "rocket_std_file_create_directory";
   case Intrinsic::PathJoin: return "rocket_std_path_join";
   case Intrinsic::PathBasename: return "rocket_std_path_basename";
   case Intrinsic::PathExtension: return "rocket_std_path_extension";
@@ -91,6 +103,7 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::RandomInt: return "rocket_std_random_int";
   case Intrinsic::RandomFloat: return "rocket_std_random_float";
   case Intrinsic::ProcessRun: return "rocket_std_process_run";
+  case Intrinsic::ProcessArguments: return "rocket_std_process_arguments";
   case Intrinsic::ProcessEnvironment: return "rocket_std_process_environment";
   case Intrinsic::ProcessWorkingDirectory: return "rocket_std_process_working_directory";
   case Intrinsic::TimeUnixMilliseconds: return "rocket_std_time_unix_milliseconds";
@@ -177,8 +190,8 @@ std::string BootstrapCodeGenerator::generate() const {
 
   for (const auto& function : module_.functions) {
     if (module_.symbols[function.symbol].name == "main") {
-      out << "int main() { return static_cast<int>(" << functionName(function.symbol)
-          << "()); }\n";
+      out << "int main(int argc, char** argv) { rocket_std_process_set_arguments(argc, argv); "
+          << "return static_cast<int>(" << functionName(function.symbol) << "()); }\n";
       break;
     }
   }

@@ -23,6 +23,7 @@ inline constexpr std::uint32_t ObjectString = 1;
 inline constexpr std::uint32_t ObjectArray = 2;
 inline constexpr std::uint32_t ObjectSlice = 3;
 inline constexpr std::uint32_t ObjectAggregate = 4;
+inline constexpr std::uint32_t ObjectStringBuilder = 5;
 
 struct RuntimeString {
   AllocationHeader header;
@@ -51,6 +52,13 @@ struct RuntimeAggregate {
   std::uint32_t fieldCount;
   std::uint64_t managedMask;
   std::uint64_t* fields;
+};
+
+struct RuntimeStringBuilder {
+  AllocationHeader header;
+  std::uint64_t length;
+  std::uint64_t capacity;
+  std::uint8_t* bytes;
 };
 
 struct CollectionView {
@@ -150,6 +158,13 @@ void destroySlice(AllocationHeader* header) {
   liveAllocations.fetch_sub(1, std::memory_order_relaxed);
 }
 
+void destroyStringBuilder(AllocationHeader* header) {
+  auto* builder = reinterpret_cast<RuntimeStringBuilder*>(header);
+  std::free(builder->bytes);
+  std::free(builder);
+  liveAllocations.fetch_sub(1, std::memory_order_relaxed);
+}
+
 AllocationHeader* headerFor(void* object) {
   return static_cast<AllocationHeader*>(object);
 }
@@ -230,6 +245,54 @@ const RuntimeAggregate* checkedAggregate(const RocketAggregate* aggregate,
 extern "C" {
 
 std::uint32_t rocket_rt_abi_version() { return RuntimeAbiVersion; }
+
+RocketStringBuilder* rocket_std_string_builder() {
+  auto* builder = static_cast<RuntimeStringBuilder*>(std::malloc(sizeof(RuntimeStringBuilder)));
+  if (!builder) runtimeFailure("out of memory while allocating String Builder");
+  builder->header = {1, destroyStringBuilder, ObjectStringBuilder, 0};
+  builder->length = 0;
+  builder->capacity = 0;
+  builder->bytes = nullptr;
+  liveAllocations.fetch_add(1, std::memory_order_relaxed);
+  return reinterpret_cast<RocketStringBuilder*>(builder);
+}
+
+void rocket_std_string_builder_append(RocketStringBuilder* opaque, RocketString* value) {
+  auto* builder = reinterpret_cast<RuntimeStringBuilder*>(opaque);
+  if (!builder || builder->header.objectKind != ObjectStringBuilder)
+    runtimeFailure("string.builder_append received an invalid Builder");
+  const std::uint64_t appended = rocket_rt_string_byte_length(value);
+  if (appended > (std::numeric_limits<std::uint64_t>::max)() - builder->length)
+    runtimeFailure("String Builder is too large");
+  const std::uint64_t required = builder->length + appended;
+  if (required > builder->capacity) {
+    std::uint64_t capacity = builder->capacity == 0 ? 256 : builder->capacity;
+    while (capacity < required) {
+      if (capacity > (std::numeric_limits<std::uint64_t>::max)() / 2) {
+        capacity = required;
+        break;
+      }
+      capacity *= 2;
+    }
+    if (capacity > (std::numeric_limits<std::size_t>::max)())
+      runtimeFailure("String Builder allocation is too large");
+    void* resized = std::realloc(builder->bytes, static_cast<std::size_t>(capacity));
+    if (!resized) runtimeFailure("out of memory while growing String Builder");
+    builder->bytes = static_cast<std::uint8_t*>(resized);
+    builder->capacity = capacity;
+  }
+  if (appended != 0)
+    std::memcpy(builder->bytes + builder->length, rocket_rt_string_bytes(value),
+                static_cast<std::size_t>(appended));
+  builder->length = required;
+}
+
+RocketString* rocket_std_string_builder_finish(RocketStringBuilder* opaque) {
+  auto* builder = reinterpret_cast<RuntimeStringBuilder*>(opaque);
+  if (!builder || builder->header.objectKind != ObjectStringBuilder)
+    runtimeFailure("string.builder_finish received an invalid Builder");
+  return rocket_rt_string_new(builder->bytes, builder->length);
+}
 
 void rocket_rt_retain(void* object) {
   if (!object) return;
