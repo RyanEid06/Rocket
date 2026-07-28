@@ -1,0 +1,7 @@
+[package]
+name = "phase8_fixture"
+version = "0.1.0"
+entry = "src/main.rocket"
+
+[test]
+directory = "tests"

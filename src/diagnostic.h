@@ -9,15 +9,40 @@
 
 namespace rocket {
 
+enum class DiagnosticCode {
+  Lexical = 1001,
+  Indentation = 1002,
+  Syntax = 2001,
+  ModuleNotFound = 3001,
+  ImportCycle = 3002,
+  Visibility = 3003,
+  ImportAlias = 3004,
+  Type = 4001,
+  Name = 4002,
+  ControlFlow = 4003,
+  PatternMatch = 4004,
+  Arity = 4005,
+  Manifest = 5001,
+  Tooling = 5002,
+  Internal = 9001,
+};
+
+inline std::string diagnosticCodeName(DiagnosticCode code) {
+  const std::string digits = std::to_string(static_cast<int>(code));
+  return "R" + std::string(4 - digits.size(), '0') + digits;
+}
+
 struct Diagnostic {
   Location location;
   std::string message;
+  DiagnosticCode code = DiagnosticCode::Type;
 };
 
 class Diagnostics {
 public:
-  void error(Location location, std::string message) {
-    errors_.push_back({std::move(location), std::move(message)});
+  void error(Location location, std::string message,
+             DiagnosticCode code = DiagnosticCode::Type) {
+    errors_.push_back({std::move(location), std::move(message), code});
   }
 
   bool hasErrors() const { return !errors_.empty(); }
@@ -27,7 +52,8 @@ public:
   void print(std::ostream& out = std::cerr) const {
     for (const auto& item : errors_) {
       out << item.location.file << ':' << item.location.line << ':'
-          << item.location.column << ": error: " << item.message << '\n';
+          << item.location.column << ": error[" << diagnosticCodeName(item.code)
+          << "]: " << item.message << '\n';
     }
   }
 

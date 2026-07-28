@@ -48,9 +48,11 @@ struct LoadedModule {
 
 class Loader {
 public:
-  Loader(std::filesystem::path root, Diagnostics& diagnostics)
+  Loader(std::filesystem::path root, std::filesystem::path packageRoot,
+         Diagnostics& diagnostics)
       : rootPath_(std::filesystem::absolute(std::move(root)).lexically_normal()),
-        packageRoot_(rootPath_.parent_path()), diagnostics_(diagnostics) {}
+        packageRoot_(std::filesystem::absolute(std::move(packageRoot)).lexically_normal()),
+        diagnostics_(diagnostics) {}
 
   std::optional<Module> load() {
     if (!loadOne("", rootPath_, {rootPath_.string(), 1, 1})) return std::nullopt;
@@ -80,14 +82,16 @@ private:
     if (state == 1) {
       diagnostics_.error(importLocation,
                          "import cycle detected at module '" +
-                             (name.empty() ? std::string("<root>") : name) + "'");
+                             (name.empty() ? std::string("<root>") : name) + "'",
+                         DiagnosticCode::ImportCycle);
       return false;
     }
     states_[name] = 1;
     std::string source;
     if (!readSource(path, source)) {
       diagnostics_.error(importLocation, "could not read imported module '" +
-                                               (name.empty() ? path.string() : name) + "'");
+                                               (name.empty() ? path.string() : name) + "'",
+                         DiagnosticCode::ModuleNotFound);
       states_[name] = 2;
       return false;
     }
@@ -142,7 +146,8 @@ private:
         const std::string alias = lastComponent(import.name);
         if (auto found = module.aliases.find(alias);
             found != module.aliases.end() && found->second != import.name) {
-          diagnostics_.error(import.location, "import alias '" + alias + "' is ambiguous");
+          diagnostics_.error(import.location, "import alias '" + alias + "' is ambiguous",
+                             DiagnosticCode::ImportAlias);
         } else {
           module.aliases.emplace(alias, import.name);
           module.aliases.emplace(import.name, import.name);
@@ -173,7 +178,8 @@ private:
                              : target.publicVariants.contains(member);
     if (!visible)
       diagnostics_.error(location, "module '" + alias->second + "' has no public " +
-                                       category + " '" + member + "'");
+                                       category + " '" + member + "'",
+                         DiagnosticCode::Visibility);
     return qualified(alias->second, member);
   }
 
@@ -233,7 +239,8 @@ private:
             imported.publicVariants.contains(member))
           return qualified(alias->second, member);
         diagnostics_.error(location, "module '" + alias->second +
-                                         "' has no public callable '" + member + "'");
+                                         "' has no public callable '" + member + "'",
+                           DiagnosticCode::Visibility);
       }
     }
     return spelling;
@@ -391,7 +398,13 @@ private:
 
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       Diagnostics& diagnostics) {
-  return Loader(rootPath, diagnostics).load();
+  return Loader(rootPath, std::filesystem::absolute(rootPath).parent_path(), diagnostics).load();
+}
+
+std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
+                                      const std::filesystem::path& packageRoot,
+                                      Diagnostics& diagnostics) {
+  return Loader(rootPath, packageRoot, diagnostics).load();
 }
 
 } // namespace rocket

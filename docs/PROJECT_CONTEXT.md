@@ -59,6 +59,11 @@ Implemented:
 - Typed virtual standard modules for strings, generic collections, UTF-8 paths
   and files, JSON, CSV, deterministic randomness, direct processes, environment,
   and wall/monotonic time, with ordinary `Option`/`Result` failures.
+- Validated `rocket.toml` packages, package-root imports, ignored package
+  artifacts, deterministic source/test discovery, ordinary-program native tests,
+  an idempotent comment-preserving formatter, and stable `Rdddd` diagnostics.
+- VS Code syntax/language/snippet/problem-matcher support and a checksummed
+  relocatable Windows x64 developer-package workflow.
 - Checked signed Int literals and arithmetic, including overflow and
   division-by-zero diagnostics.
 - Isolated MIR-to-C++ stage0 backend that remains buildable when LLVM is disabled.
@@ -69,8 +74,8 @@ Implemented:
 
 Not implemented yet:
 
-- A broader golden diagnostic catalog.
-- Formatter, test runner, package layout, editor support, and self-hosting.
+- Self-hosting, semantic language-server features, and the self-contained 1.0
+  distribution.
 
 ## Canonical build commands
 
@@ -263,16 +268,37 @@ Known limitations remain those in the implementation-state list above; no langua
   LLVM-disabled Debug build passes all 16 applicable tests, including the full
   native parity fixture.
 
+**Phase 8 - developer tooling and packages**
+
+- Added `rocketc new` and a containment-checked `rocket.toml` layout with a
+  shared import root for entries and tests. Existing standalone-file commands
+  remain supported; package artifacts live under ignored `.rocketc` directories.
+- Added `rocketc test` with recursive sorted discovery, independent native
+  programs, exit-status pass/fail behavior, per-test results, and a summary.
+- Added an LF/four-space/canonical-spacing formatter with comment and literal
+  preservation, idempotence coverage, directory discovery, and CI-safe
+  `rocketc fmt --check` behavior.
+- Added stable categorical `Rdddd` diagnostic identities, expanded golden/code
+  tests, the diagnostic catalog, and a VS Code problem matcher.
+- Added VS Code syntax highlighting, indentation/brackets, snippets, repository
+  tasks, a relocatable runtime/toolchain lookup, and checksummed compiler-package
+  script using the pinned Clang/LLD pair with explicit pre-1.0 MSVC/SDK requirements.
+- Added Draft 0.8 package/tooling semantics, decision D012, focused unit tests,
+  and a package fixture exercising check, format, root imports, and two native
+  tests through both backends. Debug and Release pass all 37 tests; the
+  LLVM-disabled Debug build passes all 24 applicable tests. The default archive
+  was generated and its relocated compiler executed a package with the bundled
+  Clang/LLD pair and sibling runtime.
+
 ## Current next task
 
-**Phase 8: finish the developer tooling and package experience.**
+**Phase 9: self-host the Rocket compiler.**
 
-- Add a deterministic formatter and `--check` workflow.
-- Add a package-aware Rocket test runner and stable package layout.
-- Expand stable diagnostic codes and golden coverage.
-- Add VS Code syntax, language configuration, snippets, and build/test tasks.
-- Complete beginner and tooling documentation, packaging scripts, regressions,
-  and release validation before self-hosting begins.
+- Specify the Rocket implementation subset needed by the compiler itself.
+- Port lexer, parser, HIR, MIR, diagnostics, module/package loading, and code
+  generation in reviewable bootstrap slices without weakening C++ Stage 0.
+- Prove deterministic `stage0 -> stage1 -> stage2 -> stage3` builds and compare
+  stage2/stage3 compiler outputs before beginning any casino implementation.
 
 ## New-chat prompt
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rocket VERSION 0.1.0 LANGUAGES CXX)
+project(Rocket VERSION 0.8.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,6 +25,8 @@ add_library(rocketc_core
   src/lexer.cpp
   src/parser.cpp
   src/module_loader.cpp
+  src/formatter.cpp
+  src/package.cpp
   src/type.cpp
   src/hir.cpp
   src/sema.cpp
@@ -81,6 +83,7 @@ add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
 file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/src" ROCKETC_SOURCE_INCLUDE_PATH)
 target_compile_definitions(rocketc PRIVATE ROCKETC_SOURCE_INCLUDE_PATH="${ROCKETC_SOURCE_INCLUDE_PATH}")
+target_compile_definitions(rocketc PRIVATE ROCKETC_VERSION="${PROJECT_VERSION}")
 if(LLVM_FOUND)
   file(TO_CMAKE_PATH "${LLVM_TOOLS_BINARY_DIR}/clang.exe" ROCKETC_CLANG_PATH)
   target_compile_definitions(rocketc PRIVATE
@@ -106,6 +109,8 @@ if(LLVM_FOUND)
   add_rocketc_test(llvm_codegen)
 endif()
 add_rocketc_test(diagnostics)
+add_rocketc_test(formatter)
+add_rocketc_test(package)
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
@@ -124,6 +129,24 @@ add_test(NAME cli_check_phase6_modules
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_modules.rocket")
 add_test(NAME cli_check_phase7_stdlib
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
+add_test(NAME cli_check_phase8_package
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
+add_test(NAME cli_fmt_phase8_package
+  COMMAND rocketc fmt "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package" --check)
+add_test(NAME cli_test_phase8_package
+  COMMAND rocketc test "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
+set_tests_properties(cli_test_phase8_package PROPERTIES
+  PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
+add_test(NAME cli_version COMMAND rocketc --version)
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 0.8.0")
+add_test(NAME cli_help COMMAND rocketc --help)
+set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
+add_test(NAME cli_phase8_invalid_manifest
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_invalid_package"
+    "-DEXPECTED=error[R5001]"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
 add_test(NAME cli_phase6_visibility
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"

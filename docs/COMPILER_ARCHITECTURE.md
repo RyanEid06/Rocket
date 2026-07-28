@@ -172,3 +172,21 @@ It uses the opaque String, Array, and aggregate representations, so `Option`,
 `Result`, JSON, and nested CSV data participate in ordinary MIR ARC. The Stage 0
 C++ backend maps the same intrinsic identities to an isolated RAII compatibility
 header, preserving no-LLVM bootstrap support for Phase 7 programs.
+
+## Package and tooling front end
+
+CLI target resolution happens before compilation. A standalone file supplies
+its parent as the module root; a validated `rocket.toml` supplies one shared
+root to the entry program and every discovered test. Manifest paths are lexical,
+relative, and containment-checked. All artifacts for a package go to its ignored
+`.rocketc` directory.
+
+The formatter consumes lexer tokens so its spelling rules stay aligned with the
+language, but retains source-line comments explicitly because comments are not
+AST nodes. It is deterministic, idempotent, and stops on lexical diagnostics.
+The test runner invokes the normal verified MIR/backend pipeline independently
+for sorted test roots, so test execution has no alternate compiler semantics.
+
+Diagnostics carry a stable enum identity from their originating layer. Printing
+maps it to an `Rdddd` code consumed by golden tests and editor problem matchers;
+the human message remains free to improve within that documented category.

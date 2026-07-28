@@ -1,4 +1,4 @@
-# Rocket Language Specification - Draft 0.7
+# Rocket Language Specification - Draft 0.8
 
 This document freezes the syntax implemented by the first compiler slice. Later incompatible changes require a recorded design decision.
 
@@ -206,3 +206,16 @@ and an `Array[String]` of arguments and does not invoke a command shell.
 may appear in type annotations and exhaustive matches. Other library calls use
 existing scalar, collection, `Option`, or `Result` types. Complete signatures
 and deterministic behavior are specified in `STDLIB.md`.
+
+## Package compilation model
+
+A package is rooted by `rocket.toml`; its entry and test directories are
+relative paths contained by that root. Source imports resolve from the package
+root. Standalone-file compilation instead uses the file's parent directory as
+its import root. In both modes, generated artifacts are outside the source graph
+and cannot become implicit modules.
+
+Formatting is not semantically observable. The canonical formatter preserves
+tokens, literals, and line comments while normalizing whitespace and newlines.
+Each test-runner input is an ordinary independent program with the same required
+`fn main() -> Int` entry signature; zero is success and nonzero is failure.

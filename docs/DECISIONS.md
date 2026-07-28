@@ -104,3 +104,17 @@ matching. Process execution accepts a separated program and argument array and
 never invokes a shell. Randomness is deterministic and non-cryptographic. The
 Stage 0 backend carries an isolated RAII implementation of the same surface and
 is regression-tested against the production backend.
+
+## D012 - Minimal manifest and ordinary-program tests
+
+**Accepted.** A Rocket package uses one `rocket.toml`, `src/main.rocket`, and a
+configurable test directory. Manifest paths must remain within the package root,
+and that root is also the import root for entry and test compilation. Every test
+file is an independent ordinary Rocket program whose integer exit status decides
+pass/fail. This avoids introducing test-only syntax, reflection, or exceptions
+before self-hosting while still supporting deterministic discovery and CI.
+
+The canonical formatter is lexer-aligned, comment-preserving, and idempotent.
+Diagnostics expose stable categorical `Rdddd` identities separately from human
+messages. Editor integration consumes those contracts and is explicitly syntax
+support rather than an unimplemented semantic language server.

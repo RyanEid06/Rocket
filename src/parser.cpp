@@ -15,7 +15,8 @@ bool Parser::matchAny(std::initializer_list<TokenKind> kinds) {
 
 const Token& Parser::consume(TokenKind kind, const std::string& message) {
   if (at(kind)) return tokens_[index_++];
-  diagnostics_.error(current().location, message + "; found " + tokenName(current().kind));
+  diagnostics_.error(current().location, message + "; found " + tokenName(current().kind),
+                     DiagnosticCode::Syntax);
   if (!at(TokenKind::End)) return tokens_[index_++];
   return current();
 }
@@ -52,7 +53,8 @@ Module Parser::parseModule() {
       module.enums.push_back(parseEnum(isPublic));
     } else {
       diagnostics_.error(current().location,
-                         "expected 'fn', 'struct', 'enum', or 'import' at top level");
+                         "expected 'fn', 'struct', 'enum', or 'import' at top level",
+                         DiagnosticCode::Syntax);
       synchronize();
       continue;
     }
@@ -419,7 +421,9 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
     return expression;
   }
   const Token unexpected = current();
-  diagnostics_.error(unexpected.location, "expected expression; found " + std::string(tokenName(unexpected.kind)));
+  diagnostics_.error(unexpected.location,
+                     "expected expression; found " + std::string(tokenName(unexpected.kind)),
+                     DiagnosticCode::Syntax);
   if (!at(TokenKind::End)) ++index_;
   return std::make_unique<LiteralExpr>(ExprKind::Integer, unexpected.location, "0");
 }

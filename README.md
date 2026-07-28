@@ -22,6 +22,7 @@ stage0 fallback when LLVM is explicitly disabled.
 - Arithmetic, comparisons, `and`/`or`/`not`, and function calls
 - Assignment, `if`/`else`, `while`, integer `for` ranges, `break`, `continue`, and `return`
 - Built-in `print`
+- `rocket.toml` packages, deterministic formatting, native test discovery, and coded diagnostics
 
 ## Build on Windows
 
@@ -43,6 +44,9 @@ Then try:
 .\out\build\windows-debug\rocketc.exe run .\examples\hello.rocket
 .\out\build\windows-debug\rocketc.exe emit-ir .\examples\hello.rocket
 .\out\build\windows-debug\rocketc.exe emit-asm .\examples\hello.rocket
+.\out\build\windows-debug\rocketc.exe new .\out\hello-package
+.\out\build\windows-debug\rocketc.exe test .\out\hello-package
+.\out\build\windows-debug\rocketc.exe fmt .\out\hello-package --check
 ```
 
 `emit-ir` prints verified, unoptimized LLVM IR. `build`, `run`, and `emit-asm`
@@ -54,4 +58,4 @@ separate build with:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Debug
 ```
 
-See [the language specification](docs/SPEC.md), [standard-library reference](docs/STDLIB.md), [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
+See [the language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md), [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md), [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).

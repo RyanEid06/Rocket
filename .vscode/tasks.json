@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Rocket: Check package",
+      "type": "process",
+      "command": "${workspaceFolder}\\out\\build\\windows-debug\\rocketc.exe",
+      "args": ["check", "${workspaceFolder}"],
+      "problemMatcher": "$rocket",
+      "group": "build"
+    },
+    {
+      "label": "Rocket: Run package",
+      "type": "process",
+      "command": "${workspaceFolder}\\out\\build\\windows-debug\\rocketc.exe",
+      "args": ["run", "${workspaceFolder}"],
+      "problemMatcher": "$rocket"
+    },
+    {
+      "label": "Rocket: Test package",
+      "type": "process",
+      "command": "${workspaceFolder}\\out\\build\\windows-debug\\rocketc.exe",
+      "args": ["test", "${workspaceFolder}"],
+      "problemMatcher": "$rocket",
+      "group": "test"
+    },
+    {
+      "label": "Rocket: Format check",
+      "type": "process",
+      "command": "${workspaceFolder}\\out\\build\\windows-debug\\rocketc.exe",
+      "args": ["fmt", "${workspaceFolder}", "--check"],
+      "problemMatcher": []
+    }
+  ]
+}

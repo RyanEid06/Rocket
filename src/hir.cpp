@@ -300,7 +300,8 @@ std::optional<HirModule> HirLowerer::lower() {
 
   auto main = functions_.find("main");
   if (main == functions_.end()) {
-    diagnostics_.error({"<module>", 1, 1}, "program must define fn main() -> Int");
+    diagnostics_.error({"<module>", 1, 1}, "program must define fn main() -> Int",
+                       DiagnosticCode::ControlFlow);
   } else {
     const auto& signature = hir_.symbol(main->second);
     if (!signature.parameterTypes.empty() || signature.type != Type::Int)
@@ -431,7 +432,8 @@ HirFunction HirLowerer::lowerFunction(const Function& function, SymbolId symbol)
   if (result.result != Type::Unit && !definitelyReturns(result.body))
     diagnostics_.error(function.location, "function '" + function.name +
                                            "' may finish without returning " +
-                                           typeName(result.result));
+                                           typeName(result.result),
+                       DiagnosticCode::ControlFlow);
   return result;
 }
 
@@ -462,7 +464,8 @@ HirFunction HirLowerer::lowerSpecialization(const PendingSpecialization& special
   if (result.result != Type::Unit && !definitelyReturns(result.body))
     diagnostics_.error(specialization.function->location,
                        "generic specialization '" + hir_.symbol(result.symbol).name +
-                           "' may finish without returning " + typeName(result.result));
+                           "' may finish without returning " + typeName(result.result),
+                       DiagnosticCode::ControlFlow);
   return result;
 }
 
@@ -579,7 +582,8 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
     if (loopDepth_ == 0)
       diagnostics_.error(statement.location, statement.kind == StmtKind::Break
                                                  ? "'break' is only valid inside a loop"
-                                                 : "'continue' is only valid inside a loop");
+                                                 : "'continue' is only valid inside a loop",
+                         DiagnosticCode::ControlFlow);
     return std::make_unique<HirLoopControlStmt>(
         statement.kind == StmtKind::Break ? HirStmtKind::Break : HirStmtKind::Continue,
         statement.location);
@@ -591,7 +595,8 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
     const HirTypeDeclaration* declaration = nullptr;
     if (value->type.kind != TypeKind::Enum ||
         declarationIndex == static_cast<std::uint32_t>(-1)) {
-      diagnostics_.error(match.value->location, "match requires an enum value");
+      diagnostics_.error(match.value->location, "match requires an enum value",
+                         DiagnosticCode::PatternMatch);
     } else {
       declaration = &hir_.typeDeclarations[declarationIndex];
     }
@@ -663,7 +668,8 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
         if (!missing.empty()) missing += ", ";
         missing += declaration->variants[index].name;
       }
-      diagnostics_.error(match.location, "non-exhaustive match; missing " + missing);
+      diagnostics_.error(match.location, "non-exhaustive match; missing " + missing,
+                         DiagnosticCode::PatternMatch);
     }
     return std::make_unique<HirMatchStmt>(match.location, std::move(value), declarationIndex,
                                           std::move(cases));
@@ -680,7 +686,8 @@ SymbolId HirLowerer::specializeFunction(
     parameterMarkers.emplace(parameter, typeParameter(parameter));
   if (arguments.size() != function.parameters.size()) {
     diagnostics_.error(location, "generic function '" + function.name + "' expects " +
-                                     std::to_string(function.parameters.size()) + " argument(s)");
+                                     std::to_string(function.parameters.size()) + " argument(s)",
+                       DiagnosticCode::Arity);
     return InvalidSymbol;
   }
 
@@ -753,7 +760,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     const auto& name = static_cast<const LiteralExpr&>(expression).value;
     const SymbolId symbol = findVariable(name);
     if (symbol == InvalidSymbol) {
-      diagnostics_.error(expression.location, "undefined name '" + name + "'");
+      diagnostics_.error(expression.location, "undefined name '" + name + "'",
+                         DiagnosticCode::Name);
       return std::make_unique<HirNameExpr>(expression.location, Type::Invalid, symbol);
     }
     return std::make_unique<HirNameExpr>(expression.location, hir_.symbol(symbol).type, symbol);
@@ -826,7 +834,9 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     if (call.callee->kind != ExprKind::Name) {
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
-      diagnostics_.error(expression.location, "call target must be a function or constructor name");
+      diagnostics_.error(expression.location,
+                         "call target must be a function or constructor name",
+                         DiagnosticCode::Name);
       return std::make_unique<HirCallExpr>(expression.location, Type::Invalid, InvalidSymbol,
                                            std::move(arguments));
     }
@@ -875,7 +885,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       }
       if (arguments.size() != patterns.size())
         diagnostics_.error(expression.location, "constructor '" + name + "' expects " +
-                                                 std::to_string(patterns.size()) + " argument(s)");
+                                                 std::to_string(patterns.size()) + " argument(s)",
+                           DiagnosticCode::Arity);
       std::vector<Type> typeArguments;
       for (const auto& parameter : declaration.typeParameters) {
         auto inferred = substitutions.find(parameter);
@@ -916,7 +927,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       if (arguments.size() != definition.parameterTypes.size())
         diagnostics_.error(expression.location, "standard function '" + name + "' expects " +
                                                  std::to_string(definition.parameterTypes.size()) +
-                                                 " argument(s)");
+                                                 " argument(s)", DiagnosticCode::Arity);
       Substitutions inferred;
       for (std::size_t index = 0;
            index < arguments.size() && index < definition.parameterTypes.size(); ++index) {
@@ -981,7 +992,9 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     if (found == functions_.end()) {
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
-      diagnostics_.error(call.callee->location, "unknown function or constructor '" + name + "'");
+      diagnostics_.error(call.callee->location,
+                         "unknown function or constructor '" + name + "'",
+                         DiagnosticCode::Name);
       return std::make_unique<HirCallExpr>(expression.location, Type::Invalid, InvalidSymbol,
                                            std::move(arguments));
     }
@@ -997,7 +1010,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     }
     if (signature.kind == SymbolKind::BuiltinFunction) {
       if (arguments.size() != 1)
-        diagnostics_.error(expression.location, "print expects exactly one argument");
+        diagnostics_.error(expression.location, "print expects exactly one argument",
+                           DiagnosticCode::Arity);
       else if (isCollectionType(arguments[0]->type) || isAggregateType(arguments[0]->type))
         diagnostics_.error(arguments[0]->location, "print does not accept aggregate values");
       return std::make_unique<HirCallExpr>(expression.location, Type::Unit, callee,
@@ -1006,7 +1020,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     if (arguments.size() != signature.parameterTypes.size())
       diagnostics_.error(expression.location, "function '" + name + "' expects " +
                                                  std::to_string(signature.parameterTypes.size()) +
-                                                 " argument(s)");
+                                                 " argument(s)", DiagnosticCode::Arity);
     for (std::size_t index = 0;
          index < arguments.size() && index < signature.parameterTypes.size(); ++index)
       if (arguments[index]->type != Type::Invalid &&

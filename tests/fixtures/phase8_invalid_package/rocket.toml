@@ -1,0 +1,3 @@
+[package]
+name = "invalid_package"
+entry = "../outside.rocket"

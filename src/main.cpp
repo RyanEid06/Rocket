@@ -1,7 +1,9 @@
 #include "codegen.h"
+#include "formatter.h"
 #include "lexer.h"
 #include "mir.h"
 #include "module_loader.h"
+#include "package.h"
 #include "parser.h"
 #include "sema.h"
 #ifdef ROCKETC_HAS_LLVM
@@ -25,7 +27,14 @@ namespace fs = std::filesystem;
 
 namespace {
 
+fs::path compilerDirectory;
+
 std::string quote(const fs::path& path) { return "\"" + path.string() + "\""; }
+
+void cliDiagnostic(rocket::DiagnosticCode code, const std::string& message) {
+  std::cerr << "rocketc: error[" << rocket::diagnosticCodeName(code) << "]: "
+            << message << '\n';
+}
 
 bool readFile(const fs::path& path, std::string& result) {
   std::ifstream input(path, std::ios::binary);
@@ -43,9 +52,9 @@ struct Compilation {
   std::optional<rocket::MirModule> mir;
 };
 
-Compilation compileFrontend(const fs::path& path) {
+Compilation compileFrontend(const fs::path& path, const fs::path& packageRoot) {
   Compilation result;
-  auto loaded = rocket::loadModuleGraph(path, result.diagnostics);
+  auto loaded = rocket::loadModuleGraph(path, packageRoot, result.diagnostics);
   if (loaded.has_value()) result.module = std::move(*loaded);
   if (!result.diagnostics.hasErrors()) {
     rocket::SemanticAnalyzer analyzer(result.module, result.diagnostics);
@@ -57,27 +66,25 @@ Compilation compileFrontend(const fs::path& path) {
     std::string verifierError;
     if (!rocket::verifyMir(*result.mir, verifierError)) {
       result.diagnostics.error({path.string(), 1, 1},
-                               "internal MIR verification failed: " + verifierError);
+                               "internal MIR verification failed: " + verifierError,
+                               rocket::DiagnosticCode::Internal);
       result.mir.reset();
     }
   }
   return result;
 }
 
-bool writeGenerated(const fs::path& sourcePath, const std::string& code,
+bool writeGenerated(const fs::path& sourcePath, const fs::path& directory,
+                    const std::string& code,
                     fs::path& generatedPath) {
-  const fs::path directory = sourcePath.parent_path() / ".rocketc";
-  std::error_code error;
-  fs::create_directories(directory, error);
-  if (error) return false;
   generatedPath = directory / (sourcePath.stem().string() + ".bootstrap.cpp");
   std::ofstream output(generatedPath, std::ios::binary);
   output << code;
   return static_cast<bool>(output);
 }
 
-bool ensureArtifactDirectory(const fs::path& sourcePath, fs::path& directory) {
-  directory = sourcePath.parent_path() / ".rocketc";
+bool ensureArtifactDirectory(const fs::path& root, fs::path& directory) {
+  directory = root / ".rocketc";
   std::error_code error;
   fs::create_directories(directory, error);
   return !error;
@@ -147,28 +154,52 @@ int invokeExecutable(const fs::path& executable, const std::vector<std::string>&
 #endif
 }
 
-void usage() {
-  std::cerr << "usage: rocketc <check|build|run|emit-ir|emit-asm> <file.rocket> [-- program arguments]\n";
+#ifdef ROCKETC_HAS_LLVM
+fs::path clangDriverPath() {
+  const fs::path packaged = compilerDirectory / "toolchain/clang.exe";
+  return fs::is_regular_file(packaged) ? packaged : fs::path(ROCKETC_CLANG_PATH);
 }
 
-} // namespace
+fs::path runtimeLibraryPath() {
+  const fs::path packaged = compilerDirectory / "rocket_runtime.lib";
+  return fs::is_regular_file(packaged) ? packaged : fs::path(ROCKETC_RUNTIME_LIBRARY_PATH);
+}
+#endif
 
-int main(int argc, char** argv) {
-  if (argc < 3) { usage(); return 2; }
-  const std::string command = argv[1];
-  const fs::path sourcePath = fs::absolute(argv[2]);
-  if (sourcePath.extension() != ".rocket") {
-    std::cerr << "rocketc: source files must use the .rocket extension\n";
-    return 2;
+struct CommandTarget {
+  fs::path source;
+  fs::path packageRoot;
+  fs::path artifactRoot;
+};
+
+std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string& error) {
+  const fs::path absolute = fs::absolute(supplied).lexically_normal();
+  if (fs::is_directory(absolute) || absolute.filename() == "rocket.toml") {
+    auto package = rocket::loadPackage(absolute, error);
+    if (!package) return {};
+    return CommandTarget{package->entry, package->root, package->root};
   }
+  if (!fs::is_regular_file(absolute)) {
+    error = "source path does not exist: '" + absolute.string() + "'";
+    return {};
+  }
+  if (absolute.extension() != ".rocket") {
+    error = "source files must use the .rocket extension";
+    return {};
+  }
+  return CommandTarget{absolute, absolute.parent_path(), absolute.parent_path()};
+}
 
-  Compilation compilation = compileFrontend(sourcePath);
+int executeCompiler(const std::string& command, const CommandTarget& target,
+                    const std::vector<std::string>& programArguments,
+                    bool announceBuild = true) {
+  Compilation compilation = compileFrontend(target.source, target.packageRoot);
   if (compilation.diagnostics.hasErrors()) {
     compilation.diagnostics.print();
     return 1;
   }
   if (command == "check") {
-    std::cout << sourcePath.string() << ": check succeeded\n";
+    if (announceBuild) std::cout << target.source.string() << ": check succeeded\n";
     return 0;
   }
   if (command == "emit-ir") {
@@ -187,19 +218,16 @@ int main(int argc, char** argv) {
     return 2;
 #endif
   }
-  if (command != "build" && command != "run" && command != "emit-asm") {
-    usage(); return 2;
-  }
 
   fs::path artifactDirectory;
-  if (!ensureArtifactDirectory(sourcePath, artifactDirectory)) {
+  if (!ensureArtifactDirectory(target.artifactRoot, artifactDirectory)) {
     std::cerr << "rocketc: could not create artifact directory\n";
     return 1;
   }
 
 #ifdef ROCKETC_HAS_LLVM
   if (command == "emit-asm") {
-    const fs::path assemblyPath = artifactDirectory / (sourcePath.stem().string() + ".s");
+    const fs::path assemblyPath = artifactDirectory / (target.source.stem().string() + ".s");
     std::string error;
     if (!rocket::emitLlvmFile(*compilation.mir, true, rocket::LlvmFileType::Assembly,
                               assemblyPath, error)) {
@@ -212,27 +240,27 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  const fs::path objectPath = artifactDirectory / (sourcePath.stem().string() + ".obj");
-  const fs::path executablePath = artifactDirectory / (sourcePath.stem().string() + ".exe");
+  const fs::path objectPath = artifactDirectory / (target.source.stem().string() + ".obj");
+  const fs::path executablePath = artifactDirectory / (target.source.stem().string() + ".exe");
   std::string error;
   if (!rocket::emitLlvmFile(*compilation.mir, true, rocket::LlvmFileType::Object, objectPath,
                             error)) {
     std::cerr << "rocketc: " << error << '\n';
     return 1;
   }
-  if (invokeExecutable(fs::path(ROCKETC_CLANG_PATH),
-                       {objectPath.string(), ROCKETC_RUNTIME_LIBRARY_PATH,
-                        "-o", executablePath.string()}) != 0)
+  if (invokeExecutable(clangDriverPath(),
+                       {objectPath.string(), runtimeLibraryPath().string(),
+                        "-fuse-ld=lld", "-o", executablePath.string()}) != 0)
     return 1;
 #else
   rocket::BootstrapCodeGenerator generator(*compilation.mir);
   fs::path generatedPath;
-  if (!writeGenerated(sourcePath, generator.generate(), generatedPath)) {
+  if (!writeGenerated(target.source, artifactDirectory, generator.generate(), generatedPath)) {
     std::cerr << "rocketc: could not write bootstrap backend output\n";
     return 1;
   }
   if (command == "emit-asm") {
-    const fs::path assemblyPath = artifactDirectory / (sourcePath.stem().string() + ".s");
+    const fs::path assemblyPath = artifactDirectory / (target.source.stem().string() + ".s");
     const std::string compile = "g++ -std=c++20 -O2 -S -masm=intel -I " +
                                 quote(fs::path(ROCKETC_SOURCE_INCLUDE_PATH)) + " " +
                                 quote(generatedPath) + " -o " + quote(assemblyPath);
@@ -242,21 +270,186 @@ int main(int argc, char** argv) {
     std::cout << assembly;
     return 0;
   }
-  const fs::path executablePath = artifactDirectory / (sourcePath.stem().string() + ".exe");
+  const fs::path executablePath = artifactDirectory / (target.source.stem().string() + ".exe");
   const std::string compile = "g++ -std=c++20 -O2 -I " +
                               quote(fs::path(ROCKETC_SOURCE_INCLUDE_PATH)) + " " +
-                              quote(generatedPath) + " -o " +
-                              quote(executablePath);
+                              quote(generatedPath) + " -o " + quote(executablePath);
   if (invokeShell(compile) != 0) return 1;
 #endif
-  std::cout << "built " << executablePath.string() << '\n';
+  if (announceBuild) std::cout << "built " << executablePath.string() << '\n';
   if (command == "build") return 0;
+  return invokeExecutable(executablePath, programArguments);
+}
 
+bool writeFile(const fs::path& path, const std::string& contents) {
+  std::ofstream output(path, std::ios::binary | std::ios::trunc);
+  output << contents;
+  return static_cast<bool>(output);
+}
+
+int formatCommand(const fs::path& path, bool checkOnly) {
+  std::string error;
+  const auto sources = rocket::rocketSources(path, error);
+  if (!error.empty()) { cliDiagnostic(rocket::DiagnosticCode::Tooling, error); return 2; }
+  if (sources.empty()) {
+    cliDiagnostic(rocket::DiagnosticCode::Tooling, "no .rocket files found"); return 2;
+  }
+  int changed = 0;
+  for (const auto& sourcePath : sources) {
+    std::string source;
+    if (!readFile(sourcePath, source)) {
+      cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                    "could not read " + sourcePath.string());
+      return 1;
+    }
+    rocket::Diagnostics diagnostics;
+    const auto formatted = rocket::formatSource(sourcePath.string(), source, diagnostics);
+    if (!formatted) { diagnostics.print(); return 1; }
+    if (*formatted == source) continue;
+    ++changed;
+    if (checkOnly) {
+      std::cout << "would reformat " << sourcePath.string() << '\n';
+    } else {
+      if (!writeFile(sourcePath, *formatted)) {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "could not write " + sourcePath.string());
+        return 1;
+      }
+      std::cout << "formatted " << sourcePath.string() << '\n';
+    }
+  }
+  if (checkOnly && changed) {
+    std::cout << changed << " file(s) need formatting\n";
+    return 1;
+  }
+  std::cout << (checkOnly ? "format check passed" : "formatting complete") << '\n';
+  return 0;
+}
+
+int testCommand(const fs::path& path) {
+  std::string error;
+  std::vector<fs::path> tests;
+  fs::path packageRoot;
+  fs::path artifactRoot;
+  const fs::path absolute = fs::absolute(path).lexically_normal();
+  if (fs::is_regular_file(absolute) && absolute.extension() == ".rocket") {
+    tests.push_back(absolute);
+    packageRoot = absolute.parent_path();
+    artifactRoot = absolute.parent_path();
+  } else {
+    auto package = rocket::loadPackage(absolute, error);
+    if (!package) { cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 2; }
+    tests = rocket::packageTests(*package, error);
+    if (!error.empty()) { cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 2; }
+    packageRoot = package->root;
+    artifactRoot = package->root;
+  }
+
+  int passed = 0;
+  int failed = 0;
+  for (const auto& test : tests) {
+    std::error_code relativeError;
+    fs::path display = fs::relative(test, packageRoot, relativeError);
+    if (relativeError) display = test.filename();
+    std::cout << "test " << display.generic_string() << '\n';
+    const int status = executeCompiler("run", {test, packageRoot, artifactRoot}, {}, false);
+    if (status == 0) { ++passed; std::cout << "PASS " << display.generic_string() << '\n'; }
+    else { ++failed; std::cout << "FAIL " << display.generic_string() << " (exit " << status << ")\n"; }
+  }
+  std::cout << passed << " passed; " << failed << " failed\n";
+  return failed == 0 ? 0 : 1;
+}
+
+void usage() {
+  std::cerr
+      << "Rocket compiler " ROCKETC_VERSION "\n"
+         "usage:\n"
+         "  rocketc <check|build|run|emit-ir|emit-asm> [file.rocket|package] [-- arguments]\n"
+         "  rocketc fmt [file.rocket|directory] [--check]\n"
+         "  rocketc test [file.rocket|package]\n"
+         "  rocketc new <directory> [--name package-name]\n"
+         "  rocketc --version\n";
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+  compilerDirectory = fs::absolute(argv[0]).parent_path().lexically_normal();
+  if (argc < 2) { usage(); return 2; }
+  const std::string command = argv[1];
+  if (command == "--help" || command == "-h" || command == "help") {
+    usage(); return 0;
+  }
+  if (command == "--version" || command == "version") {
+    std::cout << "rocketc " ROCKETC_VERSION "\n";
+    return 0;
+  }
+  if (command == "new") {
+    if (argc < 3) { usage(); return 2; }
+    std::string name;
+    for (int index = 3; index < argc; ++index) {
+      if (std::string(argv[index]) == "--name" && index + 1 < argc) name = argv[++index];
+      else {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "unknown new option '" + std::string(argv[index]) + "'");
+        return 2;
+      }
+    }
+    std::string error;
+    if (!rocket::createPackage(argv[2], name, error)) {
+      cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 1;
+    }
+    std::cout << "created Rocket package " << fs::absolute(argv[2]).string() << '\n';
+    return 0;
+  }
+  if (command == "fmt") {
+    fs::path path = ".";
+    bool pathSet = false;
+    bool checkOnly = false;
+    for (int index = 2; index < argc; ++index) {
+      if (std::string(argv[index]) == "--check") checkOnly = true;
+      else if (!pathSet) { path = argv[index]; pathSet = true; }
+      else {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "unexpected fmt argument '" + std::string(argv[index]) + "'");
+        return 2;
+      }
+    }
+    return formatCommand(path, checkOnly);
+  }
+  if (command == "test") {
+    if (argc > 3) {
+      cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                    "test accepts only one file or package path");
+      return 2;
+    }
+    return testCommand(argc >= 3 ? fs::path(argv[2]) : fs::path("."));
+  }
+  if (command != "check" && command != "build" && command != "run" &&
+      command != "emit-ir" && command != "emit-asm") {
+    usage(); return 2;
+  }
+
+  const fs::path input = argc >= 3 ? fs::path(argv[2]) : fs::path(".");
+  std::string error;
+  auto target = resolveTarget(input, error);
+  if (!target) {
+    const fs::path absolute = fs::absolute(input).lexically_normal();
+    const auto code = fs::is_directory(absolute) || absolute.filename() == "rocket.toml"
+                          ? rocket::DiagnosticCode::Manifest
+                          : rocket::DiagnosticCode::Tooling;
+    cliDiagnostic(code, error); return 2;
+  }
   std::vector<std::string> programArguments;
   bool forwarding = false;
-  for (int i = 3; i < argc; ++i) {
-    if (!forwarding && std::string(argv[i]) == "--") { forwarding = true; continue; }
-    if (forwarding) programArguments.emplace_back(argv[i]);
+  for (int index = 3; index < argc; ++index) {
+    if (!forwarding && std::string(argv[index]) == "--") { forwarding = true; continue; }
+    if (forwarding) programArguments.emplace_back(argv[index]);
+    else {
+      cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                    "unexpected argument '" + std::string(argv[index]) + "'");
+      return 2;
+    }
   }
-  return invokeExecutable(executablePath, programArguments);
+  return executeCompiler(command, *target, programArguments);
 }

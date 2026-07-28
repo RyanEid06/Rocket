@@ -12,5 +12,8 @@ namespace rocket {
 // violations, then returns one deterministically namespaced AST for HIR.
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       Diagnostics& diagnostics);
+std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
+                                      const std::filesystem::path& packageRoot,
+                                      Diagnostics& diagnostics);
 
 } // namespace rocket

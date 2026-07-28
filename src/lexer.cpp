@@ -122,7 +122,8 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
         case 't': value.push_back('\t'); break;
         case '\'': value.push_back('\''); break;
         case '\\': value.push_back('\\'); break;
-        default: diagnostics_.error({file_, lineNumber, static_cast<int>(i + 1)}, "unknown character escape"); value.push_back(escaped); break;
+        default: diagnostics_.error({file_, lineNumber, static_cast<int>(i + 1)},
+                                    "unknown character escape", DiagnosticCode::Lexical); value.push_back(escaped); break;
         }
         ++i;
       } else if (i < text.size() && text[i] != '\'' && text[i] != '\r') {
@@ -130,7 +131,9 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       }
       if (i < text.size() && text[i] == '\'') { ++i; closed = true; }
       if (!closed || value.size() != 1) {
-        diagnostics_.error({file_, lineNumber, column}, "character literals must contain exactly one character");
+        diagnostics_.error({file_, lineNumber, column},
+                           "character literals must contain exactly one character",
+                           DiagnosticCode::Lexical);
         while (i < text.size() && text[i] != '\'' && text[i] != '\r') ++i;
         if (i < text.size() && text[i] == '\'') ++i;
       }
@@ -152,7 +155,7 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
           case '\\': value.push_back('\\'); break;
           default:
             diagnostics_.error({file_, lineNumber, static_cast<int>(i + 1)},
-                               "unknown string escape");
+                               "unknown string escape", DiagnosticCode::Lexical);
             value.push_back(escaped);
           }
           ++i;
@@ -160,7 +163,9 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
           value.push_back(text[i++]);
         }
       }
-      if (!closed) diagnostics_.error({file_, lineNumber, column}, "unterminated string literal");
+      if (!closed) diagnostics_.error({file_, lineNumber, column},
+                                      "unterminated string literal",
+                                      DiagnosticCode::Lexical);
       emit(TokenKind::String, std::move(value), lineNumber, column);
       continue;
     }
@@ -196,13 +201,17 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       if (i + 1 < text.size() && text[i + 1] == '=') {
         emit(TokenKind::BangEqual, "!=", lineNumber, column); i += 2;
       } else {
-        diagnostics_.error({file_, lineNumber, column}, "expected '=' after '!'"); ++i;
+        diagnostics_.error({file_, lineNumber, column}, "expected '=' after '!'",
+                           DiagnosticCode::Lexical); ++i;
       }
       break;
     case '\t':
-      diagnostics_.error({file_, lineNumber, column}, "tabs are not allowed; use spaces"); ++i; break;
+      diagnostics_.error({file_, lineNumber, column}, "tabs are not allowed; use spaces",
+                         DiagnosticCode::Indentation); ++i; break;
     default:
-      diagnostics_.error({file_, lineNumber, column}, std::string("unexpected character '") + c + "'"); ++i;
+      diagnostics_.error({file_, lineNumber, column},
+                         std::string("unexpected character '") + c + "'",
+                         DiagnosticCode::Lexical); ++i;
     }
   }
 }
@@ -216,14 +225,17 @@ std::vector<Token> Lexer::lex() {
     while (first < lineText.size() && lineText[first] == ' ') ++first;
     if (first < lineText.size() && lineText[first] == '\t') {
       diagnostics_.error({file_, lineNumber, static_cast<int>(first + 1)},
-                         "tabs are not allowed for indentation");
+                         "tabs are not allowed for indentation",
+                         DiagnosticCode::Indentation);
       while (first < lineText.size() && lineText[first] == '\t') ++first;
     }
     const bool blank = first >= lineText.size() || lineText[first] == '#';
     if (!blank) {
       const int indent = static_cast<int>(first);
       if (indent % 4 != 0) {
-        diagnostics_.error({file_, lineNumber, 1}, "indentation must use multiples of four spaces");
+        diagnostics_.error({file_, lineNumber, 1},
+                           "indentation must use multiples of four spaces",
+                           DiagnosticCode::Indentation);
       }
       if (indent > indentStack_.back()) {
         indentStack_.push_back(indent);
@@ -234,7 +246,9 @@ std::vector<Token> Lexer::lex() {
           emit(TokenKind::Dedent, "", lineNumber, 1);
         }
         if (indent != indentStack_.back()) {
-          diagnostics_.error({file_, lineNumber, 1}, "indentation does not match an outer block");
+          diagnostics_.error({file_, lineNumber, 1},
+                             "indentation does not match an outer block",
+                             DiagnosticCode::Indentation);
         }
       }
       scanLine(lineText, lineNumber, first);

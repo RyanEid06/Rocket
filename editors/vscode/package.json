@@ -1,0 +1,50 @@
+{
+  "name": "rocket-language",
+  "displayName": "Rocket Language",
+  "description": "Syntax, snippets, diagnostics, and language configuration for Rocket.",
+  "version": "0.8.0",
+  "publisher": "rocket-lang",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "rocket",
+        "aliases": ["Rocket", "rocket"],
+        "extensions": [".rocket"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rocket",
+        "scopeName": "source.rocket",
+        "path": "./syntaxes/rocket.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "rocket",
+        "path": "./snippets/rocket.json"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "rocket",
+        "owner": "rocket",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+): error\\[(R\\d{4})\\]: (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "code": 4,
+          "message": 5
+        }
+      }
+    ]
+  }
+}
