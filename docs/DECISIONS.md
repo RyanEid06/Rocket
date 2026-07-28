@@ -149,3 +149,22 @@ to `process.executable_path()`, while the C++ compiler is retained as an
 explicitly named stage0 artifact. The archive bundles static native link inputs
 and is tested with developer-only environment variables removed and from a
 working directory outside the package.
+
+## D015 - Language maturity before application scope
+
+**Accepted.** After Rocket 1.0, the primary objective is to develop Rocket into
+a credible, well-respected general-purpose native language. Phases 11 through 20
+cover practical mutable collections, scalable abstractions, C interoperability,
+graphics validation, production libraries, dependency management, professional
+tooling, concurrency, multiple platforms, and Rocket 2.0 hardening.
+
+This objective does not require matching the total feature count, package count,
+or decades of production history behind C++, Python, or Rust. Success requires a
+coherent design, trustworthy compiler/runtime, excellent support for Rocket's
+chosen domains, reproducible releases, and substantial independently maintained
+software.
+
+Raylib remains the first major graphics and FFI validation target, but Phase 14
+uses a non-casino reference application. Casino implementation is no longer part
+of the active language roadmap and may be planned separately only after Rocket
+2.0 is accepted, unless the user explicitly records a later reprioritization.

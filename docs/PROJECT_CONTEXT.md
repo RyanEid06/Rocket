@@ -8,8 +8,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 - **Compiler:** `rocketc`
 - **Source extension:** `.rocket`
 - **Primary target:** Windows x64
-- **Goal:** A beginner-friendly, statically typed, LLVM-native language that becomes self-hosted before any serious casino development.
-- **Casino goal after Rocket 1.0:** Local, single-player, play-money desktop casino with Blackjack, five-reel Slots, and Jacks-or-Better Video Poker.
+- **Goal:** Grow the beginner-friendly, statically typed, LLVM-native Rocket 1.0 foundation into a credible, well-respected general-purpose native language with practical collections, scalable abstractions, native interoperability, production libraries, packages, professional tooling, safe concurrency, and multiple platforms.
+- **Possible casino goal after Rocket 2.0:** A separate local, single-player, play-money desktop application may be planned only after the language-maturity roadmap is accepted, unless the user explicitly reprioritizes it.
 
 ## Locked decisions
 
@@ -19,9 +19,12 @@ Read this file at the start of every new Rocket chat. Update it after completing
 - Syntax: indentation blocks, explicit `let`/`var`, inferred local types, typed function boundaries.
 - Error model: `Option[T]`, `Result[T, E]`, and `?`; never universal null or exceptions.
 - Extensibility: official curated syntax sugar only; no arbitrary user macros in Rocket 1.0.
-- Self-hosting comes before casino work.
+- The complete Rocket 2.0 language-maturity roadmap comes before casino work.
 - Graphics after self-hosting: safe Rocket bindings over raylib.
 - Casino scope: no real money, payments, accounts, or online multiplayer in version 1.
+- Success means a coherent and trustworthy language used for substantial maintained
+  software; matching the total feature count or decades-old ecosystem size of
+  C++, Python, or Rust is not a completion requirement.
 
 ## Current implementation state
 
@@ -81,9 +84,11 @@ Implemented:
 
 Not implemented yet:
 
-- Semantic language-server features, graphics bindings, concurrency, a package
-  registry, and the post-language application layers. No casino implementation
-  has begun.
+- Practical mutable collections, maps/sets/tuples, methods, traits, closures,
+  iterators, a stable C FFI, graphics bindings, a production-scale standard
+  library, third-party dependency management and registry, semantic language-
+  server/debugger features, robust concurrency/async support, and non-Windows
+  targets. No casino implementation has begun.
 
 ## Canonical build commands
 
@@ -109,13 +114,32 @@ Build output is in `out/build/windows-debug` and `out/build/windows-release`. Th
 8. Build the formatter, test runner, diagnostic catalog, VS Code support, package layout, and documentation.
 9. Rewrite the compiler in Rocket and prove `stage0 -> stage1 -> stage2 -> stage3` self-hosting.
 10. Freeze Rocket 1.0, run conformance and performance tests, and publish the self-contained compiler.
-11. Bind raylib and add safe Rocket APIs for windows, drawing, input, audio, and assets.
-12. Build and test Blackjack, Slots, and Video Poker engines entirely in Rocket.
-13. Create Casino v1: graphical lobby, shared wallet, profiles, saves, animations, audio, and a distributable application.
+11. Add practical collections and controlled mutation: mutable arrays, maps,
+    sets, tuples, iteration, hashing, sorting, and managed-lifetime safety.
+12. Add scalable abstractions: methods, traits, generic constraints, function
+    values, closures, and user-defined iterators.
+13. Add explicit unsafe boundaries, stable C FFI, library production, callbacks,
+    native package inputs, and deterministic binding generation.
+14. Validate native interoperability with safe raylib graphics/audio APIs and a
+    substantial non-casino reference application.
+15. Expand the standard library for binary I/O, Unicode, regex, secure
+    randomness, crypto integrations, networking/HTTP, time zones, logging,
+    archives, databases, and application testing.
+16. Add reproducible dependency resolution, lockfiles, secure caching, auditing,
+    publishing, documentation generation, and a governed package registry.
+17. Add professional tooling: a semantic language server, incremental analysis,
+    documentation tools, native debugging, profiling, benchmarking, and coverage.
+18. Add robust ownership and concurrency: weak references, cycle handling,
+    thread-sharing rules, tasks, channels, structured concurrency, and async I/O.
+19. Add target triples, Linux and macOS support, ARM64, supported cross-
+    compilation paths, and multi-platform release validation.
+20. Freeze Rocket 2.0 after security hardening, fuzzing, performance work,
+    compatibility validation, signed reproducible releases, complete learning
+    material, and sustained external application use.
 
-## Definition of the self-hosting gate
+## Definition of the completed self-hosting gate
 
-Casino development does not begin until:
+Rocket 1.0 satisfied this gate when:
 
 - Rocket source management, lexer, parser, module loader, type checker, MIR, CLI, and LLVM-C backend are written in Rocket.
 - C++ `stage0` builds Rocket `stage1`; stage1 builds stage2; stage2 builds stage3.
@@ -337,10 +361,13 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Decide the post-1.0 direction with the user.**
+**Phase 11 - Rocket 1.1 practical collections and controlled mutation.**
 
-Rocket language phases 1 through 10 are complete. Do not begin graphics or
-casino implementation until the next scope is explicitly chosen.
+Rocket language phases 1 through 10 are complete. The next implementation work
+must begin with the Phase 11 design for mutability/aliasing, mutable arrays,
+equality/hashing, `Map[K, V]`, `Set[T]`, tuples, and iteration. Complete the
+vertical compiler/runtime/bootstrap/documentation slice described in
+`ROADMAP.md`; do not begin Phase 12, graphics, or casino implementation first.
 
 ## New-chat prompt
 
