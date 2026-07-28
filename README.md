@@ -8,8 +8,9 @@ This repository currently contains the first vertical slice: an indentation-awar
 
 - Functions with typed parameters and return values
 - Inferred immutable `let` and mutable `var` bindings
-- `Int`, `Bool`, `String`, and `Unit`
-- Arithmetic, comparisons, function calls, `if`/`else`, `while`, and `return`
+- `Int`, `Float`, `Bool`, `Char`, `String`, and `Unit`
+- Arithmetic, comparisons, `and`/`or`/`not`, and function calls
+- Assignment, `if`/`else`, `while`, integer `for` ranges, `break`, `continue`, and `return`
 - Built-in `print`
 
 ## Build on Windows

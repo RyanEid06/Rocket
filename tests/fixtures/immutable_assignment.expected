@@ -1,0 +1,1 @@
+immutable_assignment.rocket:3:5: error: cannot assign to immutable binding 'value'

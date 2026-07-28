@@ -30,15 +30,15 @@ Rocket is an early C++ `stage0` prototype, not yet an LLVM compiler.
 Implemented:
 
 - Indentation-aware lexer with line/column locations.
-- Parser and AST for functions, bindings, `if`/`else`, `while`, `return`, calls, arithmetic, comparisons, strings, integers, and booleans.
-- Semantic checks for `Int`, `Bool`, `String`, `Unit`, scopes, function calls, local inference, and basic return analysis.
+- Parser and AST for functions, bindings, assignment, `if`/`else`, `while`, integer `for` ranges, loop control, returns, calls, arithmetic, comparisons, logical operators, and scalar literals.
+- Semantic checks for `Int`, `Float`, `Bool`, `Char`, `String`, `Unit`, scopes, mutability, loop context, function calls, local inference, and basic return analysis.
 - Temporary C++ transpiler for `rocketc check`, `build`, `run`, and `emit-asm`.
-- Hello World, recursive Fibonacci, and frontend unit tests split into lexer, parser, semantic-analysis, and bootstrap-codegen suites.
+- Hello World, recursive Fibonacci, lexer/parser/sema/codegen suites, a golden diagnostic fixture, and a CLI check test.
 - Pinned LLVM 22.1.6, Ninja 1.13.1, and MSVC Windows x64 development setup.
 
 Not implemented yet:
 
-- Assignment, `for`, ranges, `break`, `continue`, floats, chars, logical operators, and strong diagnostics.
+- Complete control-flow return analysis and a broader golden diagnostic catalog.
 - Typed HIR/MIR.
 - LLVM IR lowering; `emit-ir` is currently a stub.
 - Runtime ABI, ARC, arrays, structs, enums, generics, modules, `Option`, `Result`, standard library, formatter, test runner, package layout, editor support, and self-hosting.
@@ -63,10 +63,13 @@ Build output is in `out/build/windows-debug` and `out/build/windows-release`. Th
 4. Implement the scalar LLVM backend and retire production reliance on C++ transpilation.
 5. Add runtime ABI, ARC, strings, arrays, slices, and lifetime testing.
 6. Add structs, enums, generics, pattern matching, `Option`, `Result`, and modules.
-7. Build the practical standard library and release-quality tooling.
-8. Rewrite the compiler in Rocket and prove `stage0 -> stage1 -> stage2 -> stage3` self-hosting.
-9. Freeze and publish Rocket 1.0.
-10. Add raylib bindings, then console game engines, then the graphical casino.
+7. Build modules, files, collections, JSON, CSV, randomness, processes, time, and other practical standard-library APIs.
+8. Build the formatter, test runner, diagnostic catalog, VS Code support, package layout, and documentation.
+9. Rewrite the compiler in Rocket and prove `stage0 -> stage1 -> stage2 -> stage3` self-hosting.
+10. Freeze Rocket 1.0, run conformance and performance tests, and publish the self-contained compiler.
+11. Bind raylib and add safe Rocket APIs for windows, drawing, input, audio, and assets.
+12. Build and test Blackjack, Slots, and Video Poker engines entirely in Rocket.
+13. Create Casino v1: graphical lobby, shared wallet, profiles, saves, animations, audio, and a distributable application.
 
 ## Definition of the self-hosting gate
 
@@ -103,15 +106,28 @@ At the end of each phase:
 
 Known limitations remain those in the implementation-state list above; no language behavior changed during Phase 0.
 
+**Phase 2 - core syntax**
+
+- Added assignment with inferred-type preservation and `var` mutability enforcement.
+- Added exclusive integer ranges, `for`, `break`, and `continue` with loop-context checking.
+- Added `Float` and byte-sized `Char` literals, types, diagnostics, and bootstrap lowering.
+- Added short-circuiting `and`/`or` plus unary `not` with explicit precedence and `Bool` enforcement.
+- Strengthened statement-level parser recovery and added a golden diagnostic fixture and CLI CTest coverage.
+- Fixed toolchain verification so native tools that report version banners on stderr, including `cl.exe`, are handled correctly.
+- Verified the pinned LLVM 22.1.6, Ninja 1.13.1, and MSVC 19.51.36252 toolchain.
+- Verified Debug and Release builds; each configuration passed all 6 CTest tests.
+- Smoke-tested the MSVC-built Debug CLI across all Phase 2 features (output: `29`, `1.5`, `R`).
+
 ## Current next task
 
-**Phase 1: complete scalar language syntax and diagnostics.**
+**Phase 3: introduce resolved HIR and typed MIR.**
 
-- Specify and implement assignment with mutability enforcement.
-- Add `for` loops, ranges, `break`, and `continue`.
-- Add `Char` and `Float` lexical, semantic, bootstrap-backend, and test support.
-- Strengthen parser recovery and add golden diagnostic and CLI tests.
-- Update the specification, decision journal, and this handoff after the milestone.
+- Specify stable resolved symbols and the HIR/MIR invariants before implementation.
+- Lower parsed AST into resolved HIR with every name and call bound to a declaration.
+- Lower typed HIR into control-flow-oriented MIR with explicit locals, operations, branches, loops, and returns.
+- Move bootstrap code generation to consume MIR rather than the raw AST.
+- Add focused resolution, typing, MIR-shape, and regression tests.
+- Update the decision journal, specification where observable behavior changes, and this handoff after the milestone.
 
 ## New-chat prompt
 

@@ -6,7 +6,9 @@ namespace rocket {
 
 Type SemanticAnalyzer::typeFromName(const std::string& name) {
   if (name == "Int") return Type::Int;
+  if (name == "Float") return Type::Float;
   if (name == "Bool") return Type::Bool;
+  if (name == "Char") return Type::Char;
   if (name == "String") return Type::String;
   if (name == "Unit") return Type::Unit;
   return Type::Invalid;
@@ -15,7 +17,9 @@ Type SemanticAnalyzer::typeFromName(const std::string& name) {
 const char* SemanticAnalyzer::typeName(Type type) {
   switch (type) {
   case Type::Int: return "Int";
+  case Type::Float: return "Float";
   case Type::Bool: return "Bool";
+  case Type::Char: return "Char";
   case Type::String: return "String";
   case Type::Unit: return "Unit";
   case Type::Invalid: return "<invalid>";
@@ -54,6 +58,7 @@ bool SemanticAnalyzer::analyze() {
 
 void SemanticAnalyzer::analyzeFunction(const Function& function) {
   scopes_.clear();
+  loopDepth_ = 0;
   scopes_.emplace_back();
   std::unordered_set<std::string> names;
   for (const auto& parameter : function.parameters) {
@@ -84,6 +89,20 @@ void SemanticAnalyzer::analyzeStatement(const Stmt& statement, Type returnType) 
     else scopes_.back()[binding.name] = {type, binding.mutableBinding};
     break;
   }
+  case StmtKind::Assignment: {
+    const auto& assignment = static_cast<const AssignmentStmt&>(statement);
+    const Variable* variable = findVariable(assignment.name);
+    const Type value = analyzeExpression(*assignment.value);
+    if (!variable) {
+      diagnostics_.error(assignment.location, "cannot assign to undefined name '" + assignment.name + "'");
+    } else if (!variable->mutableBinding) {
+      diagnostics_.error(assignment.location, "cannot assign to immutable binding '" + assignment.name + "'");
+    } else if (value != Type::Invalid && value != variable->type) {
+      diagnostics_.error(assignment.location, "assignment type is " + std::string(typeName(value)) +
+                         ", expected " + typeName(variable->type));
+    }
+    break;
+  }
   case StmtKind::Return: {
     const auto& returned = static_cast<const ReturnStmt&>(statement);
     const Type actual = returned.value ? analyzeExpression(*returned.value) : Type::Unit;
@@ -107,15 +126,41 @@ void SemanticAnalyzer::analyzeStatement(const Stmt& statement, Type returnType) 
     const auto& loop = static_cast<const WhileStmt&>(statement);
     if (analyzeExpression(*loop.condition) != Type::Bool)
       diagnostics_.error(loop.condition->location, "while condition must have type Bool");
+    ++loopDepth_;
     analyzeBlock(loop.body, returnType, true);
+    --loopDepth_;
     break;
   }
+  case StmtKind::For: {
+    const auto& loop = static_cast<const ForStmt&>(statement);
+    const Type start = analyzeExpression(*loop.start);
+    const Type end = analyzeExpression(*loop.end);
+    if (start != Type::Invalid && start != Type::Int)
+      diagnostics_.error(loop.start->location, "range start must have type Int");
+    if (end != Type::Invalid && end != Type::Int)
+      diagnostics_.error(loop.end->location, "range end must have type Int");
+    scopes_.emplace_back();
+    scopes_.back()[loop.name] = {Type::Int, false};
+    ++loopDepth_;
+    analyzeBlock(loop.body, returnType, false);
+    --loopDepth_;
+    scopes_.pop_back();
+    break;
+  }
+  case StmtKind::Break:
+  case StmtKind::Continue:
+    if (loopDepth_ == 0)
+      diagnostics_.error(statement.location, statement.kind == StmtKind::Break ?
+                         "'break' is only valid inside a loop" : "'continue' is only valid inside a loop");
+    break;
   }
 }
 
 Type SemanticAnalyzer::analyzeExpression(const Expr& expression) {
   switch (expression.kind) {
   case ExprKind::Integer: return Type::Int;
+  case ExprKind::Float: return Type::Float;
+  case ExprKind::Character: return Type::Char;
   case ExprKind::String: return Type::String;
   case ExprKind::Bool: return Type::Bool;
   case ExprKind::Name: {
@@ -130,9 +175,14 @@ Type SemanticAnalyzer::analyzeExpression(const Expr& expression) {
   case ExprKind::Unary: {
     const auto& unary = static_cast<const UnaryExpr&>(expression);
     const Type operand = analyzeExpression(*unary.operand);
-    if (operand != Type::Int && operand != Type::Invalid)
-      diagnostics_.error(expression.location, "unary '-' requires Int");
-    return operand == Type::Invalid ? Type::Invalid : Type::Int;
+    if (unary.op == TokenKind::KwNot) {
+      if (operand != Type::Bool && operand != Type::Invalid)
+        diagnostics_.error(expression.location, "'not' requires a Bool operand");
+      return operand == Type::Invalid ? Type::Invalid : Type::Bool;
+    }
+    if (operand != Type::Int && operand != Type::Float && operand != Type::Invalid)
+      diagnostics_.error(expression.location, "unary '-' requires Int or Float");
+    return operand;
   }
   case ExprKind::Binary: {
     const auto& binary = static_cast<const BinaryExpr&>(expression);
@@ -144,18 +194,25 @@ Type SemanticAnalyzer::analyzeExpression(const Expr& expression) {
       return Type::Invalid;
     }
     switch (binary.op) {
+    case TokenKind::KwAnd: case TokenKind::KwOr:
+      if (left != Type::Bool) {
+        diagnostics_.error(expression.location, "logical operators require Bool operands");
+        return Type::Invalid;
+      }
+      return Type::Bool;
     case TokenKind::EqualEqual: case TokenKind::BangEqual:
       return Type::Bool;
     case TokenKind::Less: case TokenKind::LessEqual:
     case TokenKind::Greater: case TokenKind::GreaterEqual:
-      if (left != Type::Int) diagnostics_.error(expression.location, "ordering operators require Int operands");
+      if (left != Type::Int && left != Type::Float)
+        diagnostics_.error(expression.location, "ordering operators require Int or Float operands");
       return Type::Bool;
     case TokenKind::Plus: case TokenKind::Minus: case TokenKind::Star: case TokenKind::Slash:
-      if (left != Type::Int) {
-        diagnostics_.error(expression.location, "arithmetic operators require Int operands");
+      if (left != Type::Int && left != Type::Float) {
+        diagnostics_.error(expression.location, "arithmetic operators require Int or Float operands");
         return Type::Invalid;
       }
-      return Type::Int;
+      return left;
     default: return Type::Invalid;
     }
   }

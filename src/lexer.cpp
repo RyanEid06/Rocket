@@ -14,6 +14,8 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::Dedent: return "dedent";
   case TokenKind::Identifier: return "identifier";
   case TokenKind::Integer: return "integer";
+  case TokenKind::Float: return "float";
+  case TokenKind::Character: return "character";
   case TokenKind::String: return "string";
   case TokenKind::KwFn: return "fn";
   case TokenKind::KwLet: return "let";
@@ -21,9 +23,16 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::KwIf: return "if";
   case TokenKind::KwElse: return "else";
   case TokenKind::KwWhile: return "while";
+  case TokenKind::KwFor: return "for";
+  case TokenKind::KwIn: return "in";
+  case TokenKind::KwBreak: return "break";
+  case TokenKind::KwContinue: return "continue";
   case TokenKind::KwReturn: return "return";
   case TokenKind::KwTrue: return "true";
   case TokenKind::KwFalse: return "false";
+  case TokenKind::KwAnd: return "and";
+  case TokenKind::KwOr: return "or";
+  case TokenKind::KwNot: return "not";
   case TokenKind::LParen: return "(";
   case TokenKind::RParen: return ")";
   case TokenKind::Colon: return ":";
@@ -33,6 +42,7 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::Minus: return "-";
   case TokenKind::Star: return "*";
   case TokenKind::Slash: return "/";
+  case TokenKind::DotDot: return "..";
   case TokenKind::Equal: return "=";
   case TokenKind::EqualEqual: return "==";
   case TokenKind::BangEqual: return "!=";
@@ -53,8 +63,11 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       {"fn", TokenKind::KwFn}, {"let", TokenKind::KwLet},
       {"var", TokenKind::KwVar}, {"if", TokenKind::KwIf},
       {"else", TokenKind::KwElse}, {"while", TokenKind::KwWhile},
+      {"for", TokenKind::KwFor}, {"in", TokenKind::KwIn},
+      {"break", TokenKind::KwBreak}, {"continue", TokenKind::KwContinue},
       {"return", TokenKind::KwReturn}, {"true", TokenKind::KwTrue},
-      {"false", TokenKind::KwFalse}};
+      {"false", TokenKind::KwFalse}, {"and", TokenKind::KwAnd},
+      {"or", TokenKind::KwOr}, {"not", TokenKind::KwNot}};
 
   std::size_t i = start;
   while (i < text.size()) {
@@ -75,7 +88,40 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
     if (std::isdigit(static_cast<unsigned char>(c))) {
       const std::size_t begin = i++;
       while (i < text.size() && std::isdigit(static_cast<unsigned char>(text[i]))) ++i;
-      emit(TokenKind::Integer, text.substr(begin, i - begin), lineNumber, column);
+      TokenKind kind = TokenKind::Integer;
+      if (i + 1 < text.size() && text[i] == '.' && text[i + 1] != '.' &&
+          std::isdigit(static_cast<unsigned char>(text[i + 1]))) {
+        kind = TokenKind::Float;
+        ++i;
+        while (i < text.size() && std::isdigit(static_cast<unsigned char>(text[i]))) ++i;
+      }
+      emit(kind, text.substr(begin, i - begin), lineNumber, column);
+      continue;
+    }
+    if (c == '\'') {
+      ++i;
+      std::string value;
+      bool closed = false;
+      if (i < text.size() && text[i] == '\\' && i + 1 < text.size()) {
+        const char escaped = text[++i];
+        switch (escaped) {
+        case 'n': value.push_back('\n'); break;
+        case 't': value.push_back('\t'); break;
+        case '\'': value.push_back('\''); break;
+        case '\\': value.push_back('\\'); break;
+        default: diagnostics_.error({file_, lineNumber, static_cast<int>(i + 1)}, "unknown character escape"); value.push_back(escaped); break;
+        }
+        ++i;
+      } else if (i < text.size() && text[i] != '\'' && text[i] != '\r') {
+        value.push_back(text[i++]);
+      }
+      if (i < text.size() && text[i] == '\'') { ++i; closed = true; }
+      if (!closed || value.size() != 1) {
+        diagnostics_.error({file_, lineNumber, column}, "character literals must contain exactly one character");
+        while (i < text.size() && text[i] != '\'' && text[i] != '\r') ++i;
+        if (i < text.size() && text[i] == '\'') ++i;
+      }
+      emit(TokenKind::Character, std::move(value), lineNumber, column);
       continue;
     }
     if (c == '"') {
@@ -119,6 +165,13 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
     case '+': emit(TokenKind::Plus, "+", lineNumber, column); ++i; break;
     case '*': emit(TokenKind::Star, "*", lineNumber, column); ++i; break;
     case '/': emit(TokenKind::Slash, "/", lineNumber, column); ++i; break;
+    case '.':
+      if (i + 1 < text.size() && text[i + 1] == '.') {
+        emit(TokenKind::DotDot, "..", lineNumber, column); i += 2;
+      } else {
+        diagnostics_.error({file_, lineNumber, column}, "expected '..' for a range"); ++i;
+      }
+      break;
     case '-': two('>', TokenKind::Arrow, TokenKind::Minus); break;
     case '=': two('=', TokenKind::EqualEqual, TokenKind::Equal); break;
     case '<': two('=', TokenKind::LessEqual, TokenKind::Less); break;

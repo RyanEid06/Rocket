@@ -1,22 +1,19 @@
-# Implementation Roadmap
+# Rocket Master Roadmap
 
-## Completed in milestone 0.1
+Rocket language development comes first. Casino development begins only after Rocket is self-hosted and Rocket 1.0 is released.
 
-- Charter, syntax draft, examples, and decision journal
-- CMake compiler/test foundation
-- Indentation-aware lexer with source locations
-- Parser and AST for the first procedural subset
-- Local type inference, scopes, calls, and basic type checking
-- Temporary native bootstrap backend and assembly inspection command
+1. **Stabilize** - Clean the repository, verify builds/tests, update documentation, and create the first baseline commit. **Completed.**
+2. **Core syntax** - Add assignment, loops, primitive types, operators, ranges, and stronger diagnostics. **Completed.**
+3. **Compiler architecture** - Introduce typed HIR and MIR so every backend receives clean, verified instructions.
+4. **LLVM backend** - Replace C++ transpilation with genuine LLVM IR, optimization, object generation, and native linking.
+5. **Runtime** - Implement UTF-8 strings, arrays, slices, ARC memory management, and safe runtime errors.
+6. **Type system** - Add structs, enums, generics, pattern matching, `Option`, `Result`, and error propagation.
+7. **Modules and libraries** - Add imports, files, collections, JSON, CSV, randomness, processes, time, and practical APIs.
+8. **Tooling** - Build the formatter, test runner, diagnostic catalog, VS Code support, packaging, and documentation.
+9. **Self-hosting** - Rewrite the Rocket compiler in Rocket and verify the `stage0 -> stage1 -> stage2 -> stage3` bootstrap.
+10. **Rocket 1.0** - Freeze the language, run conformance/performance tests, and publish the self-contained compiler.
+11. **Graphics platform** - Bind raylib and add safe Rocket APIs for windows, drawing, input, audio, and assets.
+12. **Casino engines** - Build and test Blackjack, Slots, and Video Poker logic entirely in Rocket.
+13. **Casino v1** - Create the graphical lobby, shared wallet, profiles, saves, animations, audio, and distributable application.
 
-## Next: milestone 0.2
-
-- Assignment with enforced mutability
-- `for` loops and loop control
-- Character and floating-point types
-- Full control-flow return analysis and improved error recovery
-- Golden diagnostic and command-line tests
-
-## Then
-
-Implement arrays, structs, enums, pattern matching, `Option`, `Result`, modules, reference-counted runtime values, LLVM IR generation, native object emission, standard-library I/O, benchmarks, and selected self-hosted frontend components in that order.
+See `PROJECT_CONTEXT.md` for the current implementation state, locked decisions, handoff requirements, and next task.

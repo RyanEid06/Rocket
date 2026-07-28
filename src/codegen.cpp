@@ -6,7 +6,9 @@ namespace rocket {
 
 std::string BootstrapCodeGenerator::cppType(const std::string& type) {
   if (type == "Int") return "std::int64_t";
+  if (type == "Float") return "double";
   if (type == "Bool") return "bool";
+  if (type == "Char") return "char";
   if (type == "String") return "std::string";
   return "void";
 }
@@ -26,6 +28,14 @@ std::string BootstrapCodeGenerator::escaped(const std::string& text) {
     }
   }
   return result;
+}
+
+std::string BootstrapCodeGenerator::escapedCharacter(const std::string& text) {
+  if (text == "\\") return "\\\\";
+  if (text == "'") return "\\'";
+  if (text == "\n") return "\\n";
+  if (text == "\t") return "\\t";
+  return text;
 }
 
 std::string BootstrapCodeGenerator::generate() const {
@@ -75,6 +85,13 @@ void BootstrapCodeGenerator::emitStatement(std::ostream& out, const Stmt& statem
     out << ";\n";
     break;
   }
+  case StmtKind::Assignment: {
+    const auto& assignment = static_cast<const AssignmentStmt&>(statement);
+    out << pad << variableName(assignment.name) << " = ";
+    emitExpression(out, *assignment.value);
+    out << ";\n";
+    break;
+  }
   case StmtKind::Return: {
     const auto& returned = static_cast<const ReturnStmt&>(statement);
     out << pad << "return";
@@ -107,6 +124,23 @@ void BootstrapCodeGenerator::emitStatement(std::ostream& out, const Stmt& statem
     out << pad << "}\n";
     break;
   }
+  case StmtKind::For: {
+    const auto& loop = static_cast<const ForStmt&>(statement);
+    out << pad << "for (std::int64_t " << variableName(loop.name) << " = ";
+    emitExpression(out, *loop.start);
+    out << "; " << variableName(loop.name) << " < ";
+    emitExpression(out, *loop.end);
+    out << "; ++" << variableName(loop.name) << ") {\n";
+    emitBlock(out, loop.body, indentation + 1);
+    out << pad << "}\n";
+    break;
+  }
+  case StmtKind::Break:
+    out << pad << "break;\n";
+    break;
+  case StmtKind::Continue:
+    out << pad << "continue;\n";
+    break;
   }
 }
 
@@ -114,6 +148,10 @@ void BootstrapCodeGenerator::emitExpression(std::ostream& out, const Expr& expre
   switch (expression.kind) {
   case ExprKind::Integer:
     out << static_cast<const LiteralExpr&>(expression).value << "LL"; break;
+  case ExprKind::Float:
+    out << static_cast<const LiteralExpr&>(expression).value; break;
+  case ExprKind::Character:
+    out << "'" << escapedCharacter(static_cast<const LiteralExpr&>(expression).value) << "'"; break;
   case ExprKind::String:
     out << "std::string{\"" << escaped(static_cast<const LiteralExpr&>(expression).value) << "\"}"; break;
   case ExprKind::Bool:
@@ -122,11 +160,14 @@ void BootstrapCodeGenerator::emitExpression(std::ostream& out, const Expr& expre
     out << variableName(static_cast<const LiteralExpr&>(expression).value); break;
   case ExprKind::Unary: {
     const auto& unary = static_cast<const UnaryExpr&>(expression);
-    out << "(-"; emitExpression(out, *unary.operand); out << ')'; break;
+    out << (unary.op == TokenKind::KwNot ? "(!" : "(-");
+    emitExpression(out, *unary.operand); out << ')'; break;
   }
   case ExprKind::Binary: {
     const auto& binary = static_cast<const BinaryExpr&>(expression);
-    out << '('; emitExpression(out, *binary.left); out << ' ' << tokenName(binary.op) << ' ';
+    const char* op = binary.op == TokenKind::KwAnd ? "&&" :
+                     binary.op == TokenKind::KwOr ? "||" : tokenName(binary.op);
+    out << '('; emitExpression(out, *binary.left); out << ' ' << op << ' ';
     emitExpression(out, *binary.right); out << ')'; break;
   }
   case ExprKind::Call: {

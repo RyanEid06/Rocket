@@ -44,3 +44,7 @@ add_rocketc_test(lexer)
 add_rocketc_test(parser)
 add_rocketc_test(sema)
 add_rocketc_test(codegen)
+add_rocketc_test(diagnostics)
+
+add_test(NAME cli_check_hello
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/examples/hello.rocket")

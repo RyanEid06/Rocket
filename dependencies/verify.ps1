@@ -13,7 +13,18 @@ $checks = @(
 foreach ($check in $checks) {
     $command = Get-Command $check.Command -ErrorAction SilentlyContinue
     if (-not $command) { throw "$($check.Name) was not found after activation." }
-    $firstLine = & $check.Command @($check.Args) 2>&1 | Select-Object -First 1
+    $savedErrorActionPreference = $ErrorActionPreference
+    try {
+        # Some native tools, notably cl.exe, print their version banner to stderr.
+        # Capture it without allowing Windows PowerShell to promote it to a terminating error.
+        $ErrorActionPreference = 'Continue'
+        $firstLine = & $check.Command @($check.Args) 2>&1 |
+            ForEach-Object { $_.ToString() } |
+            Select-Object -First 1
+    }
+    finally {
+        $ErrorActionPreference = $savedErrorActionPreference
+    }
     Write-Host ('{0,-12} {1}' -f ($check.Name + ':'), $firstLine)
 }
 

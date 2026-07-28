@@ -9,7 +9,7 @@
 
 namespace rocket {
 
-enum class Type { Invalid, Int, Bool, String, Unit };
+enum class Type { Invalid, Int, Float, Bool, Char, String, Unit };
 
 struct FunctionType {
   std::vector<Type> parameters;
@@ -40,6 +40,7 @@ private:
   Diagnostics& diagnostics_;
   std::unordered_map<std::string, FunctionType> functions_;
   std::vector<Scope> scopes_;
+  int loopDepth_ = 0;
 };
 
 } // namespace rocket

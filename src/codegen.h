@@ -20,6 +20,7 @@ private:
   void emitExpression(std::ostream& out, const Expr& expression) const;
   static std::string cppType(const std::string& type);
   static std::string escaped(const std::string& text);
+  static std::string escapedCharacter(const std::string& text);
   static std::string functionName(const std::string& name);
   static std::string variableName(const std::string& name);
 

@@ -12,10 +12,11 @@ struct Location {
 
 enum class TokenKind {
   End, Newline, Indent, Dedent,
-  Identifier, Integer, String,
-  KwFn, KwLet, KwVar, KwIf, KwElse, KwWhile, KwReturn, KwTrue, KwFalse,
+  Identifier, Integer, Float, Character, String,
+  KwFn, KwLet, KwVar, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue,
+  KwReturn, KwTrue, KwFalse, KwAnd, KwOr, KwNot,
   LParen, RParen, Colon, Comma, Arrow,
-  Plus, Minus, Star, Slash,
+  Plus, Minus, Star, Slash, DotDot,
   Equal, EqualEqual, BangEqual,
   Less, LessEqual, Greater, GreaterEqual
 };

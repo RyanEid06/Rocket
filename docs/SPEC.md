@@ -1,4 +1,4 @@
-# Rocket Language Specification - Draft 0.1
+# Rocket Language Specification - Draft 0.2
 
 This document freezes the syntax implemented by the first compiler slice. Later incompatible changes require a recorded design decision.
 
@@ -13,16 +13,17 @@ fn add(left: Int, right: Int) -> Int:
     return left + right
 ```
 
-Public function boundaries are explicit. Initial built-in types are `Int`, `Bool`, `String`, and `Unit`.
+Public function boundaries are explicit. Initial built-in types are `Int`, `Float`, `Bool`, `Char`, `String`, and `Unit`.
 
 ## Bindings
 
 ```rocket
 let name = "Ada"   # immutable
-var count = 0      # mutable storage; assignment arrives in the next slice
+var count = 0       # mutable
+count = 1
 ```
 
-The initializer determines the local type. There is no `null` value.
+The initializer determines the local type. Assignment targets must be existing `var` bindings and the assigned value must have the binding's type. There is no `null` value.
 
 ## Control flow
 
@@ -34,13 +35,18 @@ else:
 
 while count < 10:
     print(count)
+
+for index in 0..10:
+    if index == 5:
+        continue
+    print(index)
 ```
 
-Conditions must have type `Bool`. Every non-`Unit` function must return a value on every path; complete control-flow proof is scheduled for semantic milestone 2.
+Conditions must have type `Bool`. A range uses integer bounds and excludes its end (`0..10` produces 0 through 9). The loop variable is an immutable `Int`; `break` and `continue` are valid only inside loop bodies. Every non-`Unit` function must return a value on every path; complete control-flow proof is scheduled for semantic milestone 2.
 
 ## Expressions
 
-Precedence, from lowest to highest, is equality, comparison, addition/subtraction, multiplication/division, unary negation, and calls. Operators do not perform implicit string/number conversions.
+Precedence, from lowest to highest, is `or`, `and`, equality, comparison, addition/subtraction, multiplication/division, unary `not`/negation, and calls. `and`, `or`, and `not` require `Bool` operands; `and` and `or` short-circuit. `Int` and `Float` support arithmetic, ordering, and unary negation, but do not implicitly convert between each other. `Char` uses single quotes and supports `\n`, `\t`, `\\`, and `\'` escapes. Operators do not perform implicit conversions.
 
 ## Reserved future types
 

@@ -8,7 +8,7 @@
 
 namespace rocket {
 
-enum class ExprKind { Integer, String, Bool, Name, Unary, Binary, Call };
+enum class ExprKind { Integer, Float, Character, String, Bool, Name, Unary, Binary, Call };
 
 struct Expr {
   explicit Expr(ExprKind kind, Location location) : kind(kind), location(std::move(location)) {}
@@ -49,7 +49,7 @@ struct CallExpr final : Expr {
   std::vector<std::unique_ptr<Expr>> arguments;
 };
 
-enum class StmtKind { Binding, Return, Expression, If, While };
+enum class StmtKind { Binding, Assignment, Return, Expression, If, While, For, Break, Continue };
 
 struct Stmt {
   explicit Stmt(StmtKind kind, Location location) : kind(kind), location(std::move(location)) {}
@@ -66,6 +66,13 @@ struct BindingStmt final : Stmt {
   bool mutableBinding;
   std::string name;
   std::unique_ptr<Expr> initializer;
+};
+
+struct AssignmentStmt final : Stmt {
+  AssignmentStmt(Location location, std::string name, std::unique_ptr<Expr> value)
+      : Stmt(StmtKind::Assignment, std::move(location)), name(std::move(name)), value(std::move(value)) {}
+  std::string name;
+  std::unique_ptr<Expr> value;
 };
 
 struct ReturnStmt final : Stmt {
@@ -98,6 +105,21 @@ struct WhileStmt final : Stmt {
         body(std::move(body)) {}
   std::unique_ptr<Expr> condition;
   std::vector<std::unique_ptr<Stmt>> body;
+};
+
+struct ForStmt final : Stmt {
+  ForStmt(Location location, std::string name, std::unique_ptr<Expr> start,
+          std::unique_ptr<Expr> end, std::vector<std::unique_ptr<Stmt>> body)
+      : Stmt(StmtKind::For, std::move(location)), name(std::move(name)), start(std::move(start)),
+        end(std::move(end)), body(std::move(body)) {}
+  std::string name;
+  std::unique_ptr<Expr> start;
+  std::unique_ptr<Expr> end;
+  std::vector<std::unique_ptr<Stmt>> body;
+};
+
+struct LoopControlStmt final : Stmt {
+  LoopControlStmt(StmtKind kind, Location location) : Stmt(kind, std::move(location)) {}
 };
 
 struct Parameter { std::string name; std::string typeName; Location location; };
