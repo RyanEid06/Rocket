@@ -88,17 +88,17 @@ Implemented:
   CLI, and runtime ABI contracts with conformance and performance gates.
 - Additive Rocket 1.1 collection, mutation, syntax, standard-library, release,
   conformance, performance, and packaging contracts.
-- Rocket 1.2 development impl blocks with statically resolved struct/enum
-  methods, associated functions, generic specialization, module visibility, and
-  standard-library dot-call aliases in both stage0 and the self-hosted compiler.
+- Rocket 1.2 static impls and traits, deterministic generic constraints,
+  monomorphized closure values, persistent user-defined iterators, associated
+  constants, specialization limits, module visibility, and matching stage0 and
+  self-hosted behavior.
 
 Not implemented yet:
 
-- Traits, generic constraints, function values, closures, user-defined
-  iterators, a stable C FFI, graphics bindings, a production-scale standard
-  library, third-party dependency management and registry, semantic language-
-  server/debugger features, robust concurrency/async support, and non-Windows
-  targets. No casino implementation has begun.
+- A stable C FFI, graphics bindings, a production-scale standard library,
+  third-party dependency management and registry, semantic language-server/
+  debugger features, robust concurrency/async support, and non-Windows targets.
+  No casino implementation has begun.
 
 ## Canonical build commands
 
