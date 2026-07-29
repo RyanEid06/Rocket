@@ -194,6 +194,12 @@ add_test(NAME cli_phase12_generic_lambda_failure
     "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambda_failure.rocket"
     "-DEXPECTED=String, expected Int"
     -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+add_test(NAME cli_phase12_immediate_lambda_failure
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_immediate_lambda_failure.rocket"
+    "-DEXPECTED=String, expected Int"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
 add_test(NAME cli_phase11_invalid_key
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -373,7 +379,7 @@ if(LLVM_FOUND)
   add_test(NAME cli_run_phase12_generic_lambdas
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
   set_tests_properties(cli_run_phase12_generic_lambdas PROPERTIES
-    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture")
+    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture[\r\n]+9[\r\n]+immediate[\r\n]+8[\r\n]+nested[\r\n]+10[\r\n]+deep")
 
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
@@ -442,7 +448,7 @@ if(LLVM_FOUND)
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
   set_tests_properties(cli_self_hosted_run_phase12_generic_lambdas PROPERTIES
-    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture"
+    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture[\r\n]+9[\r\n]+immediate[\r\n]+8[\r\n]+nested[\r\n]+10[\r\n]+deep"
     FIXTURES_REQUIRED self_hosted_compiler
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
@@ -535,5 +541,5 @@ else()
   add_test(NAME cli_run_stage0_phase12_generic_lambdas
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
   set_tests_properties(cli_run_stage0_phase12_generic_lambdas PROPERTIES
-    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture")
+    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture[\r\n]+9[\r\n]+immediate[\r\n]+8[\r\n]+nested[\r\n]+10[\r\n]+deep")
 endif()

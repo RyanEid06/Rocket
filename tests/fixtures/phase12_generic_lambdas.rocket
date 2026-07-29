@@ -6,9 +6,25 @@ fn through_capture[T](value: T) -> T:
     let captured = fn() -> T => value
     return captured()
 
+fn through_immediate[T](value: T) -> T:
+    return (fn(item: T) -> T => item)(value)
+
+fn through_immediate_capture[T](value: T) -> T:
+    return (fn() -> T => value)()
+
+fn through_nested[T](value: T) -> T:
+    let outer = fn(item: T) -> T => (fn(inner: T) -> T => inner)(item)
+    return outer(value)
+
 fn main() -> Int:
     print(through_lambda(42))
     print(through_lambda("generic"))
     print(through_capture(7))
     print(through_capture("capture"))
+    print(through_immediate(9))
+    print(through_immediate("immediate"))
+    print(through_immediate_capture(8))
+    print(through_immediate_capture("nested"))
+    print(through_nested(10))
+    print(through_nested("deep"))
     return 0

@@ -244,8 +244,11 @@ growth semantics throughout parsing and lowering during every bootstrap stage.
 The self-hosted frontend recognizes the complete Phase 12 grammar: impls,
 traits and constraints, expression lambdas, associated constants, and
 user-defined iteration. Both compilers perform the same typed direct-call
-rewrites. Canonical owner/trait-qualified symbols and structural specialization
-keys keep selection deterministic across bootstrap stages.
+rewrites, including lowering an immediately invoked lambda value to its generated
+closure aggregate followed by the concrete `.call` symbol. Pending generated
+callables retain enclosing generic substitutions so nested lambda annotations are
+concrete when lowered. Canonical owner/trait-qualified symbols and structural
+specialization keys keep selection deterministic across bootstrap stages.
 
 Closures add compiler-generated immutable aggregate declarations and direct
 `call` functions to HIR; captured managed values therefore use the existing ARC

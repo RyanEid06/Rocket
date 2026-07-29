@@ -74,10 +74,11 @@ lambda-expression := "fn" "(" parameters? ")" "->" type-name
 
 Lambdas capture referenced locals by value in source order. Their concrete,
 compiler-generated closure type can be passed through generics and called like
-a function. Parameter and result annotations may use type parameters from the
-enclosing generic function; every specialization substitutes them before HIR.
-Captures follow the normal ARC rules; no erased function type or dynamic
-dispatch is introduced.
+a function, including directly as `(fn(value: Int) -> Int => value)(42)`.
+Parameter and result annotations may use type parameters from the enclosing
+generic function; every specialization substitutes them before HIR. Captures
+follow the normal ARC rules; no erased function type or dynamic dispatch is
+introduced.
 
 ## User-defined iteration
 

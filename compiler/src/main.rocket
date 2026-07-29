@@ -2960,6 +2960,36 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
                 next = state_pending(next, append(next.pending, PendingSpecialization(function_index, symbol, substitutions)))
     return HirExprResult(hir_expression(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression), next)
 
+fn closure_value_call(state: LowerState, expression: AstExpr, closure: HirExpr, arguments: Array[AstExpr]) -> HirExprResult:
+    let callable_name = string.concat(closure.type_name, ".call")
+    let function_index = find_function_index(state.module, callable_name)
+    var next = state
+    var lowered_arguments: Array[HirExpr] = [closure]
+    if function_index < 0:
+        next = lower_error(next, expression.line, expression.column, string.concat("undefined closure callable '", string.concat(callable_name, "'")))
+        for index in 0..collections.length(arguments):
+            let lowered = lower_hir_expression(next, arguments[index], "")
+            next = lowered.state
+            lowered_arguments = append(lowered_arguments, lowered.expression)
+        return HirExprResult(hir_expression(expr_call(), callable_name, "<invalid>", lowered_arguments, -1, -1, expression), next)
+    let function = next.module.functions[function_index]
+    for index in 0..collections.length(arguments):
+        var expected = ""
+        let parameter_index = index + 1
+        if parameter_index < collections.length(function.parameters):
+            expected = function.parameters[parameter_index].type_name
+        let lowered = lower_hir_expression(next, arguments[index], expected)
+        next = lowered.state
+        lowered_arguments = append(lowered_arguments, lowered.expression)
+        if expected != "" and lowered.expression.type_name != expected:
+            next = lower_error(next, arguments[index].line, arguments[index].column, string.concat("argument type is ", string.concat(lowered.expression.type_name, string.concat(", expected ", expected))))
+    if collections.length(arguments) + 1 != collections.length(function.parameters):
+        next = lower_error(next, expression.line, expression.column, string.concat("function '", string.concat(callable_name, "' has the wrong number of arguments")))
+    let symbol = find_symbol_by_name(next, callable_name, symbol_function())
+    if symbol < 0:
+        next = lower_error(next, expression.line, expression.column, string.concat("undefined closure callable '", string.concat(callable_name, "'")))
+    return HirExprResult(hir_expression(expr_call(), callable_name, function.result_type, lowered_arguments, symbol, -1, expression), next)
+
 fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: String) -> HirExprResult:
     let callee = expression.children[0]
     if callee.kind == expr_name():
@@ -2972,6 +3002,12 @@ fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: 
                 for callback_index in 1..collections.length(expression.children):
                     callback_arguments = append(callback_arguments, expression.children[callback_index])
                 return user_call(state, expression, callback_function, callback_arguments)
+    if callee.kind == expr_lambda():
+        let lowered_callee = lower_hir_expression(state, callee, "")
+        var immediate_arguments: Array[AstExpr] = []
+        for immediate_index in 1..collections.length(expression.children):
+            immediate_arguments = append(immediate_arguments, expression.children[immediate_index])
+        return closure_value_call(lowered_callee.state, expression, lowered_callee.expression, immediate_arguments)
     if callee.kind == expr_field() and collections.length(callee.children) == 1:
         let qualified_raw = callable_name(callee)
         let qualified_name = associated_standard_callable(standard_callable(state.module, qualified_raw))
@@ -3163,7 +3199,7 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         module = AstModule(module.imports, append(module.structs, closure), module.enums, module.traits, append(module.functions, callable))
         var next = state_module(state, module)
         let added = add_hir_symbol(next, symbol_function(), callable_name, result_type, false, collections.concat([closure_name], parameter_types), intrinsic_none())
-        next = state_pending(added.state, append(added.state.pending, PendingSpecialization(collections.length(module.functions) - 1, added.symbol, Substitutions([], []))))
+        next = state_pending(added.state, append(added.state.pending, PendingSpecialization(collections.length(module.functions) - 1, added.symbol, state.substitutions)))
         return HirExprResult(hir_expression(expr_call(), "$struct", closure_name, captured_values, -1, 0, expression), next)
     if expression.kind == expr_array():
         return lower_array_expression(state, expression, expected)

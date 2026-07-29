@@ -279,6 +279,7 @@ direct `call` method. Captures use normal ARC ownership and may escape. Generic
 functions accept closure values and specialize to their concrete closure type.
 Lambda parameter and result annotations may reference the enclosing generic
 function's type parameters and are substituted in each specialization;
+lambda values may be invoked immediately without first assigning them to a local;
 Rocket 1.2 does not expose a dynamically erased function type.
 
 `for item in source:` uses the statically resolved persistent iterator protocol:
