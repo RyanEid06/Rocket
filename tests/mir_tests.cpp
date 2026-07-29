@@ -94,6 +94,23 @@ int main() {
     rocket::test::expect(dump.find("release") != std::string::npos,
                          "Array and Slice values participate in MIR ARC", failures);
   }
+  rocket::Diagnostics mutationDiagnostics;
+  auto mutationMir = rocket::test::lowerToMir(
+      "fn main() -> Int:\n"
+      "    var values = [10, 20]\n"
+      "    let alias = values\n"
+      "    values[0] = 30\n"
+      "    return values[0]\n",
+      mutationDiagnostics);
+  rocket::test::expect(mutationMir.has_value(), "Array mutation lowers to MIR", failures);
+  if (mutationMir.has_value()) {
+    std::string verifierError;
+    rocket::test::expect(rocket::verifyMir(*mutationMir, verifierError),
+                         "Array mutation MIR verifies: " + verifierError, failures);
+    const std::string dump = rocket::dumpMir(*mutationMir);
+    rocket::test::expect(dump.find("array-update") != std::string::npos,
+                         "MIR explicitly represents copy-on-write Array updates", failures);
+  }
   rocket::Diagnostics phase6Diagnostics;
   auto phase6Mir = rocket::test::lowerToMir(
       "struct Pair:\n"

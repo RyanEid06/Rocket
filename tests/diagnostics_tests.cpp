@@ -8,7 +8,7 @@
 namespace {
 
 std::string readFile(const std::filesystem::path& path) {
-  std::ifstream input(path, std::ios::binary);
+  std::ifstream input(path);
   std::ostringstream contents;
   contents << input.rdbuf();
   return contents.str();

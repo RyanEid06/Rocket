@@ -92,7 +92,8 @@ struct PropagateExpr final : Expr {
 };
 
 enum class StmtKind {
-  Binding, Assignment, Return, Expression, If, While, For, Break, Continue, Match
+  Binding, Assignment, IndexAssignment, Return, Expression, If, While, For, Break,
+  Continue, Match
 };
 
 struct Stmt {
@@ -118,6 +119,16 @@ struct AssignmentStmt final : Stmt {
   AssignmentStmt(Location location, std::string name, std::unique_ptr<Expr> value)
       : Stmt(StmtKind::Assignment, std::move(location)), name(std::move(name)), value(std::move(value)) {}
   std::string name;
+  std::unique_ptr<Expr> value;
+};
+
+struct IndexAssignmentStmt final : Stmt {
+  IndexAssignmentStmt(Location location, std::string name, std::unique_ptr<Expr> index,
+                      std::unique_ptr<Expr> value)
+      : Stmt(StmtKind::IndexAssignment, std::move(location)), name(std::move(name)),
+        index(std::move(index)), value(std::move(value)) {}
+  std::string name;
+  std::unique_ptr<Expr> index;
   std::unique_ptr<Expr> value;
 };
 

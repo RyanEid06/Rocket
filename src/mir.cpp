@@ -65,6 +65,17 @@ MirRvalue MirRvalue::array(Type type, std::vector<MirOperand> elements) {
   return result;
 }
 
+MirRvalue MirRvalue::arrayUpdate(Type type, MirOperand array, MirOperand index,
+                                 MirOperand value) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::ArrayUpdate;
+  result.type = std::move(type);
+  result.left = std::move(array);
+  result.right = std::move(index);
+  result.end = std::move(value);
+  return result;
+}
+
 MirRvalue MirRvalue::index(Type type, MirOperand collection, MirOperand index) {
   MirRvalue result;
   result.kind = MirRvalueKind::Index;
@@ -216,6 +227,19 @@ std::optional<MirBlockId> MirLowerer::lowerStatement(const HirStmt& statement,
     const auto& assignment = static_cast<const HirAssignmentStmt&>(statement);
     MirOperand value = lowerExpression(*assignment.value, current);
     addInstruction(current, MirRvalue::use(std::move(value)), localForSymbol(assignment.target));
+    return current;
+  }
+  case HirStmtKind::IndexAssignment: {
+    const auto& assignment = static_cast<const HirIndexAssignmentStmt&>(statement);
+    const MirLocalId target = localForSymbol(assignment.target);
+    const Type arrayType = hir_.symbol(assignment.target).type;
+    MirOperand index = lowerExpression(*assignment.index, current);
+    MirOperand value = lowerExpression(*assignment.value, current);
+    const MirOperand array = MirOperand::localValue(arrayType, target);
+    const MirLocalId updated = addInstruction(
+        current, MirRvalue::arrayUpdate(arrayType, array, std::move(index), std::move(value)));
+    addInstruction(current,
+                   MirRvalue::use(MirOperand::localValue(arrayType, updated)), target);
     return current;
   }
   case HirStmtKind::Return: {
@@ -737,6 +761,17 @@ bool verifyMir(const MirModule& module, std::string& error) {
               error = "Array element type mismatch"; return false;
             }
           }
+        } else if (instruction.value.kind == MirRvalueKind::ArrayUpdate) {
+          if (!verifyOperand(instruction.value.left, function, error) ||
+              !verifyOperand(instruction.value.right, function, error) ||
+              !verifyOperand(instruction.value.end, function, error)) return false;
+          if (!isArrayType(instruction.value.type) ||
+              instruction.value.left.type != instruction.value.type ||
+              instruction.value.right.type != Type::Int ||
+              collectionElementType(instruction.value.type) !=
+                  instruction.value.end.type) {
+            error = "invalid Array update operation"; return false;
+          }
         } else if (instruction.value.kind == MirRvalueKind::Index) {
           if (!verifyOperand(instruction.value.left, function, error) ||
               !verifyOperand(instruction.value.right, function, error)) return false;
@@ -875,6 +910,11 @@ std::string dumpMir(const MirModule& module) {
           for (const auto& element : instruction.value.arguments) {
             out << ' '; operandText(element, out);
           }
+          break;
+        case MirRvalueKind::ArrayUpdate:
+          out << "array-update "; operandText(instruction.value.left, out);
+          out << ' '; operandText(instruction.value.right, out);
+          out << ' '; operandText(instruction.value.end, out);
           break;
         case MirRvalueKind::Index:
           out << "index "; operandText(instruction.value.left, out);

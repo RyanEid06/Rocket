@@ -553,6 +553,40 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
     }
     return std::make_unique<HirAssignmentStmt>(assignment.location, target, std::move(value));
   }
+  case StmtKind::IndexAssignment: {
+    const auto& assignment = static_cast<const IndexAssignmentStmt&>(statement);
+    const SymbolId target = findVariable(assignment.name);
+    Type elementType = Type::Invalid;
+    if (target == InvalidSymbol) {
+      diagnostics_.error(assignment.location,
+                         "cannot assign through undefined name '" + assignment.name + "'");
+    } else {
+      const auto& symbol = hir_.symbol(target);
+      if (!symbol.mutableBinding)
+        diagnostics_.error(assignment.location,
+                           "cannot mutate immutable binding '" + assignment.name + "'");
+      if (!isArrayType(symbol.type))
+        diagnostics_.error(assignment.location,
+                           "indexed assignment requires a mutable Array binding");
+      else
+        elementType = collectionElementType(symbol.type);
+    }
+    auto index = lowerExpression(*assignment.index, Type::Int);
+    auto value = lowerExpression(*assignment.value,
+                                 elementType == Type::Invalid
+                                     ? std::nullopt
+                                     : std::optional<Type>(elementType));
+    if (index->type != Type::Invalid && index->type != Type::Int)
+      diagnostics_.error(assignment.index->location,
+                         "Array assignment index must have type Int");
+    if (elementType != Type::Invalid && value->type != Type::Invalid &&
+        value->type != elementType)
+      diagnostics_.error(assignment.value->location,
+                         "Array assignment value is " + typeName(value->type) +
+                             ", expected " + typeName(elementType));
+    return std::make_unique<HirIndexAssignmentStmt>(
+        assignment.location, target, std::move(index), std::move(value));
+  }
   case StmtKind::Return: {
     const auto& returned = static_cast<const ReturnStmt&>(statement);
     auto value = returned.value ? lowerExpression(*returned.value, returnType) : nullptr;

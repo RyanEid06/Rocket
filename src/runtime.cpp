@@ -227,6 +227,27 @@ RuntimeArray* checkedArray(RocketArray* array, std::int64_t index,
   return runtimeArray;
 }
 
+RuntimeArray* copyArrayForUpdate(RocketArray* array, std::int64_t index,
+                                 std::uint32_t expectedKind) {
+  RuntimeArray* source = checkedArray(array, index, expectedKind);
+  if (source->header.references == 1) {
+    rocket_rt_retain(array);
+    return source;
+  }
+
+  RuntimeArray* copy = arrayFor(rocket_rt_array_new(source->elementKind, source->length));
+  const std::size_t bytes = static_cast<std::size_t>(source->length) *
+                            elementSize(source->elementKind);
+  if (bytes != 0) std::memcpy(copy->elements, source->elements, bytes);
+  if (source->elementKind == ROCKET_ELEMENT_STRING ||
+      source->elementKind == ROCKET_ELEMENT_MANAGED) {
+    auto** elements = static_cast<void**>(copy->elements);
+    for (std::uint64_t element = 0; element < copy->length; ++element)
+      rocket_rt_retain(elements[element]);
+  }
+  return copy;
+}
+
 RuntimeAggregate* checkedAggregate(RocketAggregate* aggregate, std::uint32_t field) {
   auto* runtime = reinterpret_cast<RuntimeAggregate*>(aggregate);
   if (!runtime || runtime->header.objectKind != ObjectAggregate)
@@ -406,6 +427,48 @@ void rocket_rt_array_set_managed(RocketArray* array, std::int64_t index, void* v
   rocket_rt_retain(value);
   rocket_rt_release(elements[index]);
   elements[index] = value;
+}
+
+RocketArray* rocket_rt_array_update_int(RocketArray* array, std::int64_t index,
+                                        std::int64_t value) {
+  RuntimeArray* result = copyArrayForUpdate(array, index, ROCKET_ELEMENT_INT);
+  rocket_rt_array_set_int(reinterpret_cast<RocketArray*>(result), index, value);
+  return reinterpret_cast<RocketArray*>(result);
+}
+
+RocketArray* rocket_rt_array_update_float(RocketArray* array, std::int64_t index,
+                                          double value) {
+  RuntimeArray* result = copyArrayForUpdate(array, index, ROCKET_ELEMENT_FLOAT);
+  rocket_rt_array_set_float(reinterpret_cast<RocketArray*>(result), index, value);
+  return reinterpret_cast<RocketArray*>(result);
+}
+
+RocketArray* rocket_rt_array_update_bool(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value) {
+  RuntimeArray* result = copyArrayForUpdate(array, index, ROCKET_ELEMENT_BOOL);
+  rocket_rt_array_set_bool(reinterpret_cast<RocketArray*>(result), index, value);
+  return reinterpret_cast<RocketArray*>(result);
+}
+
+RocketArray* rocket_rt_array_update_char(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value) {
+  RuntimeArray* result = copyArrayForUpdate(array, index, ROCKET_ELEMENT_CHAR);
+  rocket_rt_array_set_char(reinterpret_cast<RocketArray*>(result), index, value);
+  return reinterpret_cast<RocketArray*>(result);
+}
+
+RocketArray* rocket_rt_array_update_string(RocketArray* array, std::int64_t index,
+                                           RocketString* value) {
+  RuntimeArray* result = copyArrayForUpdate(array, index, ROCKET_ELEMENT_STRING);
+  rocket_rt_array_set_string(reinterpret_cast<RocketArray*>(result), index, value);
+  return reinterpret_cast<RocketArray*>(result);
+}
+
+RocketArray* rocket_rt_array_update_managed(RocketArray* array, std::int64_t index,
+                                            void* value) {
+  RuntimeArray* result = copyArrayForUpdate(array, index, ROCKET_ELEMENT_MANAGED);
+  rocket_rt_array_set_managed(reinterpret_cast<RocketArray*>(result), index, value);
+  return reinterpret_cast<RocketArray*>(result);
 }
 
 RocketSlice* rocket_rt_slice_new(void* collection, std::int64_t start, std::int64_t end) {

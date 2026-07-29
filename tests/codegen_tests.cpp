@@ -86,5 +86,20 @@ int main() {
                              generated.find("rocket_index(") != std::string::npos,
                          "fallback backend emits checked collection operations", failures);
   }
+  rocket::Diagnostics mutationDiagnostics;
+  auto mutationMir = rocket::test::lowerToMir(
+      "fn main() -> Int:\n"
+      "    var values = [1, 2]\n"
+      "    values[0] = 3\n"
+      "    return values[0]\n",
+      mutationDiagnostics);
+  rocket::test::expect(mutationMir.has_value(),
+                       "Array mutation fallback fixture lowers to MIR", failures);
+  if (mutationMir.has_value()) {
+    const std::string generated = rocket::BootstrapCodeGenerator(*mutationMir).generate();
+    rocket::test::expect(generated.find("rocket_array_update(") != std::string::npos &&
+                             generated.find("values.use_count() == 1") != std::string::npos,
+                         "fallback backend emits copy-on-write Array mutation", failures);
+  }
   return rocket::test::finish(failures, "codegen");
 }

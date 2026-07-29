@@ -307,6 +307,12 @@ private:
       }
       case StmtKind::Assignment:
         rewriteExpression(module, static_cast<AssignmentStmt&>(*statement).value); break;
+      case StmtKind::IndexAssignment: {
+        auto& assignment = static_cast<IndexAssignmentStmt&>(*statement);
+        rewriteExpression(module, assignment.index);
+        rewriteExpression(module, assignment.value);
+        break;
+      }
       case StmtKind::Return: {
         auto& returned = static_cast<ReturnStmt&>(*statement);
         if (returned.value) rewriteExpression(module, returned.value);

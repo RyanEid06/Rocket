@@ -223,6 +223,7 @@ std::vector<Token> Lexer::lex() {
   std::string lineText;
   int lineNumber = 1;
   while (std::getline(input, lineText)) {
+    if (!lineText.empty() && lineText.back() == '\r') lineText.pop_back();
     std::size_t first = 0;
     while (first < lineText.size() && lineText[first] == ' ') ++first;
     if (first < lineText.size() && lineText[first] == '\t') {

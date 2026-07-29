@@ -1,4 +1,4 @@
-# Rocket Language Specification 1.0
+# Rocket Language Specification 1.1 Draft
 
 This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
@@ -6,7 +6,10 @@ incompatible language changes require a recorded decision and a new major versio
 
 ## Layout and comments
 
-Blocks begin after `:` and use four-space indentation. Tabs used for indentation are errors. Blank lines and comments beginning with `#` do not change indentation.
+Blocks begin after `:` and use four-space indentation. Tabs used for indentation
+are errors. Source files may use LF or CRLF line endings; both produce identical
+tokens and locations. Blank lines and comments beginning with `#` do not change
+indentation.
 
 ## Functions and types
 
@@ -90,8 +93,22 @@ let names = ["Ada", "Grace"]       # Array[String]
 Every element must have exactly the same type. Nested managed values are
 supported. An empty literal is valid when an `Array[T]` type is supplied by a
 binding, argument, or return context.
-Arrays are immutable collections in this draft; a `var` may be assigned a new
-whole Array, but individual elements cannot be assigned.
+Array values use copy-on-write value semantics. A direct `var` Array binding may
+replace an element with another value of exactly the same element type:
+
+```rocket
+var scores = [10, 20, 30]
+scores[1] = 99
+```
+
+The index and replacement expression are each evaluated once, from left to
+right. The index must be `Int`, and normal bounds checks apply. Indexed
+assignment through a `let`, a `Slice`, a field, or another temporary expression
+is rejected. If the Array is shared by another binding or retained by a Slice,
+the mutated binding first receives a private copy. Existing aliases and Slices
+therefore continue to observe the pre-mutation value. A uniquely owned Array
+may reuse its storage as an implementation optimization without changing these
+semantics.
 
 Indexing works on Array and Slice and returns the element value. A slice uses an
 exclusive end bound and retains its backing Array, so it remains valid after
@@ -116,7 +133,9 @@ the last owning reference is released. Arrays release managed elements, Slices
 release their backing Array, and aggregate destructors release every managed
 field. Reference-count cycles are a documented Rocket 1.0 limitation. Current
 immutable aggregate construction does not provide a source-level operation that
-can create a self-cycle.
+can create a self-cycle. Array mutation uses copy-on-write: cloning retains each
+managed element, replacement retains the new element before releasing the old
+one, and rebinding releases the prior Array after the updated value is owned.
 
 ## Structs and generics
 

@@ -312,6 +312,9 @@ private:
     if (value.kind == MirRvalueKind::Array)
       return lowerArray(value, locals, error);
 
+    if (value.kind == MirRvalueKind::ArrayUpdate)
+      return lowerArrayUpdate(value, locals, error);
+
     if (value.kind == MirRvalueKind::Index)
       return lowerIndex(value, locals, error);
 
@@ -467,6 +470,30 @@ private:
     if (value.type == Type::Bool)
       return builder_.CreateTrunc(result, llvm::Type::getInt1Ty(context_), "index.bool");
     return result;
+  }
+
+  llvm::Value* lowerArrayUpdate(const MirRvalue& value,
+                                const std::vector<llvm::AllocaInst*>& locals,
+                                std::string& error) {
+    llvm::Value* array = lowerOperand(value.left, locals, error);
+    llvm::Value* index = lowerOperand(value.right, locals, error);
+    llvm::Value* elementValue = lowerOperand(value.end, locals, error);
+    if (!array || !index || !elementValue) return nullptr;
+    const Type element = collectionElementType(value.type);
+    if (element == Type::Bool)
+      elementValue = builder_.CreateZExt(elementValue,
+                                         llvm::Type::getInt8Ty(context_),
+                                         "array.update.bool");
+    const std::string functionName =
+        std::string("rocket_rt_array_update_") + runtimeElementSuffix(element);
+    llvm::FunctionCallee update = module_->getOrInsertFunction(
+        functionName,
+        llvm::FunctionType::get(llvm::PointerType::getUnqual(context_),
+                                {llvm::PointerType::getUnqual(context_),
+                                 llvm::Type::getInt64Ty(context_),
+                                 runtimeElementType(element)}, false));
+    return builder_.CreateCall(update, {array, index, elementValue},
+                               "array.update");
   }
 
   llvm::Value* lowerSlice(const MirRvalue& value,

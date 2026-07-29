@@ -72,7 +72,25 @@ int main() {
       *collectionModule.functions[1].body[1]);
   rocket::test::expect(arrayBinding.initializer->kind == rocket::ExprKind::Array &&
                            sliceBinding.initializer->kind == rocket::ExprKind::Slice,
-                       "aggregate postfix syntax has explicit AST nodes", failures);
+                        "aggregate postfix syntax has explicit AST nodes", failures);
+
+  rocket::Diagnostics mutationDiagnostics;
+  auto mutationModule = rocket::test::parse(
+      "fn main() -> Int:\n"
+      "    var values = [1, 2]\n"
+      "    values[0] = 3\n"
+      "    return values[0]\n",
+      mutationDiagnostics);
+  rocket::test::expect(!mutationDiagnostics.hasErrors(),
+                       "Array element assignment parses", failures);
+  rocket::test::expect(
+      mutationModule.functions[0].body[1]->kind == rocket::StmtKind::IndexAssignment,
+      "Array element assignment has an explicit AST statement", failures);
+  const auto& mutation = static_cast<const rocket::IndexAssignmentStmt&>(
+      *mutationModule.functions[0].body[1]);
+  rocket::test::expect(mutation.name == "values" &&
+                           mutation.index->kind == rocket::ExprKind::Integer,
+                       "Array assignment preserves its binding and index", failures);
 
   rocket::Diagnostics phase6Diagnostics;
   auto phase6 = rocket::test::parse(

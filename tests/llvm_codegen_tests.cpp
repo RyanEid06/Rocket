@@ -97,5 +97,23 @@ int main() {
     rocket::test::expect(ir.find("define ptr @rocket_fn_head_") != std::string::npos,
                          "managed collection functions use opaque pointer ABI values", failures);
   }
+  rocket::Diagnostics mutationDiagnostics;
+  auto mutationMir = rocket::test::lowerToMir(
+      "fn main() -> Int:\n"
+      "    var values = [1, 2]\n"
+      "    values[0] = 3\n"
+      "    return values[0]\n",
+      mutationDiagnostics);
+  rocket::test::expect(mutationMir.has_value(),
+                       "Array mutation LLVM fixture lowers to MIR", failures);
+  if (mutationMir.has_value()) {
+    std::string error;
+    std::string ir;
+    rocket::test::expect(rocket::generateLlvmIr(*mutationMir, false, ir, error),
+                         "Array mutation lowers to valid LLVM IR: " + error, failures);
+    rocket::test::expect(ir.find("@rocket_rt_array_update_int") != std::string::npos,
+                         "Array mutation lowers through the copy-on-write runtime ABI",
+                         failures);
+  }
   return rocket::test::finish(failures, "llvm_codegen");
 }

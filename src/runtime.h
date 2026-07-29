@@ -38,6 +38,18 @@ void rocket_rt_array_set_bool(RocketArray* array, std::int64_t index, std::uint8
 void rocket_rt_array_set_char(RocketArray* array, std::int64_t index, std::uint8_t value);
 void rocket_rt_array_set_string(RocketArray* array, std::int64_t index, RocketString* value);
 void rocket_rt_array_set_managed(RocketArray* array, std::int64_t index, void* value);
+RocketArray* rocket_rt_array_update_int(RocketArray* array, std::int64_t index,
+                                        std::int64_t value);
+RocketArray* rocket_rt_array_update_float(RocketArray* array, std::int64_t index,
+                                          double value);
+RocketArray* rocket_rt_array_update_bool(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value);
+RocketArray* rocket_rt_array_update_char(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value);
+RocketArray* rocket_rt_array_update_string(RocketArray* array, std::int64_t index,
+                                           RocketString* value);
+RocketArray* rocket_rt_array_update_managed(RocketArray* array, std::int64_t index,
+                                            void* value);
 
 RocketSlice* rocket_rt_slice_new(void* collection, std::int64_t start, std::int64_t end);
 std::uint64_t rocket_rt_collection_length(const void* collection);

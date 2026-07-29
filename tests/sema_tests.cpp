@@ -93,7 +93,59 @@ int main() {
   rocket::SemanticAnalyzer collectionAnalyzer(collectionModule, collectionDiagnostics);
   collectionAnalyzer.analyze();
   rocket::test::expect(!collectionDiagnostics.hasErrors(),
-                       "typed Array and Slice operations pass analysis", failures);
+                        "typed Array and Slice operations pass analysis", failures);
+
+  rocket::Diagnostics mutationDiagnostics;
+  auto mutationModule = rocket::test::parse(
+      "fn main() -> Int:\n"
+      "    var values = [1, 2]\n"
+      "    values[0] = 3\n"
+      "    return values[0]\n",
+      mutationDiagnostics);
+  rocket::SemanticAnalyzer mutationAnalyzer(mutationModule, mutationDiagnostics);
+  mutationAnalyzer.analyze();
+  rocket::test::expect(!mutationDiagnostics.hasErrors(),
+                       "mutable Array elements accept their element type", failures);
+
+  rocket::Diagnostics immutableMutationDiagnostics;
+  auto immutableMutationModule = rocket::test::parse(
+      "fn main() -> Int:\n"
+      "    let values = [1, 2]\n"
+      "    values[0] = 3\n"
+      "    return 0\n",
+      immutableMutationDiagnostics);
+  rocket::SemanticAnalyzer immutableMutationAnalyzer(immutableMutationModule,
+                                                       immutableMutationDiagnostics);
+  immutableMutationAnalyzer.analyze();
+  rocket::test::expect(immutableMutationDiagnostics.hasErrors(),
+                       "immutable Array bindings reject element mutation", failures);
+
+  rocket::Diagnostics wrongMutationDiagnostics;
+  auto wrongMutationModule = rocket::test::parse(
+      "fn main() -> Int:\n"
+      "    var values = [1, 2]\n"
+      "    values[true] = 3.0\n"
+      "    return 0\n",
+      wrongMutationDiagnostics);
+  rocket::SemanticAnalyzer wrongMutationAnalyzer(wrongMutationModule,
+                                                   wrongMutationDiagnostics);
+  wrongMutationAnalyzer.analyze();
+  rocket::test::expect(wrongMutationDiagnostics.hasErrors(),
+                       "Array mutation checks index and element types", failures);
+
+  rocket::Diagnostics sliceMutationDiagnostics;
+  auto sliceMutationModule = rocket::test::parse(
+      "fn main() -> Int:\n"
+      "    let values = [1, 2]\n"
+      "    var slice = values[0..2]\n"
+      "    slice[0] = 3\n"
+      "    return 0\n",
+      sliceMutationDiagnostics);
+  rocket::SemanticAnalyzer sliceMutationAnalyzer(sliceMutationModule,
+                                                   sliceMutationDiagnostics);
+  sliceMutationAnalyzer.analyze();
+  rocket::test::expect(sliceMutationDiagnostics.hasErrors(),
+                       "Slice values remain immutable views", failures);
 
   rocket::Diagnostics mixedArrayDiagnostics;
   auto mixedArrayModule = rocket::test::parse(

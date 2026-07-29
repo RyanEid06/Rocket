@@ -612,6 +612,9 @@ fn statement_continue() -> Int:
 fn statement_match() -> Int:
     return 9
 
+fn statement_index_assignment() -> Int:
+    return 10
+
 fn symbol_builtin() -> Int:
     return 0
 
@@ -809,6 +812,9 @@ fn mir_retain() -> Int:
 
 fn mir_release() -> Int:
     return 12
+
+fn mir_array_update() -> Int:
+    return 13
 
 fn terminator_goto() -> Int:
     return 0
@@ -1563,14 +1569,19 @@ fn parse_statement(state: ParserState) -> StatementResult:
     if token.kind == kind_continue():
         let newline = consume_token(advance_parser(state), kind_newline(), "expected newline after 'continue'")
         return StatementResult(make_statement(statement_continue(), "", "", false, [], [], [], [], token), newline.state)
-    if token.kind == kind_identifier() and state.index + 1 < collections.length(state.tokens) and state.tokens[state.index + 1].kind == kind_equal():
-        let equal = consume_token(advance_parser(state), kind_equal(), "expected '=' after assignment target")
+    let target = parse_expression(state)
+    let equal = match_token(target.state, kind_equal())
+    if equal.matched:
         let value = parse_expression(equal.state)
         let newline = consume_token(value.state, kind_newline(), "expected newline after assignment")
-        return StatementResult(make_statement(statement_assignment(), token.text, "", false, [value.expression], [], [], [], token), newline.state)
-    let expression = parse_expression(state)
-    let newline = consume_token(expression.state, kind_newline(), "expected newline after expression")
-    return StatementResult(make_statement(statement_expression(), "", "", false, [expression.expression], [], [], [], token), newline.state)
+        if target.expression.kind == expr_name():
+            return StatementResult(make_statement(statement_assignment(), target.expression.text, "", false, [value.expression], [], [], [], token), newline.state)
+        if target.expression.kind == expr_index() and target.expression.children[0].kind == expr_name():
+            return StatementResult(make_statement(statement_index_assignment(), target.expression.children[0].text, "", false, [target.expression.children[1], value.expression], [], [], [], token), newline.state)
+        let invalid = parser_error(newline.state, token, "assignment target must be a binding or Array element")
+        return StatementResult(make_statement(statement_expression(), "", "", false, [value.expression], [], [], [], token), invalid)
+    let newline = consume_token(target.state, kind_newline(), "expected newline after expression")
+    return StatementResult(make_statement(statement_expression(), "", "", false, [target.expression], [], [], [], token), newline.state)
 
 fn parse_function(state: ParserState, public_declaration: Bool) -> FunctionResult:
     let keyword = consume_token(state, kind_fn(), "expected 'fn'")
@@ -2716,6 +2727,28 @@ fn lower_hir_statement(state: LowerState, statement: AstStatement) -> HirStateme
         if value.expression.type_name != expected and value.expression.type_name != "<invalid>":
             next = lower_error(next, statement.line, statement.column, "assignment changes the binding type")
         return HirStatementResult(hir_statement(statement_assignment(), symbol, [value.expression], [], [], [], statement), next)
+    if statement.kind == statement_index_assignment():
+        let symbol = find_scope_symbol(state, statement.name)
+        var next = state
+        var element_type = "<invalid>"
+        if symbol < 0:
+            next = lower_error(next, statement.line, statement.column, string.concat("undefined mutation target '", string.concat(statement.name, "'")))
+        else:
+            let target_type = next.symbols[symbol].type_name
+            if not next.symbols[symbol].mutable_binding:
+                next = lower_error(next, statement.line, statement.column, string.concat("cannot mutate immutable binding '", string.concat(statement.name, "'")))
+            if type_base(target_type) != "Array":
+                next = lower_error(next, statement.line, statement.column, "indexed assignment requires a mutable Array binding")
+            else:
+                element_type = type_arguments(target_type)[0]
+        let index = lower_hir_expression(next, statement.expressions[0], "Int")
+        let value = lower_hir_expression(index.state, statement.expressions[1], element_type)
+        next = value.state
+        if index.expression.type_name != "Int" and index.expression.type_name != "<invalid>":
+            next = lower_error(next, statement.line, statement.column, "Array assignment index must have type Int")
+        if element_type != "<invalid>" and value.expression.type_name != element_type and value.expression.type_name != "<invalid>":
+            next = lower_error(next, statement.line, statement.column, "Array assignment changes the element type")
+        return HirStatementResult(hir_statement(statement_index_assignment(), symbol, [index.expression, value.expression], [], [], [], statement), next)
     if statement.kind == statement_return():
         var next = state
         var expressions: Array[HirExpr] = []
@@ -3116,6 +3149,15 @@ fn lower_mir_statement(state: MirState, statement: HirStatement) -> MirState:
         let value = lower_mir_expression(state, statement.expressions[0])
         let destination = mir_local_for_symbol(value.state, statement.symbol)
         return emit_copy(value.state, destination, value.operand, value.operand.type_name)
+    if statement.kind == statement_index_assignment():
+        let index = lower_mir_expression(state, statement.expressions[0])
+        let value = lower_mir_expression(index.state, statement.expressions[1])
+        let destination = mir_local_for_symbol(value.state, statement.symbol)
+        let array_type = value.state.module.symbols[statement.symbol].type_name
+        let array = MirOperand(destination, "", array_type, false)
+        let updated = add_mir_local(value.state, array_type, false)
+        var next = emit_mir_instruction(updated.state, MirInstruction(mir_array_update(), updated.operand.local, [array, index.operand, value.operand], -1, -1, "", array_type))
+        return emit_copy(next, destination, updated.operand, array_type)
     if statement.kind == statement_expression():
         let value = lower_mir_expression(state, statement.expressions[0])
         return value.state
@@ -3194,6 +3236,12 @@ fn verify_mir_function(function: MirFunction, diagnostics: Array[Diagnostic]) ->
                 let operand = instruction.operands[operand_index]
                 if not operand.is_constant and (operand.local < 0 or operand.local >= collections.length(function.locals)):
                     result = append(result, make_diagnostic("R9001", 1, 1, "MIR instruction operand is out of range"))
+            if instruction.kind == mir_array_update():
+                if collections.length(instruction.operands) != 3 or type_base(instruction.type_name) != "Array":
+                    result = append(result, make_diagnostic("R9001", 1, 1, "invalid Array update instruction"))
+                else:
+                    if instruction.operands[0].type_name != instruction.type_name or instruction.operands[1].type_name != "Int" or instruction.operands[2].type_name != collection_element_type(instruction.type_name):
+                        result = append(result, make_diagnostic("R9001", 1, 1, "Array update operand type mismatch"))
         if block.terminator.kind == terminator_goto() and not block_exists(function.blocks, block.terminator.target):
             result = append(result, make_diagnostic("R9001", 1, 1, "MIR goto target does not exist"))
         if block.terminator.kind == terminator_branch() and (not block_exists(function.blocks, block.terminator.then_target) or not block_exists(function.blocks, block.terminator.else_target)):
@@ -3330,6 +3378,19 @@ fn llvm_array_set_name(type_name: String) -> String:
     if type_name == "String":
         return "@rocket_rt_array_set_string"
     return "@rocket_rt_array_set_managed"
+
+fn llvm_array_update_name(type_name: String) -> String:
+    if type_name == "Int":
+        return "@rocket_rt_array_update_int"
+    if type_name == "Float":
+        return "@rocket_rt_array_update_float"
+    if type_name == "Bool":
+        return "@rocket_rt_array_update_bool"
+    if type_name == "Char":
+        return "@rocket_rt_array_update_char"
+    if type_name == "String":
+        return "@rocket_rt_array_update_string"
+    return "@rocket_rt_array_update_managed"
 
 fn llvm_index_name(type_name: String) -> String:
     if type_name == "Int":
@@ -3482,6 +3543,12 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare void @rocket_rt_array_set_char(ptr, i64, i8)")
     emit_llvm_line(builder, "declare void @rocket_rt_array_set_string(ptr, i64, ptr)")
     emit_llvm_line(builder, "declare void @rocket_rt_array_set_managed(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_array_update_int(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_array_update_float(ptr, i64, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_array_update_bool(ptr, i64, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_array_update_char(ptr, i64, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_array_update_string(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_array_update_managed(ptr, i64, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_rt_slice_new(ptr, i64, i64)")
     emit_llvm_line(builder, "declare i64 @rocket_rt_index_int(ptr, i64)")
     emit_llvm_line(builder, "declare double @rocket_rt_index_float(ptr, i64)")
@@ -3776,6 +3843,21 @@ fn emit_mir_instruction_llvm(builder: std.string.Builder, globals: std.string.Bu
             emit_llvm_line(builder, string.concat("  call void ", string.concat(llvm_array_set_name(element_type), string.concat("(ptr ", string.concat(result, string.concat(", i64 ", string.concat(string.from_int(index), string.concat(", ", string.concat(argument_type, string.concat(" ", string.concat(argument_name, ")")))))))))))
         store_owned_llvm(builder, instruction.destination, LlvmValue(result, instruction.type_name), name)
         return
+    if instruction.kind == mir_array_update():
+        let element_type = collection_element_type(instruction.type_name)
+        var argument_name = values[2].name
+        var argument_type = llvm_type(element_type)
+        if element_type == "Bool":
+            let extended = string.concat("%", string.concat(name, "_array_update_bool"))
+            emit_llvm_line(builder, string.concat("  ", string.concat(extended, string.concat(" = zext i1 ", string.concat(argument_name, " to i8")))))
+            argument_name = extended
+            argument_type = "i8"
+        let result = string.concat("%", string.concat(name, "_array_update"))
+        let arguments = string.concat("(ptr ", string.concat(values[0].name, string.concat(", i64 ", string.concat(values[1].name, string.concat(", ", string.concat(argument_type, string.concat(" ", string.concat(argument_name, ")"))))))))
+        let call = string.concat("  ", string.concat(result, string.concat(" = call ptr ", string.concat(llvm_array_update_name(element_type), arguments))))
+        emit_llvm_line(builder, call)
+        store_owned_llvm(builder, instruction.destination, LlvmValue(result, instruction.type_name), name)
+        return
     if instruction.kind == mir_aggregate():
         var mask = 0
         for index in 0..collections.length(values):
@@ -3906,7 +3988,7 @@ fn generate_llvm_ir(module: MirModule) -> String:
     return string.builder_finish(output)
 
 fn parser_self_test() -> Int:
-    let source = "import std.string\n\nstruct Pair[T]:\n    first: T\n    second: T\n\nenum Choice:\n    Yes(Int)\n    No\n\nfn main() -> Int:\n    var total = 0\n    for index in 0..3:\n        if index == 2:\n            total = total + index\n    return total\n"
+    let source = "import std.string\n\nstruct Pair[T]:\n    first: T\n    second: T\n\nenum Choice:\n    Yes(Int)\n    No\n\nfn main() -> Int:\n    var total = 0\n    var values = [1, 2]\n    values[0] = 3\n    for index in 0..3:\n        if index == 2:\n            total = total + index\n    return total\n"
     let result = parse_source(source)
     if collections.length(result.diagnostics) != 0:
         return 11
@@ -3916,9 +3998,9 @@ fn parser_self_test() -> Int:
         return 13
     if collections.length(result.module.enums) != 1 or collections.length(result.module.enums[0].variants) != 2:
         return 14
-    if collections.length(result.module.functions) != 1 or collections.length(result.module.functions[0].body) != 3:
+    if collections.length(result.module.functions) != 1 or collections.length(result.module.functions[0].body) != 5:
         return 15
-    if result.module.functions[0].body[1].kind != statement_for():
+    if result.module.functions[0].body[2].kind != statement_index_assignment() or result.module.functions[0].body[3].kind != statement_for():
         return 16
     return 0
 

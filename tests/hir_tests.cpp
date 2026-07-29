@@ -100,6 +100,27 @@ int main() {
                          "HIR index expressions carry their element type", failures);
   }
 
+  rocket::Diagnostics mutationDiagnostics;
+  auto mutation = rocket::test::lowerToHir(
+      "fn main() -> Int:\n"
+      "    var values = [10, 20]\n"
+      "    values[0] = 30\n"
+      "    return values[0]\n",
+      mutationDiagnostics);
+  rocket::test::expect(mutation.has_value(),
+                       "Array mutation lowers to typed HIR", failures);
+  if (mutation.has_value()) {
+    const auto& assignment = static_cast<const rocket::HirIndexAssignmentStmt&>(
+        *mutation->functions[0].body[1]);
+    rocket::test::expect(
+        assignment.target ==
+                static_cast<const rocket::HirBindingStmt&>(
+                    *mutation->functions[0].body[0]).symbol &&
+            assignment.index->type == rocket::Type::Int &&
+            assignment.value->type == rocket::Type::Int,
+        "HIR resolves and types the mutable Array target, index, and value", failures);
+  }
+
   rocket::Diagnostics phase6Diagnostics;
   auto phase6 = rocket::test::lowerToHir(
       "struct Box[T]:\n"

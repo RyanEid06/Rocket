@@ -67,6 +67,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.p
 See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md),
 [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md),
+[Rocket 1.1 syntax additions](docs/ROCKET_1_1_SYNTAX_DICTIONARY.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
 ## Rocket 1.0 release

@@ -1,6 +1,8 @@
 #include "lexer.h"
 #include "test_support.h"
 
+#include <string>
+
 int main() {
   int failures = 0;
   rocket::Diagnostics diagnostics;
@@ -11,6 +13,30 @@ int main() {
   rocket::test::expect(tokens.size() == 14, "lexer emits expected token count", failures);
   rocket::test::expect(tokens[0].kind == rocket::TokenKind::KwFn, "function keyword is recognized", failures);
   rocket::test::expect(tokens[8].kind == rocket::TokenKind::Indent, "indentation emits an indent token", failures);
+
+  const std::string lfSource = "fn main() -> Int:\n\n    return 0\n";
+  const std::string crlfSource = "fn main() -> Int:\r\n\r\n    return 0\r\n";
+  rocket::Diagnostics lfDiagnostics;
+  rocket::Diagnostics crlfDiagnostics;
+  const auto lfTokens = rocket::Lexer("lf.rocket", lfSource, lfDiagnostics).lex();
+  const auto crlfTokens =
+      rocket::Lexer("crlf.rocket", crlfSource, crlfDiagnostics).lex();
+  bool equivalentNewlines = !lfDiagnostics.hasErrors() &&
+                            !crlfDiagnostics.hasErrors() &&
+                            lfTokens.size() == crlfTokens.size();
+  if (equivalentNewlines) {
+    for (std::size_t index = 0; index < lfTokens.size(); ++index) {
+      equivalentNewlines = equivalentNewlines &&
+                           lfTokens[index].kind == crlfTokens[index].kind &&
+                           lfTokens[index].text == crlfTokens[index].text &&
+                           lfTokens[index].location.line == crlfTokens[index].location.line &&
+                           lfTokens[index].location.column ==
+                               crlfTokens[index].location.column;
+    }
+  }
+  rocket::test::expect(equivalentNewlines,
+                       "CRLF source, including blank lines, lexes like LF source",
+                       failures);
 
   rocket::Diagnostics scalarDiagnostics;
   rocket::Lexer scalarLexer("test.rocket", "for index in 0..2:\n    print(1.5)\n    print('x')\n", scalarDiagnostics);

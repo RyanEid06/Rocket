@@ -26,7 +26,9 @@ struct MirOperand {
   static MirOperand localValue(Type type, MirLocalId local);
 };
 
-enum class MirRvalueKind { Use, Unary, Binary, Call, Array, Index, Slice, Aggregate, Field, Tag };
+enum class MirRvalueKind {
+  Use, Unary, Binary, Call, Array, ArrayUpdate, Index, Slice, Aggregate, Field, Tag
+};
 
 struct MirRvalue {
   MirRvalueKind kind = MirRvalueKind::Use;
@@ -45,6 +47,8 @@ struct MirRvalue {
   static MirRvalue binary(Type type, TokenKind op, MirOperand left, MirOperand right);
   static MirRvalue call(Type type, SymbolId callee, std::vector<MirOperand> arguments);
   static MirRvalue array(Type type, std::vector<MirOperand> elements);
+  static MirRvalue arrayUpdate(Type type, MirOperand array, MirOperand index,
+                               MirOperand value);
   static MirRvalue index(Type type, MirOperand collection, MirOperand index);
   static MirRvalue slice(Type type, MirOperand collection, MirOperand start, MirOperand end);
   static MirRvalue aggregate(Type type, std::uint32_t declaration, std::uint32_t tag,

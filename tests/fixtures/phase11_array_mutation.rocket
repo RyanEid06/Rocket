@@ -1,0 +1,14 @@
+fn main() -> Int:
+    var values = [10, 20, 30]
+    let alias = values
+    let middle = values[1..3]
+    values[1] = 99
+    print(values[1])
+    print(alias[1])
+    print(middle[0])
+    var names = ["old", "stay"]
+    let names_alias = names
+    names[0] = "new"
+    print(names[0])
+    print(names_alias[0])
+    return 0

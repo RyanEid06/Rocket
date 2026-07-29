@@ -206,15 +206,28 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
     consume(TokenKind::Newline, "expected newline after 'continue'");
     return std::make_unique<LoopControlStmt>(StmtKind::Continue, keyword.location);
   }
-  if (at(TokenKind::Identifier) && index_ + 1 < tokens_.size() && tokens_[index_ + 1].kind == TokenKind::Equal) {
-    const Token name = consume(TokenKind::Identifier, "expected assignment target");
-    consume(TokenKind::Equal, "expected '=' after assignment target");
-    auto value = parseExpression();
-    consume(TokenKind::Newline, "expected newline after assignment");
-    return std::make_unique<AssignmentStmt>(name.location, name.text, std::move(value));
-  }
   const Location location = current().location;
   auto expression = parseExpression();
+  if (match(TokenKind::Equal)) {
+    auto value = parseExpression();
+    consume(TokenKind::Newline, "expected newline after assignment");
+    if (expression->kind == ExprKind::Name) {
+      auto& name = static_cast<LiteralExpr&>(*expression);
+      return std::make_unique<AssignmentStmt>(location, name.value, std::move(value));
+    }
+    if (expression->kind == ExprKind::Index) {
+      auto& indexed = static_cast<IndexExpr&>(*expression);
+      if (indexed.collection->kind == ExprKind::Name) {
+        auto& name = static_cast<LiteralExpr&>(*indexed.collection);
+        return std::make_unique<IndexAssignmentStmt>(
+            location, name.value, std::move(indexed.index), std::move(value));
+      }
+    }
+    diagnostics_.error(location,
+                       "assignment target must be a binding or Array element",
+                       DiagnosticCode::Syntax);
+    return std::make_unique<ExprStmt>(location, std::move(value));
+  }
   consume(TokenKind::Newline, "expected newline after expression");
   return std::make_unique<ExprStmt>(location, std::move(expression));
 }

@@ -64,9 +64,52 @@ int main() {
   rocket_rt_array_set_int(integers, 2, 30);
   rocket::test::expect(rocket_rt_index_int(integers, 1) == 20,
                        "scalar Array indexing returns the stored value", failures);
+  RocketArray* sameIntegers = rocket_rt_array_update_int(integers, 1, 21);
+  rocket_rt_release(integers);
+  integers = sameIntegers;
+  rocket::test::expect(rocket_rt_index_int(integers, 1) == 21,
+                       "uniquely owned Array mutation updates its value", failures);
+  RocketArray* integerAlias = integers;
+  rocket_rt_retain(integerAlias);
+  RocketSlice* integerSlice = rocket_rt_slice_new(integers, 0, 2);
+  RocketArray* changedIntegers = rocket_rt_array_update_int(integers, 1, 99);
+  rocket_rt_release(integers);
+  integers = changedIntegers;
+  rocket::test::expect(rocket_rt_index_int(integers, 1) == 99 &&
+                           rocket_rt_index_int(integerAlias, 1) == 21 &&
+                           rocket_rt_index_int(integerSlice, 1) == 21,
+                       "shared aliases and Slices preserve the pre-mutation Array value",
+                       failures);
+  rocket_rt_release(integerAlias);
+  rocket_rt_release(integerSlice);
   rocket_rt_release(integers);
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
                        "scalar Array storage is destroyed deterministically", failures);
+
+  RocketString* oldText = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("old"), 3);
+  RocketString* newText = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("new"), 3);
+  RocketArray* managedValues = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 1);
+  rocket_rt_array_set_string(managedValues, 0, oldText);
+  RocketArray* managedAlias = managedValues;
+  rocket_rt_retain(managedAlias);
+  RocketArray* changedManaged = rocket_rt_array_update_string(managedValues, 0, newText);
+  rocket_rt_release(managedValues);
+  managedValues = changedManaged;
+  RocketString* currentText = rocket_rt_index_string(managedValues, 0);
+  RocketString* aliasedText = rocket_rt_index_string(managedAlias, 0);
+  rocket::test::expect(rocket_rt_string_equal(currentText, newText) == 1 &&
+                           rocket_rt_string_equal(aliasedText, oldText) == 1,
+                       "copy-on-write mutation retains managed elements correctly", failures);
+  rocket_rt_release(currentText);
+  rocket_rt_release(aliasedText);
+  rocket_rt_release(oldText);
+  rocket_rt_release(newText);
+  rocket_rt_release(managedValues);
+  rocket_rt_release(managedAlias);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "managed Array mutation leaves no retained aliases", failures);
 
   RocketString* aggregateText = rocket_rt_string_new(
       reinterpret_cast<const std::uint8_t*>("payload"), 7);

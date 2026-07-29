@@ -103,6 +103,11 @@ validation.
 
 ### Phase 11 - Rocket 1.1: practical collections and controlled mutation
 
+**Status:** In progress. The first vertical slice, copy-on-write `Array[T]`
+element assignment through a direct `var` binding, is implemented in stage0,
+the self-hosted compiler, MIR, both backends, and runtime ABI v1. Full pinned
+LLVM/bootstrap validation and the remaining collection APIs are still required.
+
 **Purpose:** Remove the largest day-to-day limitation in Rocket 1.0 and make
 stateful application code natural without abandoning memory safety.
 

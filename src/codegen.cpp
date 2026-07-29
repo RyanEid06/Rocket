@@ -162,6 +162,11 @@ std::string BootstrapCodeGenerator::generate() const {
          "rocket_integer_error(\"Int arithmetic overflow\"); return left / right; }\n"
          "template <typename T> RocketArray<T> rocket_array(std::initializer_list<T> values) { "
          "return std::make_shared<std::vector<T>>(values); }\n"
+         "template <typename T> RocketArray<T> rocket_array_update(const RocketArray<T>& values, "
+         "std::int64_t index, T value) { "
+         "if (index < 0 || index >= static_cast<std::int64_t>(values->size())) rocket_bounds_error(); "
+         "RocketArray<T> result = values.use_count() == 1 ? values : std::make_shared<std::vector<T>>(*values); "
+         "(*result)[static_cast<std::size_t>(index)] = std::move(value); return result; }\n"
          "template <typename T> T rocket_index(const RocketArray<T>& values, std::int64_t index) { "
          "if (index < 0 || index >= static_cast<std::int64_t>(values->size())) rocket_bounds_error(); "
          "return (*values)[static_cast<std::size_t>(index)]; }\n"
@@ -328,6 +333,15 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
       emitOperand(out, value.arguments[i]);
     }
     out << "})";
+    break;
+  case MirRvalueKind::ArrayUpdate:
+    out << "rocket_array_update(";
+    emitOperand(out, value.left);
+    out << ", ";
+    emitOperand(out, value.right);
+    out << ", ";
+    emitOperand(out, value.end);
+    out << ')';
     break;
   case MirRvalueKind::Index:
     out << "rocket_index(";

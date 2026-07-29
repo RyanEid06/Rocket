@@ -71,13 +71,20 @@ changes and exits 1 if any file differs, which is suitable for CI. Formatting
 uses four-space indentation, canonical token spacing, LF newlines, one final
 newline, and preserves line comments and literal contents. It is idempotent and
 refuses lexically invalid input rather than guessing around a broken literal or
-indentation structure.
+indentation structure. The compiler accepts both LF and CRLF input; repository
+attributes keep Rocket sources and golden diagnostics at canonical LF on every
+host.
 
 ## Other commands
 
 `check`, `build`, `run`, `emit-ir`, and `emit-asm` accept either a standalone
 source, a package directory, or a `rocket.toml` path. Program arguments follow
 `--`. `rocketc --version` prints the compiler version.
+
+In an LLVM-disabled stage0 build, generated C++ is compiled by the exact C++
+compiler recorded during CMake configuration. On the supported Windows workflow
+this is the activated MSVC compiler; stage0 does not require a separate `g++`
+installation.
 
 ## VS Code
 

@@ -90,11 +90,6 @@ bool ensureArtifactDirectory(const fs::path& root, fs::path& directory) {
   return !error;
 }
 
-int invokeShell(const std::string& command) {
-  std::cerr << "+ " << command << '\n';
-  return std::system(command.c_str());
-}
-
 #ifdef _WIN32
 std::wstring quoteWindowsArgument(const std::wstring& argument) {
   if (argument.empty()) return L"\"\"";
@@ -152,6 +147,35 @@ int invokeExecutable(const fs::path& executable, const std::vector<std::string>&
   for (const auto& argument : arguments) command += " \"" + argument + "\"";
   return std::system(command.c_str());
 #endif
+}
+
+int compileBootstrap(const fs::path& source, const fs::path& output,
+                     bool assembly) {
+  std::vector<std::string> arguments;
+#ifdef _MSC_VER
+  arguments = {"/nologo", "/std:c++20", "/O2", "/EHsc", "/utf-8",
+               "/I" + fs::path(ROCKETC_SOURCE_INCLUDE_PATH).string()};
+  if (assembly) {
+    fs::path objectPath = output;
+    objectPath.replace_extension(".obj");
+    arguments.push_back("/FA");
+    arguments.push_back("/Fa" + output.string());
+    arguments.push_back("/Fo" + objectPath.string());
+    arguments.push_back("/c");
+  } else {
+    arguments.push_back("/Fe" + output.string());
+  }
+#else
+  arguments = {"-std=c++20", "-O2", "-I", ROCKETC_SOURCE_INCLUDE_PATH};
+  if (assembly) {
+    arguments.push_back("-S");
+    arguments.push_back("-masm=intel");
+  }
+  arguments.push_back("-o");
+  arguments.push_back(output.string());
+#endif
+  arguments.push_back(source.string());
+  return invokeExecutable(fs::path(ROCKETC_STAGE0_CXX_PATH), arguments);
 }
 
 #ifdef ROCKETC_HAS_LLVM
@@ -261,20 +285,14 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
   }
   if (command == "emit-asm") {
     const fs::path assemblyPath = artifactDirectory / (target.source.stem().string() + ".s");
-    const std::string compile = "g++ -std=c++20 -O2 -S -masm=intel -I " +
-                                quote(fs::path(ROCKETC_SOURCE_INCLUDE_PATH)) + " " +
-                                quote(generatedPath) + " -o " + quote(assemblyPath);
-    if (invokeShell(compile) != 0) return 1;
+    if (compileBootstrap(generatedPath, assemblyPath, true) != 0) return 1;
     std::string assembly;
     if (!readFile(assemblyPath, assembly)) return 1;
     std::cout << assembly;
     return 0;
   }
   const fs::path executablePath = artifactDirectory / (target.source.stem().string() + ".exe");
-  const std::string compile = "g++ -std=c++20 -O2 -I " +
-                              quote(fs::path(ROCKETC_SOURCE_INCLUDE_PATH)) + " " +
-                              quote(generatedPath) + " -o " + quote(executablePath);
-  if (invokeShell(compile) != 0) return 1;
+  if (compileBootstrap(generatedPath, executablePath, false) != 0) return 1;
 #endif
   if (announceBuild) std::cout << "built " << executablePath.string() << '\n';
   if (command == "build") return 0;

@@ -44,6 +44,9 @@ must not inspect the AST or HIR.
   managed locals own one reference, and managed returns transfer a +1 reference.
 - Array construction, checked collection indexing, and exclusive slicing are
   explicit typed MIR rvalues rather than backend-recognized syntax.
+- Copy-on-write Array element replacement is an explicit typed MIR rvalue. It
+  consumes a borrowed Array, checked Int index, and exactly typed element, and
+  produces an updated owned Array value before the source `var` is rebound.
 
 Future aggregate and generic types must extend these invariants without
 weakening them.
@@ -112,7 +115,10 @@ following LLVM types on the Windows x64 target:
 
 The C++ MIR transpiler remains buildable when `ROCKETC_ENABLE_LLVM=OFF` as the
 reproducible stage0 fallback. LLVM-enabled builds never route normal production
-commands through that transpiler.
+commands through that transpiler. Stage0 `build`, `run`, and `emit-asm` invoke
+the C++ compiler recorded by CMake, so the generated-code step uses the same
+configured MSVC or compatible C++ toolchain instead of assuming `g++` is on
+`PATH`.
 
 ## Runtime ABI v1 and ownership
 
@@ -147,6 +153,12 @@ or another managed type retain every stored element and release them in determin
 destruction. `Slice[T]` stores an owning reference to the backing Array plus an
 offset and length; slicing a Slice flattens offsets while retaining the same
 owner. Index and slice functions validate signed bounds before accessing data.
+Phase 11 Array updates borrow the old allocation and return an updated Array at
++1. A reference count of one permits storage reuse; otherwise the runtime clones
+the element buffer and retains every managed element before replacement. This
+makes aliases and retained Slices stable snapshots while keeping the fast path
+allocation-free. Both paths retain a managed replacement before releasing the
+old element.
 
 The runtime reports bounds failures, invalid UTF-8, allocation failures,
 reference-count corruption, integer overflow, and integer division by zero to

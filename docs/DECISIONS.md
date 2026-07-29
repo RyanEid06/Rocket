@@ -168,3 +168,22 @@ Raylib remains the first major graphics and FFI validation target, but Phase 14
 uses a non-casino reference application. Casino implementation is no longer part
 of the active language roadmap and may be planned separately only after Rocket
 2.0 is accepted, unless the user explicitly records a later reprioritization.
+
+## D016 - Copy-on-write collection value semantics
+
+**Accepted.** Rocket 1.1 collections preserve value semantics through
+copy-on-write rather than exposing shared mutable reference semantics or adding
+a borrow checker. Mutation requires an explicit `var` binding. A uniquely owned
+collection may update its storage in place; a collection shared by another
+binding, Slice, or runtime owner is cloned before the mutation and the `var`
+binding is rebound to the clone. Existing aliases and Slices remain stable
+snapshots of the value they retained.
+
+The first Phase 11 vertical slice is direct Array element assignment. Its index
+and value are evaluated once from left to right, only `Array[T]` targets are
+accepted, and the replacement must be exactly `T`. Runtime update functions
+borrow the old Array and return an updated Array at +1. MIR stores that result in
+an owning temporary before retaining it into the source binding and releasing
+the prior value, so unique updates, shared clones, self-assignment, managed
+elements, and bounds failure all follow the existing ARC contract. Slices remain
+immutable; mutable slice views are not introduced.

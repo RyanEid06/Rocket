@@ -190,7 +190,8 @@ struct HirPropagateExpr final : HirExpr {
 };
 
 enum class HirStmtKind {
-  Binding, Assignment, Return, Expression, If, While, For, Break, Continue, Match
+  Binding, Assignment, IndexAssignment, Return, Expression, If, While, For, Break,
+  Continue, Match
 };
 
 struct HirStmt {
@@ -215,6 +216,17 @@ struct HirAssignmentStmt final : HirStmt {
       : HirStmt(HirStmtKind::Assignment, std::move(location)), target(target),
         value(std::move(value)) {}
   SymbolId target;
+  std::unique_ptr<HirExpr> value;
+};
+
+struct HirIndexAssignmentStmt final : HirStmt {
+  HirIndexAssignmentStmt(Location location, SymbolId target,
+                         std::unique_ptr<HirExpr> index,
+                         std::unique_ptr<HirExpr> value)
+      : HirStmt(HirStmtKind::IndexAssignment, std::move(location)), target(target),
+        index(std::move(index)), value(std::move(value)) {}
+  SymbolId target;
+  std::unique_ptr<HirExpr> index;
   std::unique_ptr<HirExpr> value;
 };
 

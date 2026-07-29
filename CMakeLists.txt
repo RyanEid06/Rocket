@@ -83,7 +83,10 @@ endif()
 add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
 file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/src" ROCKETC_SOURCE_INCLUDE_PATH)
-target_compile_definitions(rocketc PRIVATE ROCKETC_SOURCE_INCLUDE_PATH="${ROCKETC_SOURCE_INCLUDE_PATH}")
+file(TO_CMAKE_PATH "${CMAKE_CXX_COMPILER}" ROCKETC_STAGE0_CXX_PATH)
+target_compile_definitions(rocketc PRIVATE
+  ROCKETC_SOURCE_INCLUDE_PATH="${ROCKETC_SOURCE_INCLUDE_PATH}"
+  ROCKETC_STAGE0_CXX_PATH="${ROCKETC_STAGE0_CXX_PATH}")
 target_compile_definitions(rocketc PRIVATE ROCKETC_VERSION="${PROJECT_VERSION}")
 if(LLVM_FOUND)
   file(TO_CMAKE_PATH "${LLVM_TOOLS_BINARY_DIR}/clang.exe" ROCKETC_CLANG_PATH)
@@ -157,6 +160,8 @@ add_test(NAME cli_check_phase8_package
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
 add_test(NAME cli_check_phase9_bootstrap_primitives
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase9_bootstrap_primitives.rocket")
+add_test(NAME cli_check_phase11_array_mutation
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
 add_test(NAME cli_run_phase9_bootstrap_primitives
   COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase9_bootstrap_primitives.rocket"
     -- first second)
@@ -292,6 +297,11 @@ if(LLVM_FOUND)
   set_tests_properties(cli_run_phase7_stdlib PROPERTIES
     PASS_REGULAR_EXPRESSION "Rocket Standard Library[\r\n]+23")
 
+  add_test(NAME cli_run_phase11_array_mutation
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
+  set_tests_properties(cli_run_phase11_array_mutation PROPERTIES
+    PASS_REGULAR_EXPRESSION "99[\r\n]+20[\r\n]+20[\r\n]+new[\r\n]+old")
+
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
@@ -308,6 +318,14 @@ if(LLVM_FOUND)
     FIXTURES_REQUIRED self_hosted_compiler
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+  add_test(NAME cli_self_hosted_run_phase11_array_mutation
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
+  set_tests_properties(cli_self_hosted_run_phase11_array_mutation PROPERTIES
+    PASS_REGULAR_EXPRESSION "99[\r\n]+20[\r\n]+20[\r\n]+new[\r\n]+old"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
   add_test(NAME cli_array_bounds_failure
     COMMAND ${CMAKE_COMMAND}
       "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -320,6 +338,13 @@ if(LLVM_FOUND)
       "-DROCKETC=$<TARGET_FILE:rocketc>"
       "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/slice_bounds.rocket"
       "-DEXPECTED=rocket runtime error: slice 1..4 out of bounds for length 3"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_array_update_bounds_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/array_update_bounds.rocket"
+      "-DEXPECTED=rocket runtime error: index 2 out of bounds for length 2"
       -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
 
   add_test(NAME cli_int_overflow_failure
@@ -340,4 +365,8 @@ else()
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
   set_tests_properties(cli_run_stage0_phase7_stdlib PROPERTIES
     PASS_REGULAR_EXPRESSION "Rocket Standard Library[\r\n]+23")
+  add_test(NAME cli_run_stage0_phase11_array_mutation
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
+  set_tests_properties(cli_run_stage0_phase11_array_mutation PROPERTIES
+    PASS_REGULAR_EXPRESSION "99[\r\n]+20[\r\n]+20[\r\n]+new[\r\n]+old")
 endif()

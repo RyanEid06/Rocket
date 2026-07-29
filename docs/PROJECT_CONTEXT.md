@@ -85,7 +85,8 @@ Implemented:
 
 Not implemented yet:
 
-- Practical mutable collections, maps/sets/tuples, methods, traits, closures,
+- Beyond Phase 11's completed copy-on-write Array element-assignment slice:
+  growing Array operations, maps/sets/tuples, methods, traits, closures,
   iterators, a stable C FFI, graphics bindings, a production-scale standard
   library, third-party dependency management and registry, semantic language-
   server/debugger features, robust concurrency/async support, and non-Windows
@@ -360,15 +361,51 @@ Known limitations remain those in the implementation-state list above; no langua
   developer environment variables removed and the C++ compiler is preserved as
   a separate stage0 artifact.
 
+**Phase 11 - practical collections and controlled mutation (in progress)**
+
+- Specified `values[index] = replacement` for direct mutable `Array[T]`
+  bindings. Index and replacement evaluate once from left to right; immutable
+  bindings, Slice mutation, temporary collection targets, invalid index types,
+  and mismatched element types are rejected.
+- Chose copy-on-write Array value semantics in decision D016. Existing Array
+  aliases and Slices preserve their pre-mutation snapshot; uniquely owned
+  storage may update in place without changing observable behavior.
+- Added index-assignment AST/HIR nodes, verified MIR `ArrayUpdate`, stage0 C++
+  lowering, LLVM lowering, runtime update entry points for every supported
+  element ABI, and the equivalent parser/type/MIR/LLVM work in the Rocket-written
+  compiler.
+- Added parser, semantic, HIR, MIR, formatter, codegen, runtime ARC/lifetime,
+  alias/slice snapshot, native-output, and bounds regressions plus the Rocket
+  1.1 syntax dictionary.
+- Verified MSVC Debug and Release stage0 builds (38 build steps each) and the
+  complete 38-test LLVM-disabled matrix in both configurations. This covers all
+  compiler/runtime unit suites, Phase 7 and Phase 11 native execution, creation
+  and self-tests of the Rocket-written compiler, and package/formatter workflows.
+  The mutation fixture prints `99`, `20`, `20`, `new`, `old`; an invalid update
+  exits 101 with the bounds diagnostic. The golden diagnostic reader uses text
+  mode so CRLF worktrees compare portably.
+- Fixed C++ stage0 CRLF handling by stripping the line-ending carriage return
+  before blank-line and indentation analysis, matching the self-hosted lexer.
+  A regression proves LF and CRLF sources produce identical token streams, and
+  repository attributes preserve canonical LF Rocket fixtures on Windows.
+- Stage0 now invokes the C++ compiler recorded by CMake for generated `build`,
+  `run`, and `emit-asm` work. Windows validation uses the configured MSVC rather
+  than requiring an unrelated `g++`; Hello World `run` and assembly emission
+  smoke tests pass.
+- Full LLVM and stage1-stage3 bootstrap validation remains pending until the
+  pinned LLVM 22.1.6 toolchain is available.
+
 ## Current next task
 
 **Phase 11 - Rocket 1.1 practical collections and controlled mutation.**
 
-Rocket language phases 1 through 10 are complete. The next implementation work
-must begin with the Phase 11 design for mutability/aliasing, mutable arrays,
-equality/hashing, `Map[K, V]`, `Set[T]`, tuples, and iteration. Complete the
-vertical compiler/runtime/bootstrap/documentation slice described in
-`ROADMAP.md`; do not begin Phase 12, graphics, or casino implementation first.
+The first Phase 11 vertical slice, copy-on-write Array element assignment, is
+implemented. Next, give runtime Arrays explicit capacity and implement
+copy-on-write `append` and `pop` through stage0, the self-hosted compiler, MIR,
+both backends, runtime ABI, managed-element lifetime tests, and documentation.
+Before treating the slice as release-ready, restore the pinned LLVM toolchain
+and run Debug, Release, native LLVM, and deterministic stage1-stage3 bootstrap
+validation. Do not begin Phase 12, graphics, or casino implementation first.
 
 ## New-chat prompt
 
