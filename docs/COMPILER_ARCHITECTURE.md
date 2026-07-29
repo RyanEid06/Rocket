@@ -249,6 +249,8 @@ keys keep selection deterministic across bootstrap stages.
 
 Closures add compiler-generated immutable aggregate declarations and direct
 `call` functions to HIR; captured managed values therefore use the existing ARC
-MIR and backend paths. `for` over an iterable lowers to explicit cursor,
+MIR and backend paths. Lambda signatures inside generic functions are
+substituted before their monomorphic closure declarations and `call` symbols are
+queued. `for` over an iterable lowers to explicit cursor,
 condition, value, body, advance, and exit blocks. Associated constants lower to
 zero-argument functions. None of these features changes runtime ABI v1.

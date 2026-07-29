@@ -274,59 +274,64 @@ private:
     return spelling;
   }
 
-  void rewriteExpression(LoadedModule& module, std::unique_ptr<Expr>& expression) {
+  void rewriteExpression(LoadedModule& module, std::unique_ptr<Expr>& expression,
+                         const std::unordered_set<std::string>& typeParameters) {
     switch (expression->kind) {
     case ExprKind::Unary:
-      rewriteExpression(module, static_cast<UnaryExpr&>(*expression).operand); break;
+      rewriteExpression(module, static_cast<UnaryExpr&>(*expression).operand,
+                        typeParameters); break;
     case ExprKind::Binary: {
       auto& binary = static_cast<BinaryExpr&>(*expression);
-      rewriteExpression(module, binary.left);
-      rewriteExpression(module, binary.right);
+      rewriteExpression(module, binary.left, typeParameters);
+      rewriteExpression(module, binary.right, typeParameters);
       break;
     }
     case ExprKind::Call: {
       auto& call = static_cast<CallExpr&>(*expression);
-      for (auto& argument : call.arguments) rewriteExpression(module, argument);
+      for (auto& argument : call.arguments)
+        rewriteExpression(module, argument, typeParameters);
       if (auto name = flattenedName(*call.callee)) {
         if (auto rewritten = rewriteCallableName(module, *name, call.callee->location)) {
           call.callee = std::make_unique<LiteralExpr>(ExprKind::Name, call.callee->location,
                                                       *rewritten);
         } else {
-          rewriteExpression(module, call.callee);
+          rewriteExpression(module, call.callee, typeParameters);
         }
       } else {
-        rewriteExpression(module, call.callee);
+        rewriteExpression(module, call.callee, typeParameters);
       }
       break;
     }
     case ExprKind::Array:
       for (auto& element : static_cast<ArrayExpr&>(*expression).elements)
-        rewriteExpression(module, element);
+        rewriteExpression(module, element, typeParameters);
       break;
     case ExprKind::Index: {
       auto& index = static_cast<IndexExpr&>(*expression);
-      rewriteExpression(module, index.collection);
-      rewriteExpression(module, index.index);
+      rewriteExpression(module, index.collection, typeParameters);
+      rewriteExpression(module, index.index, typeParameters);
       break;
     }
     case ExprKind::Slice: {
       auto& slice = static_cast<SliceExpr&>(*expression);
-      rewriteExpression(module, slice.collection);
-      rewriteExpression(module, slice.start);
-      rewriteExpression(module, slice.end);
+      rewriteExpression(module, slice.collection, typeParameters);
+      rewriteExpression(module, slice.start, typeParameters);
+      rewriteExpression(module, slice.end, typeParameters);
       break;
     }
     case ExprKind::Field:
-      rewriteExpression(module, static_cast<FieldExpr&>(*expression).value); break;
+      rewriteExpression(module, static_cast<FieldExpr&>(*expression).value,
+                        typeParameters); break;
     case ExprKind::Propagate:
-      rewriteExpression(module, static_cast<PropagateExpr&>(*expression).value); break;
+      rewriteExpression(module, static_cast<PropagateExpr&>(*expression).value,
+                        typeParameters); break;
     case ExprKind::Lambda: {
       auto& lambda = static_cast<LambdaExpr&>(*expression);
-      const std::unordered_set<std::string> parameters;
       for (auto& parameter : lambda.parameters)
-        rewriteTypeSpelling(module, parameter.typeName, parameters, parameter.location);
-      rewriteTypeSpelling(module, lambda.returnType, parameters, lambda.location);
-      rewriteExpression(module, lambda.body);
+        rewriteTypeSpelling(module, parameter.typeName, typeParameters,
+                            parameter.location);
+      rewriteTypeSpelling(module, lambda.returnType, typeParameters, lambda.location);
+      rewriteExpression(module, lambda.body, typeParameters);
       break;
     }
     default: break;
@@ -342,47 +347,49 @@ private:
         auto& binding = static_cast<BindingStmt&>(*statement);
         if (!binding.declaredType.empty())
           rewriteTypeSpelling(module, binding.declaredType, typeParameters, binding.location);
-        rewriteExpression(module, binding.initializer);
+        rewriteExpression(module, binding.initializer, typeParameters);
         break;
       }
       case StmtKind::Assignment:
-        rewriteExpression(module, static_cast<AssignmentStmt&>(*statement).value); break;
+        rewriteExpression(module, static_cast<AssignmentStmt&>(*statement).value,
+                          typeParameters); break;
       case StmtKind::IndexAssignment: {
         auto& assignment = static_cast<IndexAssignmentStmt&>(*statement);
-        rewriteExpression(module, assignment.index);
-        rewriteExpression(module, assignment.value);
+        rewriteExpression(module, assignment.index, typeParameters);
+        rewriteExpression(module, assignment.value, typeParameters);
         break;
       }
       case StmtKind::Return: {
         auto& returned = static_cast<ReturnStmt&>(*statement);
-        if (returned.value) rewriteExpression(module, returned.value);
+        if (returned.value) rewriteExpression(module, returned.value, typeParameters);
         break;
       }
       case StmtKind::Expression:
-        rewriteExpression(module, static_cast<ExprStmt&>(*statement).expression); break;
+        rewriteExpression(module, static_cast<ExprStmt&>(*statement).expression,
+                          typeParameters); break;
       case StmtKind::If: {
         auto& branch = static_cast<IfStmt&>(*statement);
-        rewriteExpression(module, branch.condition);
+        rewriteExpression(module, branch.condition, typeParameters);
         rewriteBlock(module, branch.thenBody, typeParameters);
         rewriteBlock(module, branch.elseBody, typeParameters);
         break;
       }
       case StmtKind::While: {
         auto& loop = static_cast<WhileStmt&>(*statement);
-        rewriteExpression(module, loop.condition);
+        rewriteExpression(module, loop.condition, typeParameters);
         rewriteBlock(module, loop.body, typeParameters);
         break;
       }
       case StmtKind::For: {
         auto& loop = static_cast<ForStmt&>(*statement);
-        rewriteExpression(module, loop.start);
-        if (loop.end) rewriteExpression(module, loop.end);
+        rewriteExpression(module, loop.start, typeParameters);
+        if (loop.end) rewriteExpression(module, loop.end, typeParameters);
         rewriteBlock(module, loop.body, typeParameters);
         break;
       }
       case StmtKind::Match: {
         auto& match = static_cast<MatchStmt&>(*statement);
-        rewriteExpression(module, match.value);
+        rewriteExpression(module, match.value, typeParameters);
         for (auto& matchCase : match.cases) {
           if (!matchCase.pattern.wildcard && matchCase.pattern.variant != "Some" &&
               matchCase.pattern.variant != "None" && matchCase.pattern.variant != "Ok" &&

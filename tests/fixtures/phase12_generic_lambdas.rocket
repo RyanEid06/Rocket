@@ -1,0 +1,14 @@
+fn through_lambda[T](value: T) -> T:
+    let identity = fn(item: T) -> T => item
+    return identity(value)
+
+fn through_capture[T](value: T) -> T:
+    let captured = fn() -> T => value
+    return captured()
+
+fn main() -> Int:
+    print(through_lambda(42))
+    print(through_lambda("generic"))
+    print(through_capture(7))
+    print(through_capture("capture"))
+    return 0

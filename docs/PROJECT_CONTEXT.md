@@ -421,12 +421,15 @@ Known limitations remain those in the implementation-state list above; no langua
 - Mirrored parsing, module mapping, type resolution, and direct-call lowering in
   the Rocket-written compiler. Added stage0, production, self-hosted, generic,
   enum, standard-library, and multi-module fixtures.
-- Verified pinned LLVM Debug and Release matrices (85/85 tests each) and
-  LLVM-disabled stage0 Debug and Release matrices (57/57 tests each). The
-  Rocket 1.2 conformance suite passes 44 cases.
+- Verified pinned LLVM Debug and Release matrices (89/89 tests each) and
+  LLVM-disabled stage0 Debug and Release matrices (60/60 tests each). The
+  Rocket 1.2 conformance suite passes 47 cases.
 - Verified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap with
   the Phase 12 fixtures. Stage2 and stage3 LLVM IR are byte-identical at SHA-256
-  `811a6bbc2ec4db6e200806c83639c9574be6078679d4e14b3c9583e4665e65f5`.
+  `6552b6e6bd3c4f15449d619dad5b53356e379053fd5e71a334d4ee6ce9c1525e`.
+- Hardened generic closures so lambda parameter/result annotations inherit and
+  concretely substitute enclosing generic-function type parameters in stage0
+  and the self-hosted compiler, including managed captures and parity coverage.
 
 ## Current next task
 

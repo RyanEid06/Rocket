@@ -3139,9 +3139,10 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         let parameter_count = collections.length(expression.children) - 1
         for index in 0..parameter_count:
             let node = expression.children[index]
+            let parameter_type = substitute_type(node.children[0].text, state.substitutions)
             parameter_names = append(parameter_names, node.text)
-            parameters = append(parameters, AstParameter(node.text, node.children[0].text, node.line, node.column))
-            parameter_types = append(parameter_types, node.children[0].text)
+            parameters = append(parameters, AstParameter(node.text, parameter_type, node.line, node.column))
+            parameter_types = append(parameter_types, parameter_type)
         let body = expression.children[parameter_count]
         let captures = collect_lambda_captures(state, body, parameter_names, [])
         let closure_name = string.concat("$closure.", string.from_int(collections.length(state.module.structs)))
@@ -3156,11 +3157,12 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         let rewritten = rewrite_lambda_captures(body, captures)
         let returned = AstStatement(statement_return(), "", "", false, [rewritten], [], [], [], expression.line, expression.column)
         let callable_name = string.concat(closure_name, ".call")
-        let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), expression.text, [returned], closure_name, "", false, [], expression.line, expression.column)
+        let result_type = substitute_type(expression.text, state.substitutions)
+        let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), result_type, [returned], closure_name, "", false, [], expression.line, expression.column)
         var module = state.module
         module = AstModule(module.imports, append(module.structs, closure), module.enums, module.traits, append(module.functions, callable))
         var next = state_module(state, module)
-        let added = add_hir_symbol(next, symbol_function(), callable_name, expression.text, false, collections.concat([closure_name], parameter_types), intrinsic_none())
+        let added = add_hir_symbol(next, symbol_function(), callable_name, result_type, false, collections.concat([closure_name], parameter_types), intrinsic_none())
         next = state_pending(added.state, append(added.state.pending, PendingSpecialization(collections.length(module.functions) - 1, added.symbol, Substitutions([], []))))
         return HirExprResult(hir_expression(expr_call(), "$struct", closure_name, captured_values, -1, 0, expression), next)
     if expression.kind == expr_array():

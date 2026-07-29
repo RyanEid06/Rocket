@@ -174,6 +174,8 @@ foreach(feature traits closures iterators associated_constants)
   add_test(NAME cli_check_phase12_${feature}
     COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_${feature}.rocket")
 endforeach()
+add_test(NAME cli_check_phase12_generic_lambdas
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
 add_test(NAME cli_phase12_constraint_failure
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -185,6 +187,12 @@ add_test(NAME cli_phase12_iterator_failure
     "-DROCKETC=$<TARGET_FILE:rocketc>"
     "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_iterator_failure.rocket"
     "-DEXPECTED=iterator advance() must return Broken"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+add_test(NAME cli_phase12_generic_lambda_failure
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambda_failure.rocket"
+    "-DEXPECTED=String, expected Int"
     -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
 add_test(NAME cli_phase11_invalid_key
   COMMAND ${CMAKE_COMMAND}
@@ -362,6 +370,10 @@ if(LLVM_FOUND)
   add_test(NAME cli_run_phase12_associated_constants
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_associated_constants.rocket")
   set_tests_properties(cli_run_phase12_associated_constants PROPERTIES PASS_REGULAR_EXPRESSION "42")
+  add_test(NAME cli_run_phase12_generic_lambdas
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
+  set_tests_properties(cli_run_phase12_generic_lambdas PROPERTIES
+    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture")
 
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
@@ -426,6 +438,13 @@ if(LLVM_FOUND)
       FIXTURES_REQUIRED self_hosted_compiler
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   endforeach()
+  add_test(NAME cli_self_hosted_run_phase12_generic_lambdas
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
+  set_tests_properties(cli_self_hosted_run_phase12_generic_lambdas PROPERTIES
+    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_test(NAME cli_array_bounds_failure
     COMMAND ${CMAKE_COMMAND}
@@ -513,4 +532,8 @@ else()
     set_tests_properties(cli_run_stage0_phase12_${feature} PROPERTIES
       PASS_REGULAR_EXPRESSION "(42|6)")
   endforeach()
+  add_test(NAME cli_run_stage0_phase12_generic_lambdas
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
+  set_tests_properties(cli_run_stage0_phase12_generic_lambdas PROPERTIES
+    PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture")
 endif()

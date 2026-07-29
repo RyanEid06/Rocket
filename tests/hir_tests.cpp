@@ -188,5 +188,46 @@ int main() {
   rocket::test::expect(!invalidMethod.has_value() && invalidMethodDiagnostics.hasErrors(),
                        "method receivers must exactly match their impl owner", failures);
 
+  rocket::Diagnostics genericLambdaDiagnostics;
+  auto genericLambdas = rocket::test::lowerToHir(
+      "fn through_lambda[T](value: T) -> T:\n"
+      "    let identity = fn(item: T) -> T => item\n"
+      "    return identity(value)\n"
+      "fn through_capture[T](value: T) -> T:\n"
+      "    let captured = fn() -> T => value\n"
+      "    return captured()\n"
+      "fn main() -> Int:\n"
+      "    let direct = through_lambda(42)\n"
+      "    return through_capture(direct)\n",
+      genericLambdaDiagnostics);
+  rocket::test::expect(genericLambdas.has_value(),
+                       "generic specializations substitute lambda signatures", failures);
+  if (genericLambdas.has_value()) {
+    bool concreteLambdaSignature = false;
+    for (const auto& symbol : genericLambdas->symbols) {
+      if (symbol.name.rfind("$closure.", 0) == 0 &&
+          symbol.name.ends_with(".call") && symbol.type == rocket::Type::Int) {
+        concreteLambdaSignature = true;
+        for (const auto& parameter : symbol.parameterTypes)
+          concreteLambdaSignature = concreteLambdaSignature &&
+              parameter.kind != rocket::TypeKind::TypeParameter;
+      }
+    }
+    rocket::test::expect(concreteLambdaSignature,
+                         "generated lambda call functions have concrete types", failures);
+  }
+
+  rocket::Diagnostics invalidGenericLambdaDiagnostics;
+  auto invalidGenericLambda = rocket::test::lowerToHir(
+      "fn broken[T](value: T) -> Int:\n"
+      "    let wrong = fn(item: T) -> Int => item\n"
+      "    return wrong(value)\n"
+      "fn main() -> Int:\n"
+      "    return broken(\"not-an-int\")\n",
+      invalidGenericLambdaDiagnostics);
+  rocket::test::expect(!invalidGenericLambda.has_value() &&
+                           invalidGenericLambdaDiagnostics.hasErrors(),
+                       "generic lambda result mismatches remain diagnosed", failures);
+
   return rocket::test::finish(failures, "hir");
 }

@@ -437,6 +437,7 @@ private:
     std::uint32_t declaration = 0;
     Type closureType = Type::Invalid;
     std::vector<LambdaCapture> captures;
+    Substitutions substitutions;
   };
   struct ActiveCapture {
     SymbolId closure = InvalidSymbol;

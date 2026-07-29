@@ -1342,7 +1342,7 @@ void HirLowerer::collectLambdaCaptures(
 }
 
 HirFunction HirLowerer::lowerLambda(const PendingLambda& pending) {
-  currentSubstitutions_.clear();
+  currentSubstitutions_ = pending.substitutions;
   currentReturnType_ = hir_.symbol(pending.symbol).type;
   scopes_.clear();
   scopes_.emplace_back();
@@ -1363,7 +1363,8 @@ HirFunction HirLowerer::lowerLambda(const PendingLambda& pending) {
         capture.name,
         ActiveCapture{closure, capture.field, hir_.symbol(capture.source).type});
   for (const auto& parameter : pending.lambda->parameters) {
-    const Type type = resolveType(parameter.typeName, parameter.location);
+    const Type type = resolveType(parameter.typeName, parameter.location,
+                                  currentSubstitutions_);
     const SymbolId symbol = addSymbol(SymbolKind::Parameter, parameter.name, type,
                                       false, parameter.location);
     scopes_.back().emplace(parameter.name, symbol);
@@ -2041,8 +2042,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                                         resultType, false, lambda.location,
                                         callableParameters);
     functions_.emplace(callableName, callable);
-    pendingLambdas_.push_back(
-        {&lambda, callable, declarationIndex, closureType, captures});
+    pendingLambdas_.push_back({&lambda, callable, declarationIndex, closureType,
+                               captures, currentSubstitutions_});
     std::vector<std::unique_ptr<HirExpr>> capturedValues;
     for (const auto& capture : captures)
       capturedValues.push_back(std::make_unique<HirNameExpr>(

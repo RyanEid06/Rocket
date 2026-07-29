@@ -243,7 +243,9 @@ inherent-member rule.
 runtime objects. Inherent members have priority and trait resolution must yield
 one deterministic implementation. Lambdas lower to immutable ARC-managed
 capture structs plus direct call functions, preserving the existing ABI and
-ownership model. User iteration is a persistent four-method protocol whose
+ownership model. Their typed signatures inherit enclosing generic-function type
+parameters and substitute them per monomorphic specialization. User iteration
+is a persistent four-method protocol whose
 advance operation returns a new cursor; loop lowering is explicit control-flow
 MIR.
 

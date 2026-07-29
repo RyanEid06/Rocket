@@ -1,0 +1,6 @@
+fn broken[T](value: T) -> Int:
+    let wrong = fn(item: T) -> Int => item
+    return wrong(value)
+
+fn main() -> Int:
+    return broken("not-an-int")

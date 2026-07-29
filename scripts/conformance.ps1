@@ -62,6 +62,7 @@ Invoke-ConformanceCase 'traits-check' @('check', (Join-Path $fixtures 'phase12_t
 Invoke-ConformanceCase 'closures-check' @('check', (Join-Path $fixtures 'phase12_closures.rocket'))
 Invoke-ConformanceCase 'iterators-check' @('check', (Join-Path $fixtures 'phase12_iterators.rocket'))
 Invoke-ConformanceCase 'associated-constants-check' @('check', (Join-Path $fixtures 'phase12_associated_constants.rocket'))
+Invoke-ConformanceCase 'generic-lambdas-check' @('check', (Join-Path $fixtures 'phase12_generic_lambdas.rocket'))
 Invoke-ConformanceCase 'hello-run' @('run', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'Hello from Rocket'
 Invoke-ConformanceCase 'operators-run' @('run', (Join-Path $fixtures 'llvm_operators.rocket'))
 Invoke-ConformanceCase 'collections-run' @('run', (Join-Path $fixtures 'runtime_collections.rocket'))
@@ -77,6 +78,7 @@ Invoke-ConformanceCase 'traits-run' @('run', (Join-Path $fixtures 'phase12_trait
 Invoke-ConformanceCase 'closures-run' @('run', (Join-Path $fixtures 'phase12_closures.rocket')) 0 '(?m)^42$'
 Invoke-ConformanceCase 'iterators-run' @('run', (Join-Path $fixtures 'phase12_iterators.rocket')) 0 '(?m)^6$'
 Invoke-ConformanceCase 'associated-constants-run' @('run', (Join-Path $fixtures 'phase12_associated_constants.rocket')) 0 '(?m)^42$'
+Invoke-ConformanceCase 'generic-lambdas-run' @('run', (Join-Path $fixtures 'phase12_generic_lambdas.rocket')) 0 '42[\r\n]+generic[\r\n]+7[\r\n]+capture'
 Invoke-ConformanceCase 'package-check' @('check', (Join-Path $fixtures 'phase8_package')) 0 'check succeeded'
 Invoke-ConformanceCase 'package-format' @('fmt', (Join-Path $fixtures 'phase8_package'), '--check') 0 'format check succeeded'
 Invoke-ConformanceCase 'package-run' @('run', (Join-Path $fixtures 'phase8_package')) 0 '(?m)^42$'
@@ -85,6 +87,7 @@ Invoke-ConformanceCase 'private-visibility-diagnostic' @('check', (Join-Path $fi
 Invoke-ConformanceCase 'import-cycle-diagnostic' @('check', (Join-Path $fixtures 'phase6_cycle.rocket')) 1 'R3002'
 Invoke-ConformanceCase 'invalid-map-key-diagnostic' @('check', (Join-Path $fixtures 'phase11_invalid_key.rocket')) 1 'R4001'
 Invoke-ConformanceCase 'invalid-method-receiver' @('check', (Join-Path $fixtures 'phase12_invalid_receiver.rocket')) 1 'method receiver must have impl type Counter'
+Invoke-ConformanceCase 'generic-lambda-result-diagnostic' @('check', (Join-Path $fixtures 'phase12_generic_lambda_failure.rocket')) 1 'String, expected Int'
 Invoke-ConformanceCase 'negative-reserve' @('run', (Join-Path $fixtures 'phase11_negative_reserve.rocket')) 101 'Array reserve capacity cannot be negative'
 Invoke-ConformanceCase 'insert-bounds' @('run', (Join-Path $fixtures 'phase11_insert_bounds.rocket')) 101 'index 2 out of bounds for length 1'
 Invoke-ConformanceCase 'remove-bounds' @('run', (Join-Path $fixtures 'phase11_remove_bounds.rocket')) 101 'index 1 out of bounds for length 1'

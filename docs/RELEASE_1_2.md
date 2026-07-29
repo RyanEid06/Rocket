@@ -11,7 +11,8 @@ remains the reproducible stage0 bootstrap.
 - Static traits and `where` constraints with deterministic compile-time
   selection and no trait objects or virtual dispatch.
 - Typed expression lambdas whose by-value captures are immutable ARC-managed
-  closure aggregates; callbacks specialize through ordinary generics.
+  closure aggregates; callbacks specialize through ordinary generics, including
+  lambda signatures that reference enclosing generic-function type parameters.
 - Persistent user-defined iteration through `iterator`, `has_next`, `value`,
   and `advance` methods.
 - Non-generic associated constants accessed as `Owner.NAME`.
