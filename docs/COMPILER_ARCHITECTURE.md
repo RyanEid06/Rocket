@@ -19,6 +19,11 @@ must not inspect the AST or HIR.
   recursive calls are resolved identically.
 - HIR is returned only when parsing, resolution, and type checking have produced
   no diagnostics.
+- Phase 12 impl members receive qualified `Owner.member` declaration names.
+  Associated calls resolve that name directly; instance dot calls are rewritten
+  after receiver typing by inserting the receiver as argument zero. MIR and both
+  backends therefore continue to contain ordinary direct calls and require no
+  method tables or runtime ABI change.
 
 ## Typed MIR invariants
 
@@ -235,3 +240,7 @@ byte-comparable.
 The Rocket compiler's internal generic `append` helper delegates to the public
 `std.collections.append` intrinsic. That production use exercises the Phase 11
 growth semantics throughout parsing and lowering during every bootstrap stage.
+
+The self-hosted frontend recognizes the same Phase 12 impl grammar and performs
+the same typed direct-call rewrite as stage0. Canonical owner-qualified symbols
+keep generic method specializations deterministic across bootstrap stages.

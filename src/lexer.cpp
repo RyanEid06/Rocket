@@ -35,6 +35,7 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::KwNot: return "not";
   case TokenKind::KwStruct: return "struct";
   case TokenKind::KwEnum: return "enum";
+  case TokenKind::KwImpl: return "impl";
   case TokenKind::KwMatch: return "match";
   case TokenKind::KwCase: return "case";
   case TokenKind::KwPub: return "pub";
@@ -79,6 +80,7 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       {"false", TokenKind::KwFalse}, {"and", TokenKind::KwAnd},
       {"or", TokenKind::KwOr}, {"not", TokenKind::KwNot},
       {"struct", TokenKind::KwStruct}, {"enum", TokenKind::KwEnum},
+      {"impl", TokenKind::KwImpl},
       {"match", TokenKind::KwMatch}, {"case", TokenKind::KwCase},
       {"pub", TokenKind::KwPub}, {"import", TokenKind::KwImport}};
 

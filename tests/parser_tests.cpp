@@ -115,5 +115,23 @@ int main() {
                        "Phase 6 type declarations and generic functions parse", failures);
   rocket::test::expect(phase6.functions[1].body[2]->kind == rocket::StmtKind::Match,
                        "match cases have an explicit AST statement", failures);
+
+  rocket::Diagnostics methodDiagnostics;
+  auto methods = rocket::test::parse(
+      "struct Counter:\n"
+      "    value: Int\n"
+      "impl Counter:\n"
+      "    fn make(value: Int) -> Counter:\n"
+      "        return Counter(value)\n"
+      "    fn read(self: Counter) -> Int:\n"
+      "        return self.value\n"
+      "fn main() -> Int:\n"
+      "    return Counter.make(42).read()\n",
+      methodDiagnostics);
+  rocket::test::expect(!methodDiagnostics.hasErrors() && methods.functions.size() == 3,
+                       "impl methods and associated functions parse", failures);
+  rocket::test::expect(methods.functions[0].methodOwner == "Counter" &&
+                           methods.functions[1].parameters[0].name == "self",
+                       "method AST records its impl owner and explicit receiver", failures);
   return rocket::test::finish(failures, "parser");
 }

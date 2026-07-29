@@ -1,4 +1,4 @@
-# Rocket Standard Library 1.1
+# Rocket Standard Library 1.1 with 1.2 development additions
 
 The Rocket 1.1 library is a set of built-in source modules. Import a module by its
 stable name; no package file or downloaded dependency is required:
@@ -102,7 +102,13 @@ callback convention in 1.1.
 `Queue[T]`, `Stack[T]`, and `ByteBuffer` are ordinary immutable wrappers around
 an insertion-ordered `Array[T]`, `Array[T]`, and `Array[Char]` respectively.
 Their public `values`/`bytes` snapshots compose with the Array operations above;
-Phase 12 methods will add dot-call convenience without changing representation.
+Rocket 1.2 development adds dot-call convenience without changing
+representation. Examples include `values.length()`, `values.append(value)`,
+`map.get(key)`, `set.contains(value)`, and `text.trim()`. `Slice[T]` currently
+supports `length()`; Array-only operations remain unavailable on Slice. Static
+String construction may use `String.from_int(value)`, while
+`std.string.from_int(value)` remains valid. These aliases resolve to the same
+standard intrinsics and do not add runtime entry points.
 
 ## `std.file` and `std.path`
 

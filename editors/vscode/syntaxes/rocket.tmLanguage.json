@@ -55,7 +55,7 @@
           }
         },
         {
-          "match": "\\b(struct|enum)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(struct|enum|impl)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.rocket" },
             "2": { "name": "entity.name.type.rocket" }

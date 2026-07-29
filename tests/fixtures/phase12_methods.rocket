@@ -1,0 +1,50 @@
+import std.collections
+import std.string
+
+struct Counter:
+    value: Int
+
+impl Counter:
+    fn make(value: Int) -> Counter:
+        return Counter(value)
+
+    fn plus(self: Counter, amount: Int) -> Counter:
+        return Counter(self.value + amount)
+
+    fn read(self: Counter) -> Int:
+        return self.value
+
+enum Signal:
+    Ready(Int)
+    Stopped
+
+impl Signal:
+    fn code(self: Signal) -> Int:
+        match self:
+            case Ready(value):
+                return value
+            case Stopped:
+                return 0
+
+struct Box[T]:
+    value: T
+
+impl[T] Box[T]:
+    fn make(value: T) -> Box[T]:
+        return Box(value)
+
+    fn get(self: Box[T]) -> T:
+        return self.value
+
+fn main() -> Int:
+    let counter = Counter.make(40).plus(2)
+    print(counter.read())
+    let signal = Ready(7)
+    print(signal.code())
+    let boxed = Box.make("method")
+    print(boxed.get())
+    var values = [1, 2]
+    values = values.append(3)
+    print(values.length())
+    print(String.from_int(12))
+    return 0

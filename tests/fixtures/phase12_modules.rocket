@@ -1,0 +1,6 @@
+import modules.models
+
+fn main() -> Int:
+    let counter = models.Counter.make(39).plus(3)
+    print(counter.read())
+    return 0

@@ -396,6 +396,9 @@ private:
   std::unique_ptr<HirStmt> lowerStatement(const Stmt& statement, Type returnType);
   std::unique_ptr<HirExpr> lowerExpression(const Expr& expression,
                                            std::optional<Type> expected = std::nullopt);
+  std::unique_ptr<HirExpr> lowerResolvedCall(
+      const std::string& name, const Location& location,
+      std::vector<std::unique_ptr<HirExpr>> arguments);
   Type resolveType(const std::string& spelling, const Location& location,
                    const Substitutions& substitutions = {});
   Type resolveParsedType(const Type& parsed, const Location& location,

@@ -93,6 +93,9 @@ bool needsSpace(const std::vector<Token>& tokens, std::size_t index) {
   if (previous == TokenKind::LParen || previous == TokenKind::LBracket ||
       previous == TokenKind::Dot || previous == TokenKind::DotDot)
     return false;
+  if (current == TokenKind::Identifier && previous == TokenKind::RBracket &&
+      !tokens.empty() && tokens[0].kind == TokenKind::KwImpl)
+    return true;
   if (current == TokenKind::LParen) return false;
   if (current == TokenKind::LBracket &&
       (word(previous) || previous == TokenKind::RParen ||

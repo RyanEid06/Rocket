@@ -60,6 +60,7 @@ struct AstFunction:
     parameters: Array[AstParameter]
     result_type: String
     body: Array[AstStatement]
+    method_owner: String
     line: Int
     column: Int
 
@@ -145,6 +146,10 @@ struct MatchCasesResult:
 
 struct FunctionResult:
     function: AstFunction
+    state: ParserState
+
+struct FunctionsResult:
+    functions: Array[AstFunction]
     state: ParserState
 
 struct StructResult:
@@ -539,6 +544,9 @@ fn kind_greater() -> Int:
 
 fn kind_greater_equal() -> Int:
     return 51
+
+fn kind_impl() -> Int:
+    return 52
 
 fn expr_integer() -> Int:
     return 0
@@ -958,6 +966,8 @@ fn keyword_kind(word: String) -> Int:
         return kind_struct()
     if word == "enum":
         return kind_enum()
+    if word == "impl":
+        return kind_impl()
     if word == "match":
         return kind_match()
     if word == "case":
@@ -1688,7 +1698,38 @@ fn parse_function(state: ParserState, public_declaration: Bool) -> FunctionResul
     let colon = consume_token(result_type.state, kind_colon(), "expected ':' before function body")
     let newline = consume_token(colon.state, kind_newline(), "expected newline after function signature")
     let body = parse_block(newline.state)
-    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, keyword.token.line, keyword.token.column), body.state)
+    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, "", keyword.token.line, keyword.token.column), body.state)
+
+fn parse_impl(state: ParserState) -> FunctionsResult:
+    let keyword = consume_token(state, kind_impl(), "expected 'impl'")
+    let impl_parameters = parse_type_parameters(keyword.state)
+    let owner = parse_type_name(impl_parameters.state)
+    let colon = consume_token(owner.state, kind_colon(), "expected ':' after impl type")
+    let newline = consume_token(colon.state, kind_newline(), "expected newline after impl declaration")
+    let opening = consume_token(newline.state, kind_indent(), "expected an indented impl body")
+    var next = opening.state
+    var methods: Array[AstFunction] = []
+    while not at_token(next, kind_dedent()) and not at_token(next, kind_end()):
+        if at_token(next, kind_newline()):
+            next = advance_parser(next)
+            continue
+        var public_declaration = false
+        let published = match_token(next, kind_pub())
+        next = published.state
+        if published.matched:
+            public_declaration = true
+        if not at_token(next, kind_fn()):
+            next = parser_error(next, current_token(next), "expected a method declaration in impl body")
+            next = synchronize_top_level(next)
+            continue
+        let parsed = parse_function(next, public_declaration)
+        let method = parsed.function
+        let name = string.concat(type_base(owner.name), string.concat(".", method.name))
+        let parameters = collections.concat(impl_parameters.values, method.type_parameters)
+        methods = append(methods, AstFunction(name, method.public_declaration, parameters, method.parameters, method.result_type, method.body, owner.name, method.line, method.column))
+        next = parsed.state
+    let closing = consume_token(next, kind_dedent(), "expected end of impl body")
+    return FunctionsResult(methods, closing.state)
 
 fn parse_struct(state: ParserState, public_declaration: Bool) -> StructResult:
     let keyword = consume_token(state, kind_struct(), "expected 'struct'")
@@ -1799,8 +1840,15 @@ fn parse_tokens(tokens: Array[Token], lexer_diagnostics: Array[Diagnostic]) -> P
             enums = append(enums, enumeration.declaration)
             state = skip_newlines(enumeration.state)
             continue
+        if at_token(state, kind_impl()):
+            if public_declaration:
+                state = parser_error(state, current_token(state), "an impl block is not public; mark individual methods 'pub'")
+            let implementation = parse_impl(state)
+            functions = collections.concat(functions, implementation.functions)
+            state = skip_newlines(implementation.state)
+            continue
         let unexpected = current_token(state)
-        state = parser_error(state, unexpected, "expected 'fn', 'struct', 'enum', or 'import' at top level")
+        state = parser_error(state, unexpected, "expected 'fn', 'struct', 'enum', 'impl', or 'import' at top level")
         state = synchronize_top_level(state)
     return ParseResult(AstModule(imports, structs, enums, functions), state.diagnostics)
 
@@ -2036,11 +2084,11 @@ fn mapped_local_type(module: AstModule, prefix_name: String, type_name: String) 
     return make_type(base, mapped_arguments)
 
 fn mapped_local_callable(module: AstModule, prefix_name: String, name: String) -> String:
-    if string.contains(name, "."):
-        return name
     for index in 0..collections.length(module.functions):
         if module.functions[index].name == name:
             return mapped_declaration_name(prefix_name, name, module.functions[index].public_declaration)
+    if string.contains(name, "."):
+        return name
     for index in 0..collections.length(module.structs):
         if module.structs[index].name == name:
             return mapped_declaration_name(prefix_name, name, module.structs[index].public_declaration)
@@ -2051,10 +2099,28 @@ fn mapped_local_callable(module: AstModule, prefix_name: String, name: String) -
                 return mapped_declaration_name(prefix_name, name, declaration.public_declaration)
     return name
 
+fn module_qualified_callable(module: AstModule, name: String) -> Bool:
+    if string.starts_with(name, "std.") or find_function_index(module, name) >= 0:
+        return true
+    let pieces = string.split(name, ".")
+    if collections.length(pieces) < 2:
+        return false
+    for index in 0..collections.length(module.imports):
+        let imported = module.imports[index].name
+        let imported_pieces = string.split(imported, ".")
+        if collections.length(imported_pieces) > 0 and imported_pieces[collections.length(imported_pieces) - 1] == pieces[0]:
+            return true
+    return false
+
 fn map_module_expression(module: AstModule, prefix_name: String, expression: AstExpr) -> AstExpr:
     if expression.kind == expr_call() and collections.length(expression.children) > 0:
         let raw_name = callable_name(expression.children[0])
         let mapped_name = mapped_local_callable(module, prefix_name, raw_name)
+        if expression.children[0].kind == expr_field() and not module_qualified_callable(module, raw_name):
+            var method_children: Array[AstExpr] = [map_module_expression(module, prefix_name, expression.children[0])]
+            for method_index in 1..collections.length(expression.children):
+                method_children = append(method_children, map_module_expression(module, prefix_name, expression.children[method_index]))
+            return AstExpr(expression.kind, expression.text, method_children, expression.line, expression.column)
         var children: Array[AstExpr] = [AstExpr(expr_name(), mapped_name, [], expression.children[0].line, expression.children[0].column)]
         for index in 1..collections.length(expression.children):
             children = append(children, map_module_expression(module, prefix_name, expression.children[index]))
@@ -2108,7 +2174,7 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
         for parameter_index in 0..collections.length(function.parameters):
             let parameter = function.parameters[parameter_index]
             parameters = append(parameters, AstParameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
-        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), function.line, function.column))
+        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), mapped_local_type(module, prefix_name, function.method_owner), function.line, function.column))
     return AstModule(module.imports, structs, enums, functions)
 
 fn merge_ast_modules(left: AstModule, right: AstModule) -> AstModule:
@@ -2202,6 +2268,45 @@ fn standard_callable(module: AstModule, name: String) -> String:
                 suffix = append(suffix, pieces[piece_index])
             return string.concat(imported, string.concat(".", collections.join(suffix, ".")))
     return name
+
+fn associated_standard_callable(name: String) -> String:
+    if name == "String.from_int":
+        return "std.string.from_int"
+    if name == "String.builder":
+        return "std.string.builder"
+    if name == "std.collections.Map.from_arrays":
+        return "std.collections.map_from_arrays"
+    if name == "std.collections.Set.from_array":
+        return "std.collections.set_from_array"
+    return name
+
+fn standard_method_callable(type_name: String, method: String) -> String:
+    if type_name == "String":
+        if method == "byte_length" or method == "concat" or method == "contains" or method == "starts_with" or method == "ends_with" or method == "trim" or method == "split" or method == "byte_at" or method == "byte_value_at" or method == "slice" or method == "parse_int":
+            return string.concat("std.string.", method)
+    let base = type_base(type_name)
+    if base == "Slice" and method == "length":
+        return "std.collections.slice_length"
+    if base == "Array":
+        if method == "length" or method == "capacity" or method == "reserve" or method == "append" or method == "pop" or method == "insert" or method == "remove" or method == "clear" or method == "contains" or method == "find" or method == "filter_equal" or method == "reverse" or method == "join":
+            return string.concat("std.collections.", method)
+        if method == "sort":
+            let element = collection_element_type(type_name)
+            if element == "Int":
+                return "std.collections.sort_int"
+            if element == "Float":
+                return "std.collections.sort_float"
+            if element == "Char":
+                return "std.collections.sort_char"
+            if element == "String":
+                return "std.collections.sort_string"
+    if base == "std.collections.Map":
+        if method == "length" or method == "find" or method == "get" or method == "keys" or method == "values":
+            return string.concat("std.collections.map_", method)
+    if base == "std.collections.Set":
+        if method == "contains" or method == "values":
+            return string.concat("std.collections.set_", method)
+    return ""
 
 fn standard_signature(name: String) -> StandardSignature:
     if name == "std.string.byte_length":
@@ -2488,7 +2593,7 @@ fn struct_call(state: LowerState, expression: AstExpr, declaration_index: Int, a
                 next = lower_error(next, expression.line, expression.column, string.concat("cannot infer type parameter '", string.concat(value, "'")))
             type_arguments = append(type_arguments, value)
         result_type = make_type(declaration.name, type_arguments)
-    if (declaration.name == "std.collections.Map" or declaration.name == "std.collections.Set") and not is_hashable_key(type_arguments(result_type)[0]):
+    if(declaration.name == "std.collections.Map" or declaration.name == "std.collections.Set") and not is_hashable_key(type_arguments(result_type)[0]):
         next = lower_error(next, expression.line, expression.column, "Map and Set keys must be Int, Bool, Char, or String")
     return HirExprResult(hir_expression(expr_call(), "$struct", result_type, lowered_arguments, -1, 0, expression), next)
 
@@ -2609,8 +2714,69 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
 
 fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: String) -> HirExprResult:
     let callee = expression.children[0]
+    if callee.kind == expr_field() and collections.length(callee.children) == 1:
+        let qualified_raw = callable_name(callee)
+        let qualified_name = associated_standard_callable(standard_callable(state.module, qualified_raw))
+        var qualified_arguments: Array[AstExpr] = []
+        for qualified_index in 1..collections.length(expression.children):
+            qualified_arguments = append(qualified_arguments, expression.children[qualified_index])
+        let qualified_standard = standard_signature(qualified_name)
+        if qualified_standard.found:
+            return standard_call(state, expression, qualified_name, qualified_standard, qualified_arguments)
+        let qualified_struct = find_struct_index(state.module, qualified_name)
+        if qualified_struct >= 0:
+            return struct_call(state, expression, qualified_struct, qualified_arguments, expected_type)
+        let qualified_constructor = find_enum_constructor(state.module, qualified_name)
+        if qualified_constructor.found:
+            return enum_constructor_call(state, expression, qualified_constructor.declaration, qualified_constructor.variant, qualified_arguments, expected_type)
+        let qualified_function = find_function_index(state.module, qualified_name)
+        if qualified_function >= 0:
+            return user_call(state, expression, qualified_function, qualified_arguments)
+        let qualified_private = string.concat("$", qualified_name)
+        if find_struct_index(state.module, qualified_private) >= 0 or find_function_index(state.module, qualified_private) >= 0 or find_enum_constructor(state.module, qualified_private).found:
+            var private_state = lower_issue(state, "R3003", expression.line, expression.column, string.concat("private declaration '", string.concat(qualified_name, "' is not visible")))
+            var private_arguments: Array[HirExpr] = []
+            for private_index in 0..collections.length(qualified_arguments):
+                let private_argument = lower_hir_expression(private_state, qualified_arguments[private_index], "")
+                private_state = private_argument.state
+                private_arguments = append(private_arguments, private_argument.expression)
+            return HirExprResult(hir_expression(expr_call(), qualified_name, "<invalid>", private_arguments, -1, -1, expression), private_state)
+        if callee.children[0].kind == expr_name():
+            let owner = callee.children[0].text
+            if find_struct_index(state.module, owner) >= 0 or find_enum_index(state.module, owner) >= 0 or owner == "String":
+                let associated_name = associated_standard_callable(string.concat(owner, string.concat(".", callee.text)))
+                var associated_arguments: Array[AstExpr] = []
+                for associated_index in 1..collections.length(expression.children):
+                    associated_arguments = append(associated_arguments, expression.children[associated_index])
+                let associated_standard = standard_signature(associated_name)
+                if associated_standard.found:
+                    return standard_call(state, expression, associated_name, associated_standard, associated_arguments)
+                let associated_function = find_function_index(state.module, associated_name)
+                if associated_function >= 0:
+                    return user_call(state, expression, associated_function, associated_arguments)
+        let receiver = callee.children[0]
+        let probe = lower_hir_expression(state, receiver, "")
+        var method_name = standard_method_callable(probe.expression.type_name, callee.text)
+        if method_name == "":
+            method_name = string.concat(type_base(probe.expression.type_name), string.concat(".", callee.text))
+        var method_arguments: Array[AstExpr] = [receiver]
+        for method_index in 1..collections.length(expression.children):
+            method_arguments = append(method_arguments, expression.children[method_index])
+        let method_standard = standard_signature(method_name)
+        if method_standard.found:
+            return standard_call(state, expression, method_name, method_standard, method_arguments)
+        let method_function = find_function_index(state.module, method_name)
+        if method_function >= 0:
+            return user_call(state, expression, method_function, method_arguments)
+        var method_error = lower_error(state, expression.line, expression.column, string.concat("undefined method '", string.concat(method_name, "'")))
+        var invalid_arguments: Array[HirExpr] = []
+        for invalid_index in 0..collections.length(method_arguments):
+            let lowered = lower_hir_expression(method_error, method_arguments[invalid_index], "")
+            method_error = lowered.state
+            invalid_arguments = append(invalid_arguments, lowered.expression)
+        return HirExprResult(hir_expression(expr_call(), method_name, "<invalid>", invalid_arguments, -1, -1, expression), method_error)
     let raw_name = callable_name(callee)
-    let name = standard_callable(state.module, raw_name)
+    let name = associated_standard_callable(standard_callable(state.module, raw_name))
     var arguments: Array[AstExpr] = []
     for index in 1..collections.length(expression.children):
         arguments = append(arguments, expression.children[index])
@@ -2997,6 +3163,18 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
     var function_symbols: Array[Int] = []
     for index in 0..collections.length(complete_module.functions):
         let function = complete_module.functions[index]
+        if function.method_owner != "":
+            let owner_base = type_base(function.method_owner)
+            if find_struct_index(complete_module, owner_base) < 0 and find_enum_index(complete_module, owner_base) < 0:
+                state = lower_error(state, function.line, function.column, "impl owner must be a struct or enum type")
+            for parameter_index in 0..collections.length(function.parameters):
+                let parameter = function.parameters[parameter_index]
+                if parameter.name == "self":
+                    if parameter_index != 0:
+                        state = lower_error(state, parameter.line, parameter.column, "'self' must be the first method parameter")
+                    else:
+                        if parameter.type_name != function.method_owner:
+                            state = lower_error(state, parameter.line, parameter.column, string.concat("method receiver must have impl type ", function.method_owner))
         if collections.length(function.type_parameters) == 0:
             var parameter_types: Array[String] = []
             for parameter_index in 0..collections.length(function.parameters):
@@ -3134,7 +3312,7 @@ fn lower_mir_expression(state: MirState, expression: HirExpr) -> MirOperandResul
             let next = mir_error(state, expression.line, expression.column, "HIR name has no MIR local")
             return MirOperandResult(MirOperand(-1, "", expression.type_name, false), next)
         return MirOperandResult(MirOperand(local, "", expression.type_name, false), state)
-    if expression.kind == expr_binary() and (expression.text == "and" or expression.text == "or"):
+    if expression.kind == expr_binary() and(expression.text == "and" or expression.text == "or"):
         return lower_mir_short_circuit(state, expression)
     if expression.kind == expr_propagate():
         let value = lower_mir_expression(state, expression.children[0])
@@ -3393,11 +3571,11 @@ fn verify_mir_function(function: MirFunction, diagnostics: Array[Diagnostic]) ->
         let block = function.blocks[block_index]
         for instruction_index in 0..collections.length(block.instructions):
             let instruction = block.instructions[instruction_index]
-            if instruction.kind != mir_retain() and instruction.kind != mir_release() and (instruction.destination < 0 or instruction.destination >= collections.length(function.locals)):
+            if instruction.kind != mir_retain() and instruction.kind != mir_release() and(instruction.destination < 0 or instruction.destination >= collections.length(function.locals)):
                 result = append(result, make_diagnostic("R9001", 1, 1, "MIR instruction destination is out of range"))
             for operand_index in 0..collections.length(instruction.operands):
                 let operand = instruction.operands[operand_index]
-                if not operand.is_constant and (operand.local < 0 or operand.local >= collections.length(function.locals)):
+                if not operand.is_constant and(operand.local < 0 or operand.local >= collections.length(function.locals)):
                     result = append(result, make_diagnostic("R9001", 1, 1, "MIR instruction operand is out of range"))
             if instruction.kind == mir_array_update():
                 if collections.length(instruction.operands) != 3 or type_base(instruction.type_name) != "Array":
@@ -3407,7 +3585,7 @@ fn verify_mir_function(function: MirFunction, diagnostics: Array[Diagnostic]) ->
                         result = append(result, make_diagnostic("R9001", 1, 1, "Array update operand type mismatch"))
         if block.terminator.kind == terminator_goto() and not block_exists(function.blocks, block.terminator.target):
             result = append(result, make_diagnostic("R9001", 1, 1, "MIR goto target does not exist"))
-        if block.terminator.kind == terminator_branch() and (not block_exists(function.blocks, block.terminator.then_target) or not block_exists(function.blocks, block.terminator.else_target)):
+        if block.terminator.kind == terminator_branch() and(not block_exists(function.blocks, block.terminator.then_target) or not block_exists(function.blocks, block.terminator.else_target)):
             result = append(result, make_diagnostic("R9001", 1, 1, "MIR branch target does not exist"))
     return result
 
@@ -3992,7 +4170,7 @@ fn emit_checked_int_binary_llvm(builder: std.string.Builder, left: LlvmValue, ri
 
 fn emit_binary_llvm(builder: std.string.Builder, left: LlvmValue, right: LlvmValue, op: String, result_type: String, name: String) -> LlvmValue:
     let result = string.concat("%", string.concat(name, "_result"))
-    if left.type_name == "String" and (op == "==" or op == "!="):
+    if left.type_name == "String" and(op == "==" or op == "!="):
         let equal = string.concat("%", string.concat(name, "_equal"))
         emit_llvm_line(builder, string.concat("  ", string.concat(equal, string.concat(" = call i8 @rocket_rt_string_equal(ptr ", string.concat(left.name, string.concat(", ptr ", string.concat(right.name, ")")))))))
         let compared = string.concat("%", string.concat(name, "_bool"))
@@ -4001,7 +4179,7 @@ fn emit_binary_llvm(builder: std.string.Builder, left: LlvmValue, right: LlvmVal
             emit_llvm_line(builder, string.concat("  ", string.concat(result, string.concat(" = xor i1 ", string.concat(compared, ", true")))))
             return LlvmValue(result, "Bool")
         return LlvmValue(compared, "Bool")
-    if left.type_name == "Int" and (op == "+" or op == "-" or op == "*" or op == "/"):
+    if left.type_name == "Int" and(op == "+" or op == "-" or op == "*" or op == "/"):
         return emit_checked_int_binary_llvm(builder, left, right, op, name)
     var instruction = ""
     if left.type_name == "Float":
@@ -4579,7 +4757,7 @@ fn right_trim_line(value: String) -> String:
     return string.slice(value, 0, end)
 
 fn formatter_word(kind: Int) -> Bool:
-    return kind == kind_identifier() or kind == kind_integer() or kind == kind_float() or kind == kind_character() or kind == kind_string() or (kind >= kind_fn() and kind <= kind_import())
+    return kind == kind_identifier() or kind == kind_integer() or kind == kind_float() or kind == kind_character() or kind == kind_string() or kind == kind_impl() or(kind >= kind_fn() and kind <= kind_import())
 
 fn formatter_binary(kind: Int) -> Bool:
     return kind == kind_plus() or kind == kind_minus() or kind == kind_star() or kind == kind_slash() or kind == kind_equal() or kind == kind_equal_equal() or kind == kind_bang_equal() or kind == kind_less() or kind == kind_less_equal() or kind == kind_greater() or kind == kind_greater_equal() or kind == kind_arrow() or kind == kind_and() or kind == kind_or()
@@ -4601,9 +4779,11 @@ fn formatter_needs_space(tokens: Array[Token], index: Int) -> Bool:
         return false
     if previous == kind_lparen() or previous == kind_lbracket() or previous == kind_dot() or previous == kind_dotdot():
         return false
+    if current == kind_identifier() and previous == kind_rbracket() and collections.length(tokens) > 0 and tokens[0].kind == kind_impl():
+        return true
     if current == kind_lparen():
         return false
-    if current == kind_lbracket() and (formatter_word(previous) or previous == kind_rparen() or previous == kind_rbracket() or previous == kind_question()):
+    if current == kind_lbracket() and(formatter_word(previous) or previous == kind_rparen() or previous == kind_rbracket() or previous == kind_question()):
         return false
     if previous == kind_comma() or previous == kind_colon():
         return true
@@ -4680,7 +4860,7 @@ fn formatter_comment_offset(line: String) -> Int:
         if escaped:
             escaped = false
         else:
-            if (in_string or in_character) and value == '\\':
+            if(in_string or in_character) and value == '\\':
                 escaped = true
             else:
                 if not in_character and value == '"':
@@ -4909,7 +5089,7 @@ fn main() -> Int:
         return mir_check(arguments[1])
     if collections.length(arguments) == 3 and arguments[0] == "--emit-ir":
         return emit_ir_file(arguments[1], arguments[2])
-    if collections.length(arguments) == 0 or (collections.length(arguments) == 1 and arguments[0] == "--help"):
+    if collections.length(arguments) == 0 or(collections.length(arguments) == 1 and arguments[0] == "--help"):
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":

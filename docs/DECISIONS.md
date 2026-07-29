@@ -218,3 +218,21 @@ to Phase 12 because adding them earlier would require an undocumented function-
 pointer or callback ABI before first-class function and closure semantics exist.
 Queue, Stack, and ByteBuffer remain transparent Array-backed library products so
 their later methods are additive convenience.
+
+## D017 - Static impl members and explicit receivers
+
+**Accepted for the first Rocket 1.2 slice.** Structs and enums may have
+same-module `impl` blocks. Instance methods are ordinary functions whose first
+parameter is explicitly named `self` and exactly matches the impl owner;
+associated functions omit `self`. Impl type parameters use `impl[T] Owner[T]`
+so generic ownership and specialization remain explicit.
+
+Member identity is the deterministic qualified name `Owner.member`. After the
+receiver is typed, an instance dot call inserts it as argument zero and resolves
+an ordinary direct function specialization. This deliberately adds no virtual
+dispatch, inheritance, hidden mutation, method table, or runtime ABI surface.
+Standard-library dot calls use the same rewrite onto existing intrinsics.
+Individual methods control module visibility with `pub`; impl blocks are not
+visibility-bearing declarations. Trait-driven selection is reserved for the
+next Phase 12 slice and must extend, rather than silently change, this direct
+inherent-member rule.

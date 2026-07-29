@@ -25,6 +25,7 @@ private:
   void synchronize();
 
   Function parseFunction(bool isPublic);
+  std::vector<Function> parseImpl();
   StructDecl parseStruct(bool isPublic);
   EnumDecl parseEnum(bool isPublic);
   std::vector<std::string> parseTypeParameters();

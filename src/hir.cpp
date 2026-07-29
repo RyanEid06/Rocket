@@ -30,6 +30,54 @@ bool isCollectionComparable(const Type& type) {
   return isHashableKey(type) || type == Type::Float;
 }
 
+std::string associatedLibraryFunction(const std::string& name) {
+  if (name == "String.from_int") return "std.string.from_int";
+  if (name == "String.builder") return "std.string.builder";
+  if (name == "std.collections.Map.from_arrays")
+    return "std.collections.map_from_arrays";
+  if (name == "std.collections.Set.from_array")
+    return "std.collections.set_from_array";
+  return name;
+}
+
+std::string libraryMethodFunction(const Type& receiver, const std::string& method) {
+  if (receiver == Type::String) {
+    if (method == "byte_length" || method == "concat" || method == "contains" ||
+        method == "starts_with" || method == "ends_with" || method == "trim" ||
+        method == "split" || method == "byte_at" || method == "byte_value_at" ||
+        method == "slice" || method == "parse_int")
+      return "std.string." + method;
+  }
+  if (isSliceType(receiver) && method == "length")
+    return "std.collections.slice_length";
+  if (isArrayType(receiver)) {
+    if (method == "length" || method == "contains" || method == "find" ||
+        method == "filter_equal" || method == "reverse" || method == "join")
+      return "std.collections." + method;
+    if (method == "capacity" || method == "reserve" || method == "append" ||
+        method == "pop" || method == "insert" || method == "remove" ||
+        method == "clear")
+      return "std.collections." + method;
+    if (method == "sort") {
+      const Type element = collectionElementType(receiver);
+      if (element == Type::Int) return "std.collections.sort_int";
+      if (element == Type::Float) return "std.collections.sort_float";
+      if (element == Type::Char) return "std.collections.sort_char";
+      if (element == Type::String) return "std.collections.sort_string";
+    }
+  }
+  if (receiver.declaration == "std.collections.Map") {
+    if (method == "length" || method == "find" || method == "get" ||
+        method == "keys" || method == "values")
+      return "std.collections.map_" + method;
+  }
+  if (receiver.declaration == "std.collections.Set") {
+    if (method == "contains" || method == "values")
+      return "std.collections.set_" + method;
+  }
+  return {};
+}
+
 } // namespace
 
 SymbolId HirLowerer::addSymbol(SymbolKind kind, const std::string& name, Type type,
@@ -445,6 +493,39 @@ std::optional<HirModule> HirLowerer::lower() {
   functions_.emplace("print", print);
 
   for (const auto& function : ast_.functions) {
+    if (!function.methodOwner.empty()) {
+      Substitutions parameters;
+      for (const auto& parameter : function.typeParameters) {
+        if (!parameters.emplace(parameter, typeParameter(parameter)).second)
+          diagnostics_.error(function.location,
+                             "duplicate method type parameter '" + parameter + "'");
+      }
+      const Type owner = resolveType(function.methodOwner, function.location, parameters);
+      if (owner.kind != TypeKind::Struct && owner.kind != TypeKind::Enum)
+        diagnostics_.error(function.location,
+                           "impl owner must be a struct or enum type");
+      const std::size_t memberSeparator = function.name.rfind('.');
+      const std::string member = memberSeparator == std::string::npos
+                                     ? function.name
+                                     : function.name.substr(memberSeparator + 1);
+      if (function.name != owner.declaration + "." + member)
+        diagnostics_.error(function.location,
+                           "impl owner must be declared in the same module");
+      for (std::size_t index = 0; index < function.parameters.size(); ++index) {
+        if (function.parameters[index].name != "self") continue;
+        if (index != 0) {
+          diagnostics_.error(function.parameters[index].location,
+                             "'self' must be the first method parameter");
+          continue;
+        }
+        const Type receiver = resolveType(function.parameters[index].typeName,
+                                          function.parameters[index].location,
+                                          parameters);
+        if (receiver != owner)
+          diagnostics_.error(function.parameters[index].location,
+                             "method receiver must have impl type " + typeName(owner));
+      }
+    }
     if (functions_.contains(function.name) || genericFunctions_.contains(function.name)) {
       diagnostics_.error(function.location, "duplicate function '" + function.name + "'");
       functionSymbols_.push_back(InvalidSymbol);
@@ -935,6 +1016,115 @@ SymbolId HirLowerer::specializeFunction(
   return symbol;
 }
 
+std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
+    const std::string& name, const Location& location,
+    std::vector<std::unique_ptr<HirExpr>> arguments) {
+  if (auto standard = standardFunctions_.find(name);
+      standard != standardFunctions_.end()) {
+    const StandardFunction& definition = standard->second;
+    if (arguments.size() != definition.parameterTypes.size())
+      diagnostics_.error(location, "standard function '" + name + "' expects " +
+                                       std::to_string(definition.parameterTypes.size()) +
+                                       " argument(s)", DiagnosticCode::Arity);
+    Substitutions inferred;
+    for (std::size_t index = 0;
+         index < arguments.size() && index < definition.parameterTypes.size(); ++index) {
+      if (!inferTypeArguments(definition.parameterTypes[index], arguments[index]->type,
+                              inferred, arguments[index]->location))
+        diagnostics_.error(arguments[index]->location, "argument type is " +
+                                                        typeName(arguments[index]->type) +
+                                                        ", expected " +
+                                                        typeName(definition.parameterTypes[index]));
+    }
+    std::string key = name;
+    if (!definition.typeParameters.empty()) key += '[';
+    for (std::size_t index = 0; index < definition.typeParameters.size(); ++index) {
+      const auto& parameter = definition.typeParameters[index];
+      auto found = inferred.find(parameter);
+      if (found == inferred.end()) {
+        diagnostics_.error(location, "cannot infer standard-library type argument '" +
+                                         parameter + "'");
+        inferred.emplace(parameter, Type::Invalid);
+        found = inferred.find(parameter);
+      }
+      if (index) key += ',';
+      key += typeName(found->second);
+    }
+    if (!definition.typeParameters.empty()) key += ']';
+    std::vector<Type> parameterTypes;
+    for (const auto& parameter : definition.parameterTypes)
+      parameterTypes.push_back(substitute(parameter, inferred));
+    const Type result = substitute(definition.result, inferred);
+    if ((definition.intrinsic == Intrinsic::CollectionsMapFind ||
+         definition.intrinsic == Intrinsic::CollectionsMapGet ||
+         definition.intrinsic == Intrinsic::CollectionsMapKeys ||
+         definition.intrinsic == Intrinsic::CollectionsMapValues ||
+         definition.intrinsic == Intrinsic::CollectionsMapLength) &&
+        inferred.contains("K") && !isHashableKey(inferred.at("K")))
+      diagnostics_.error(location, "Map keys must be Int, Bool, Char, or String");
+    if ((definition.intrinsic == Intrinsic::CollectionsSetContains ||
+         definition.intrinsic == Intrinsic::CollectionsSetValues) &&
+        inferred.contains("T") && !isHashableKey(inferred.at("T")))
+      diagnostics_.error(location,
+                         "Set elements and hash values must be Int, Bool, Char, or String");
+    if ((definition.intrinsic == Intrinsic::CollectionsContains ||
+         definition.intrinsic == Intrinsic::CollectionsFind ||
+         definition.intrinsic == Intrinsic::CollectionsFilterEqual) &&
+        inferred.contains("T") && !isCollectionComparable(inferred.at("T")))
+      diagnostics_.error(location,
+                         "collection equality requires Int, Float, Bool, Char, or String");
+    SymbolId callee = InvalidSymbol;
+    if (auto found = specializations_.find(key); found != specializations_.end()) {
+      callee = found->second;
+    } else {
+      callee = addSymbol(SymbolKind::BuiltinFunction, key, result, false,
+                         {"<standard-library>", 1, 1}, parameterTypes,
+                         definition.intrinsic);
+      specializations_.emplace(key, callee);
+    }
+    for (std::size_t index = 0;
+         index < arguments.size() && index < parameterTypes.size(); ++index)
+      if (arguments[index]->type != Type::Invalid &&
+          arguments[index]->type != parameterTypes[index])
+        diagnostics_.error(arguments[index]->location, "argument type is " +
+                                                        typeName(arguments[index]->type) +
+                                                        ", expected " +
+                                                        typeName(parameterTypes[index]));
+    return std::make_unique<HirCallExpr>(location, result, callee,
+                                         std::move(arguments));
+  }
+
+  if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end()) {
+    const SymbolId callee = specializeFunction(*generic->second, arguments, location);
+    const Type result = callee == InvalidSymbol ? Type::Invalid : hir_.symbol(callee).type;
+    return std::make_unique<HirCallExpr>(location, result, callee,
+                                         std::move(arguments));
+  }
+
+  auto found = functions_.find(name);
+  if (found == functions_.end()) {
+    diagnostics_.error(location, "unknown method '" + name + "'", DiagnosticCode::Name);
+    return std::make_unique<HirCallExpr>(location, Type::Invalid, InvalidSymbol,
+                                         std::move(arguments));
+  }
+  const SymbolId callee = found->second;
+  const HirSymbol signature = hir_.symbol(callee);
+  if (arguments.size() != signature.parameterTypes.size())
+    diagnostics_.error(location, "method '" + name + "' expects " +
+                                     std::to_string(signature.parameterTypes.size()) +
+                                     " argument(s)", DiagnosticCode::Arity);
+  for (std::size_t index = 0;
+       index < arguments.size() && index < signature.parameterTypes.size(); ++index)
+    if (arguments[index]->type != Type::Invalid &&
+        arguments[index]->type != signature.parameterTypes[index])
+      diagnostics_.error(arguments[index]->location, "argument type is " +
+                                                      typeName(arguments[index]->type) +
+                                                      ", expected " +
+                                                      typeName(signature.parameterTypes[index]));
+  return std::make_unique<HirCallExpr>(location, signature.type, callee,
+                                       std::move(arguments));
+}
+
 std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                                                      std::optional<Type> expected) {
   switch (expression.kind) {
@@ -1033,6 +1223,32 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
   }
   case ExprKind::Call: {
     const auto& call = static_cast<const CallExpr&>(expression);
+    if (call.callee->kind == ExprKind::Field) {
+      const auto& field = static_cast<const FieldExpr&>(*call.callee);
+      if (field.value->kind == ExprKind::Name) {
+        const std::string owner = static_cast<const LiteralExpr&>(*field.value).value;
+        const std::string associated = owner + "." + field.field;
+        if (typeDeclarations_.contains(owner) || owner == "String") {
+          std::vector<std::unique_ptr<HirExpr>> arguments;
+          for (const auto& argument : call.arguments)
+            arguments.push_back(lowerExpression(*argument));
+          return lowerResolvedCall(associatedLibraryFunction(associated),
+                                   expression.location, std::move(arguments));
+        }
+      }
+      std::vector<std::unique_ptr<HirExpr>> arguments;
+      auto receiver = lowerExpression(*field.value);
+      const Type receiverType = receiver->type;
+      arguments.push_back(std::move(receiver));
+      for (const auto& argument : call.arguments)
+        arguments.push_back(lowerExpression(*argument));
+      std::string target = libraryMethodFunction(receiverType, field.field);
+      if (target.empty() &&
+          (receiverType.kind == TypeKind::Struct || receiverType.kind == TypeKind::Enum))
+        target = receiverType.declaration + "." + field.field;
+      if (target.empty()) target = typeName(receiverType) + "." + field.field;
+      return lowerResolvedCall(target, expression.location, std::move(arguments));
+    }
     if (call.callee->kind != ExprKind::Name) {
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
@@ -1042,7 +1258,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       return std::make_unique<HirCallExpr>(expression.location, Type::Invalid, InvalidSymbol,
                                            std::move(arguments));
     }
-    const std::string& name = static_cast<const LiteralExpr&>(*call.callee).value;
+    const std::string name = associatedLibraryFunction(
+        static_cast<const LiteralExpr&>(*call.callee).value);
 
     std::optional<std::uint32_t> aggregateDeclaration;
     std::uint32_t tag = 0;

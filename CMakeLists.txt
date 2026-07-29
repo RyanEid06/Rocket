@@ -166,6 +166,10 @@ add_test(NAME cli_check_phase11_array_growth
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_growth.rocket")
 add_test(NAME cli_check_phase11_map_set_tuple
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
+add_test(NAME cli_check_phase12_methods
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_methods.rocket")
+add_test(NAME cli_check_phase12_modules
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
 add_test(NAME cli_phase11_invalid_key
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -322,6 +326,15 @@ if(LLVM_FOUND)
   set_tests_properties(cli_run_phase11_map_set_tuple PROPERTIES
     PASS_REGULAR_EXPRESSION "answer[\r\n]+42[\r\n]+2[\r\n]+1[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+1[\r\n]+1[\r\n]+4567693929835203094[\r\n]+1[\r\n]+3[\r\n]+1[\r\n]+1[\r\n]+2[\r\n]+1[\r\n]+6[\r\n]+7[\r\n]+8[\r\n]+R")
 
+  add_test(NAME cli_run_phase12_methods
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_methods.rocket")
+  set_tests_properties(cli_run_phase12_methods PROPERTIES
+    PASS_REGULAR_EXPRESSION "42[\r\n]+7[\r\n]+method[\r\n]+3[\r\n]+12")
+  add_test(NAME cli_run_phase12_modules
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
+  set_tests_properties(cli_run_phase12_modules PROPERTIES
+    PASS_REGULAR_EXPRESSION "42")
+
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
@@ -359,6 +372,21 @@ if(LLVM_FOUND)
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
   set_tests_properties(cli_self_hosted_run_phase11_map_set_tuple PROPERTIES
     PASS_REGULAR_EXPRESSION "answer[\r\n]+42[\r\n]+2[\r\n]+1[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+1[\r\n]+1[\r\n]+4567693929835203094[\r\n]+1[\r\n]+3[\r\n]+1[\r\n]+1[\r\n]+2[\r\n]+1[\r\n]+6[\r\n]+7[\r\n]+8[\r\n]+R"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_test(NAME cli_self_hosted_run_phase12_methods
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_methods.rocket")
+  set_tests_properties(cli_self_hosted_run_phase12_methods PROPERTIES
+    PASS_REGULAR_EXPRESSION "42[\r\n]+7[\r\n]+method[\r\n]+3[\r\n]+12"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  add_test(NAME cli_self_hosted_run_phase12_modules
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
+  set_tests_properties(cli_self_hosted_run_phase12_modules PROPERTIES
+    PASS_REGULAR_EXPRESSION "42"
     FIXTURES_REQUIRED self_hosted_compiler
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
@@ -434,4 +462,12 @@ else()
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
   set_tests_properties(cli_run_stage0_phase11_map_set_tuple PROPERTIES
     PASS_REGULAR_EXPRESSION "answer[\r\n]+42[\r\n]+2[\r\n]+1[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+1[\r\n]+1[\r\n]+4567693929835203094[\r\n]+1[\r\n]+3[\r\n]+1[\r\n]+1[\r\n]+2[\r\n]+1[\r\n]+6[\r\n]+7[\r\n]+8[\r\n]+R")
+  add_test(NAME cli_run_stage0_phase12_methods
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_methods.rocket")
+  set_tests_properties(cli_run_stage0_phase12_methods PROPERTIES
+    PASS_REGULAR_EXPRESSION "42[\r\n]+7[\r\n]+method[\r\n]+3[\r\n]+12")
+  add_test(NAME cli_run_stage0_phase12_modules
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
+  set_tests_properties(cli_run_stage0_phase12_modules PROPERTIES
+    PASS_REGULAR_EXPRESSION "42")
 endif()

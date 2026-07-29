@@ -1,0 +1,9 @@
+struct Counter:
+    value: Int
+
+impl Counter:
+    fn broken(self: String) -> Int:
+        return 0
+
+fn main() -> Int:
+    return 0

@@ -16,6 +16,15 @@
     ],
     "description": "Create a typed Rocket function"
   },
+  "Implementation block": {
+    "prefix": "impl",
+    "body": [
+      "impl ${1:Type}:",
+      "    fn ${2:method}(self: ${1:Type}) -> ${3:Int}:",
+      "        ${4:return 0}"
+    ],
+    "description": "Create a Rocket method implementation"
+  },
   "Exhaustive match": {
     "prefix": "match",
     "body": [

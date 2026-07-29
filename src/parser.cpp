@@ -51,9 +51,15 @@ Module Parser::parseModule() {
       module.structs.push_back(parseStruct(isPublic));
     } else if (at(TokenKind::KwEnum)) {
       module.enums.push_back(parseEnum(isPublic));
+    } else if (at(TokenKind::KwImpl)) {
+      if (isPublic)
+        diagnostics_.error(current().location,
+                           "an impl block is not public; mark individual methods 'pub'");
+      auto methods = parseImpl();
+      for (auto& method : methods) module.functions.push_back(std::move(method));
     } else {
       diagnostics_.error(current().location,
-                         "expected 'fn', 'struct', 'enum', or 'import' at top level",
+                         "expected 'fn', 'struct', 'enum', 'impl', or 'import' at top level",
                          DiagnosticCode::Syntax);
       synchronize();
       continue;
@@ -61,6 +67,39 @@ Module Parser::parseModule() {
     skipNewlines();
   }
   return module;
+}
+
+std::vector<Function> Parser::parseImpl() {
+  consume(TokenKind::KwImpl, "expected 'impl'");
+  auto implParameters = parseTypeParameters();
+  const std::string owner = parseTypeName();
+  consume(TokenKind::Colon, "expected ':' after impl type");
+  consume(TokenKind::Newline, "expected newline after impl declaration");
+  consume(TokenKind::Indent, "expected an indented impl body");
+  std::vector<Function> methods;
+  while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+    if (match(TokenKind::Newline)) continue;
+    const bool isPublic = match(TokenKind::KwPub);
+    if (!at(TokenKind::KwFn)) {
+      diagnostics_.error(current().location,
+                         "expected a method declaration in impl body",
+                         DiagnosticCode::Syntax);
+      synchronize();
+      continue;
+    }
+    Function method = parseFunction(isPublic);
+    std::vector<std::string> parameters = implParameters;
+    parameters.insert(parameters.end(), method.typeParameters.begin(),
+                      method.typeParameters.end());
+    method.typeParameters = std::move(parameters);
+    method.methodOwner = owner;
+    const std::size_t arguments = owner.find('[');
+    const std::string ownerName = owner.substr(0, arguments);
+    method.name = ownerName + "." + method.name;
+    methods.push_back(std::move(method));
+  }
+  consume(TokenKind::Dedent, "expected end of impl body");
+  return methods;
 }
 
 std::vector<std::string> Parser::parseTypeParameters() {

@@ -76,6 +76,14 @@ int main() {
                            collectionTokens[7].kind == rocket::TokenKind::RBracket,
                        "square brackets have dedicated tokens", failures);
 
+  rocket::Diagnostics methodDiagnostics;
+  const auto methodTokens = rocket::Lexer(
+      "test.rocket", "impl Counter:\n    fn read(self: Counter) -> Int:\n        return 0\n",
+      methodDiagnostics).lex();
+  rocket::test::expect(!methodDiagnostics.hasErrors() &&
+                           methodTokens[0].kind == rocket::TokenKind::KwImpl,
+                       "impl is a dedicated Phase 12 keyword", failures);
+
   rocket::Diagnostics badIndentation;
   rocket::Lexer badLexer("test.rocket", "fn main() -> Int:\n   return 0\n", badIndentation);
   badLexer.lex();

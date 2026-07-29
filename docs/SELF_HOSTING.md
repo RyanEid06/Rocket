@@ -26,6 +26,11 @@ collection APIs and these specified standard APIs:
 - `file.create_directory` for contained package artifact directories;
 - existing file, path, string, collection, environment, and direct-process APIs.
 
+The Phase 12 development compiler additionally parses `impl` blocks and lowers
+associated and instance method calls to ordinary owner-qualified direct calls.
+This feature is implemented independently in stage0 and the Rocket compiler so
+it participates in the normal stage2/stage3 determinism proof.
+
 No compiler-only syntax, source preprocessor, C++ callback, or runtime compile
 function is permitted. Stage0 and the production runtime implement the same
 public calls, and both backends run the same bootstrap primitive fixture.

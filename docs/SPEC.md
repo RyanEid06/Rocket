@@ -1,4 +1,4 @@
-# Rocket Language Specification 1.1 Draft
+# Rocket Language Specification 1.2 Development Draft
 
 This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
@@ -217,6 +217,38 @@ Every constructor argument must match its declared field. Type arguments are
 inferred from constructor values or supplied by an expected type. Fields cannot
 be assigned after construction. Aggregate equality is intentionally not
 implicit; programs match enums or compare individual fields.
+
+## Methods and associated functions (Rocket 1.2 development)
+
+An `impl` block groups functions with a struct or enum declared in the same
+module. Generic impl parameters precede the owner type. Instance methods name
+an explicit first parameter `self`; associated functions omit it:
+
+```rocket
+struct Box[T]:
+    value: T
+
+impl[T] Box[T]:
+    pub fn make(value: T) -> Box[T]:
+        return Box(value)
+
+    pub fn get(self: Box[T]) -> T:
+        return self.value
+
+let value = Box.make(42).get()
+```
+
+Dot calls are statically rewritten after receiver typing. `box.get()` is
+equivalent to the resolved function call `Box.get(box)` and evaluates `box`
+exactly once. There is no implicit receiver mutation, virtual dispatch,
+inheritance, or runtime method table. `self` must be first and its type must
+exactly match the impl owner. Individual methods use `pub`; an impl block itself
+cannot be public. Method overloads are namespaced by owner type, while duplicate
+members on the same owner are rejected.
+
+Standard String, Array, Slice, Map, and Set operations also support documented
+dot-call spellings. Their module-function spellings remain source compatible
+and both forms resolve to the same intrinsic and runtime ABI entry point.
 
 ## Enums and pattern matching
 

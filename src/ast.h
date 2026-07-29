@@ -210,6 +210,10 @@ struct Function {
   std::vector<Parameter> parameters;
   std::string returnType;
   std::vector<std::unique_ptr<Stmt>> body;
+  // Non-empty for functions declared in an impl block. The owner spelling may
+  // contain the impl's type parameters; name remains the short member name
+  // until module loading assigns its deterministic qualified identity.
+  std::string methodOwner;
 };
 
 struct TypeField { std::string name; std::string typeName; Location location; };

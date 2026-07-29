@@ -88,10 +88,13 @@ Implemented:
   CLI, and runtime ABI contracts with conformance and performance gates.
 - Additive Rocket 1.1 collection, mutation, syntax, standard-library, release,
   conformance, performance, and packaging contracts.
+- Rocket 1.2 development impl blocks with statically resolved struct/enum
+  methods, associated functions, generic specialization, module visibility, and
+  standard-library dot-call aliases in both stage0 and the self-hosted compiler.
 
 Not implemented yet:
 
-- Methods, traits, generic constraints, function values, closures, user-defined
+- Traits, generic constraints, function values, closures, user-defined
   iterators, a stable C FFI, graphics bindings, a production-scale standard
   library, third-party dependency management and registry, semantic language-
   server/debugger features, robust concurrency/async support, and non-Windows
@@ -393,15 +396,37 @@ Known limitations remain those in the implementation-state list above; no langua
   Phase 11 conformance programs. Stage2 and stage3 LLVM IR are byte-identical at
   SHA-256 `9b5c70cc2458eda810df52496697c006654f61eef7534b8557ba8132e2593bd0`.
 
+**Phase 12 - Rocket 1.2 scalable abstractions (started: methods slice)**
+
+- Added `impl` blocks for same-module structs and enums. Generic impl parameters
+  use `impl[T] Owner[T]`; instance methods declare an explicit first `self`
+  parameter and associated functions omit it.
+- Resolved methods to deterministic `Owner.member` symbols and lowered dot calls
+  to ordinary direct calls with the receiver inserted exactly once. No method
+  table, virtual dispatch, inheritance, implicit mutation, or runtime ABI change
+  was introduced.
+- Added generic method specialization, per-method `pub` visibility, public
+  cross-module calls, and String/Array/Slice/Map/Set aliases over existing
+  standard intrinsics.
+- Mirrored parsing, module mapping, type resolution, and direct-call lowering in
+  the Rocket-written compiler. Added stage0, production, self-hosted, generic,
+  enum, standard-library, and multi-module fixtures.
+- Verified pinned LLVM Debug and Release matrices (71/71 tests each) and
+  LLVM-disabled stage0 Debug and Release matrices (47/47 tests each). The
+  Rocket 1.2 development conformance suite passes 36 cases.
+- Verified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap with
+  the Phase 12 fixtures. Stage2 and stage3 LLVM IR are byte-identical at SHA-256
+  `f63bf709007604a2138a4d2ff3b16024f01e02ad7d0a10696c7d4850ec8ad70e`.
+
 ## Current next task
 
 **Phase 12 - Rocket 1.2 scalable abstractions and functional values.**
 
-Phase 11 is complete. Next, specify and implement methods/associated functions,
-traits and deterministic generic constraints, first-class functions/closures,
-and user-defined iterators in the roadmap order. Preserve the complete Rocket
-1.1 compatibility surface and deterministic bootstrap proof. Do not begin Phase
-13, graphics, or casino implementation first.
+The methods/associated-functions slice is implemented. Next, specify and
+implement traits and deterministic generic constraints, then first-class
+functions/closures and user-defined iterators in roadmap order. Preserve the
+complete Rocket 1.1 compatibility surface and deterministic bootstrap proof. Do
+not begin Phase 13, graphics, or casino implementation first.
 
 ## New-chat prompt
 

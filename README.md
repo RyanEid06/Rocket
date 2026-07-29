@@ -68,7 +68,14 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md),
 [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md),
 [Rocket 1.1 syntax additions](docs/ROCKET_1_1_SYNTAX_DICTIONARY.md),
+[Rocket 1.2 development syntax](docs/ROCKET_1_2_SYNTAX_DICTIONARY.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
+
+Phase 12 development has started with statically resolved `impl` blocks,
+generic methods and associated functions, public cross-module methods, and
+standard-library dot-call aliases. Traits, constraints, closures, function
+values, and user-defined iterators remain in progress rather than part of the
+Rocket 1.1 release contract.
 
 ## Rocket 1.1 release
 

@@ -33,6 +33,10 @@ std::string qualified(const std::string& module, const std::string& name) {
   return module.empty() ? name : module + "." + name;
 }
 
+std::string localFunctionName(const Function& function) {
+  return function.name;
+}
+
 struct LoadedModule {
   std::string name;
   std::filesystem::path path;
@@ -127,8 +131,9 @@ private:
   void buildIndexes() {
     for (auto& [name, module] : modules_) {
       for (const auto& function : module.ast.functions) {
-        module.functions.insert(function.name);
-        if (function.publicDeclaration) module.publicFunctions.insert(function.name);
+        const std::string callable = localFunctionName(function);
+        module.functions.insert(callable);
+        if (function.publicDeclaration) module.publicFunctions.insert(callable);
       }
       for (const auto& structure : module.ast.structs) {
         module.types.insert(structure.name);
@@ -217,20 +222,29 @@ private:
     return prefix ? std::optional<std::string>(*prefix + "." + field.field) : std::nullopt;
   }
 
-  std::string rewriteCallableName(LoadedModule& module, const std::string& spelling,
-                                  const Location& location) {
+  std::optional<std::string> rewriteCallableName(LoadedModule& module,
+                                                 const std::string& spelling,
+                                                 const Location& location) {
     if (spelling == "print" || spelling == "Some" || spelling == "None" ||
         spelling == "Ok" || spelling == "Err")
+      return spelling;
+    if (spelling == "String.from_int" || spelling == "String.builder")
       return spelling;
     if (module.functions.contains(spelling) || module.types.contains(spelling) ||
         module.variants.contains(spelling))
       return qualified(module.name, spelling);
     if (spelling.find('.') != std::string::npos) {
-      const std::size_t dot = spelling.rfind('.');
-      const std::string prefix = spelling.substr(0, dot);
-      const std::string member = spelling.substr(dot + 1);
-      auto alias = module.aliases.find(prefix);
-      if (alias != module.aliases.end()) {
+      // Resolve the longest imported-module prefix. The remaining suffix may
+      // be a Phase 12 associated function such as Type.make.
+      std::size_t dot = spelling.size();
+      while ((dot = spelling.rfind('.', dot - 1)) != std::string::npos) {
+        const std::string prefix = spelling.substr(0, dot);
+        const std::string member = spelling.substr(dot + 1);
+        auto alias = module.aliases.find(prefix);
+        if (alias == module.aliases.end()) {
+          if (dot == 0) break;
+          continue;
+        }
         if (alias->second.rfind("std.", 0) == 0)
           return qualified(alias->second, member);
         const auto& imported = modules_.at(alias->second);
@@ -241,7 +255,11 @@ private:
         diagnostics_.error(location, "module '" + alias->second +
                                          "' has no public callable '" + member + "'",
                            DiagnosticCode::Visibility);
+        return spelling;
       }
+      // A dotted expression that is neither a declaration nor an import is an
+      // instance method call and must retain its receiver for HIR resolution.
+      return std::nullopt;
     }
     return spelling;
   }
@@ -260,9 +278,12 @@ private:
       auto& call = static_cast<CallExpr&>(*expression);
       for (auto& argument : call.arguments) rewriteExpression(module, argument);
       if (auto name = flattenedName(*call.callee)) {
-        const std::string rewritten = rewriteCallableName(module, *name, call.callee->location);
-        call.callee = std::make_unique<LiteralExpr>(ExprKind::Name, call.callee->location,
-                                                    rewritten);
+        if (auto rewritten = rewriteCallableName(module, *name, call.callee->location)) {
+          call.callee = std::make_unique<LiteralExpr>(ExprKind::Name, call.callee->location,
+                                                      *rewritten);
+        } else {
+          rewriteExpression(module, call.callee);
+        }
       } else {
         rewriteExpression(module, call.callee);
       }
@@ -384,7 +405,12 @@ private:
     for (auto& function : module.ast.functions) {
       const std::unordered_set<std::string> parameters(function.typeParameters.begin(),
                                                         function.typeParameters.end());
-      function.name = qualified(module.name, function.name);
+      if (function.methodOwner.empty()) {
+        function.name = qualified(module.name, function.name);
+      } else {
+        rewriteTypeSpelling(module, function.methodOwner, parameters, function.location);
+        function.name = qualified(module.name, function.name);
+      }
       for (auto& parameter : function.parameters)
         rewriteTypeSpelling(module, parameter.typeName, parameters, parameter.location);
       rewriteTypeSpelling(module, function.returnType, parameters, function.location);

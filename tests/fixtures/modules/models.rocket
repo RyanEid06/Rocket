@@ -1,0 +1,12 @@
+pub struct Counter:
+    value: Int
+
+impl Counter:
+    pub fn make(value: Int) -> Counter:
+        return Counter(value)
+
+    pub fn plus(self: Counter, amount: Int) -> Counter:
+        return Counter(self.value + amount)
+
+    pub fn read(self: Counter) -> Int:
+        return self.value

@@ -40,6 +40,16 @@ int main() {
                          "formatter is idempotent", failures);
   }
 
+  rocket::Diagnostics implDiagnostics;
+  auto implFormatted = rocket::formatSource(
+      "impl.rocket", "impl [ T ] Box [ T ]:\n    fn get(self:Box[T])->T:\n        return self.value\n",
+      implDiagnostics);
+  rocket::test::expect(
+      implFormatted.has_value() &&
+          *implFormatted ==
+              "impl[T] Box[T]:\n    fn get(self: Box[T]) -> T:\n        return self.value\n",
+      "formatter preserves the generic impl owner separator", failures);
+
   rocket::Diagnostics invalidDiagnostics;
   auto invalid = rocket::formatSource("invalid.rocket", "fn main() -> Int:\n\treturn 0\n",
                                       invalidDiagnostics);

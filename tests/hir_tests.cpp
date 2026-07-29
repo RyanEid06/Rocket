@@ -152,5 +152,41 @@ int main() {
                          "aggregate construction carries a structural generic type", failures);
   }
 
+  rocket::Diagnostics methodDiagnostics;
+  auto methods = rocket::test::lowerToHir(
+      "struct Box[T]:\n"
+      "    value: T\n"
+      "impl[T] Box[T]:\n"
+      "    fn make(value: T) -> Box[T]:\n"
+      "        return Box(value)\n"
+      "    fn get(self: Box[T]) -> T:\n"
+      "        return self.value\n"
+      "fn main() -> Int:\n"
+      "    let boxed = Box.make(42)\n"
+      "    return boxed.get()\n",
+      methodDiagnostics);
+  rocket::test::expect(methods.has_value(),
+                       "generic associated and instance methods lower to HIR", failures);
+  if (methods.has_value()) {
+    const auto& returned = static_cast<const rocket::HirReturnStmt&>(
+        *methods->functions[0].body[1]);
+    const auto& call = static_cast<const rocket::HirCallExpr&>(*returned.value);
+    rocket::test::expect(call.type == rocket::Type::Int && call.arguments.size() == 1,
+                         "dot calls insert one explicit typed receiver", failures);
+  }
+
+  rocket::Diagnostics invalidMethodDiagnostics;
+  auto invalidMethod = rocket::test::lowerToHir(
+      "struct Counter:\n"
+      "    value: Int\n"
+      "impl Counter:\n"
+      "    fn broken(self: String) -> Int:\n"
+      "        return 0\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      invalidMethodDiagnostics);
+  rocket::test::expect(!invalidMethod.has_value() && invalidMethodDiagnostics.hasErrors(),
+                       "method receivers must exactly match their impl owner", failures);
+
   return rocket::test::finish(failures, "hir");
 }

@@ -137,6 +137,12 @@ stateful application code natural without abandoning memory safety.
 
 ### Phase 12 - Rocket 1.2: scalable abstractions and functional values
 
+**Progress:** The first vertical slice is implemented: same-module impl blocks,
+methods and associated functions for structs/enums, generic method
+specialization, public cross-module members, and standard-library dot-call
+aliases. Traits and constraints are the next ordered slice; function values,
+closures, and user iterators remain subsequent Phase 12 work.
+
 **Purpose:** Make large Rocket programs modular and reusable without introducing
 class inheritance or hidden control flow.
 
