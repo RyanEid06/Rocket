@@ -1,0 +1,20 @@
+struct Broken:
+    value: Int
+
+impl Broken:
+    fn iterator(self: Broken) -> Broken:
+        return self
+
+    fn has_next(self: Broken) -> Bool:
+        return false
+
+    fn value(self: Broken) -> Int:
+        return self.value
+
+    fn advance(self: Broken) -> Int:
+        return self.value
+
+fn main() -> Int:
+    for value in Broken(1):
+        print(value)
+    return 0

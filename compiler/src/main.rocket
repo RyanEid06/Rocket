@@ -53,6 +53,12 @@ struct AstParameter:
     line: Int
     column: Int
 
+struct AstTraitConstraint:
+    type_parameter: String
+    trait_name: String
+    line: Int
+    column: Int
+
 struct AstFunction:
     name: String
     public_declaration: Bool
@@ -61,6 +67,9 @@ struct AstFunction:
     result_type: String
     body: Array[AstStatement]
     method_owner: String
+    method_trait: String
+    associated_constant: Bool
+    constraints: Array[AstTraitConstraint]
     line: Int
     column: Int
 
@@ -92,6 +101,20 @@ struct AstEnumDecl:
     line: Int
     column: Int
 
+struct AstTraitMethod:
+    name: String
+    parameters: Array[AstParameter]
+    result_type: String
+    line: Int
+    column: Int
+
+struct AstTraitDecl:
+    name: String
+    public_declaration: Bool
+    methods: Array[AstTraitMethod]
+    line: Int
+    column: Int
+
 struct AstImport:
     name: String
     line: Int
@@ -101,6 +124,7 @@ struct AstModule:
     imports: Array[AstImport]
     structs: Array[AstStructDecl]
     enums: Array[AstEnumDecl]
+    traits: Array[AstTraitDecl]
     functions: Array[AstFunction]
 
 struct ParserState:
@@ -160,6 +184,10 @@ struct EnumResult:
     declaration: AstEnumDecl
     state: ParserState
 
+struct TraitResult:
+    declaration: AstTraitDecl
+    state: ParserState
+
 struct ParseResult:
     module: AstModule
     diagnostics: Array[Diagnostic]
@@ -199,6 +227,7 @@ struct HirMatchCase:
 struct HirStatement:
     kind: Int
     symbol: Int
+    extra_symbol: Int
     expressions: Array[HirExpr]
     body: Array[HirStatement]
     else_body: Array[HirStatement]
@@ -222,6 +251,10 @@ struct ScopeBinding:
     name: String
     symbol: Int
     depth: Int
+
+struct LambdaCapture:
+    name: String
+    symbol: Int
 
 struct Substitutions:
     names: Array[String]
@@ -548,6 +581,18 @@ fn kind_greater_equal() -> Int:
 fn kind_impl() -> Int:
     return 52
 
+fn kind_trait() -> Int:
+    return 53
+
+fn kind_where() -> Int:
+    return 54
+
+fn kind_fat_arrow() -> Int:
+    return 55
+
+fn kind_const() -> Int:
+    return 56
+
 fn expr_integer() -> Int:
     return 0
 
@@ -590,6 +635,9 @@ fn expr_field() -> Int:
 fn expr_propagate() -> Int:
     return 13
 
+fn expr_lambda() -> Int:
+    return 14
+
 fn statement_binding() -> Int:
     return 0
 
@@ -622,6 +670,9 @@ fn statement_match() -> Int:
 
 fn statement_index_assignment() -> Int:
     return 10
+
+fn statement_for_each() -> Int:
+    return 11
 
 fn symbol_builtin() -> Int:
     return 0
@@ -966,8 +1017,14 @@ fn keyword_kind(word: String) -> Int:
         return kind_struct()
     if word == "enum":
         return kind_enum()
+    if word == "trait":
+        return kind_trait()
     if word == "impl":
         return kind_impl()
+    if word == "where":
+        return kind_where()
+    if word == "const":
+        return kind_const()
     if word == "match":
         return kind_match()
     if word == "case":
@@ -1170,8 +1227,12 @@ fn scan_line(line_text: String, line_number: Int, start: Int, input_tokens: Arra
                 tokens = append(tokens, make_token(kind_equal_equal(), "==", line_number, column))
                 index = index + 2
             else:
-                tokens = append(tokens, make_token(kind_equal(), "=", line_number, column))
-                index = index + 1
+                if index + 1 < length and string.byte_at(line_text, index + 1) == '>':
+                    tokens = append(tokens, make_token(kind_fat_arrow(), "=>", line_number, column))
+                    index = index + 2
+                else:
+                    tokens = append(tokens, make_token(kind_equal(), "=", line_number, column))
+                    index = index + 1
             continue
         if character == '<':
             if index + 1 < length and string.byte_at(line_text, index + 1) == '=':
@@ -1359,6 +1420,28 @@ fn parse_type_parameters(state: ParserState) -> StringsResult:
 
 fn parse_primary(state: ParserState) -> ExprResult:
     let token = current_token(state)
+    if token.kind == kind_fn():
+        let open = consume_token(advance_parser(state), kind_lparen(), "expected '(' after 'fn' in lambda")
+        var next = open.state
+        var parameter_nodes: Array[AstExpr] = []
+        if not at_token(next, kind_rparen()):
+            while true:
+                let parameter = consume_token(next, kind_identifier(), "expected lambda parameter name")
+                let colon = consume_token(parameter.state, kind_colon(), "expected ':' after lambda parameter name")
+                let parameter_type = parse_type_name(colon.state)
+                let type_node = make_expression(expr_name(), parameter_type.name, [], parameter.token)
+                parameter_nodes = append(parameter_nodes, make_expression(expr_name(), parameter.token.text, [type_node], parameter.token))
+                next = parameter_type.state
+                let comma = match_token(next, kind_comma())
+                next = comma.state
+                if not comma.matched:
+                    break
+        let close = consume_token(next, kind_rparen(), "expected ')' after lambda parameters")
+        let arrow = consume_token(close.state, kind_arrow(), "expected '->' and lambda result type")
+        let result_type = parse_type_name(arrow.state)
+        let body_arrow = consume_token(result_type.state, kind_fat_arrow(), "expected '=>' before lambda expression")
+        let body = parse_expression(body_arrow.state)
+        return ExprResult(make_expression(expr_lambda(), result_type.name, collections.concat(parameter_nodes, [body.expression]), token), body.state)
     if token.kind == kind_lbracket():
         var next = advance_parser(state)
         var elements: Array[AstExpr] = []
@@ -1566,12 +1649,17 @@ fn parse_for_statement(state: ParserState) -> StatementResult:
     let name = consume_token(keyword.state, kind_identifier(), "expected loop variable name")
     let inside = consume_token(name.state, kind_in(), "expected 'in' after loop variable")
     let start = parse_expression(inside.state)
-    let range = consume_token(start.state, kind_dotdot(), "expected '..' between range bounds")
-    let end = parse_expression(range.state)
-    let colon = consume_token(end.state, kind_colon(), "expected ':' after range")
+    let range = match_token(start.state, kind_dotdot())
+    var next = range.state
+    var expressions: Array[AstExpr] = [start.expression]
+    if range.matched:
+        let end = parse_expression(next)
+        expressions = append(expressions, end.expression)
+        next = end.state
+    let colon = consume_token(next, kind_colon(), "expected ':' after for source")
     let newline = consume_token(colon.state, kind_newline(), "expected newline after range")
     let body = parse_block(newline.state)
-    return StatementResult(make_statement(statement_for(), name.token.text, "", false, [start.expression, end.expression], body.statements, [], [], keyword.token), body.state)
+    return StatementResult(make_statement(statement_for(), name.token.text, "", false, expressions, body.statements, [], [], keyword.token), body.state)
 
 fn parse_match_statement(state: ParserState) -> StatementResult:
     let keyword = consume_token(state, kind_match(), "expected 'match'")
@@ -1695,16 +1783,41 @@ fn parse_function(state: ParserState, public_declaration: Bool) -> FunctionResul
     let close = consume_token(next, kind_rparen(), "expected ')' after parameters")
     let arrow = consume_token(close.state, kind_arrow(), "expected '->' and an explicit return type")
     let result_type = parse_type_name(arrow.state)
-    let colon = consume_token(result_type.state, kind_colon(), "expected ':' before function body")
+    var next_after_type = result_type.state
+    var constraints: Array[AstTraitConstraint] = []
+    let where_clause = match_token(next_after_type, kind_where())
+    next_after_type = where_clause.state
+    if where_clause.matched:
+        while true:
+            let constrained = consume_token(next_after_type, kind_identifier(), "expected constrained type parameter")
+            let constraint_colon = consume_token(constrained.state, kind_colon(), "expected ':' in trait constraint")
+            let trait_name = parse_type_name(constraint_colon.state)
+            constraints = append(constraints, AstTraitConstraint(constrained.token.text, trait_name.name, constrained.token.line, constrained.token.column))
+            next_after_type = trait_name.state
+            let constraint_comma = match_token(next_after_type, kind_comma())
+            next_after_type = constraint_comma.state
+            if not constraint_comma.matched:
+                break
+    let colon = consume_token(next_after_type, kind_colon(), "expected ':' before function body")
     let newline = consume_token(colon.state, kind_newline(), "expected newline after function signature")
     let body = parse_block(newline.state)
-    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, "", keyword.token.line, keyword.token.column), body.state)
+    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, "", "", false, constraints, keyword.token.line, keyword.token.column), body.state)
 
 fn parse_impl(state: ParserState) -> FunctionsResult:
     let keyword = consume_token(state, kind_impl(), "expected 'impl'")
     let impl_parameters = parse_type_parameters(keyword.state)
-    let owner = parse_type_name(impl_parameters.state)
-    let colon = consume_token(owner.state, kind_colon(), "expected ':' after impl type")
+    let first_type = parse_type_name(impl_parameters.state)
+    var owner_name = first_type.name
+    var trait_name = ""
+    var after_owner = first_type.state
+    let trait_for = match_token(after_owner, kind_for())
+    after_owner = trait_for.state
+    if trait_for.matched:
+        trait_name = first_type.name
+        let parsed_owner = parse_type_name(after_owner)
+        owner_name = parsed_owner.name
+        after_owner = parsed_owner.state
+    let colon = consume_token(after_owner, kind_colon(), "expected ':' after impl type")
     let newline = consume_token(colon.state, kind_newline(), "expected newline after impl declaration")
     let opening = consume_token(newline.state, kind_indent(), "expected an indented impl body")
     var next = opening.state
@@ -1718,18 +1831,75 @@ fn parse_impl(state: ParserState) -> FunctionsResult:
         next = published.state
         if published.matched:
             public_declaration = true
+        if at_token(next, kind_const()):
+            let constant_keyword = consume_token(next, kind_const(), "expected 'const'")
+            let constant_name = consume_token(constant_keyword.state, kind_identifier(), "expected associated constant name")
+            let constant_colon = consume_token(constant_name.state, kind_colon(), "expected ':' after associated constant name")
+            let constant_type = parse_type_name(constant_colon.state)
+            let constant_equal = consume_token(constant_type.state, kind_equal(), "expected '=' in associated constant declaration")
+            let constant_value = parse_expression(constant_equal.state)
+            let constant_newline = consume_token(constant_value.state, kind_newline(), "expected newline after associated constant")
+            var constant_state = constant_newline.state
+            if collections.length(impl_parameters.values) > 0:
+                constant_state = parser_error(constant_state, constant_name.token, "associated constants in generic impl blocks are not supported")
+            if trait_name != "":
+                constant_state = parser_error(constant_state, constant_name.token, "trait impl blocks cannot declare associated constants")
+            let constant_full_name = string.concat(type_base(owner_name), string.concat(".", constant_name.token.text))
+            let returned = make_statement(statement_return(), "", "", false, [constant_value.expression], [], [], [], constant_name.token)
+            methods = append(methods, AstFunction(constant_full_name, public_declaration, impl_parameters.values, [], constant_type.name, [returned], owner_name, trait_name, true, [], constant_name.token.line, constant_name.token.column))
+            next = constant_state
+            continue
         if not at_token(next, kind_fn()):
-            next = parser_error(next, current_token(next), "expected a method declaration in impl body")
+            next = parser_error(next, current_token(next), "expected a method or associated constant in impl body")
             next = synchronize_top_level(next)
             continue
         let parsed = parse_function(next, public_declaration)
         let method = parsed.function
-        let name = string.concat(type_base(owner.name), string.concat(".", method.name))
+        var name = string.concat(type_base(owner_name), string.concat(".", method.name))
+        if trait_name != "":
+            name = string.concat(type_base(owner_name), string.concat(".", string.concat(trait_name, string.concat(".", method.name))))
         let parameters = collections.concat(impl_parameters.values, method.type_parameters)
-        methods = append(methods, AstFunction(name, method.public_declaration, parameters, method.parameters, method.result_type, method.body, owner.name, method.line, method.column))
+        methods = append(methods, AstFunction(name, method.public_declaration, parameters, method.parameters, method.result_type, method.body, owner_name, trait_name, false, method.constraints, method.line, method.column))
         next = parsed.state
     let closing = consume_token(next, kind_dedent(), "expected end of impl body")
     return FunctionsResult(methods, closing.state)
+
+fn parse_trait(state: ParserState, public_declaration: Bool) -> TraitResult:
+    let keyword = consume_token(state, kind_trait(), "expected 'trait'")
+    let name = consume_token(keyword.state, kind_identifier(), "expected trait name")
+    let colon = consume_token(name.state, kind_colon(), "expected ':' after trait name")
+    let newline = consume_token(colon.state, kind_newline(), "expected newline after trait declaration")
+    let opening = consume_token(newline.state, kind_indent(), "expected an indented trait body")
+    var next = opening.state
+    var methods: Array[AstTraitMethod] = []
+    while not at_token(next, kind_dedent()) and not at_token(next, kind_end()):
+        if at_token(next, kind_newline()):
+            next = advance_parser(next)
+            continue
+        let method_keyword = consume_token(next, kind_fn(), "expected a method signature in trait body")
+        let method_name = consume_token(method_keyword.state, kind_identifier(), "expected trait method name")
+        let open = consume_token(method_name.state, kind_lparen(), "expected '(' after trait method name")
+        next = open.state
+        var parameters: Array[AstParameter] = []
+        if not at_token(next, kind_rparen()):
+            while true:
+                let parameter = consume_token(next, kind_identifier(), "expected parameter name")
+                let parameter_colon = consume_token(parameter.state, kind_colon(), "expected ':' after parameter name")
+                let parameter_type = parse_type_name(parameter_colon.state)
+                parameters = append(parameters, AstParameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
+                next = parameter_type.state
+                let comma = match_token(next, kind_comma())
+                next = comma.state
+                if not comma.matched:
+                    break
+        let close = consume_token(next, kind_rparen(), "expected ')' after trait method parameters")
+        let arrow = consume_token(close.state, kind_arrow(), "expected '->' after trait method parameters")
+        let result = parse_type_name(arrow.state)
+        let method_newline = consume_token(result.state, kind_newline(), "expected newline after trait method signature")
+        methods = append(methods, AstTraitMethod(method_name.token.text, parameters, result.name, method_keyword.token.line, method_keyword.token.column))
+        next = method_newline.state
+    let closing = consume_token(next, kind_dedent(), "expected end of trait body")
+    return TraitResult(AstTraitDecl(name.token.text, public_declaration, methods, keyword.token.line, keyword.token.column), closing.state)
 
 fn parse_struct(state: ParserState, public_declaration: Bool) -> StructResult:
     let keyword = consume_token(state, kind_struct(), "expected 'struct'")
@@ -1801,6 +1971,7 @@ fn parse_tokens(tokens: Array[Token], lexer_diagnostics: Array[Diagnostic]) -> P
     var imports: Array[AstImport] = []
     var structs: Array[AstStructDecl] = []
     var enums: Array[AstEnumDecl] = []
+    var traits: Array[AstTraitDecl] = []
     var functions: Array[AstFunction] = []
     while not at_token(state, kind_end()):
         if at_token(state, kind_import()):
@@ -1840,6 +2011,11 @@ fn parse_tokens(tokens: Array[Token], lexer_diagnostics: Array[Diagnostic]) -> P
             enums = append(enums, enumeration.declaration)
             state = skip_newlines(enumeration.state)
             continue
+        if at_token(state, kind_trait()):
+            let parsed_trait = parse_trait(state, public_declaration)
+            traits = append(traits, parsed_trait.declaration)
+            state = skip_newlines(parsed_trait.state)
+            continue
         if at_token(state, kind_impl()):
             if public_declaration:
                 state = parser_error(state, current_token(state), "an impl block is not public; mark individual methods 'pub'")
@@ -1848,9 +2024,9 @@ fn parse_tokens(tokens: Array[Token], lexer_diagnostics: Array[Diagnostic]) -> P
             state = skip_newlines(implementation.state)
             continue
         let unexpected = current_token(state)
-        state = parser_error(state, unexpected, "expected 'fn', 'struct', 'enum', 'impl', or 'import' at top level")
+        state = parser_error(state, unexpected, "expected 'fn', 'struct', 'enum', 'trait', 'impl', or 'import' at top level")
         state = synchronize_top_level(state)
-    return ParseResult(AstModule(imports, structs, enums, functions), state.diagnostics)
+    return ParseResult(AstModule(imports, structs, enums, traits, functions), state.diagnostics)
 
 fn parse_source(source: String) -> ParseResult:
     let lexed = lex_source(source)
@@ -1858,6 +2034,9 @@ fn parse_source(source: String) -> ParseResult:
 
 fn state_symbols(state: LowerState, symbols: Array[HirSymbol]) -> LowerState:
     return LowerState(state.module, symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+
+fn state_module(state: LowerState, module: AstModule) -> LowerState:
+    return LowerState(module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_functions(state: LowerState, functions: Array[HirFunction]) -> LowerState:
     return LowerState(state.module, state.symbols, functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
@@ -2083,6 +2262,14 @@ fn mapped_local_type(module: AstModule, prefix_name: String, type_name: String) 
         mapped_arguments = append(mapped_arguments, mapped_local_type(module, prefix_name, arguments[index]))
     return make_type(base, mapped_arguments)
 
+fn mapped_local_trait(module: AstModule, prefix_name: String, trait_name: String) -> String:
+    if trait_name == "":
+        return ""
+    for index in 0..collections.length(module.traits):
+        if module.traits[index].name == trait_name:
+            return mapped_declaration_name(prefix_name, trait_name, module.traits[index].public_declaration)
+    return trait_name
+
 fn mapped_local_callable(module: AstModule, prefix_name: String, name: String) -> String:
     for index in 0..collections.length(module.functions):
         if module.functions[index].name == name:
@@ -2113,6 +2300,13 @@ fn module_qualified_callable(module: AstModule, name: String) -> Bool:
     return false
 
 fn map_module_expression(module: AstModule, prefix_name: String, expression: AstExpr) -> AstExpr:
+    if expression.kind == expr_field():
+        let raw_constant = callable_name(expression)
+        let constant_index = find_function_index(module, raw_constant)
+        if constant_index >= 0 and module.functions[constant_index].associated_constant:
+            let mapped_constant = mapped_local_callable(module, prefix_name, raw_constant)
+            let callee = AstExpr(expr_name(), mapped_constant, [], expression.line, expression.column)
+            return AstExpr(expr_call(), "", [callee], expression.line, expression.column)
     if expression.kind == expr_call() and collections.length(expression.children) > 0:
         let raw_name = callable_name(expression.children[0])
         let mapped_name = mapped_local_callable(module, prefix_name, raw_name)
@@ -2167,6 +2361,18 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
                 payload_types = append(payload_types, mapped_local_type(module, prefix_name, variant.payload_types[payload_index]))
             variants = append(variants, AstEnumVariant(mapped_declaration_name(prefix_name, variant.name, declaration.public_declaration), payload_types, variant.line, variant.column))
         enums = append(enums, AstEnumDecl(mapped_declaration_name(prefix_name, declaration.name, declaration.public_declaration), declaration.public_declaration, declaration.type_parameters, variants, declaration.line, declaration.column))
+    var traits: Array[AstTraitDecl] = []
+    for trait_index in 0..collections.length(module.traits):
+        let declaration = module.traits[trait_index]
+        var methods: Array[AstTraitMethod] = []
+        for method_index in 0..collections.length(declaration.methods):
+            let method = declaration.methods[method_index]
+            var method_parameters: Array[AstParameter] = []
+            for parameter_index in 0..collections.length(method.parameters):
+                let parameter = method.parameters[parameter_index]
+                method_parameters = append(method_parameters, AstParameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
+            methods = append(methods, AstTraitMethod(method.name, method_parameters, mapped_local_type(module, prefix_name, method.result_type), method.line, method.column))
+        traits = append(traits, AstTraitDecl(mapped_declaration_name(prefix_name, declaration.name, declaration.public_declaration), declaration.public_declaration, methods, declaration.line, declaration.column))
     var functions: Array[AstFunction] = []
     for function_index in 0..collections.length(module.functions):
         let function = module.functions[function_index]
@@ -2174,11 +2380,15 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
         for parameter_index in 0..collections.length(function.parameters):
             let parameter = function.parameters[parameter_index]
             parameters = append(parameters, AstParameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
-        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), mapped_local_type(module, prefix_name, function.method_owner), function.line, function.column))
-    return AstModule(module.imports, structs, enums, functions)
+        var constraints: Array[AstTraitConstraint] = []
+        for constraint_index in 0..collections.length(function.constraints):
+            let constraint = function.constraints[constraint_index]
+            constraints = append(constraints, AstTraitConstraint(constraint.type_parameter, mapped_local_trait(module, prefix_name, constraint.trait_name), constraint.line, constraint.column))
+        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), mapped_local_type(module, prefix_name, function.method_owner), mapped_local_trait(module, prefix_name, function.method_trait), function.associated_constant, constraints, function.line, function.column))
+    return AstModule(module.imports, structs, enums, traits, functions)
 
 fn merge_ast_modules(left: AstModule, right: AstModule) -> AstModule:
-    return AstModule(collections.concat(left.imports, right.imports), collections.concat(left.structs, right.structs), collections.concat(left.enums, right.enums), collections.concat(left.functions, right.functions))
+    return AstModule(collections.concat(left.imports, right.imports), collections.concat(left.structs, right.structs), collections.concat(left.enums, right.enums), collections.concat(left.traits, right.traits), collections.concat(left.functions, right.functions))
 
 fn load_state_module(state: ProgramLoadState, module: AstModule) -> ProgramLoadState:
     return ProgramLoadState(module, state.diagnostics, state.loaded_paths, state.active_paths)
@@ -2222,7 +2432,7 @@ fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name
     return load_state_paths(next, append(next.loaded_paths, normalized), prefix(next.active_paths, collections.length(next.active_paths) - 1))
 
 fn parse_program(source_path: String) -> ParseResult:
-    let empty = AstModule([], [], [], [])
+    let empty = AstModule([], [], [], [], [])
     let normalized = std.path.normalize(source_path)
     let loaded = load_program_module(ProgramLoadState(empty, [], [], []), normalized, "", module_root_for_source(normalized))
     return ParseResult(loaded.module, loaded.diagnostics)
@@ -2475,6 +2685,36 @@ fn find_function_index(module: AstModule, name: String) -> Int:
             return index
     return -1
 
+fn find_trait_index(module: AstModule, name: String) -> Int:
+    for index in 0..collections.length(module.traits):
+        if module.traits[index].name == name:
+            return index
+    return -1
+
+fn trait_owner_matches(function: AstFunction, concrete: String) -> Bool:
+    var substitutions = Substitutions([], [])
+    substitutions = infer_type(function.method_owner, concrete, function.type_parameters, substitutions)
+    return substitute_type(function.method_owner, substitutions) == concrete
+
+fn trait_method_function(module: AstModule, concrete: String, member: String) -> Int:
+    var selected = -1
+    for index in 0..collections.length(module.functions):
+        let function = module.functions[index]
+        if function.method_trait != "" and trait_owner_matches(function, concrete):
+            let pieces = string.split(function.name, ".")
+            if collections.length(pieces) > 0 and pieces[collections.length(pieces) - 1] == member:
+                if selected >= 0 and module.functions[selected].method_trait != function.method_trait:
+                    return -2
+                selected = index
+    return selected
+
+fn type_implements_trait(module: AstModule, concrete: String, trait_name: String) -> Bool:
+    for index in 0..collections.length(module.functions):
+        let function = module.functions[index]
+        if function.method_trait == trait_name and trait_owner_matches(function, concrete):
+            return true
+    return false
+
 fn find_enum_constructor(module: AstModule, name: String) -> EnumConstructor:
     for declaration_index in 0..collections.length(module.enums):
         let declaration = module.enums[declaration_index]
@@ -2692,6 +2932,11 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
             substitutions = infer_type(function.parameters[index].type_name, lowered.expression.type_name, function.type_parameters, substitutions)
     if collections.length(arguments) != collections.length(function.parameters):
         next = lower_error(next, expression.line, expression.column, string.concat("function '", string.concat(function.name, "' has the wrong number of arguments")))
+    for constraint_index in 0..collections.length(function.constraints):
+        let constraint = function.constraints[constraint_index]
+        let concrete = substitution_value(substitutions, constraint.type_parameter)
+        if concrete == constraint.type_parameter or not type_implements_trait(next.module, concrete, constraint.trait_name):
+            next = lower_error(next, expression.line, expression.column, string.concat("type ", string.concat(concrete, string.concat(" does not implement trait '", string.concat(constraint.trait_name, "'")))))
     var parameter_types: Array[String] = []
     for index in 0..collections.length(function.parameters):
         let required = substitute_type(function.parameters[index].type_name, substitutions)
@@ -2706,14 +2951,27 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
         let key = specialization_key(function.name, substitutions, function.type_parameters)
         symbol = find_specialization(next, key)
         if symbol < 0:
-            let added = add_hir_symbol(next, symbol_function(), key, result_type, false, parameter_types, intrinsic_none())
-            symbol = added.symbol
-            next = state_specializations(added.state, append(added.state.specializations, Specialization(key, symbol)))
-            next = state_pending(next, append(next.pending, PendingSpecialization(function_index, symbol, substitutions)))
+            if collections.length(next.pending) >= 4096:
+                next = lower_error(next, expression.line, expression.column, "generic specialization limit of 4096 exceeded")
+            else:
+                let added = add_hir_symbol(next, symbol_function(), key, result_type, false, parameter_types, intrinsic_none())
+                symbol = added.symbol
+                next = state_specializations(added.state, append(added.state.specializations, Specialization(key, symbol)))
+                next = state_pending(next, append(next.pending, PendingSpecialization(function_index, symbol, substitutions)))
     return HirExprResult(hir_expression(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression), next)
 
 fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: String) -> HirExprResult:
     let callee = expression.children[0]
+    if callee.kind == expr_name():
+        let callback_symbol = find_scope_symbol(state, callee.text)
+        if callback_symbol >= 0 and string.starts_with(state.symbols[callback_symbol].type_name, "$closure."):
+            let callback_type = state.symbols[callback_symbol].type_name
+            let callback_function = find_function_index(state.module, string.concat(callback_type, ".call"))
+            if callback_function >= 0:
+                var callback_arguments: Array[AstExpr] = [callee]
+                for callback_index in 1..collections.length(expression.children):
+                    callback_arguments = append(callback_arguments, expression.children[callback_index])
+                return user_call(state, expression, callback_function, callback_arguments)
     if callee.kind == expr_field() and collections.length(callee.children) == 1:
         let qualified_raw = callable_name(callee)
         let qualified_name = associated_standard_callable(standard_callable(state.module, qualified_raw))
@@ -2768,6 +3026,12 @@ fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: 
         let method_function = find_function_index(state.module, method_name)
         if method_function >= 0:
             return user_call(state, expression, method_function, method_arguments)
+        let trait_method = trait_method_function(state.module, probe.expression.type_name, callee.text)
+        if trait_method >= 0:
+            return user_call(state, expression, trait_method, method_arguments)
+        if trait_method == -2:
+            let ambiguous = lower_error(state, expression.line, expression.column, string.concat("ambiguous trait method '", string.concat(callee.text, "'")))
+            return HirExprResult(hir_expression(expr_call(), callee.text, "<invalid>", [], -1, -1, expression), ambiguous)
         var method_error = lower_error(state, expression.line, expression.column, string.concat("undefined method '", string.concat(method_name, "'")))
         var invalid_arguments: Array[HirExpr] = []
         for invalid_index in 0..collections.length(method_arguments):
@@ -2821,6 +3085,36 @@ fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: 
         lowered_arguments = append(lowered_arguments, lowered.expression)
     return HirExprResult(hir_expression(expr_call(), name, "<invalid>", lowered_arguments, -1, -1, expression), next)
 
+fn has_lambda_capture(captures: Array[LambdaCapture], symbol: Int) -> Bool:
+    for index in 0..collections.length(captures):
+        if captures[index].symbol == symbol:
+            return true
+    return false
+
+fn collect_lambda_captures(state: LowerState, expression: AstExpr, parameter_names: Array[String], captures: Array[LambdaCapture]) -> Array[LambdaCapture]:
+    var result = captures
+    if expression.kind == expr_name() and not contains_string(parameter_names, expression.text):
+        let symbol = find_scope_symbol(state, expression.text)
+        if symbol >= 0 and not has_lambda_capture(result, symbol):
+            result = append(result, LambdaCapture(expression.text, symbol))
+        return result
+    if expression.kind == expr_lambda():
+        return result
+    for index in 0..collections.length(expression.children):
+        result = collect_lambda_captures(state, expression.children[index], parameter_names, result)
+    return result
+
+fn rewrite_lambda_captures(expression: AstExpr, captures: Array[LambdaCapture]) -> AstExpr:
+    if expression.kind == expr_name():
+        for index in 0..collections.length(captures):
+            if captures[index].name == expression.text:
+                let receiver = AstExpr(expr_name(), "self", [], expression.line, expression.column)
+                return AstExpr(expr_field(), expression.text, [receiver], expression.line, expression.column)
+    var children: Array[AstExpr] = []
+    for index in 0..collections.length(expression.children):
+        children = append(children, rewrite_lambda_captures(expression.children[index], captures))
+    return AstExpr(expression.kind, expression.text, children, expression.line, expression.column)
+
 fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String) -> HirExprResult:
     if expression.kind == expr_integer():
         return HirExprResult(hir_expression(expression.kind, expression.text, "Int", [], -1, -1, expression), state)
@@ -2838,6 +3132,37 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
             let next = lower_error(state, expression.line, expression.column, string.concat("undefined name '", string.concat(expression.text, "'")))
             return HirExprResult(hir_expression(expression.kind, expression.text, "<invalid>", [], -1, -1, expression), next)
         return HirExprResult(hir_expression(expression.kind, expression.text, state.symbols[symbol].type_name, [], symbol, -1, expression), state)
+    if expression.kind == expr_lambda():
+        var parameter_names: Array[String] = []
+        var parameters: Array[AstParameter] = []
+        var parameter_types: Array[String] = []
+        let parameter_count = collections.length(expression.children) - 1
+        for index in 0..parameter_count:
+            let node = expression.children[index]
+            parameter_names = append(parameter_names, node.text)
+            parameters = append(parameters, AstParameter(node.text, node.children[0].text, node.line, node.column))
+            parameter_types = append(parameter_types, node.children[0].text)
+        let body = expression.children[parameter_count]
+        let captures = collect_lambda_captures(state, body, parameter_names, [])
+        let closure_name = string.concat("$closure.", string.from_int(collections.length(state.module.structs)))
+        var fields: Array[AstTypeField] = []
+        var captured_values: Array[HirExpr] = []
+        for index in 0..collections.length(captures):
+            let symbol = captures[index].symbol
+            fields = append(fields, AstTypeField(captures[index].name, state.symbols[symbol].type_name, expression.line, expression.column))
+            captured_values = append(captured_values, hir_expression(expr_name(), captures[index].name, state.symbols[symbol].type_name, [], symbol, -1, expression))
+        let closure = AstStructDecl(closure_name, false, [], fields, expression.line, expression.column)
+        let self_parameter = AstParameter("self", closure_name, expression.line, expression.column)
+        let rewritten = rewrite_lambda_captures(body, captures)
+        let returned = AstStatement(statement_return(), "", "", false, [rewritten], [], [], [], expression.line, expression.column)
+        let callable_name = string.concat(closure_name, ".call")
+        let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), expression.text, [returned], closure_name, "", false, [], expression.line, expression.column)
+        var module = state.module
+        module = AstModule(module.imports, append(module.structs, closure), module.enums, module.traits, append(module.functions, callable))
+        var next = state_module(state, module)
+        let added = add_hir_symbol(next, symbol_function(), callable_name, expression.text, false, collections.concat([closure_name], parameter_types), intrinsic_none())
+        next = state_pending(added.state, append(added.state.pending, PendingSpecialization(collections.length(module.functions) - 1, added.symbol, Substitutions([], []))))
+        return HirExprResult(hir_expression(expr_call(), "$struct", closure_name, captured_values, -1, 0, expression), next)
     if expression.kind == expr_array():
         return lower_array_expression(state, expression, expected)
     if expression.kind == expr_call():
@@ -2861,6 +3186,10 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         let result_type = make_type("Slice", [collection_element_type(collection.expression.type_name)])
         return HirExprResult(hir_expression(expression.kind, "", result_type, [collection.expression, start.expression, end.expression], -1, -1, expression), next)
     if expression.kind == expr_field():
+        let constant_name = callable_name(expression)
+        let constant_index = find_function_index(state.module, constant_name)
+        if constant_index >= 0 and state.module.functions[constant_index].associated_constant:
+            return user_call(state, expression, constant_index, [])
         let value = lower_hir_expression(state, expression.children[0], "")
         let declaration_index = find_struct_index(value.state.module, type_base(value.expression.type_name))
         var next = value.state
@@ -2916,7 +3245,7 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
     return HirExprResult(hir_expression(expression.kind, expression.text, "<invalid>", [], -1, -1, expression), next)
 
 fn hir_statement(kind: Int, symbol: Int, expressions: Array[HirExpr], body: Array[HirStatement], else_body: Array[HirStatement], cases: Array[HirMatchCase], source: AstStatement) -> HirStatement:
-    return HirStatement(kind, symbol, expressions, body, else_body, cases, source.line, source.column)
+    return HirStatement(kind, symbol, -1, expressions, body, else_body, cases, source.line, source.column)
 
 fn lower_hir_block(state: LowerState, statements: Array[AstStatement], nested: Bool) -> HirStatementsResult:
     let original_depth = state.depth
@@ -3101,6 +3430,41 @@ fn lower_hir_statement(state: LowerState, statement: AstStatement) -> HirStateme
         next = state_loop_depth(body.state, body.state.loop_depth - 1)
         return HirStatementResult(hir_statement(statement_while(), -1, [condition.expression], body.statements, [], [], statement), next)
     if statement.kind == statement_for():
+        if collections.length(statement.expressions) == 1:
+            let source = statement.expressions[0]
+            let iterator_field = AstExpr(expr_field(), "iterator", [source], statement.line, statement.column)
+            let iterator_call = AstExpr(expr_call(), "", [iterator_field], statement.line, statement.column)
+            let iterator = lower_hir_expression(state, iterator_call, "")
+            var next = iterator.state
+            let original_depth = next.depth
+            let original_bindings = collections.length(next.bindings)
+            let cursor_name = string.concat("$iterator.", string.from_int(statement.line))
+            let added_cursor = add_hir_symbol(next, symbol_local(), cursor_name, iterator.expression.type_name, true, [], intrinsic_none())
+            next = add_scope_binding(added_cursor.state, cursor_name, added_cursor.symbol)
+            let cursor = AstExpr(expr_name(), cursor_name, [], statement.line, statement.column)
+            let condition_field = AstExpr(expr_field(), "has_next", [cursor], statement.line, statement.column)
+            let condition_call = AstExpr(expr_call(), "", [condition_field], statement.line, statement.column)
+            let condition = lower_hir_expression(next, condition_call, "Bool")
+            let value_field = AstExpr(expr_field(), "value", [cursor], statement.line, statement.column)
+            let value_call = AstExpr(expr_call(), "", [value_field], statement.line, statement.column)
+            let value = lower_hir_expression(condition.state, value_call, "")
+            let advance_field = AstExpr(expr_field(), "advance", [cursor], statement.line, statement.column)
+            let advance_call = AstExpr(expr_call(), "", [advance_field], statement.line, statement.column)
+            let advance = lower_hir_expression(value.state, advance_call, iterator.expression.type_name)
+            next = advance.state
+            if condition.expression.type_name != "Bool":
+                next = lower_error(next, statement.line, statement.column, "iterator has_next() must return Bool")
+            if advance.expression.type_name != iterator.expression.type_name:
+                next = lower_error(next, statement.line, statement.column, "iterator advance() must preserve its type")
+            next = state_depth(next, original_depth + 1)
+            let added_value = add_hir_symbol(next, symbol_loop(), statement.name, value.expression.type_name, false, [], intrinsic_none())
+            next = add_scope_binding(added_value.state, statement.name, added_value.symbol)
+            next = state_loop_depth(next, next.loop_depth + 1)
+            let body = lower_hir_block(next, statement.body, false)
+            next = state_loop_depth(body.state, body.state.loop_depth - 1)
+            next = state_bindings(state_depth(next, original_depth), prefix(next.bindings, original_bindings))
+            let lowered = HirStatement(statement_for_each(), added_cursor.symbol, added_value.symbol, [iterator.expression, condition.expression, value.expression, advance.expression], body.statements, [], [], statement.line, statement.column)
+            return HirStatementResult(lowered, next)
         let start = lower_hir_expression(state, statement.expressions[0], "Int")
         let end = lower_hir_expression(start.state, statement.expressions[1], "Int")
         var next = end.state
@@ -3156,11 +3520,22 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
     let stack_type = AstStructDecl("std.collections.Stack", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], 1, 1)
     let buffer_type = AstStructDecl("std.collections.ByteBuffer", true, [], [AstTypeField("bytes", "Array[Char]", 1, 1)], 1, 1)
     let builtins = [pop_type, removal_type, tuple2_type, tuple3_type, map_type, set_type, queue_type, stack_type, buffer_type]
-    let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.functions)
+    let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.traits, module.functions)
     var state = LowerState(complete_module, [], [], [], 0, "", 0, Substitutions([], []), [], [], parser_diagnostics)
     let print_symbol = add_hir_symbol(state, symbol_builtin(), "print", "Unit", false, [], intrinsic_print())
     state = print_symbol.state
     var function_symbols: Array[Int] = []
+    for trait_index in 0..collections.length(complete_module.traits):
+        let trait_declaration = complete_module.traits[trait_index]
+        for earlier in 0..trait_index:
+            if complete_module.traits[earlier].name == trait_declaration.name:
+                state = lower_error(state, trait_declaration.line, trait_declaration.column, string.concat("duplicate trait '", string.concat(trait_declaration.name, "'")))
+        if collections.length(trait_declaration.methods) == 0:
+            state = lower_error(state, trait_declaration.line, trait_declaration.column, "trait must declare at least one method")
+        for method_index in 0..collections.length(trait_declaration.methods):
+            let method = trait_declaration.methods[method_index]
+            if collections.length(method.parameters) == 0 or method.parameters[0].name != "self" or method.parameters[0].type_name != "Self":
+                state = lower_error(state, method.line, method.column, "trait methods require first parameter 'self: Self'")
     for index in 0..collections.length(complete_module.functions):
         let function = complete_module.functions[index]
         if function.method_owner != "":
@@ -3175,6 +3550,34 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
                     else:
                         if parameter.type_name != function.method_owner:
                             state = lower_error(state, parameter.line, parameter.column, string.concat("method receiver must have impl type ", function.method_owner))
+            if function.method_trait != "":
+                let trait_index = find_trait_index(complete_module, function.method_trait)
+                if trait_index < 0:
+                    state = lower_error(state, function.line, function.column, string.concat("unknown trait '", string.concat(function.method_trait, "'")))
+                else:
+                    let pieces = string.split(function.name, ".")
+                    let member = pieces[collections.length(pieces) - 1]
+                    var required_method = -1
+                    let trait_declaration = complete_module.traits[trait_index]
+                    for method_index in 0..collections.length(trait_declaration.methods):
+                        if trait_declaration.methods[method_index].name == member:
+                            required_method = method_index
+                    if required_method < 0:
+                        state = lower_error(state, function.line, function.column, string.concat("trait has no method '", string.concat(member, "'")))
+                    else:
+                        let required = trait_declaration.methods[required_method]
+                        let self_substitution = Substitutions(["Self"], [function.method_owner])
+                        if collections.length(required.parameters) != collections.length(function.parameters) or substitute_type(required.result_type, self_substitution) != function.result_type:
+                            state = lower_error(state, function.line, function.column, "trait method signature does not match")
+                        for parameter_index in 0..collections.length(required.parameters):
+                            if parameter_index < collections.length(function.parameters) and substitute_type(required.parameters[parameter_index].type_name, self_substitution) != function.parameters[parameter_index].type_name:
+                                state = lower_error(state, function.line, function.column, "trait method signature does not match")
+        for constraint_index in 0..collections.length(function.constraints):
+            let constraint = function.constraints[constraint_index]
+            if not contains_string(function.type_parameters, constraint.type_parameter):
+                state = lower_error(state, constraint.line, constraint.column, string.concat("unknown constrained type parameter '", string.concat(constraint.type_parameter, "'")))
+            if find_trait_index(complete_module, constraint.trait_name) < 0:
+                state = lower_error(state, constraint.line, constraint.column, string.concat("unknown trait '", string.concat(constraint.trait_name, "'")))
         if collections.length(function.type_parameters) == 0:
             var parameter_types: Array[String] = []
             for parameter_index in 0..collections.length(function.parameters):
@@ -3194,7 +3597,7 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
         let lowered = lower_hir_function(state, pending.function_index, pending.symbol, pending.substitutions)
         state = state_functions(lowered.state, append(lowered.state.functions, lowered.function))
         pending_index = pending_index + 1
-    return HirResult(HirModule(state.symbols, complete_module.structs, complete_module.enums, state.functions), state.diagnostics)
+    return HirResult(HirModule(state.symbols, state.module.structs, state.module.enums, state.functions), state.diagnostics)
 
 fn analyze_source(source: String) -> HirResult:
     let parsed = parse_source(source)
@@ -3439,6 +3842,35 @@ fn lower_mir_for(state: MirState, statement: HirStatement) -> MirState:
     next = finish_mir_block(next, goto_terminator(condition_block.block))
     return start_mir_block(next, exit_block.block)
 
+fn lower_mir_for_each(state: MirState, statement: HirStatement) -> MirState:
+    let iterator = lower_mir_expression(state, statement.expressions[0])
+    let cursor = add_mir_local(iterator.state, iterator.operand.type_name, false)
+    var next = bind_mir_symbol(cursor.state, statement.symbol, cursor.operand.local)
+    next = emit_copy(next, cursor.operand.local, iterator.operand, iterator.operand.type_name)
+    let condition_block = allocate_mir_block(next)
+    let body_block = allocate_mir_block(condition_block.state)
+    let advance_block = allocate_mir_block(body_block.state)
+    let exit_block = allocate_mir_block(advance_block.state)
+    next = finish_mir_block(exit_block.state, goto_terminator(condition_block.block))
+    next = start_mir_block(next, condition_block.block)
+    let condition = lower_mir_expression(next, statement.expressions[1])
+    next = finish_mir_block(condition.state, branch_terminator(condition.operand, body_block.block, exit_block.block))
+    next = start_mir_block(next, body_block.block)
+    let value = lower_mir_expression(next, statement.expressions[2])
+    let variable = add_mir_local(value.state, value.operand.type_name, false)
+    next = bind_mir_symbol(variable.state, statement.extra_symbol, variable.operand.local)
+    next = emit_copy(next, variable.operand.local, value.operand, value.operand.type_name)
+    next = mir_state_loops(next, append(next.break_targets, exit_block.block), append(next.continue_targets, advance_block.block))
+    next = lower_mir_block(next, statement.body)
+    next = mir_state_loops(next, prefix(next.break_targets, collections.length(next.break_targets) - 1), prefix(next.continue_targets, collections.length(next.continue_targets) - 1))
+    if not next.terminated:
+        next = finish_mir_block(next, goto_terminator(advance_block.block))
+    next = start_mir_block(next, advance_block.block)
+    let advanced = lower_mir_expression(next, statement.expressions[3])
+    next = emit_copy(advanced.state, cursor.operand.local, advanced.operand, advanced.operand.type_name)
+    next = finish_mir_block(next, goto_terminator(condition_block.block))
+    return start_mir_block(next, exit_block.block)
+
 fn lower_mir_match(state: MirState, statement: HirStatement) -> MirState:
     let value = lower_mir_expression(state, statement.expressions[0])
     let tag = add_mir_local(value.state, "Int", false)
@@ -3513,6 +3945,8 @@ fn lower_mir_statement(state: MirState, statement: HirStatement) -> MirState:
         return lower_mir_while(state, statement)
     if statement.kind == statement_for():
         return lower_mir_for(state, statement)
+    if statement.kind == statement_for_each():
+        return lower_mir_for_each(state, statement)
     if statement.kind == statement_break():
         if collections.length(state.break_targets) == 0:
             return mir_error(state, statement.line, statement.column, "MIR break has no target")
@@ -4757,10 +5191,10 @@ fn right_trim_line(value: String) -> String:
     return string.slice(value, 0, end)
 
 fn formatter_word(kind: Int) -> Bool:
-    return kind == kind_identifier() or kind == kind_integer() or kind == kind_float() or kind == kind_character() or kind == kind_string() or kind == kind_impl() or(kind >= kind_fn() and kind <= kind_import())
+    return kind == kind_identifier() or kind == kind_integer() or kind == kind_float() or kind == kind_character() or kind == kind_string() or kind == kind_impl() or kind == kind_trait() or kind == kind_where() or kind == kind_const() or(kind >= kind_fn() and kind <= kind_import())
 
 fn formatter_binary(kind: Int) -> Bool:
-    return kind == kind_plus() or kind == kind_minus() or kind == kind_star() or kind == kind_slash() or kind == kind_equal() or kind == kind_equal_equal() or kind == kind_bang_equal() or kind == kind_less() or kind == kind_less_equal() or kind == kind_greater() or kind == kind_greater_equal() or kind == kind_arrow() or kind == kind_and() or kind == kind_or()
+    return kind == kind_plus() or kind == kind_minus() or kind == kind_star() or kind == kind_slash() or kind == kind_equal() or kind == kind_equal_equal() or kind == kind_bang_equal() or kind == kind_less() or kind == kind_less_equal() or kind == kind_greater() or kind == kind_greater_equal() or kind == kind_arrow() or kind == kind_fat_arrow() or kind == kind_and() or kind == kind_or()
 
 fn formatter_prefix_context(kind: Int) -> Bool:
     return kind == kind_lparen() or kind == kind_lbracket() or kind == kind_comma() or kind == kind_equal() or kind == kind_colon() or kind == kind_return() or kind == kind_in() or formatter_binary(kind)
@@ -5044,7 +5478,7 @@ fn emit_assembly_command(input: String, output: String) -> Int:
     return direct_process(toolchain.clang, ["-S", "-O2", "-Wno-override-module", temporary_ir, "-o", output])
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.1.0")
+    print("Rocket compiler 1.2.0")
     print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
@@ -5093,7 +5527,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.1.0")
+        print("rocketc 1.2.0")
         return 0
     if collections.length(arguments) == 2 and arguments[0] == "check":
         return check_command(arguments[1])

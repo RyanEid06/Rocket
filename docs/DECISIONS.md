@@ -236,3 +236,19 @@ Individual methods control module visibility with `pub`; impl blocks are not
 visibility-bearing declarations. Trait-driven selection is reserved for the
 next Phase 12 slice and must extend, rather than silently change, this direct
 inherent-member rule.
+
+## D018 - Static traits, monomorphic closures, and persistent iterators
+
+**Accepted for Rocket 1.2.** Traits are compile-time constraints rather than
+runtime objects. Inherent members have priority and trait resolution must yield
+one deterministic implementation. Lambdas lower to immutable ARC-managed
+capture structs plus direct call functions, preserving the existing ABI and
+ownership model. User iteration is a persistent four-method protocol whose
+advance operation returns a new cursor; loop lowering is explicit control-flow
+MIR.
+
+Associated constants are zero-argument direct functions, not global storage.
+Rocket 1.2 keeps parameters positional, required, and fixed-arity, and caps user
+monomorphization at 4,096 specializations per compilation. These choices avoid
+hidden mutation, dynamic dispatch, order-dependent overload selection, and
+unbounded accidental code growth.

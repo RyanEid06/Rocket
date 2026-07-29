@@ -218,7 +218,7 @@ inferred from constructor values or supplied by an expected type. Fields cannot
 be assigned after construction. Aggregate equality is intentionally not
 implicit; programs match enums or compare individual fields.
 
-## Methods and associated functions (Rocket 1.2 development)
+## Methods, traits, and functional values (Rocket 1.2)
 
 An `impl` block groups functions with a struct or enum declared in the same
 module. Generic impl parameters precede the owner type. Instance methods name
@@ -249,6 +249,54 @@ members on the same owner are rejected.
 Standard String, Array, Slice, Map, and Set operations also support documented
 dot-call spellings. Their module-function spellings remain source compatible
 and both forms resolve to the same intrinsic and runtime ABI entry point.
+
+Traits declare statically dispatched behavior. Every trait method has an
+explicit first parameter `self: Self`; an implementation uses
+`impl Trait for Owner`. Generic functions constrain type parameters with a
+`where` clause:
+
+```rocket
+trait Readable:
+    fn read(self: Self) -> Int
+
+impl Readable for Counter:
+    fn read(self: Counter) -> Int:
+        return self.value
+
+fn twice[T](value: T) -> Int where T: Readable:
+    return value.read() * 2
+```
+
+Selection is deterministic and entirely compile-time. Inherent members take
+precedence; otherwise exactly one matching trait implementation is required.
+Missing, incomplete, duplicate, and ambiguous implementations are errors.
+There are no trait objects, virtual calls, or runtime method tables.
+
+An expression lambda has typed parameters, an explicit result type, and one
+expression body: `fn(value: Int) -> Int => value + offset`. Its value is a
+compiler-generated immutable struct containing the captured local values and a
+direct `call` method. Captures use normal ARC ownership and may escape. Generic
+functions accept closure values and specialize to their concrete closure type;
+Rocket 1.2 does not expose a dynamically erased function type.
+
+`for item in source:` uses the statically resolved persistent iterator protocol:
+`source.iterator() -> Cursor`, `Cursor.has_next() -> Bool`,
+`Cursor.value() -> T`, and `Cursor.advance() -> Cursor`. The source and cursor
+are evaluated once, `continue` advances the cursor, and iterator operations are
+ordinary inherent or trait methods. Integer `start..end` loops retain their
+existing exclusive-end meaning.
+
+An impl may declare a non-generic associated constant with
+`pub const NAME: Type = expression`. `Owner.NAME` lowers to an ordinary
+zero-argument direct function, so initialization is deterministic and adds no
+global storage or runtime ABI. Trait and generic-impl associated constants are
+reserved.
+
+Rocket 1.2 parameters remain positional, required, and fixed-arity. Default,
+named, and variadic arguments are intentionally reserved until their evaluation
+order and C-ABI interaction can be specified without ambiguity. User generic
+specialization is deterministic and capped at 4,096 generated instances per
+compilation.
 
 ## Enums and pattern matching
 

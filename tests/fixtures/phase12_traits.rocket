@@ -1,0 +1,17 @@
+pub trait Readable:
+    fn read(self: Self) -> Int
+
+struct Counter:
+    value: Int
+
+impl Readable for Counter:
+    pub fn read(self: Counter) -> Int:
+        return self.value
+
+fn doubled[T](value: T) -> Int where T: Readable:
+    return value.read() * 2
+
+fn main() -> Int:
+    let counter = Counter(21)
+    print(doubled(counter))
+    return 0

@@ -241,6 +241,14 @@ The Rocket compiler's internal generic `append` helper delegates to the public
 `std.collections.append` intrinsic. That production use exercises the Phase 11
 growth semantics throughout parsing and lowering during every bootstrap stage.
 
-The self-hosted frontend recognizes the same Phase 12 impl grammar and performs
-the same typed direct-call rewrite as stage0. Canonical owner-qualified symbols
-keep generic method specializations deterministic across bootstrap stages.
+The self-hosted frontend recognizes the complete Phase 12 grammar: impls,
+traits and constraints, expression lambdas, associated constants, and
+user-defined iteration. Both compilers perform the same typed direct-call
+rewrites. Canonical owner/trait-qualified symbols and structural specialization
+keys keep selection deterministic across bootstrap stages.
+
+Closures add compiler-generated immutable aggregate declarations and direct
+`call` functions to HIR; captured managed values therefore use the existing ARC
+MIR and backend paths. `for` over an iterable lowers to explicit cursor,
+condition, value, body, advance, and exit blocks. Associated constants lower to
+zero-argument functions. None of these features changes runtime ABI v1.

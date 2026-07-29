@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace rocket {
@@ -218,7 +219,7 @@ struct HirPropagateExpr final : HirExpr {
 
 enum class HirStmtKind {
   Binding, Assignment, IndexAssignment, Return, Expression, If, While, For, Break,
-  Continue, Match
+  Continue, Match, ForEach
 };
 
 struct HirStmt {
@@ -354,9 +355,42 @@ struct HirTypeDeclaration {
   std::vector<HirVariant> variants;
 };
 
+struct HirForEachStmt final : HirStmt {
+  HirForEachStmt(Location location, SymbolId cursor, SymbolId variable,
+                 std::unique_ptr<HirExpr> iterator,
+                 std::unique_ptr<HirExpr> condition,
+                 std::unique_ptr<HirExpr> value,
+                 std::unique_ptr<HirExpr> advance, HirBlock body)
+      : HirStmt(HirStmtKind::ForEach, std::move(location)), cursor(cursor),
+        variable(variable), iterator(std::move(iterator)),
+        condition(std::move(condition)), value(std::move(value)),
+        advance(std::move(advance)), body(std::move(body)) {}
+  SymbolId cursor;
+  SymbolId variable;
+  std::unique_ptr<HirExpr> iterator;
+  std::unique_ptr<HirExpr> condition;
+  std::unique_ptr<HirExpr> value;
+  std::unique_ptr<HirExpr> advance;
+  HirBlock body;
+};
+
+struct HirTraitMethod {
+  std::string name;
+  std::vector<Type> parameterTypes;
+  Type result = Type::Invalid;
+};
+
+struct HirTraitDeclaration {
+  std::string name;
+  Location location;
+  bool publicDeclaration = false;
+  std::vector<HirTraitMethod> methods;
+};
+
 struct HirModule {
   std::vector<HirSymbol> symbols;
   std::vector<HirTypeDeclaration> typeDeclarations;
+  std::vector<HirTraitDeclaration> traitDeclarations;
   std::vector<HirFunction> functions;
 
   const HirSymbol& symbol(SymbolId id) const { return symbols.at(id); }
@@ -386,12 +420,36 @@ private:
     Type result = Type::Invalid;
     Intrinsic intrinsic = Intrinsic::None;
   };
+  struct TraitImplementation {
+    std::string traitName;
+    Type ownerPattern = Type::Invalid;
+    std::string member;
+    const Function* function = nullptr;
+  };
+  struct LambdaCapture {
+    std::string name;
+    SymbolId source = InvalidSymbol;
+    std::uint32_t field = 0;
+  };
+  struct PendingLambda {
+    const LambdaExpr* lambda = nullptr;
+    SymbolId symbol = InvalidSymbol;
+    std::uint32_t declaration = 0;
+    Type closureType = Type::Invalid;
+    std::vector<LambdaCapture> captures;
+  };
+  struct ActiveCapture {
+    SymbolId closure = InvalidSymbol;
+    std::uint32_t field = 0;
+    Type type = Type::Invalid;
+  };
 
   SymbolId addSymbol(SymbolKind kind, const std::string& name, Type type, bool mutableBinding,
                      const Location& location, std::vector<Type> parameterTypes = {},
                      Intrinsic intrinsic = Intrinsic::None);
   HirFunction lowerFunction(const Function& function, SymbolId symbol);
   HirFunction lowerSpecialization(const PendingSpecialization& specialization);
+  HirFunction lowerLambda(const PendingLambda& lambda);
   HirBlock lowerBlock(const std::vector<std::unique_ptr<Stmt>>& body, Type returnType, bool nested);
   std::unique_ptr<HirStmt> lowerStatement(const Stmt& statement, Type returnType);
   std::unique_ptr<HirExpr> lowerExpression(const Expr& expression,
@@ -413,22 +471,36 @@ private:
   void registerBuiltinTypes();
   void registerStandardLibrary();
   void registerTypeDeclarations();
+  void registerTraits();
+  bool typeImplementsTrait(const Type& type, const std::string& trait,
+                           const Location& location, bool diagnoseAmbiguity = true) const;
+  std::string traitMethodTarget(const Type& type, const std::string& member,
+                                const Location& location) const;
   SymbolId findVariable(const std::string& name) const;
   bool definitelyReturns(const HirBlock& body) const;
+  void collectLambdaCaptures(const Expr& expression,
+                             const std::unordered_set<std::string>& parameters,
+                             std::vector<LambdaCapture>& captures) const;
 
   const Module& ast_;
   Diagnostics& diagnostics_;
   HirModule hir_;
   std::unordered_map<std::string, SymbolId> functions_;
   std::unordered_map<std::string, const Function*> genericFunctions_;
+  std::unordered_set<std::string> associatedConstants_;
   std::unordered_map<std::string, std::uint32_t> typeDeclarations_;
+  std::unordered_map<std::string, std::uint32_t> traits_;
+  std::vector<TraitImplementation> traitImplementations_;
   std::unordered_map<std::string, VariantTarget> variants_;
   std::unordered_map<std::string, StandardFunction> standardFunctions_;
   std::unordered_map<std::string, SymbolId> specializations_;
   std::vector<PendingSpecialization> pendingSpecializations_;
+  std::vector<PendingLambda> pendingLambdas_;
+  std::size_t userSpecializationCount_ = 0;
   std::vector<SymbolId> functionSymbols_;
   std::vector<Scope> scopes_;
   Substitutions currentSubstitutions_;
+  std::unordered_map<std::string, ActiveCapture> activeCaptures_;
   Type currentReturnType_ = Type::Invalid;
   int loopDepth_ = 0;
 };

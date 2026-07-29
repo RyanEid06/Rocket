@@ -44,9 +44,11 @@ struct LoadedModule {
   std::unordered_set<std::string> functions;
   std::unordered_set<std::string> types;
   std::unordered_set<std::string> variants;
+  std::unordered_set<std::string> traits;
   std::unordered_set<std::string> publicFunctions;
   std::unordered_set<std::string> publicTypes;
   std::unordered_set<std::string> publicVariants;
+  std::unordered_set<std::string> publicTraits;
   std::unordered_map<std::string, std::string> aliases;
 };
 
@@ -72,6 +74,8 @@ public:
         merged.structs.push_back(std::move(structure));
       for (auto& enumeration : module.ast.enums)
         merged.enums.push_back(std::move(enumeration));
+      for (auto& trait : module.ast.traits)
+        merged.traits.push_back(std::move(trait));
       for (auto& function : module.ast.functions)
         merged.functions.push_back(std::move(function));
     }
@@ -147,6 +151,10 @@ private:
           if (enumeration.publicDeclaration) module.publicVariants.insert(variant.name);
         }
       }
+      for (const auto& trait : module.ast.traits) {
+        module.traits.insert(trait.name);
+        if (trait.publicDeclaration) module.publicTraits.insert(trait.name);
+      }
       for (const auto& import : module.ast.imports) {
         const std::string alias = lastComponent(import.name);
         if (auto found = module.aliases.find(alias);
@@ -180,6 +188,8 @@ private:
                              ? target.publicFunctions.contains(member)
                          : std::string(category) == "type"
                              ? target.publicTypes.contains(member)
+                         : std::string(category) == "trait"
+                             ? target.publicTraits.contains(member)
                              : target.publicVariants.contains(member);
     if (!visible)
       diagnostics_.error(location, "module '" + alias->second + "' has no public " +
@@ -310,6 +320,15 @@ private:
       rewriteExpression(module, static_cast<FieldExpr&>(*expression).value); break;
     case ExprKind::Propagate:
       rewriteExpression(module, static_cast<PropagateExpr&>(*expression).value); break;
+    case ExprKind::Lambda: {
+      auto& lambda = static_cast<LambdaExpr&>(*expression);
+      const std::unordered_set<std::string> parameters;
+      for (auto& parameter : lambda.parameters)
+        rewriteTypeSpelling(module, parameter.typeName, parameters, parameter.location);
+      rewriteTypeSpelling(module, lambda.returnType, parameters, lambda.location);
+      rewriteExpression(module, lambda.body);
+      break;
+    }
     default: break;
     }
   }
@@ -357,7 +376,7 @@ private:
       case StmtKind::For: {
         auto& loop = static_cast<ForStmt&>(*statement);
         rewriteExpression(module, loop.start);
-        rewriteExpression(module, loop.end);
+        if (loop.end) rewriteExpression(module, loop.end);
         rewriteBlock(module, loop.body, typeParameters);
         break;
       }
@@ -402,14 +421,47 @@ private:
           rewriteTypeSpelling(module, payload, parameters, variant.location);
       }
     }
+    for (auto& trait : module.ast.traits) {
+      trait.name = qualified(module.name, trait.name);
+      const std::unordered_set<std::string> self{"Self"};
+      for (auto& method : trait.methods) {
+        for (auto& parameter : method.parameters)
+          rewriteTypeSpelling(module, parameter.typeName, self, parameter.location);
+        rewriteTypeSpelling(module, method.returnType, self, method.location);
+      }
+    }
     for (auto& function : module.ast.functions) {
       const std::unordered_set<std::string> parameters(function.typeParameters.begin(),
                                                         function.typeParameters.end());
       if (function.methodOwner.empty()) {
         function.name = qualified(module.name, function.name);
       } else {
+        const std::size_t memberSeparator = function.name.rfind('.');
+        const std::string member = memberSeparator == std::string::npos
+                                       ? function.name
+                                       : function.name.substr(memberSeparator + 1);
         rewriteTypeSpelling(module, function.methodOwner, parameters, function.location);
-        function.name = qualified(module.name, function.name);
+        if (!function.methodTrait.empty()) {
+          if (module.traits.contains(function.methodTrait)) {
+            function.methodTrait = qualified(module.name, function.methodTrait);
+          } else if (auto external = externalMember(module, function.methodTrait,
+                                                    function.location, "trait")) {
+            function.methodTrait = *external;
+          }
+          function.name = function.methodOwner.substr(0, function.methodOwner.find('[')) +
+                          "." + function.methodTrait + "." + member;
+        } else {
+          function.name = function.methodOwner.substr(0, function.methodOwner.find('[')) +
+                          "." + member;
+        }
+      }
+      for (auto& constraint : function.constraints) {
+        if (module.traits.contains(constraint.traitName)) {
+          constraint.traitName = qualified(module.name, constraint.traitName);
+        } else if (auto external = externalMember(module, constraint.traitName,
+                                                  constraint.location, "trait")) {
+          constraint.traitName = *external;
+        }
       }
       for (auto& parameter : function.parameters)
         rewriteTypeSpelling(module, parameter.typeName, parameters, parameter.location);

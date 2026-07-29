@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rocket VERSION 1.1.0 LANGUAGES CXX)
+project(Rocket VERSION 1.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -170,6 +170,22 @@ add_test(NAME cli_check_phase12_methods
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_methods.rocket")
 add_test(NAME cli_check_phase12_modules
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
+foreach(feature traits closures iterators associated_constants)
+  add_test(NAME cli_check_phase12_${feature}
+    COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_${feature}.rocket")
+endforeach()
+add_test(NAME cli_phase12_constraint_failure
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_constraint_failure.rocket"
+    "-DEXPECTED=does not implement trait 'Readable'"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+add_test(NAME cli_phase12_iterator_failure
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_iterator_failure.rocket"
+    "-DEXPECTED=iterator advance() must return Broken"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
 add_test(NAME cli_phase11_invalid_key
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -243,7 +259,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.1.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.2.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest
@@ -334,6 +350,18 @@ if(LLVM_FOUND)
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
   set_tests_properties(cli_run_phase12_modules PROPERTIES
     PASS_REGULAR_EXPRESSION "42")
+  add_test(NAME cli_run_phase12_traits
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_traits.rocket")
+  set_tests_properties(cli_run_phase12_traits PROPERTIES PASS_REGULAR_EXPRESSION "42")
+  add_test(NAME cli_run_phase12_closures
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_closures.rocket")
+  set_tests_properties(cli_run_phase12_closures PROPERTIES PASS_REGULAR_EXPRESSION "42")
+  add_test(NAME cli_run_phase12_iterators
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_iterators.rocket")
+  set_tests_properties(cli_run_phase12_iterators PROPERTIES PASS_REGULAR_EXPRESSION "6")
+  add_test(NAME cli_run_phase12_associated_constants
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_associated_constants.rocket")
+  set_tests_properties(cli_run_phase12_associated_constants PROPERTIES PASS_REGULAR_EXPRESSION "42")
 
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
@@ -389,6 +417,15 @@ if(LLVM_FOUND)
     PASS_REGULAR_EXPRESSION "42"
     FIXTURES_REQUIRED self_hosted_compiler
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  foreach(feature traits closures iterators associated_constants)
+    add_test(NAME cli_self_hosted_run_phase12_${feature}
+      COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+        "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_${feature}.rocket")
+    set_tests_properties(cli_self_hosted_run_phase12_${feature} PROPERTIES
+      PASS_REGULAR_EXPRESSION "(42|6)"
+      FIXTURES_REQUIRED self_hosted_compiler
+      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  endforeach()
 
   add_test(NAME cli_array_bounds_failure
     COMMAND ${CMAKE_COMMAND}
@@ -470,4 +507,10 @@ else()
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
   set_tests_properties(cli_run_stage0_phase12_modules PROPERTIES
     PASS_REGULAR_EXPRESSION "42")
+  foreach(feature traits closures iterators associated_constants)
+    add_test(NAME cli_run_stage0_phase12_${feature}
+      COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_${feature}.rocket")
+    set_tests_properties(cli_run_stage0_phase12_${feature} PROPERTIES
+      PASS_REGULAR_EXPRESSION "(42|6)")
+  endforeach()
 endif()

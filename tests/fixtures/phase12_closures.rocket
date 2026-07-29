@@ -1,0 +1,12 @@
+fn identity[F](value: F) -> F:
+    return value
+
+fn apply[F](callback: F, value: Int) -> Int:
+    return callback(value)
+
+fn main() -> Int:
+    let offset = 2
+    let add = fn(value: Int) -> Int => value + offset
+    let escaped = identity(add)
+    print(apply(escaped, 40))
+    return 0

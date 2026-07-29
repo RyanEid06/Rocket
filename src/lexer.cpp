@@ -35,7 +35,10 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::KwNot: return "not";
   case TokenKind::KwStruct: return "struct";
   case TokenKind::KwEnum: return "enum";
+  case TokenKind::KwTrait: return "trait";
   case TokenKind::KwImpl: return "impl";
+  case TokenKind::KwWhere: return "where";
+  case TokenKind::KwConst: return "const";
   case TokenKind::KwMatch: return "match";
   case TokenKind::KwCase: return "case";
   case TokenKind::KwPub: return "pub";
@@ -47,6 +50,7 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::Colon: return ":";
   case TokenKind::Comma: return ",";
   case TokenKind::Arrow: return "->";
+  case TokenKind::FatArrow: return "=>";
   case TokenKind::Plus: return "+";
   case TokenKind::Minus: return "-";
   case TokenKind::Star: return "*";
@@ -80,7 +84,8 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       {"false", TokenKind::KwFalse}, {"and", TokenKind::KwAnd},
       {"or", TokenKind::KwOr}, {"not", TokenKind::KwNot},
       {"struct", TokenKind::KwStruct}, {"enum", TokenKind::KwEnum},
-      {"impl", TokenKind::KwImpl},
+      {"trait", TokenKind::KwTrait}, {"impl", TokenKind::KwImpl},
+      {"where", TokenKind::KwWhere}, {"const", TokenKind::KwConst},
       {"match", TokenKind::KwMatch}, {"case", TokenKind::KwCase},
       {"pub", TokenKind::KwPub}, {"import", TokenKind::KwImport}};
 
@@ -198,7 +203,13 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       }
       break;
     case '-': two('>', TokenKind::Arrow, TokenKind::Minus); break;
-    case '=': two('=', TokenKind::EqualEqual, TokenKind::Equal); break;
+    case '=':
+      if (i + 1 < text.size() && text[i + 1] == '>') {
+        emit(TokenKind::FatArrow, "=>", lineNumber, column); i += 2;
+      } else {
+        two('=', TokenKind::EqualEqual, TokenKind::Equal);
+      }
+      break;
     case '<': two('=', TokenKind::LessEqual, TokenKind::Less); break;
     case '>': two('=', TokenKind::GreaterEqual, TokenKind::Greater); break;
     case '!':

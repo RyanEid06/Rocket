@@ -26,6 +26,8 @@ private:
 
   Function parseFunction(bool isPublic);
   std::vector<Function> parseImpl();
+  TraitDecl parseTrait(bool isPublic);
+  TraitMethod parseTraitMethod();
   StructDecl parseStruct(bool isPublic);
   EnumDecl parseEnum(bool isPublic);
   std::vector<std::string> parseTypeParameters();

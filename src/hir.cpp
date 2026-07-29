@@ -1,5 +1,6 @@
 #include "hir.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <sstream>
@@ -473,26 +474,132 @@ void HirLowerer::registerTypeDeclarations() {
   }
 }
 
+void HirLowerer::registerTraits() {
+  for (const auto& trait : ast_.traits) {
+    if (traits_.contains(trait.name)) {
+      diagnostics_.error(trait.location, "duplicate trait '" + trait.name + "'");
+      continue;
+    }
+    HirTraitDeclaration lowered;
+    lowered.name = trait.name;
+    lowered.location = trait.location;
+    lowered.publicDeclaration = trait.publicDeclaration;
+    std::unordered_set<std::string> methods;
+    const Substitutions self{{"Self", typeParameter("Self")}};
+    if (trait.methods.empty())
+      diagnostics_.error(trait.location, "trait must declare at least one method");
+    for (const auto& method : trait.methods) {
+      if (!methods.insert(method.name).second)
+        diagnostics_.error(method.location, "duplicate trait method '" + method.name + "'");
+      HirTraitMethod signature;
+      signature.name = method.name;
+      for (const auto& parameter : method.parameters)
+        signature.parameterTypes.push_back(
+            resolveType(parameter.typeName, parameter.location, self));
+      signature.result = resolveType(method.returnType, method.location, self);
+      if (method.parameters.empty() || method.parameters.front().name != "self" ||
+          signature.parameterTypes.front() != typeParameter("Self"))
+        diagnostics_.error(method.location,
+                           "trait methods require first parameter 'self: Self'");
+      lowered.methods.push_back(std::move(signature));
+    }
+    traits_.emplace(lowered.name,
+                    static_cast<std::uint32_t>(hir_.traitDeclarations.size()));
+    hir_.traitDeclarations.push_back(std::move(lowered));
+  }
+}
+
+bool HirLowerer::typeImplementsTrait(const Type& type, const std::string& trait,
+                                     const Location& location,
+                                     bool diagnoseAmbiguity) const {
+  auto matches = [](const Type& pattern, const Type& actual, auto&& matches,
+                    std::unordered_map<std::string, Type>& substitutions) -> bool {
+    if (pattern.kind == TypeKind::TypeParameter) {
+      auto [found, inserted] = substitutions.emplace(pattern.declaration, actual);
+      return inserted || found->second == actual;
+    }
+    if (pattern.kind != actual.kind || pattern.declaration != actual.declaration ||
+        pattern.arguments.size() != actual.arguments.size())
+      return false;
+    for (std::size_t index = 0; index < pattern.arguments.size(); ++index)
+      if (!matches(pattern.arguments[index], actual.arguments[index], matches,
+                   substitutions))
+        return false;
+    return true;
+  };
+  std::unordered_set<std::string> matchingImplementations;
+  for (const auto& implementation : traitImplementations_) {
+    if (implementation.traitName != trait) continue;
+    std::unordered_map<std::string, Type> substitutions;
+    if (matches(implementation.ownerPattern, type, matches, substitutions))
+      matchingImplementations.insert(typeName(implementation.ownerPattern));
+  }
+  const std::size_t count = matchingImplementations.size();
+  if (count > 1 && diagnoseAmbiguity)
+    diagnostics_.error(location, "ambiguous implementations of trait '" + trait +
+                                     "' for " + typeName(type));
+  return count == 1;
+}
+
+std::string HirLowerer::traitMethodTarget(const Type& type, const std::string& member,
+                                          const Location& location) const {
+  auto matches = [](const Type& pattern, const Type& actual, auto&& matches,
+                    std::unordered_map<std::string, Type>& substitutions) -> bool {
+    if (pattern.kind == TypeKind::TypeParameter) {
+      auto [found, inserted] = substitutions.emplace(pattern.declaration, actual);
+      return inserted || found->second == actual;
+    }
+    if (pattern.kind != actual.kind || pattern.declaration != actual.declaration ||
+        pattern.arguments.size() != actual.arguments.size())
+      return false;
+    for (std::size_t index = 0; index < pattern.arguments.size(); ++index)
+      if (!matches(pattern.arguments[index], actual.arguments[index], matches,
+                   substitutions))
+        return false;
+    return true;
+  };
+  const Function* selected = nullptr;
+  for (const auto& implementation : traitImplementations_) {
+    if (implementation.member != member) continue;
+    std::unordered_map<std::string, Type> substitutions;
+    if (!matches(implementation.ownerPattern, type, matches, substitutions)) continue;
+    if (selected && selected != implementation.function) {
+      diagnostics_.error(location, "ambiguous trait method '" + member + "' for " +
+                                       typeName(type));
+      return {};
+    }
+    selected = implementation.function;
+  }
+  return selected ? selected->name : std::string();
+}
+
 std::optional<HirModule> HirLowerer::lower() {
   hir_ = {};
   functions_.clear();
   genericFunctions_.clear();
+  associatedConstants_.clear();
   typeDeclarations_.clear();
+  traits_.clear();
+  traitImplementations_.clear();
   variants_.clear();
   specializations_.clear();
   standardFunctions_.clear();
   pendingSpecializations_.clear();
+  pendingLambdas_.clear();
+  userSpecializationCount_ = 0;
   functionSymbols_.clear();
 
   registerBuiltinTypes();
   registerStandardLibrary();
   registerTypeDeclarations();
+  registerTraits();
 
   const SymbolId print = addSymbol(SymbolKind::BuiltinFunction, "print", Type::Unit, false,
                                    {"<builtin>", 1, 1}, {}, Intrinsic::Print);
   functions_.emplace("print", print);
 
   for (const auto& function : ast_.functions) {
+    if (function.associatedConstant) associatedConstants_.insert(function.name);
     if (!function.methodOwner.empty()) {
       Substitutions parameters;
       for (const auto& parameter : function.typeParameters) {
@@ -508,7 +615,9 @@ std::optional<HirModule> HirLowerer::lower() {
       const std::string member = memberSeparator == std::string::npos
                                      ? function.name
                                      : function.name.substr(memberSeparator + 1);
-      if (function.name != owner.declaration + "." + member)
+      const std::string expectedName = owner.declaration + "." +
+          (function.methodTrait.empty() ? std::string() : function.methodTrait + ".") + member;
+      if (function.name != expectedName)
         diagnostics_.error(function.location,
                            "impl owner must be declared in the same module");
       for (std::size_t index = 0; index < function.parameters.size(); ++index) {
@@ -525,6 +634,61 @@ std::optional<HirModule> HirLowerer::lower() {
           diagnostics_.error(function.parameters[index].location,
                              "method receiver must have impl type " + typeName(owner));
       }
+      if (!function.methodTrait.empty()) {
+        auto trait = traits_.find(function.methodTrait);
+        if (trait == traits_.end()) {
+          diagnostics_.error(function.location,
+                             "unknown trait '" + function.methodTrait + "'");
+        } else {
+          const auto& declaration = hir_.traitDeclarations[trait->second];
+          const HirTraitMethod* required = nullptr;
+          for (const auto& method : declaration.methods)
+            if (method.name == member) required = &method;
+          if (!required) {
+            diagnostics_.error(function.location, "trait '" + function.methodTrait +
+                                                     "' has no method '" + member + "'");
+          } else {
+            Substitutions self{{"Self", owner}};
+            std::vector<Type> actualParameters;
+            for (const auto& parameter : function.parameters)
+              actualParameters.push_back(resolveType(parameter.typeName,
+                                                     parameter.location, parameters));
+            std::vector<Type> requiredParameters;
+            for (const auto& parameter : required->parameterTypes)
+              requiredParameters.push_back(substitute(parameter, self));
+            const Type actualResult = resolveType(function.returnType, function.location,
+                                                  parameters);
+            if (actualParameters != requiredParameters ||
+                actualResult != substitute(required->result, self))
+              diagnostics_.error(function.location,
+                                 "trait method signature does not match '" +
+                                     function.methodTrait + "." + member + "'");
+          }
+        }
+        bool duplicate = false;
+        for (const auto& implementation : traitImplementations_)
+          if (implementation.traitName == function.methodTrait &&
+              implementation.ownerPattern == owner && implementation.member == member)
+            duplicate = true;
+        if (duplicate)
+          diagnostics_.error(function.location, "duplicate trait implementation for " +
+                                                   typeName(owner));
+        else
+          traitImplementations_.push_back(
+              {function.methodTrait, owner, member, &function});
+      }
+    }
+    std::unordered_set<std::string> constrained;
+    for (const auto& constraint : function.constraints) {
+      if (std::find(function.typeParameters.begin(), function.typeParameters.end(),
+                    constraint.typeParameter) == function.typeParameters.end())
+        diagnostics_.error(constraint.location, "trait constraint names unknown type parameter '" +
+                                                    constraint.typeParameter + "'");
+      if (!traits_.contains(constraint.traitName))
+        diagnostics_.error(constraint.location, "unknown trait '" + constraint.traitName + "'");
+      const std::string key = constraint.typeParameter + ":" + constraint.traitName;
+      if (!constrained.insert(key).second)
+        diagnostics_.error(constraint.location, "duplicate trait constraint '" + key + "'");
     }
     if (functions_.contains(function.name) || genericFunctions_.contains(function.name)) {
       diagnostics_.error(function.location, "duplicate function '" + function.name + "'");
@@ -547,6 +711,25 @@ std::optional<HirModule> HirLowerer::lower() {
     functions_.emplace(function.name, symbol);
   }
 
+  for (const auto& implementation : traitImplementations_) {
+    const auto trait = traits_.find(implementation.traitName);
+    if (trait == traits_.end()) continue;
+    const auto& declaration = hir_.traitDeclarations[trait->second];
+    for (const auto& required : declaration.methods) {
+      bool found = false;
+      for (const auto& candidate : traitImplementations_)
+        if (candidate.traitName == implementation.traitName &&
+            candidate.ownerPattern == implementation.ownerPattern &&
+            candidate.member == required.name)
+          found = true;
+      if (!found)
+        diagnostics_.error(implementation.function->location,
+                           "implementation of trait '" + implementation.traitName +
+                               "' for " + typeName(implementation.ownerPattern) +
+                               " is missing method '" + required.name + "'");
+    }
+  }
+
   auto main = functions_.find("main");
   if (main == functions_.end()) {
     diagnostics_.error({"<module>", 1, 1}, "program must define fn main() -> Int",
@@ -562,9 +745,18 @@ std::optional<HirModule> HirLowerer::lower() {
     if (functionSymbols_[index] != InvalidSymbol)
       hir_.functions.push_back(lowerFunction(ast_.functions[index], functionSymbols_[index]));
   }
-  for (std::size_t index = 0; index < pendingSpecializations_.size(); ++index) {
-    const PendingSpecialization specialization = pendingSpecializations_[index];
-    hir_.functions.push_back(lowerSpecialization(specialization));
+  std::size_t specializationIndex = 0;
+  std::size_t lambdaIndex = 0;
+  while (specializationIndex < pendingSpecializations_.size() ||
+         lambdaIndex < pendingLambdas_.size()) {
+    if (specializationIndex < pendingSpecializations_.size()) {
+      const PendingSpecialization specialization =
+          pendingSpecializations_[specializationIndex++];
+      hir_.functions.push_back(lowerSpecialization(specialization));
+    } else {
+      const PendingLambda lambda = pendingLambdas_[lambdaIndex++];
+      hir_.functions.push_back(lowerLambda(lambda));
+    }
   }
 
   if (diagnostics_.hasErrors()) return std::nullopt;
@@ -843,6 +1035,65 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
   }
   case StmtKind::For: {
     const auto& loop = static_cast<const ForStmt&>(statement);
+    if (!loop.rangeLoop) {
+      auto source = lowerExpression(*loop.start);
+      auto method = [&](const Type& receiver, const std::string& member) {
+        std::string target = libraryMethodFunction(receiver, member);
+        if (target.empty() &&
+            (receiver.kind == TypeKind::Struct || receiver.kind == TypeKind::Enum))
+          target = receiver.declaration + "." + member;
+        if (!target.empty() && !functions_.contains(target) &&
+            !genericFunctions_.contains(target) && !standardFunctions_.contains(target))
+          target.clear();
+        if (target.empty()) target = traitMethodTarget(receiver, member, loop.location);
+        return target;
+      };
+      std::string iteratorTarget = method(source->type, "iterator");
+      if (iteratorTarget.empty())
+        diagnostics_.error(loop.location,
+                           "for source type " + typeName(source->type) +
+                               " has no iterator() method");
+      std::vector<std::unique_ptr<HirExpr>> iteratorArguments;
+      iteratorArguments.push_back(std::move(source));
+      auto iterator = lowerResolvedCall(iteratorTarget, loop.location,
+                                        std::move(iteratorArguments));
+      const Type cursorType = iterator->type;
+      const SymbolId cursor = addSymbol(SymbolKind::Local,
+                                        "$iterator." + std::to_string(hir_.symbols.size()),
+                                        cursorType, true, loop.location);
+      auto cursorValue = [&]() {
+        return std::make_unique<HirNameExpr>(loop.location, cursorType, cursor);
+      };
+      auto callCursor = [&](const std::string& member) {
+        const std::string target = method(cursorType, member);
+        if (target.empty())
+          diagnostics_.error(loop.location, "iterator type " + typeName(cursorType) +
+                                                 " has no " + member + "() method");
+        std::vector<std::unique_ptr<HirExpr>> arguments;
+        arguments.push_back(cursorValue());
+        return lowerResolvedCall(target, loop.location, std::move(arguments));
+      };
+      auto condition = callCursor("has_next");
+      auto value = callCursor("value");
+      auto advance = callCursor("advance");
+      if (condition->type != Type::Invalid && condition->type != Type::Bool)
+        diagnostics_.error(loop.location, "iterator has_next() must return Bool");
+      if (advance->type != Type::Invalid && advance->type != cursorType)
+        diagnostics_.error(loop.location, "iterator advance() must return " +
+                                             typeName(cursorType));
+      scopes_.emplace_back();
+      const SymbolId variable = addSymbol(SymbolKind::LoopVariable, loop.name,
+                                          value->type, false, loop.location);
+      scopes_.back().emplace(loop.name, variable);
+      ++loopDepth_;
+      auto body = lowerBlock(loop.body, returnType, false);
+      --loopDepth_;
+      scopes_.pop_back();
+      return std::make_unique<HirForEachStmt>(
+          loop.location, cursor, variable, std::move(iterator),
+          std::move(condition), std::move(value), std::move(advance),
+          std::move(body));
+    }
     auto start = lowerExpression(*loop.start, Type::Int);
     auto end = lowerExpression(*loop.end, Type::Int);
     if (start->type != Type::Invalid && start->type != Type::Int)
@@ -994,6 +1245,14 @@ SymbolId HirLowerer::specializeFunction(
       inferred.emplace(parameter, Type::Invalid);
     }
   }
+  for (const auto& constraint : function.constraints) {
+    auto inferredType = inferred.find(constraint.typeParameter);
+    if (inferredType != inferred.end() && inferredType->second != Type::Invalid &&
+        !typeImplementsTrait(inferredType->second, constraint.traitName, location))
+      diagnostics_.error(location, "type " + typeName(inferredType->second) +
+                                       " does not implement trait '" +
+                                       constraint.traitName + "'");
+  }
 
   std::string key = function.name + "[";
   for (std::size_t index = 0; index < function.typeParameters.size(); ++index) {
@@ -1003,6 +1262,14 @@ SymbolId HirLowerer::specializeFunction(
   key += ']';
   auto existing = specializations_.find(key);
   if (existing != specializations_.end()) return existing->second;
+
+  constexpr std::size_t MaxUserSpecializations = 4096;
+  if (userSpecializationCount_ >= MaxUserSpecializations) {
+    diagnostics_.error(location,
+                       "generic specialization limit of 4096 exceeded");
+    return InvalidSymbol;
+  }
+  ++userSpecializationCount_;
 
   std::vector<Type> parameters;
   for (const auto& pattern : patterns) parameters.push_back(substitute(pattern, inferred));
@@ -1014,6 +1281,103 @@ SymbolId HirLowerer::specializeFunction(
   pendingSpecializations_.push_back({&function, symbol, std::move(inferred),
                                      std::move(parameters), std::move(result)});
   return symbol;
+}
+
+void HirLowerer::collectLambdaCaptures(
+    const Expr& expression, const std::unordered_set<std::string>& parameters,
+    std::vector<LambdaCapture>& captures) const {
+  auto addName = [&](const LiteralExpr& name) {
+    if (parameters.contains(name.value)) return;
+    const SymbolId symbol = findVariable(name.value);
+    if (symbol == InvalidSymbol) return;
+    for (const auto& capture : captures)
+      if (capture.source == symbol) return;
+    captures.push_back({name.value, symbol,
+                        static_cast<std::uint32_t>(captures.size())});
+  };
+  switch (expression.kind) {
+  case ExprKind::Name: addName(static_cast<const LiteralExpr&>(expression)); break;
+  case ExprKind::Unary:
+    collectLambdaCaptures(*static_cast<const UnaryExpr&>(expression).operand,
+                          parameters, captures); break;
+  case ExprKind::Binary: {
+    const auto& binary = static_cast<const BinaryExpr&>(expression);
+    collectLambdaCaptures(*binary.left, parameters, captures);
+    collectLambdaCaptures(*binary.right, parameters, captures);
+    break;
+  }
+  case ExprKind::Call: {
+    const auto& call = static_cast<const CallExpr&>(expression);
+    collectLambdaCaptures(*call.callee, parameters, captures);
+    for (const auto& argument : call.arguments)
+      collectLambdaCaptures(*argument, parameters, captures);
+    break;
+  }
+  case ExprKind::Array:
+    for (const auto& element : static_cast<const ArrayExpr&>(expression).elements)
+      collectLambdaCaptures(*element, parameters, captures);
+    break;
+  case ExprKind::Index: {
+    const auto& index = static_cast<const IndexExpr&>(expression);
+    collectLambdaCaptures(*index.collection, parameters, captures);
+    collectLambdaCaptures(*index.index, parameters, captures);
+    break;
+  }
+  case ExprKind::Slice: {
+    const auto& slice = static_cast<const SliceExpr&>(expression);
+    collectLambdaCaptures(*slice.collection, parameters, captures);
+    collectLambdaCaptures(*slice.start, parameters, captures);
+    collectLambdaCaptures(*slice.end, parameters, captures);
+    break;
+  }
+  case ExprKind::Field:
+    collectLambdaCaptures(*static_cast<const FieldExpr&>(expression).value,
+                          parameters, captures); break;
+  case ExprKind::Propagate:
+    collectLambdaCaptures(*static_cast<const PropagateExpr&>(expression).value,
+                          parameters, captures); break;
+  case ExprKind::Lambda: break;
+  default: break;
+  }
+}
+
+HirFunction HirLowerer::lowerLambda(const PendingLambda& pending) {
+  currentSubstitutions_.clear();
+  currentReturnType_ = hir_.symbol(pending.symbol).type;
+  scopes_.clear();
+  scopes_.emplace_back();
+  activeCaptures_.clear();
+  loopDepth_ = 0;
+
+  HirFunction result;
+  result.symbol = pending.symbol;
+  result.location = pending.lambda->location;
+  result.result = currentReturnType_;
+  const SymbolId closure = addSymbol(SymbolKind::Parameter, "$closure",
+                                     pending.closureType, false,
+                                     pending.lambda->location);
+  scopes_.back().emplace("$closure", closure);
+  result.parameters.push_back({closure});
+  for (const auto& capture : pending.captures)
+    activeCaptures_.emplace(
+        capture.name,
+        ActiveCapture{closure, capture.field, hir_.symbol(capture.source).type});
+  for (const auto& parameter : pending.lambda->parameters) {
+    const Type type = resolveType(parameter.typeName, parameter.location);
+    const SymbolId symbol = addSymbol(SymbolKind::Parameter, parameter.name, type,
+                                      false, parameter.location);
+    scopes_.back().emplace(parameter.name, symbol);
+    result.parameters.push_back({symbol});
+  }
+  auto value = lowerExpression(*pending.lambda->body, currentReturnType_);
+  if (value->type != Type::Invalid && value->type != currentReturnType_)
+    diagnostics_.error(pending.lambda->body->location,
+                       "lambda result is " + typeName(value->type) + ", expected " +
+                           typeName(currentReturnType_));
+  result.body.push_back(std::make_unique<HirReturnStmt>(pending.lambda->location,
+                                                        std::move(value)));
+  activeCaptures_.clear();
+  return result;
 }
 
 std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
@@ -1093,7 +1457,6 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
     return std::make_unique<HirCallExpr>(location, result, callee,
                                          std::move(arguments));
   }
-
   if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end()) {
     const SymbolId callee = specializeFunction(*generic->second, arguments, location);
     const Type result = callee == InvalidSymbol ? Type::Invalid : hir_.symbol(callee).type;
@@ -1150,6 +1513,15 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                                             static_cast<const LiteralExpr&>(expression).value);
   case ExprKind::Name: {
     const auto& name = static_cast<const LiteralExpr&>(expression).value;
+    if (auto capture = activeCaptures_.find(name); capture != activeCaptures_.end()) {
+      auto closure = std::make_unique<HirNameExpr>(
+          expression.location, hir_.symbol(capture->second.closure).type,
+          capture->second.closure);
+      return std::make_unique<HirFieldExpr>(expression.location,
+                                            capture->second.type,
+                                            std::move(closure),
+                                            capture->second.field);
+    }
     const SymbolId symbol = findVariable(name);
     if (symbol == InvalidSymbol) {
       diagnostics_.error(expression.location, "undefined name '" + name + "'",
@@ -1223,6 +1595,33 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
   }
   case ExprKind::Call: {
     const auto& call = static_cast<const CallExpr&>(expression);
+    if (call.callee->kind == ExprKind::Name) {
+      const std::string& name = static_cast<const LiteralExpr&>(*call.callee).value;
+      const SymbolId variable = findVariable(name);
+      if (variable != InvalidSymbol) {
+        const Type closureType = hir_.symbol(variable).type;
+        if (closureType.kind == TypeKind::Struct &&
+            closureType.declaration.rfind("$closure.", 0) == 0) {
+          std::vector<std::unique_ptr<HirExpr>> arguments;
+          arguments.push_back(std::make_unique<HirNameExpr>(
+              call.callee->location, closureType, variable));
+          for (const auto& argument : call.arguments)
+            arguments.push_back(lowerExpression(*argument));
+          return lowerResolvedCall(closureType.declaration + ".call",
+                                   expression.location, std::move(arguments));
+        }
+      }
+    }
+    if (call.callee->kind == ExprKind::Lambda) {
+      auto closure = lowerExpression(*call.callee);
+      const Type closureType = closure->type;
+      std::vector<std::unique_ptr<HirExpr>> arguments;
+      arguments.push_back(std::move(closure));
+      for (const auto& argument : call.arguments)
+        arguments.push_back(lowerExpression(*argument));
+      return lowerResolvedCall(closureType.declaration + ".call",
+                               expression.location, std::move(arguments));
+    }
     if (call.callee->kind == ExprKind::Field) {
       const auto& field = static_cast<const FieldExpr&>(*call.callee);
       if (field.value->kind == ExprKind::Name) {
@@ -1246,6 +1645,12 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       if (target.empty() &&
           (receiverType.kind == TypeKind::Struct || receiverType.kind == TypeKind::Enum))
         target = receiverType.declaration + "." + field.field;
+      if (!target.empty() && !functions_.contains(target) &&
+          !genericFunctions_.contains(target) && !standardFunctions_.contains(target))
+        target.clear();
+      if (target.empty() &&
+          (receiverType.kind == TypeKind::Struct || receiverType.kind == TypeKind::Enum))
+        target = traitMethodTarget(receiverType, field.field, expression.location);
       if (target.empty()) target = typeName(receiverType) + "." + field.field;
       return lowerResolvedCall(target, expression.location, std::move(arguments));
     }
@@ -1538,6 +1943,14 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
   }
   case ExprKind::Field: {
     const auto& field = static_cast<const FieldExpr&>(expression);
+    if (field.value->kind == ExprKind::Name) {
+      const auto& owner = static_cast<const LiteralExpr&>(*field.value);
+      const std::string target = owner.value + "." + field.field;
+      if (associatedConstants_.contains(target)) {
+        std::vector<std::unique_ptr<HirExpr>> arguments;
+        return lowerResolvedCall(target, expression.location, std::move(arguments));
+      }
+    }
     auto value = lowerExpression(*field.value);
     const std::uint32_t declarationIndex = findTypeDeclaration(value->type);
     if (value->type.kind != TypeKind::Struct ||
@@ -1589,6 +2002,54 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     return std::make_unique<HirPropagateExpr>(expression.location, success,
                                               std::move(value), currentReturnType_,
                                               declarationIndex);
+  }
+  case ExprKind::Lambda: {
+    const auto& lambda = static_cast<const LambdaExpr&>(expression);
+    std::unordered_set<std::string> parameterNames;
+    std::vector<Type> parameterTypes;
+    for (const auto& parameter : lambda.parameters) {
+      if (!parameterNames.insert(parameter.name).second)
+        diagnostics_.error(parameter.location,
+                           "duplicate lambda parameter '" + parameter.name + "'");
+      parameterTypes.push_back(resolveType(parameter.typeName, parameter.location,
+                                           currentSubstitutions_));
+    }
+    const Type resultType = resolveType(lambda.returnType, lambda.location,
+                                        currentSubstitutions_);
+    std::vector<LambdaCapture> captures;
+    collectLambdaCaptures(*lambda.body, parameterNames, captures);
+    const std::string closureName = "$closure." +
+                                    std::to_string(pendingLambdas_.size());
+    HirTypeDeclaration declaration;
+    declaration.kind = HirTypeDeclKind::Struct;
+    declaration.name = closureName;
+    declaration.location = lambda.location;
+    declaration.builtin = true;
+    for (const auto& capture : captures)
+      declaration.fields.push_back({capture.name, hir_.symbol(capture.source).type,
+                                    lambda.location});
+    const std::uint32_t declarationIndex =
+        static_cast<std::uint32_t>(hir_.typeDeclarations.size());
+    typeDeclarations_.emplace(closureName, declarationIndex);
+    hir_.typeDeclarations.push_back(std::move(declaration));
+    const Type closureType{TypeKind::Struct, closureName};
+    std::vector<Type> callableParameters{closureType};
+    callableParameters.insert(callableParameters.end(), parameterTypes.begin(),
+                              parameterTypes.end());
+    const std::string callableName = closureName + ".call";
+    const SymbolId callable = addSymbol(SymbolKind::Function, callableName,
+                                        resultType, false, lambda.location,
+                                        callableParameters);
+    functions_.emplace(callableName, callable);
+    pendingLambdas_.push_back(
+        {&lambda, callable, declarationIndex, closureType, captures});
+    std::vector<std::unique_ptr<HirExpr>> capturedValues;
+    for (const auto& capture : captures)
+      capturedValues.push_back(std::make_unique<HirNameExpr>(
+          lambda.location, hir_.symbol(capture.source).type, capture.source));
+    return std::make_unique<HirAggregateExpr>(
+        expression.location, closureType, declarationIndex, 0,
+        std::move(capturedValues));
   }
   }
   return std::make_unique<HirLiteralExpr>(expression.location, Type::Invalid, "0");

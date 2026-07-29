@@ -51,6 +51,8 @@ Module Parser::parseModule() {
       module.structs.push_back(parseStruct(isPublic));
     } else if (at(TokenKind::KwEnum)) {
       module.enums.push_back(parseEnum(isPublic));
+    } else if (at(TokenKind::KwTrait)) {
+      module.traits.push_back(parseTrait(isPublic));
     } else if (at(TokenKind::KwImpl)) {
       if (isPublic)
         diagnostics_.error(current().location,
@@ -59,7 +61,7 @@ Module Parser::parseModule() {
       for (auto& method : methods) module.functions.push_back(std::move(method));
     } else {
       diagnostics_.error(current().location,
-                         "expected 'fn', 'struct', 'enum', 'impl', or 'import' at top level",
+                         "expected 'fn', 'struct', 'enum', 'trait', 'impl', or 'import' at top level",
                          DiagnosticCode::Syntax);
       synchronize();
       continue;
@@ -72,7 +74,12 @@ Module Parser::parseModule() {
 std::vector<Function> Parser::parseImpl() {
   consume(TokenKind::KwImpl, "expected 'impl'");
   auto implParameters = parseTypeParameters();
-  const std::string owner = parseTypeName();
+  std::string trait;
+  std::string owner = parseTypeName();
+  if (match(TokenKind::KwFor)) {
+    trait = std::move(owner);
+    owner = parseTypeName();
+  }
   consume(TokenKind::Colon, "expected ':' after impl type");
   consume(TokenKind::Newline, "expected newline after impl declaration");
   consume(TokenKind::Indent, "expected an indented impl body");
@@ -80,9 +87,37 @@ std::vector<Function> Parser::parseImpl() {
   while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
     if (match(TokenKind::Newline)) continue;
     const bool isPublic = match(TokenKind::KwPub);
+    if (match(TokenKind::KwConst)) {
+      const Token name = consume(TokenKind::Identifier,
+                                 "expected associated constant name");
+      consume(TokenKind::Colon, "expected ':' after associated constant name");
+      const std::string resultType = parseTypeName();
+      consume(TokenKind::Equal, "expected '=' in associated constant declaration");
+      auto value = parseExpression();
+      consume(TokenKind::Newline, "expected newline after associated constant");
+      Function constant;
+      constant.name = owner.substr(0, owner.find('[')) + "." + name.text;
+      constant.location = name.location;
+      constant.publicDeclaration = isPublic;
+      constant.typeParameters = implParameters;
+      constant.returnType = resultType;
+      constant.body.push_back(std::make_unique<ReturnStmt>(name.location,
+                                                           std::move(value)));
+      constant.methodOwner = owner;
+      constant.methodTrait = trait;
+      constant.associatedConstant = true;
+      if (!implParameters.empty())
+        diagnostics_.error(name.location,
+                           "associated constants in generic impl blocks are not supported");
+      if (!trait.empty())
+        diagnostics_.error(name.location,
+                           "trait impl blocks cannot declare associated constants");
+      methods.push_back(std::move(constant));
+      continue;
+    }
     if (!at(TokenKind::KwFn)) {
       diagnostics_.error(current().location,
-                         "expected a method declaration in impl body",
+                         "expected a method or associated constant in impl body",
                          DiagnosticCode::Syntax);
       synchronize();
       continue;
@@ -93,13 +128,57 @@ std::vector<Function> Parser::parseImpl() {
                       method.typeParameters.end());
     method.typeParameters = std::move(parameters);
     method.methodOwner = owner;
+    method.methodTrait = trait;
     const std::size_t arguments = owner.find('[');
     const std::string ownerName = owner.substr(0, arguments);
-    method.name = ownerName + "." + method.name;
+    method.name = ownerName + "." + (trait.empty() ? std::string() : trait + ".") + method.name;
     methods.push_back(std::move(method));
   }
   consume(TokenKind::Dedent, "expected end of impl body");
   return methods;
+}
+
+TraitMethod Parser::parseTraitMethod() {
+  const Token start = consume(TokenKind::KwFn, "expected 'fn'");
+  const Token name = consume(TokenKind::Identifier, "expected trait method name");
+  consume(TokenKind::LParen, "expected '(' after trait method name");
+  std::vector<Parameter> parameters;
+  if (!at(TokenKind::RParen)) {
+    do {
+      const Token parameter = consume(TokenKind::Identifier, "expected parameter name");
+      consume(TokenKind::Colon, "expected ':' after parameter name");
+      parameters.push_back({parameter.text, parseTypeName(), parameter.location});
+    } while (match(TokenKind::Comma));
+  }
+  consume(TokenKind::RParen, "expected ')' after trait method parameters");
+  consume(TokenKind::Arrow, "expected '->' and an explicit return type");
+  std::string result = parseTypeName();
+  consume(TokenKind::Newline, "expected newline after trait method signature");
+  return {name.text, start.location, std::move(parameters), std::move(result)};
+}
+
+TraitDecl Parser::parseTrait(bool isPublic) {
+  const Token start = consume(TokenKind::KwTrait, "expected 'trait'");
+  const Token name = consume(TokenKind::Identifier, "expected trait name");
+  consume(TokenKind::Colon, "expected ':' after trait name");
+  consume(TokenKind::Newline, "expected newline after trait declaration");
+  consume(TokenKind::Indent, "expected an indented trait body");
+  std::vector<TraitMethod> methods;
+  while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+    if (match(TokenKind::Newline)) continue;
+    if (match(TokenKind::KwPub))
+      diagnostics_.error(previous().location,
+                         "trait methods inherit the trait visibility and cannot be 'pub'");
+    if (!at(TokenKind::KwFn)) {
+      diagnostics_.error(current().location, "expected a method signature in trait body",
+                         DiagnosticCode::Syntax);
+      synchronize();
+      continue;
+    }
+    methods.push_back(parseTraitMethod());
+  }
+  consume(TokenKind::Dedent, "expected end of trait body");
+  return {name.text, start.location, isPublic, std::move(methods)};
 }
 
 std::vector<std::string> Parser::parseTypeParameters() {
@@ -129,11 +208,27 @@ Function Parser::parseFunction(bool isPublic) {
   consume(TokenKind::RParen, "expected ')' after parameters");
   consume(TokenKind::Arrow, "expected '->' and an explicit return type");
   const std::string returnType = parseTypeName();
+  std::vector<TraitConstraint> constraints;
+  if (match(TokenKind::KwWhere)) {
+    do {
+      const Token parameter = consume(TokenKind::Identifier,
+                                      "expected constrained type parameter");
+      consume(TokenKind::Colon, "expected ':' in trait constraint");
+      const Token trait = consume(TokenKind::Identifier, "expected trait name");
+      std::string traitName = trait.text;
+      while (match(TokenKind::Dot))
+        traitName += "." + consume(TokenKind::Identifier,
+                                    "expected trait name after '.'").text;
+      constraints.push_back({parameter.text, std::move(traitName), parameter.location});
+    } while (match(TokenKind::Comma));
+  }
   consume(TokenKind::Colon, "expected ':' before function body");
   consume(TokenKind::Newline, "expected newline after function signature");
   auto body = parseBlock();
-  return {name.text, start.location, isPublic, std::move(typeParameters),
-          std::move(parameters), returnType, std::move(body)};
+  Function result{name.text, start.location, isPublic, std::move(typeParameters),
+                  std::move(parameters), returnType, std::move(body)};
+  result.constraints = std::move(constraints);
+  return result;
 }
 
 StructDecl Parser::parseStruct(bool isPublic) {
@@ -333,11 +428,13 @@ std::unique_ptr<Stmt> Parser::parseFor() {
   const Token name = consume(TokenKind::Identifier, "expected loop variable name");
   consume(TokenKind::KwIn, "expected 'in' after loop variable");
   auto start = parseExpression();
-  consume(TokenKind::DotDot, "expected '..' between range bounds");
-  auto end = parseExpression();
-  consume(TokenKind::Colon, "expected ':' after range");
-  consume(TokenKind::Newline, "expected newline after range");
-  return std::make_unique<ForStmt>(keyword.location, name.text, std::move(start), std::move(end), parseBlock());
+  const bool rangeLoop = match(TokenKind::DotDot);
+  std::unique_ptr<Expr> end;
+  if (rangeLoop) end = parseExpression();
+  consume(TokenKind::Colon, "expected ':' after for source");
+  consume(TokenKind::Newline, "expected newline after for source");
+  return std::make_unique<ForStmt>(keyword.location, name.text, std::move(start),
+                                   std::move(end), parseBlock(), rangeLoop);
 }
 
 std::unique_ptr<Expr> Parser::parseExpression() { return parseOr(); }
@@ -452,6 +549,25 @@ std::unique_ptr<Expr> Parser::parseCall() {
 }
 
 std::unique_ptr<Expr> Parser::parsePrimary() {
+  if (match(TokenKind::KwFn)) {
+    const Token start = previous();
+    consume(TokenKind::LParen, "expected '(' after 'fn' in lambda");
+    std::vector<Parameter> parameters;
+    if (!at(TokenKind::RParen)) {
+      do {
+        const Token parameter = consume(TokenKind::Identifier,
+                                        "expected lambda parameter name");
+        consume(TokenKind::Colon, "expected ':' after lambda parameter name");
+        parameters.push_back({parameter.text, parseTypeName(), parameter.location});
+      } while (match(TokenKind::Comma));
+    }
+    consume(TokenKind::RParen, "expected ')' after lambda parameters");
+    consume(TokenKind::Arrow, "expected '->' and lambda result type");
+    std::string result = parseTypeName();
+    consume(TokenKind::FatArrow, "expected '=>' before lambda expression");
+    return std::make_unique<LambdaExpr>(start.location, std::move(parameters),
+                                        std::move(result), parseExpression());
+  }
   if (match(TokenKind::LBracket)) {
     const Location location = previous().location;
     std::vector<std::unique_ptr<Expr>> elements;

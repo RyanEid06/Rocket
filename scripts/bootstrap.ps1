@@ -121,6 +121,10 @@ $conformanceSources = @(
     (Join-Path $fixtures 'phase11_map_set_tuple.rocket')
     (Join-Path $fixtures 'phase12_methods.rocket')
     (Join-Path $fixtures 'phase12_modules.rocket')
+    (Join-Path $fixtures 'phase12_traits.rocket')
+    (Join-Path $fixtures 'phase12_closures.rocket')
+    (Join-Path $fixtures 'phase12_iterators.rocket')
+    (Join-Path $fixtures 'phase12_associated_constants.rocket')
 )
 foreach ($compiler in $stage1, $stage2, $stage3) {
     foreach ($source in $conformanceSources) {

@@ -1,0 +1,11 @@
+trait Readable:
+    fn read(self: Self) -> Int
+
+struct Silent:
+    value: Int
+
+fn read_twice[T](value: T) -> Int where T: Readable:
+    return value.read() + value.read()
+
+fn main() -> Int:
+    return read_twice(Silent(21))

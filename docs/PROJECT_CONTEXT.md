@@ -28,7 +28,7 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.1 is self-hosted. The production `rocketc` is written in Rocket,
+Rocket 1.2 is self-hosted. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -396,7 +396,7 @@ Known limitations remain those in the implementation-state list above; no langua
   Phase 11 conformance programs. Stage2 and stage3 LLVM IR are byte-identical at
   SHA-256 `9b5c70cc2458eda810df52496697c006654f61eef7534b8557ba8132e2593bd0`.
 
-**Phase 12 - Rocket 1.2 scalable abstractions (started: methods slice)**
+**Phase 12 - Rocket 1.2 scalable abstractions (completed)**
 
 - Added `impl` blocks for same-module structs and enums. Generic impl parameters
   use `impl[T] Owner[T]`; instance methods declare an explicit first `self`
@@ -408,25 +408,35 @@ Known limitations remain those in the implementation-state list above; no langua
 - Added generic method specialization, per-method `pub` visibility, public
   cross-module calls, and String/Array/Slice/Map/Set aliases over existing
   standard intrinsics.
+- Added statically selected traits, generic `where` constraints, deterministic
+  ambiguity and completeness diagnostics, and direct trait-method lowering.
+- Added typed expression lambdas. Captures lower to compiler-generated immutable
+  ARC aggregates and generic callback calls specialize to direct closure calls.
+- Added persistent user iterator integration using `iterator`, `has_next`,
+  `value`, and `advance`, with explicit control-flow MIR and correct `continue`
+  behavior.
+- Added associated constants as zero-argument functions, kept parameters
+  positional/required/fixed-arity, and capped user monomorphization at 4,096
+  specializations per compilation.
 - Mirrored parsing, module mapping, type resolution, and direct-call lowering in
   the Rocket-written compiler. Added stage0, production, self-hosted, generic,
   enum, standard-library, and multi-module fixtures.
-- Verified pinned LLVM Debug and Release matrices (71/71 tests each) and
-  LLVM-disabled stage0 Debug and Release matrices (47/47 tests each). The
-  Rocket 1.2 development conformance suite passes 36 cases.
+- Verified pinned LLVM Debug and Release matrices (85/85 tests each) and
+  LLVM-disabled stage0 Debug and Release matrices (57/57 tests each). The
+  Rocket 1.2 conformance suite passes 44 cases.
 - Verified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap with
   the Phase 12 fixtures. Stage2 and stage3 LLVM IR are byte-identical at SHA-256
-  `f63bf709007604a2138a4d2ff3b16024f01e02ad7d0a10696c7d4850ec8ad70e`.
+  `811a6bbc2ec4db6e200806c83639c9574be6078679d4e14b3c9583e4665e65f5`.
 
 ## Current next task
 
-**Phase 12 - Rocket 1.2 scalable abstractions and functional values.**
+**Phase 13 - Rocket 1.3 native interoperability and library production.**
 
-The methods/associated-functions slice is implemented. Next, specify and
-implement traits and deterministic generic constraints, then first-class
-functions/closures and user-defined iterators in roadmap order. Preserve the
-complete Rocket 1.1 compatibility surface and deterministic bootstrap proof. Do
-not begin Phase 13, graphics, or casino implementation first.
+Start with the explicit `unsafe` boundary and a narrow, stable C ABI covering
+primitive imports/exports. Then add target-aware linker configuration, pointers
+and opaque handles, callbacks and supported structures, library outputs, and a
+deterministic header binding generator. Preserve stage0 and the complete Rocket
+1.2 bootstrap/conformance surface before application work.
 
 ## New-chat prompt
 

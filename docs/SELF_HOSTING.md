@@ -16,7 +16,8 @@ IR, then uses pinned Clang/LLD only as the object/link driver.
 ## Bootstrap implementation subset
 
 The compiler sources use the frozen Rocket 1.0 syntax plus additive Rocket 1.1
-collection APIs and these specified standard APIs:
+collection APIs and the Rocket 1.2 abstraction features, with these specified
+standard APIs:
 
 - checked `string.byte_at` and `string.slice` for source traversal;
 - mutable `string.Builder` construction for linear-time IR and formatter output;
@@ -26,10 +27,10 @@ collection APIs and these specified standard APIs:
 - `file.create_directory` for contained package artifact directories;
 - existing file, path, string, collection, environment, and direct-process APIs.
 
-The Phase 12 development compiler additionally parses `impl` blocks and lowers
-associated and instance method calls to ordinary owner-qualified direct calls.
-This feature is implemented independently in stage0 and the Rocket compiler so
-it participates in the normal stage2/stage3 determinism proof.
+The Rocket 1.2 compiler parses impls, traits and constraints, lambdas,
+associated constants, and user-defined iteration. These features are
+implemented independently in stage0 and the Rocket compiler and participate in
+the normal stage2/stage3 determinism proof.
 
 No compiler-only syntax, source preprocessor, C++ callback, or runtime compile
 function is permitted. Stage0 and the production runtime implement the same

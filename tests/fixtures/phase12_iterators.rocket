@@ -1,0 +1,23 @@
+struct Count:
+    current: Int
+    end: Int
+
+impl Count:
+    fn iterator(self: Count) -> Count:
+        return self
+
+    fn has_next(self: Count) -> Bool:
+        return self.current < self.end
+
+    fn value(self: Count) -> Int:
+        return self.current
+
+    fn advance(self: Count) -> Count:
+        return Count(self.current + 1, self.end)
+
+fn main() -> Int:
+    var total = 0
+    for number in Count(1, 4):
+        total = total + number
+    print(total)
+    return 0

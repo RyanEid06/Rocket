@@ -8,9 +8,11 @@
 
 namespace rocket {
 
+struct Parameter { std::string name; std::string typeName; Location location; };
+
 enum class ExprKind {
   Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, Array, Index, Slice,
-  Field, Propagate
+  Field, Propagate, Lambda
 };
 
 struct Expr {
@@ -166,13 +168,15 @@ struct WhileStmt final : Stmt {
 
 struct ForStmt final : Stmt {
   ForStmt(Location location, std::string name, std::unique_ptr<Expr> start,
-          std::unique_ptr<Expr> end, std::vector<std::unique_ptr<Stmt>> body)
+          std::unique_ptr<Expr> end, std::vector<std::unique_ptr<Stmt>> body,
+          bool rangeLoop = true)
       : Stmt(StmtKind::For, std::move(location)), name(std::move(name)), start(std::move(start)),
-        end(std::move(end)), body(std::move(body)) {}
+        end(std::move(end)), body(std::move(body)), rangeLoop(rangeLoop) {}
   std::string name;
   std::unique_ptr<Expr> start;
   std::unique_ptr<Expr> end;
   std::vector<std::unique_ptr<Stmt>> body;
+  bool rangeLoop = true;
 };
 
 struct LoopControlStmt final : Stmt {
@@ -200,7 +204,21 @@ struct MatchStmt final : Stmt {
   std::vector<MatchCase> cases;
 };
 
-struct Parameter { std::string name; std::string typeName; Location location; };
+struct TraitConstraint {
+  std::string typeParameter;
+  std::string traitName;
+  Location location;
+};
+
+struct LambdaExpr final : Expr {
+  LambdaExpr(Location location, std::vector<Parameter> parameters,
+             std::string returnType, std::unique_ptr<Expr> body)
+      : Expr(ExprKind::Lambda, std::move(location)), parameters(std::move(parameters)),
+        returnType(std::move(returnType)), body(std::move(body)) {}
+  std::vector<Parameter> parameters;
+  std::string returnType;
+  std::unique_ptr<Expr> body;
+};
 
 struct Function {
   std::string name;
@@ -214,6 +232,24 @@ struct Function {
   // contain the impl's type parameters; name remains the short member name
   // until module loading assigns its deterministic qualified identity.
   std::string methodOwner;
+  // Non-empty for a method that satisfies a trait implementation.
+  std::string methodTrait;
+  std::vector<TraitConstraint> constraints;
+  bool associatedConstant = false;
+};
+
+struct TraitMethod {
+  std::string name;
+  Location location;
+  std::vector<Parameter> parameters;
+  std::string returnType;
+};
+
+struct TraitDecl {
+  std::string name;
+  Location location;
+  bool publicDeclaration = false;
+  std::vector<TraitMethod> methods;
 };
 
 struct TypeField { std::string name; std::string typeName; Location location; };
@@ -247,6 +283,7 @@ struct Module {
   std::vector<ImportDecl> imports;
   std::vector<StructDecl> structs;
   std::vector<EnumDecl> enums;
+  std::vector<TraitDecl> traits;
   std::vector<Function> functions;
 };
 

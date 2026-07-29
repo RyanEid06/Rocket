@@ -54,9 +54,9 @@ Measure-RocketCommand 'compiler-mir-self-check' @('--check-mir', $compilerSource
 
 $reportDirectory = Join-Path $projectRoot 'out\performance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.1-$configurationName.json"
+$reportPath = Join-Path $reportDirectory "rocket-1.2-$configurationName.json"
 $report = [pscustomobject]@{
-    version = '1.1.0'
+    version = '1.2.0'
     configuration = $Configuration
     compiler = $Compiler
     sha256 = (Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -64,7 +64,7 @@ $report = [pscustomobject]@{
     measurements = $measurements
 }
 $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $reportPath -Encoding utf8
-Write-Output "Rocket 1.1 performance gates passed: $reportPath"
+Write-Output "Rocket 1.2 performance gates passed: $reportPath"
 foreach ($measurement in $measurements) {
     Write-Output ("  {0}: {1}s <= {2}s" -f $measurement.name, $measurement.seconds,
         $measurement.maximum_seconds)

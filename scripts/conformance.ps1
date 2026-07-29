@@ -45,7 +45,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.1\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.2\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -58,6 +58,10 @@ Invoke-ConformanceCase 'array-growth-check' @('check', (Join-Path $fixtures 'pha
 Invoke-ConformanceCase 'map-set-tuple-check' @('check', (Join-Path $fixtures 'phase11_map_set_tuple.rocket'))
 Invoke-ConformanceCase 'methods-check' @('check', (Join-Path $fixtures 'phase12_methods.rocket'))
 Invoke-ConformanceCase 'method-modules-check' @('check', (Join-Path $fixtures 'phase12_modules.rocket'))
+Invoke-ConformanceCase 'traits-check' @('check', (Join-Path $fixtures 'phase12_traits.rocket'))
+Invoke-ConformanceCase 'closures-check' @('check', (Join-Path $fixtures 'phase12_closures.rocket'))
+Invoke-ConformanceCase 'iterators-check' @('check', (Join-Path $fixtures 'phase12_iterators.rocket'))
+Invoke-ConformanceCase 'associated-constants-check' @('check', (Join-Path $fixtures 'phase12_associated_constants.rocket'))
 Invoke-ConformanceCase 'hello-run' @('run', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'Hello from Rocket'
 Invoke-ConformanceCase 'operators-run' @('run', (Join-Path $fixtures 'llvm_operators.rocket'))
 Invoke-ConformanceCase 'collections-run' @('run', (Join-Path $fixtures 'runtime_collections.rocket'))
@@ -69,6 +73,10 @@ Invoke-ConformanceCase 'array-growth-run' @('run', (Join-Path $fixtures 'phase11
 Invoke-ConformanceCase 'map-set-tuple-run' @('run', (Join-Path $fixtures 'phase11_map_set_tuple.rocket')) 0 '4567693929835203094'
 Invoke-ConformanceCase 'methods-run' @('run', (Join-Path $fixtures 'phase12_methods.rocket')) 0 '42[\r\n]+7[\r\n]+method[\r\n]+3[\r\n]+12'
 Invoke-ConformanceCase 'method-modules-run' @('run', (Join-Path $fixtures 'phase12_modules.rocket')) 0 '(?m)^42$'
+Invoke-ConformanceCase 'traits-run' @('run', (Join-Path $fixtures 'phase12_traits.rocket')) 0 '(?m)^42$'
+Invoke-ConformanceCase 'closures-run' @('run', (Join-Path $fixtures 'phase12_closures.rocket')) 0 '(?m)^42$'
+Invoke-ConformanceCase 'iterators-run' @('run', (Join-Path $fixtures 'phase12_iterators.rocket')) 0 '(?m)^6$'
+Invoke-ConformanceCase 'associated-constants-run' @('run', (Join-Path $fixtures 'phase12_associated_constants.rocket')) 0 '(?m)^42$'
 Invoke-ConformanceCase 'package-check' @('check', (Join-Path $fixtures 'phase8_package')) 0 'check succeeded'
 Invoke-ConformanceCase 'package-format' @('fmt', (Join-Path $fixtures 'phase8_package'), '--check') 0 'format check succeeded'
 Invoke-ConformanceCase 'package-run' @('run', (Join-Path $fixtures 'phase8_package')) 0 '(?m)^42$'

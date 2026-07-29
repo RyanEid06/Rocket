@@ -8,7 +8,8 @@ development. Rocket 1.0 and 1.1 programs keep their existing meaning.
 ```text
 impl-declaration := "impl" type-parameters? type-name ":" NEWLINE INDENT
                     impl-member+ DEDENT
-impl-member      := "pub"? function-declaration
+impl-member      := "pub"? (function-declaration | associated-constant)
+associated-constant := "const" IDENTIFIER ":" type-name "=" expression NEWLINE
 ```
 
 `impl` is reserved. The owner must be a struct or enum in the same module.
@@ -49,5 +50,42 @@ print(String.from_int(42))
 Module-function spellings such as `collections.append(values, 42)` remain valid
 and resolve to the same intrinsic.
 
-Traits, generic constraints, function types, lambdas, closures, and
-user-defined iterator syntax are not defined by this initial Phase 12 slice.
+## Traits and constraints
+
+```text
+trait-declaration := "pub"? "trait" IDENTIFIER ":" NEWLINE INDENT
+                     trait-method+ DEDENT
+trait-method      := "fn" IDENTIFIER "(" parameters ")" "->" type-name NEWLINE
+trait-impl        := "impl" type-name "for" type-name ":" NEWLINE INDENT
+                     ("pub"? function-declaration)+ DEDENT
+where-clause      := "where" IDENTIFIER ":" type-name
+                     ("," IDENTIFIER ":" type-name)*
+```
+
+Trait methods begin with `self: Self`. Calls are statically selected; inherent
+methods win and ambiguous trait implementations are diagnosed.
+
+## Lambdas and closure values
+
+```text
+lambda-expression := "fn" "(" parameters? ")" "->" type-name
+                     "=>" expression
+```
+
+Lambdas capture referenced locals by value in source order. Their concrete,
+compiler-generated closure type can be passed through generics and called like
+a function. Captures follow the normal ARC rules; no erased function type or
+dynamic dispatch is introduced.
+
+## User-defined iteration
+
+`for item in value:` requires `iterator`, `has_next`, `value`, and `advance`
+methods. `has_next` returns `Bool`; `advance` returns the same cursor type.
+The protocol is persistent: advancing produces the next cursor value.
+
+## Associated constants and parameters
+
+`Owner.NAME` accesses a non-generic impl constant. It is evaluated as a direct
+zero-argument call and has no mutable global storage. Parameters in Rocket 1.2
+are positional-only, required, and fixed-arity. Generic compilation creates at
+most 4,096 user specializations per program.

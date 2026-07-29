@@ -323,6 +323,38 @@ std::optional<MirBlockId> MirLowerer::lowerStatement(const HirStmt& statement,
     terminate(incrementBlock, MirTerminator::goTo(conditionBlock));
     return exitBlock;
   }
+  case HirStmtKind::ForEach: {
+    const auto& loop = static_cast<const HirForEachStmt&>(statement);
+    MirOperand iterator = lowerExpression(*loop.iterator, current);
+    const MirLocalId cursor = localForSymbol(loop.cursor);
+    addInstruction(current, MirRvalue::use(std::move(iterator)), cursor);
+
+    const MirBlockId conditionBlock = addBlock();
+    const MirBlockId bodyBlock = addBlock();
+    const MirBlockId advanceBlock = addBlock();
+    const MirBlockId exitBlock = addBlock();
+    terminate(current, MirTerminator::goTo(conditionBlock));
+
+    MirBlockId conditionEnd = conditionBlock;
+    MirOperand condition = lowerExpression(*loop.condition, conditionEnd);
+    terminate(conditionEnd,
+              MirTerminator::branch(std::move(condition), bodyBlock, exitBlock));
+
+    MirBlockId valueEnd = bodyBlock;
+    MirOperand value = lowerExpression(*loop.value, valueEnd);
+    addInstruction(valueEnd, MirRvalue::use(std::move(value)),
+                   localForSymbol(loop.variable));
+    loops_.push_back({exitBlock, advanceBlock});
+    auto bodyEnd = lowerBlock(loop.body, valueEnd);
+    loops_.pop_back();
+    if (bodyEnd.has_value()) terminate(*bodyEnd, MirTerminator::goTo(advanceBlock));
+
+    MirBlockId advanceEnd = advanceBlock;
+    MirOperand next = lowerExpression(*loop.advance, advanceEnd);
+    addInstruction(advanceEnd, MirRvalue::use(std::move(next)), cursor);
+    terminate(advanceEnd, MirTerminator::goTo(conditionBlock));
+    return exitBlock;
+  }
   case HirStmtKind::Break:
     terminate(current, MirTerminator::goTo(loops_.back().breakTarget));
     return std::nullopt;

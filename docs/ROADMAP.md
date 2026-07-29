@@ -135,13 +135,12 @@ stateful application code natural without abandoning memory safety.
   subsystem without bootstrap nondeterminism.
 - Rocket 1.0 source remains compatible and the syntax dictionary is updated.
 
-### Phase 12 - Rocket 1.2: scalable abstractions and functional values
+### Phase 12 - Rocket 1.2: scalable abstractions and functional values - Completed
 
-**Progress:** The first vertical slice is implemented: same-module impl blocks,
-methods and associated functions for structs/enums, generic method
-specialization, public cross-module members, and standard-library dot-call
-aliases. Traits and constraints are the next ordered slice; function values,
-closures, and user iterators remain subsequent Phase 12 work.
+**Delivered:** Static impls and traits, deterministic generic constraints,
+monomorphized closure values, persistent user-defined iterators, associated
+constants, positional fixed-arity parameter policy, a 4,096-specialization
+limit, cross-module visibility, and matching stage0/self-hosted behavior.
 
 **Purpose:** Make large Rocket programs modular and reusable without introducing
 class inheritance or hidden control flow.
