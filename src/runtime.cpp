@@ -36,6 +36,7 @@ struct RuntimeArray {
   std::uint32_t elementKind;
   std::uint32_t reserved;
   std::uint64_t length;
+  std::uint64_t capacity;
   void* elements;
 };
 
@@ -126,6 +127,34 @@ std::size_t elementSize(std::uint32_t elementKind) {
   case ROCKET_ELEMENT_MANAGED: return sizeof(void*);
   default: runtimeFailure("invalid Array element kind");
   }
+}
+
+void destroyArray(AllocationHeader* header);
+
+RuntimeArray* allocateArray(std::uint32_t elementKind, std::uint64_t length,
+                            std::uint64_t capacity) {
+  if (capacity < length) runtimeFailure("Array capacity is smaller than its length");
+  const std::size_t size = elementSize(elementKind);
+  if (capacity > std::numeric_limits<std::size_t>::max() / size)
+    runtimeFailure("Array allocation is too large");
+  auto* array = static_cast<RuntimeArray*>(std::malloc(sizeof(RuntimeArray)));
+  if (!array) runtimeFailure("out of memory while allocating Array");
+  void* elements = nullptr;
+  if (capacity != 0) {
+    elements = std::calloc(static_cast<std::size_t>(capacity), size);
+    if (!elements) {
+      std::free(array);
+      runtimeFailure("out of memory while allocating Array elements");
+    }
+  }
+  array->header = {1, destroyArray, ObjectArray, 0};
+  array->elementKind = elementKind;
+  array->reserved = 0;
+  array->length = length;
+  array->capacity = capacity;
+  array->elements = elements;
+  liveAllocations.fetch_add(1, std::memory_order_relaxed);
+  return array;
 }
 
 void destroyArray(AllocationHeader* header) {
@@ -227,15 +256,15 @@ RuntimeArray* checkedArray(RocketArray* array, std::int64_t index,
   return runtimeArray;
 }
 
-RuntimeArray* copyArrayForUpdate(RocketArray* array, std::int64_t index,
-                                 std::uint32_t expectedKind) {
-  RuntimeArray* source = checkedArray(array, index, expectedKind);
-  if (source->header.references == 1) {
-    rocket_rt_retain(array);
-    return source;
-  }
+RuntimeArray* checkedArray(RocketArray* array) {
+  RuntimeArray* runtimeArray = arrayFor(array);
+  if (!runtimeArray || runtimeArray->header.objectKind != ObjectArray)
+    runtimeFailure("Array operation received an invalid Array");
+  return runtimeArray;
+}
 
-  RuntimeArray* copy = arrayFor(rocket_rt_array_new(source->elementKind, source->length));
+RuntimeArray* cloneArray(const RuntimeArray* source, std::uint64_t capacity) {
+  RuntimeArray* copy = allocateArray(source->elementKind, source->length, capacity);
   const std::size_t bytes = static_cast<std::size_t>(source->length) *
                             elementSize(source->elementKind);
   if (bytes != 0) std::memcpy(copy->elements, source->elements, bytes);
@@ -246,6 +275,29 @@ RuntimeArray* copyArrayForUpdate(RocketArray* array, std::int64_t index,
       rocket_rt_retain(elements[element]);
   }
   return copy;
+}
+
+RuntimeArray* copyArrayForUpdate(RocketArray* array, std::int64_t index,
+                                 std::uint32_t expectedKind) {
+  RuntimeArray* source = checkedArray(array, index, expectedKind);
+  if (source->header.references == 1) {
+    rocket_rt_retain(array);
+    return source;
+  }
+
+  return cloneArray(source, source->capacity);
+}
+
+std::uint64_t grownCapacity(std::uint64_t current, std::uint64_t minimum) {
+  std::uint64_t capacity = current == 0 ? 4 : current;
+  while (capacity < minimum) {
+    if (capacity > (std::numeric_limits<std::uint64_t>::max)() / 2) {
+      capacity = minimum;
+      break;
+    }
+    capacity *= 2;
+  }
+  return capacity;
 }
 
 RuntimeAggregate* checkedAggregate(RocketAggregate* aggregate, std::uint32_t field) {
@@ -259,6 +311,45 @@ RuntimeAggregate* checkedAggregate(RocketAggregate* aggregate, std::uint32_t fie
 const RuntimeAggregate* checkedAggregate(const RocketAggregate* aggregate,
                                          std::uint32_t field) {
   return checkedAggregate(const_cast<RocketAggregate*>(aggregate), field);
+}
+
+template <typename Value, typename Setter>
+RocketArray* appendArray(RocketArray* array, Value value, std::uint32_t expectedKind,
+                         Setter setter) {
+  RuntimeArray* source = checkedArray(array);
+  if (source->elementKind != expectedKind)
+    runtimeFailure("Array append element kind mismatch");
+  if (source->length == (std::numeric_limits<std::uint64_t>::max)())
+    runtimeFailure("Array length overflow");
+  const std::uint64_t index = source->length;
+  RuntimeArray* result = cloneArray(source, grownCapacity(source->capacity, index + 1));
+  result->length = index + 1;
+  setter(reinterpret_cast<RocketArray*>(result), static_cast<std::int64_t>(index), value);
+  return reinterpret_cast<RocketArray*>(result);
+}
+
+template <typename Value, typename Setter>
+RocketArray* insertArray(RocketArray* array, std::int64_t index, Value value,
+                         std::uint32_t expectedKind, Setter setter) {
+  RuntimeArray* source = checkedArray(array);
+  if (source->elementKind != expectedKind)
+    runtimeFailure("Array insert element kind mismatch");
+  if (index < 0 || static_cast<std::uint64_t>(index) > source->length)
+    indexFailure(index, source->length);
+  if (source->length == (std::numeric_limits<std::uint64_t>::max)())
+    runtimeFailure("Array length overflow");
+  const std::uint64_t offset = static_cast<std::uint64_t>(index);
+  RuntimeArray* result = cloneArray(
+      source, grownCapacity(source->capacity, source->length + 1));
+  const std::size_t size = elementSize(result->elementKind);
+  const std::size_t trailing = static_cast<std::size_t>(result->length - offset) * size;
+  auto* bytes = static_cast<std::uint8_t*>(result->elements);
+  if (trailing != 0)
+    std::memmove(bytes + (offset + 1) * size, bytes + offset * size, trailing);
+  std::memset(bytes + offset * size, 0, size);
+  ++result->length;
+  setter(reinterpret_cast<RocketArray*>(result), index, value);
+  return reinterpret_cast<RocketArray*>(result);
 }
 
 } // namespace
@@ -371,26 +462,23 @@ const std::uint8_t* rocket_rt_string_bytes(const RocketString* string) {
 }
 
 RocketArray* rocket_rt_array_new(std::uint32_t elementKind, std::uint64_t length) {
-  const std::size_t size = elementSize(elementKind);
-  if (length > std::numeric_limits<std::size_t>::max() / size)
-    runtimeFailure("Array allocation is too large");
-  auto* array = static_cast<RuntimeArray*>(std::malloc(sizeof(RuntimeArray)));
-  if (!array) runtimeFailure("out of memory while allocating Array");
-  void* elements = nullptr;
-  if (length != 0) {
-    elements = std::calloc(static_cast<std::size_t>(length), size);
-    if (!elements) {
-      std::free(array);
-      runtimeFailure("out of memory while allocating Array elements");
-    }
+  return reinterpret_cast<RocketArray*>(allocateArray(elementKind, length, length));
+}
+
+std::uint64_t rocket_rt_array_capacity(const RocketArray* array) {
+  return checkedArray(const_cast<RocketArray*>(array))->capacity;
+}
+
+RocketArray* rocket_rt_array_reserve(RocketArray* array, std::int64_t minimumCapacity) {
+  if (minimumCapacity < 0) runtimeFailure("Array reserve capacity cannot be negative");
+  RuntimeArray* source = checkedArray(array);
+  const auto minimum = static_cast<std::uint64_t>(minimumCapacity);
+  if (minimum <= source->capacity) {
+    rocket_rt_retain(array);
+    return array;
   }
-  array->header = {1, destroyArray, ObjectArray, 0};
-  array->elementKind = elementKind;
-  array->reserved = 0;
-  array->length = length;
-  array->elements = elements;
-  liveAllocations.fetch_add(1, std::memory_order_relaxed);
-  return reinterpret_cast<RocketArray*>(array);
+  return reinterpret_cast<RocketArray*>(
+      cloneArray(source, grownCapacity(source->capacity, minimum)));
 }
 
 void rocket_rt_array_set_int(RocketArray* array, std::int64_t index, std::int64_t value) {
@@ -469,6 +557,161 @@ RocketArray* rocket_rt_array_update_managed(RocketArray* array, std::int64_t ind
   RuntimeArray* result = copyArrayForUpdate(array, index, ROCKET_ELEMENT_MANAGED);
   rocket_rt_array_set_managed(reinterpret_cast<RocketArray*>(result), index, value);
   return reinterpret_cast<RocketArray*>(result);
+}
+
+RocketArray* rocket_rt_array_append_int(RocketArray* array, std::int64_t value) {
+  return appendArray(array, value, ROCKET_ELEMENT_INT, rocket_rt_array_set_int);
+}
+
+RocketArray* rocket_rt_array_append_float(RocketArray* array, double value) {
+  return appendArray(array, value, ROCKET_ELEMENT_FLOAT, rocket_rt_array_set_float);
+}
+
+RocketArray* rocket_rt_array_append_bool(RocketArray* array, std::uint8_t value) {
+  return appendArray(array, value, ROCKET_ELEMENT_BOOL, rocket_rt_array_set_bool);
+}
+
+RocketArray* rocket_rt_array_append_char(RocketArray* array, std::uint8_t value) {
+  return appendArray(array, value, ROCKET_ELEMENT_CHAR, rocket_rt_array_set_char);
+}
+
+RocketArray* rocket_rt_array_append_string(RocketArray* array, RocketString* value) {
+  return appendArray(array, value, ROCKET_ELEMENT_STRING, rocket_rt_array_set_string);
+}
+
+RocketArray* rocket_rt_array_append_managed(RocketArray* array, void* value) {
+  return appendArray(array, value, ROCKET_ELEMENT_MANAGED, rocket_rt_array_set_managed);
+}
+
+RocketArray* rocket_rt_array_insert_int(RocketArray* array, std::int64_t index,
+                                        std::int64_t value) {
+  return insertArray(array, index, value, ROCKET_ELEMENT_INT, rocket_rt_array_set_int);
+}
+
+RocketArray* rocket_rt_array_insert_float(RocketArray* array, std::int64_t index,
+                                          double value) {
+  return insertArray(array, index, value, ROCKET_ELEMENT_FLOAT, rocket_rt_array_set_float);
+}
+
+RocketArray* rocket_rt_array_insert_bool(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value) {
+  return insertArray(array, index, value, ROCKET_ELEMENT_BOOL, rocket_rt_array_set_bool);
+}
+
+RocketArray* rocket_rt_array_insert_char(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value) {
+  return insertArray(array, index, value, ROCKET_ELEMENT_CHAR, rocket_rt_array_set_char);
+}
+
+RocketArray* rocket_rt_array_insert_string(RocketArray* array, std::int64_t index,
+                                           RocketString* value) {
+  return insertArray(array, index, value, ROCKET_ELEMENT_STRING,
+                     rocket_rt_array_set_string);
+}
+
+RocketArray* rocket_rt_array_insert_managed(RocketArray* array, std::int64_t index,
+                                            void* value) {
+  return insertArray(array, index, value, ROCKET_ELEMENT_MANAGED,
+                     rocket_rt_array_set_managed);
+}
+
+RocketAggregate* rocket_rt_array_pop(RocketArray* array) {
+  RuntimeArray* source = checkedArray(array);
+  if (source->length == 0)
+    return rocket_rt_aggregate_new(1, 0, 0);
+
+  RuntimeArray* result = cloneArray(source, source->capacity);
+  const std::uint64_t index = result->length - 1;
+  const bool managed = result->elementKind == ROCKET_ELEMENT_STRING ||
+                       result->elementKind == ROCKET_ELEMENT_MANAGED;
+  RocketAggregate* popped = rocket_rt_aggregate_new(0, 2, managed ? 3 : 1);
+  rocket_rt_aggregate_set_managed(popped, 0, result);
+  switch (result->elementKind) {
+  case ROCKET_ELEMENT_INT:
+    rocket_rt_aggregate_set_int(popped, 1, static_cast<std::int64_t*>(result->elements)[index]);
+    break;
+  case ROCKET_ELEMENT_FLOAT:
+    rocket_rt_aggregate_set_float(popped, 1, static_cast<double*>(result->elements)[index]);
+    break;
+  case ROCKET_ELEMENT_BOOL:
+    rocket_rt_aggregate_set_bool(popped, 1, static_cast<std::uint8_t*>(result->elements)[index]);
+    break;
+  case ROCKET_ELEMENT_CHAR:
+    rocket_rt_aggregate_set_char(popped, 1, static_cast<std::uint8_t*>(result->elements)[index]);
+    break;
+  case ROCKET_ELEMENT_STRING:
+  case ROCKET_ELEMENT_MANAGED: {
+    auto** elements = static_cast<void**>(result->elements);
+    void* removed = elements[index];
+    rocket_rt_aggregate_set_managed(popped, 1, removed);
+    elements[index] = nullptr;
+    rocket_rt_release(removed);
+    break;
+  }
+  default: runtimeFailure("invalid Array element kind during pop");
+  }
+  result->length = index;
+  rocket_rt_release(result);
+
+  RocketAggregate* some = rocket_rt_aggregate_new(0, 1, 1);
+  rocket_rt_aggregate_set_managed(some, 0, popped);
+  rocket_rt_release(popped);
+  return some;
+}
+
+RocketAggregate* rocket_rt_array_remove(RocketArray* array, std::int64_t index) {
+  RuntimeArray* source = checkedArray(array);
+  if (index < 0 || static_cast<std::uint64_t>(index) >= source->length)
+    indexFailure(index, source->length);
+  RuntimeArray* result = cloneArray(source, source->capacity);
+  const std::uint64_t offset = static_cast<std::uint64_t>(index);
+  const bool managed = result->elementKind == ROCKET_ELEMENT_STRING ||
+                       result->elementKind == ROCKET_ELEMENT_MANAGED;
+  RocketAggregate* removed = rocket_rt_aggregate_new(0, 2, managed ? 3 : 1);
+  rocket_rt_aggregate_set_managed(removed, 0, result);
+  switch (result->elementKind) {
+  case ROCKET_ELEMENT_INT:
+    rocket_rt_aggregate_set_int(removed, 1,
+                                static_cast<std::int64_t*>(result->elements)[offset]);
+    break;
+  case ROCKET_ELEMENT_FLOAT:
+    rocket_rt_aggregate_set_float(removed, 1,
+                                  static_cast<double*>(result->elements)[offset]);
+    break;
+  case ROCKET_ELEMENT_BOOL:
+    rocket_rt_aggregate_set_bool(removed, 1,
+                                 static_cast<std::uint8_t*>(result->elements)[offset]);
+    break;
+  case ROCKET_ELEMENT_CHAR:
+    rocket_rt_aggregate_set_char(removed, 1,
+                                 static_cast<std::uint8_t*>(result->elements)[offset]);
+    break;
+  case ROCKET_ELEMENT_STRING:
+  case ROCKET_ELEMENT_MANAGED:
+    rocket_rt_aggregate_set_managed(
+        removed, 1, static_cast<void**>(result->elements)[offset]);
+    break;
+  default: runtimeFailure("invalid Array element kind during remove");
+  }
+
+  const std::size_t size = elementSize(result->elementKind);
+  auto* bytes = static_cast<std::uint8_t*>(result->elements);
+  const std::size_t trailing =
+      static_cast<std::size_t>(result->length - offset - 1) * size;
+  void* removedManaged = managed ? static_cast<void**>(result->elements)[offset] : nullptr;
+  if (trailing != 0)
+    std::memmove(bytes + offset * size, bytes + (offset + 1) * size, trailing);
+  std::memset(bytes + (result->length - 1) * size, 0, size);
+  --result->length;
+  if (removedManaged) rocket_rt_release(removedManaged);
+  rocket_rt_release(result);
+  return removed;
+}
+
+RocketArray* rocket_rt_array_clear(RocketArray* array) {
+  RuntimeArray* source = checkedArray(array);
+  return reinterpret_cast<RocketArray*>(
+      allocateArray(source->elementKind, 0, source->capacity));
 }
 
 RocketSlice* rocket_rt_slice_new(void* collection, std::int64_t start, std::int64_t end) {

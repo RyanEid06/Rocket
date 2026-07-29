@@ -15,12 +15,13 @@ IR, then uses pinned Clang/LLD only as the object/link driver.
 
 ## Bootstrap implementation subset
 
-The compiler sources use the frozen Rocket 1.0 syntax plus these specified
-standard APIs:
+The compiler sources use the frozen Rocket 1.0 syntax plus additive Rocket 1.1
+collection APIs and these specified standard APIs:
 
 - checked `string.byte_at` and `string.slice` for source traversal;
 - mutable `string.Builder` construction for linear-time IR and formatter output;
-- persistent generic `collections.concat` for compiler work lists;
+- persistent generic `collections.append` for compiler work-list growth and
+  `collections.concat` for batch composition;
 - `process.arguments` for the native CLI;
 - `file.create_directory` for contained package artifact directories;
 - existing file, path, string, collection, environment, and direct-process APIs.

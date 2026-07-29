@@ -1,0 +1,5 @@
+import std.collections
+
+fn main() -> Int:
+    let removed = collections.remove([1], 1)
+    return collections.length(removed.values)

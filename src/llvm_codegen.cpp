@@ -773,6 +773,33 @@ private:
     case Intrinsic::StringBuilderAppend: return "rocket_std_string_builder_append";
     case Intrinsic::StringBuilderFinish: return "rocket_std_string_builder_finish";
     case Intrinsic::CollectionsLength: return "rocket_std_collections_length";
+    case Intrinsic::CollectionsCapacity: return "rocket_std_collections_capacity";
+    case Intrinsic::CollectionsReserve: return "rocket_std_collections_reserve";
+    case Intrinsic::CollectionsAppend: return "rocket_std_collections_append";
+    case Intrinsic::CollectionsPop: return "rocket_std_collections_pop";
+    case Intrinsic::CollectionsInsert: return "rocket_std_collections_insert";
+    case Intrinsic::CollectionsRemove: return "rocket_std_collections_remove";
+    case Intrinsic::CollectionsClear: return "rocket_std_collections_clear";
+    case Intrinsic::CollectionsMapFromArrays: return "rocket_std_collections_map_from_arrays";
+    case Intrinsic::CollectionsMapLength: return "rocket_std_collections_map_length";
+    case Intrinsic::CollectionsMapFind: return "rocket_std_collections_map_find";
+    case Intrinsic::CollectionsMapGet: return "rocket_std_collections_map_get";
+    case Intrinsic::CollectionsMapKeys: return "rocket_std_collections_map_keys";
+    case Intrinsic::CollectionsMapValues: return "rocket_std_collections_map_values";
+    case Intrinsic::CollectionsSetFromArray: return "rocket_std_collections_set_from_array";
+    case Intrinsic::CollectionsSetContains: return "rocket_std_collections_set_contains";
+    case Intrinsic::CollectionsSetValues: return "rocket_std_collections_set_values";
+    case Intrinsic::CollectionsHash: return "rocket_std_collections_hash";
+    case Intrinsic::CollectionsContains: return "rocket_std_collections_contains";
+    case Intrinsic::CollectionsFind: return "rocket_std_collections_find";
+    case Intrinsic::CollectionsFilterEqual: return "rocket_std_collections_filter_equal";
+    case Intrinsic::CollectionsSortInt: return "rocket_std_collections_sort_int";
+    case Intrinsic::CollectionsSortFloat: return "rocket_std_collections_sort_float";
+    case Intrinsic::CollectionsSortChar: return "rocket_std_collections_sort_char";
+    case Intrinsic::CollectionsSortString: return "rocket_std_collections_sort_string";
+    case Intrinsic::CollectionsMapHash: return "rocket_std_collections_map_hash";
+    case Intrinsic::CollectionsFoldSumInt: return "rocket_std_collections_fold_sum_int";
+    case Intrinsic::CollectionsFoldSumFloat: return "rocket_std_collections_fold_sum_float";
     case Intrinsic::CollectionsReverse: return "rocket_std_collections_reverse";
     case Intrinsic::CollectionsConcat: return "rocket_std_collections_concat";
     case Intrinsic::CollectionsJoin: return "rocket_std_collections_join";
@@ -816,10 +843,34 @@ private:
                              const std::vector<llvm::AllocaInst*>& locals,
                              std::string& error) {
     const HirSymbol& symbol = mir_.symbols[value.callee];
-    const char* runtimeName = standardRuntimeName(symbol.intrinsic);
-    if (!runtimeName) {
+    const char* fixedRuntimeName = standardRuntimeName(symbol.intrinsic);
+    if (!fixedRuntimeName) {
       error = "unknown standard-library intrinsic reached LLVM lowering";
       return nullptr;
+    }
+    std::string runtimeName = fixedRuntimeName;
+    if (symbol.intrinsic == Intrinsic::CollectionsAppend ||
+        symbol.intrinsic == Intrinsic::CollectionsInsert) {
+      const Type element = collectionElementType(value.arguments[0].type);
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(element);
+    }
+    if (symbol.intrinsic == Intrinsic::CollectionsMapFind ||
+        symbol.intrinsic == Intrinsic::CollectionsMapGet ||
+        symbol.intrinsic == Intrinsic::CollectionsSetContains ||
+        symbol.intrinsic == Intrinsic::CollectionsContains ||
+        symbol.intrinsic == Intrinsic::CollectionsFind ||
+        symbol.intrinsic == Intrinsic::CollectionsFilterEqual) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.arguments[1].type);
+    }
+    if (symbol.intrinsic == Intrinsic::CollectionsHash) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.arguments[0].type);
+    }
+    if (symbol.intrinsic == Intrinsic::CollectionsMapHash) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(collectionElementType(value.arguments[0].type));
     }
     std::vector<llvm::Type*> parameterTypes;
     std::vector<llvm::Value*> arguments;

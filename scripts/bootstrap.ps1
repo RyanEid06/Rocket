@@ -7,6 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
+. (Join-Path $projectRoot 'dependencies\activate.ps1')
 $configurationName = $Configuration.ToLowerInvariant()
 $buildDirectory = Join-Path $projectRoot "out\build\windows-$configurationName"
 $bootstrapRoot = Join-Path $projectRoot "out\bootstrap\windows-$configurationName"
@@ -115,6 +116,9 @@ $conformanceSources = @(
     (Join-Path $fixtures 'phase6_types.rocket')
     (Join-Path $fixtures 'phase6_modules.rocket')
     (Join-Path $fixtures 'phase7_stdlib.rocket')
+    (Join-Path $fixtures 'phase11_array_mutation.rocket')
+    (Join-Path $fixtures 'phase11_array_growth.rocket')
+    (Join-Path $fixtures 'phase11_map_set_tuple.rocket')
 )
 foreach ($compiler in $stage1, $stage2, $stage3) {
     foreach ($source in $conformanceSources) {

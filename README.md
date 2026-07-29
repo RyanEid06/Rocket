@@ -1,4 +1,4 @@
-# Rocket 1.0
+# Rocket 1.1
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
@@ -70,7 +70,7 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [Rocket 1.1 syntax additions](docs/ROCKET_1_1_SYNTAX_DICTIONARY.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
-## Rocket 1.0 release
+## Rocket 1.1 release
 
 Build the checksummed, relocation-tested, self-contained Windows x64 archive:
 
@@ -80,5 +80,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compil
 
 The package uses the Rocket-written stage3 compiler and includes the runtime,
 pinned Clang/LLD, compiler-rt resources, and native static link libraries. See
-[the Rocket 1.0 release contract](docs/RELEASE_1_0.md) for compatibility,
+[the Rocket 1.1 release contract](docs/RELEASE_1_1.md) for compatibility,
 limitations, and the complete validation matrix.

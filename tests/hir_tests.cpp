@@ -138,7 +138,7 @@ int main() {
       phase6Diagnostics);
   rocket::test::expect(phase6.has_value(), "Phase 6 program lowers to HIR", failures);
   if (phase6.has_value()) {
-    rocket::test::expect(phase6->typeDeclarations.size() == 6,
+    rocket::test::expect(phase6->typeDeclarations.size() == 15,
                          "HIR records standard built-ins and user type declarations", failures);
     rocket::test::expect(phase6->functions.size() == 2 &&
                              phase6->symbols[phase6->functions[1].symbol].name ==

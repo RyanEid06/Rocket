@@ -774,6 +774,87 @@ fn intrinsic_file_create_directory() -> Int:
 fn intrinsic_process_executable_path() -> Int:
     return 46
 
+fn intrinsic_collections_capacity() -> Int:
+    return 47
+
+fn intrinsic_collections_reserve() -> Int:
+    return 48
+
+fn intrinsic_collections_append() -> Int:
+    return 49
+
+fn intrinsic_collections_pop() -> Int:
+    return 50
+
+fn intrinsic_collections_insert() -> Int:
+    return 51
+
+fn intrinsic_collections_remove() -> Int:
+    return 52
+
+fn intrinsic_collections_clear() -> Int:
+    return 53
+
+fn intrinsic_collections_map_from_arrays() -> Int:
+    return 54
+
+fn intrinsic_collections_map_length() -> Int:
+    return 55
+
+fn intrinsic_collections_map_find() -> Int:
+    return 56
+
+fn intrinsic_collections_map_get() -> Int:
+    return 57
+
+fn intrinsic_collections_map_keys() -> Int:
+    return 58
+
+fn intrinsic_collections_map_values() -> Int:
+    return 59
+
+fn intrinsic_collections_set_from_array() -> Int:
+    return 60
+
+fn intrinsic_collections_set_contains() -> Int:
+    return 61
+
+fn intrinsic_collections_set_values() -> Int:
+    return 62
+
+fn intrinsic_collections_hash() -> Int:
+    return 63
+
+fn intrinsic_collections_contains() -> Int:
+    return 64
+
+fn intrinsic_collections_find() -> Int:
+    return 65
+
+fn intrinsic_collections_filter_equal() -> Int:
+    return 66
+
+fn intrinsic_collections_sort_int() -> Int:
+    return 67
+
+fn intrinsic_collections_sort_float() -> Int:
+    return 68
+
+fn intrinsic_collections_sort_char() -> Int:
+    return 69
+
+fn intrinsic_collections_sort_string() -> Int:
+    return 70
+
+fn intrinsic_collections_map_hash() -> Int:
+    return 71
+
+fn intrinsic_collections_fold_sum_int() -> Int:
+    return 72
+
+fn intrinsic_collections_fold_sum_float() -> Int:
+    return 73
+
 fn mir_constant() -> Int:
     return 0
 
@@ -826,7 +907,7 @@ fn terminator_return() -> Int:
     return 2
 
 fn append[T](values: Array[T], value: T) -> Array[T]:
-    return collections.concat(values, [value])
+    return collections.append(values, value)
 
 fn prefix[T](values: Array[T], count: Int) -> Array[T]:
     var result: Array[T] = []
@@ -2086,6 +2167,12 @@ fn is_array_type(type_name: String) -> Bool:
 fn is_slice_type(type_name: String) -> Bool:
     return type_base(type_name) == "Slice"
 
+fn is_hashable_key(type_name: String) -> Bool:
+    return type_name == "Int" or type_name == "Bool" or type_name == "Char" or type_name == "String"
+
+fn is_collection_comparable(type_name: String) -> Bool:
+    return is_hashable_key(type_name) or type_name == "Float"
+
 fn collection_element_type(type_name: String) -> String:
     let arguments = type_arguments(type_name)
     if collections.length(arguments) == 1:
@@ -2151,6 +2238,60 @@ fn standard_signature(name: String) -> StandardSignature:
         return StandardSignature(true, ["T"], ["Array[T]"], "Int", intrinsic_collections_length())
     if name == "std.collections.slice_length":
         return StandardSignature(true, ["T"], ["Slice[T]"], "Int", intrinsic_collections_length())
+    if name == "std.collections.capacity":
+        return StandardSignature(true, ["T"], ["Array[T]"], "Int", intrinsic_collections_capacity())
+    if name == "std.collections.reserve":
+        return StandardSignature(true, ["T"], ["Array[T]", "Int"], "Array[T]", intrinsic_collections_reserve())
+    if name == "std.collections.append":
+        return StandardSignature(true, ["T"], ["Array[T]", "T"], "Array[T]", intrinsic_collections_append())
+    if name == "std.collections.pop":
+        return StandardSignature(true, ["T"], ["Array[T]"], "Option[std.collections.Pop[T]]", intrinsic_collections_pop())
+    if name == "std.collections.insert":
+        return StandardSignature(true, ["T"], ["Array[T]", "Int", "T"], "Array[T]", intrinsic_collections_insert())
+    if name == "std.collections.remove":
+        return StandardSignature(true, ["T"], ["Array[T]", "Int"], "std.collections.Removal[T]", intrinsic_collections_remove())
+    if name == "std.collections.clear":
+        return StandardSignature(true, ["T"], ["Array[T]"], "Array[T]", intrinsic_collections_clear())
+    if name == "std.collections.map_from_arrays":
+        return StandardSignature(true, ["K", "V"], ["Array[K]", "Array[V]"], "std.collections.Map[K, V]", intrinsic_collections_map_from_arrays())
+    if name == "std.collections.map_length":
+        return StandardSignature(true, ["K", "V"], ["std.collections.Map[K, V]"], "Int", intrinsic_collections_map_length())
+    if name == "std.collections.map_find":
+        return StandardSignature(true, ["K", "V"], ["std.collections.Map[K, V]", "K"], "Option[Int]", intrinsic_collections_map_find())
+    if name == "std.collections.map_get":
+        return StandardSignature(true, ["K", "V"], ["std.collections.Map[K, V]", "K"], "Option[V]", intrinsic_collections_map_get())
+    if name == "std.collections.map_keys":
+        return StandardSignature(true, ["K", "V"], ["std.collections.Map[K, V]"], "Array[K]", intrinsic_collections_map_keys())
+    if name == "std.collections.map_values":
+        return StandardSignature(true, ["K", "V"], ["std.collections.Map[K, V]"], "Array[V]", intrinsic_collections_map_values())
+    if name == "std.collections.set_from_array":
+        return StandardSignature(true, ["T"], ["Array[T]"], "std.collections.Set[T]", intrinsic_collections_set_from_array())
+    if name == "std.collections.set_contains":
+        return StandardSignature(true, ["T"], ["std.collections.Set[T]", "T"], "Bool", intrinsic_collections_set_contains())
+    if name == "std.collections.set_values":
+        return StandardSignature(true, ["T"], ["std.collections.Set[T]"], "Array[T]", intrinsic_collections_set_values())
+    if name == "std.collections.hash":
+        return StandardSignature(true, ["T"], ["T"], "Int", intrinsic_collections_hash())
+    if name == "std.collections.contains":
+        return StandardSignature(true, ["T"], ["Array[T]", "T"], "Bool", intrinsic_collections_contains())
+    if name == "std.collections.find":
+        return StandardSignature(true, ["T"], ["Array[T]", "T"], "Option[Int]", intrinsic_collections_find())
+    if name == "std.collections.filter_equal":
+        return StandardSignature(true, ["T"], ["Array[T]", "T"], "Array[T]", intrinsic_collections_filter_equal())
+    if name == "std.collections.sort_int":
+        return StandardSignature(true, [], ["Array[Int]"], "Array[Int]", intrinsic_collections_sort_int())
+    if name == "std.collections.sort_float":
+        return StandardSignature(true, [], ["Array[Float]"], "Array[Float]", intrinsic_collections_sort_float())
+    if name == "std.collections.sort_char":
+        return StandardSignature(true, [], ["Array[Char]"], "Array[Char]", intrinsic_collections_sort_char())
+    if name == "std.collections.sort_string":
+        return StandardSignature(true, [], ["Array[String]"], "Array[String]", intrinsic_collections_sort_string())
+    if name == "std.collections.map_hash":
+        return StandardSignature(true, ["T"], ["Array[T]"], "Array[Int]", intrinsic_collections_map_hash())
+    if name == "std.collections.fold_sum_int":
+        return StandardSignature(true, [], ["Array[Int]"], "Int", intrinsic_collections_fold_sum_int())
+    if name == "std.collections.fold_sum_float":
+        return StandardSignature(true, [], ["Array[Float]"], "Float", intrinsic_collections_fold_sum_float())
     if name == "std.collections.reverse":
         return StandardSignature(true, ["T"], ["Array[T]"], "Array[T]", intrinsic_collections_reverse())
     if name == "std.collections.concat":
@@ -2296,6 +2437,15 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
         if index < collections.length(lowered_arguments) and required != lowered_arguments[index].type_name:
             next = lower_error(next, arguments[index].line, arguments[index].column, string.concat("argument type is ", string.concat(lowered_arguments[index].type_name, string.concat(", expected ", required))))
     let result_type = substitute_type(signature.result_type, substitutions)
+    if signature.intrinsic == intrinsic_collections_map_from_arrays() or signature.intrinsic == intrinsic_collections_map_length() or signature.intrinsic == intrinsic_collections_map_find() or signature.intrinsic == intrinsic_collections_map_get() or signature.intrinsic == intrinsic_collections_map_keys() or signature.intrinsic == intrinsic_collections_map_values():
+        if not is_hashable_key(substitution_value(substitutions, "K")):
+            next = lower_error(next, expression.line, expression.column, "Map keys must be Int, Bool, Char, or String")
+    if signature.intrinsic == intrinsic_collections_set_from_array() or signature.intrinsic == intrinsic_collections_set_contains() or signature.intrinsic == intrinsic_collections_set_values() or signature.intrinsic == intrinsic_collections_hash() or signature.intrinsic == intrinsic_collections_map_hash():
+        if not is_hashable_key(substitution_value(substitutions, "T")):
+            next = lower_error(next, expression.line, expression.column, "Set elements and hash values must be Int, Bool, Char, or String")
+    if signature.intrinsic == intrinsic_collections_contains() or signature.intrinsic == intrinsic_collections_find() or signature.intrinsic == intrinsic_collections_filter_equal():
+        if not is_collection_comparable(substitution_value(substitutions, "T")):
+            next = lower_error(next, expression.line, expression.column, "collection equality requires Int, Float, Bool, Char, or String")
     var key = name
     if collections.length(signature.type_parameters) > 0:
         key = specialization_key(name, substitutions, signature.type_parameters)
@@ -2338,6 +2488,8 @@ fn struct_call(state: LowerState, expression: AstExpr, declaration_index: Int, a
                 next = lower_error(next, expression.line, expression.column, string.concat("cannot infer type parameter '", string.concat(value, "'")))
             type_arguments = append(type_arguments, value)
         result_type = make_type(declaration.name, type_arguments)
+    if (declaration.name == "std.collections.Map" or declaration.name == "std.collections.Set") and not is_hashable_key(type_arguments(result_type)[0]):
+        next = lower_error(next, expression.line, expression.column, "Map and Set keys must be Int, Bool, Char, or String")
     return HirExprResult(hir_expression(expr_call(), "$struct", result_type, lowered_arguments, -1, 0, expression), next)
 
 fn enum_constructor_call(state: LowerState, expression: AstExpr, declaration_index: Int, variant_index: Int, arguments: Array[AstExpr], expected_type: String) -> HirExprResult:
@@ -2828,12 +2980,23 @@ fn lower_hir_function(state: LowerState, function_index: Int, symbol: Int, subst
     return HirFunctionResult(HirFunction(symbol, parameters, substitute_type(function.result_type, substitutions), body.statements), next)
 
 fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> HirResult:
-    var state = LowerState(module, [], [], [], 0, "", 0, Substitutions([], []), [], [], parser_diagnostics)
+    let pop_type = AstStructDecl("std.collections.Pop", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1), AstTypeField("value", "T", 1, 1)], 1, 1)
+    let removal_type = AstStructDecl("std.collections.Removal", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1), AstTypeField("value", "T", 1, 1)], 1, 1)
+    let tuple2_type = AstStructDecl("std.collections.Tuple2", true, ["A", "B"], [AstTypeField("first", "A", 1, 1), AstTypeField("second", "B", 1, 1)], 1, 1)
+    let tuple3_type = AstStructDecl("std.collections.Tuple3", true, ["A", "B", "C"], [AstTypeField("first", "A", 1, 1), AstTypeField("second", "B", 1, 1), AstTypeField("third", "C", 1, 1)], 1, 1)
+    let map_type = AstStructDecl("std.collections.Map", true, ["K", "V"], [AstTypeField("keys", "Array[K]", 1, 1), AstTypeField("values", "Array[V]", 1, 1)], 1, 1)
+    let set_type = AstStructDecl("std.collections.Set", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], 1, 1)
+    let queue_type = AstStructDecl("std.collections.Queue", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], 1, 1)
+    let stack_type = AstStructDecl("std.collections.Stack", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], 1, 1)
+    let buffer_type = AstStructDecl("std.collections.ByteBuffer", true, [], [AstTypeField("bytes", "Array[Char]", 1, 1)], 1, 1)
+    let builtins = [pop_type, removal_type, tuple2_type, tuple3_type, map_type, set_type, queue_type, stack_type, buffer_type]
+    let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.functions)
+    var state = LowerState(complete_module, [], [], [], 0, "", 0, Substitutions([], []), [], [], parser_diagnostics)
     let print_symbol = add_hir_symbol(state, symbol_builtin(), "print", "Unit", false, [], intrinsic_print())
     state = print_symbol.state
     var function_symbols: Array[Int] = []
-    for index in 0..collections.length(module.functions):
-        let function = module.functions[index]
+    for index in 0..collections.length(complete_module.functions):
+        let function = complete_module.functions[index]
         if collections.length(function.type_parameters) == 0:
             var parameter_types: Array[String] = []
             for parameter_index in 0..collections.length(function.parameters):
@@ -2843,7 +3006,7 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
             function_symbols = append(function_symbols, added.symbol)
         else:
             function_symbols = append(function_symbols, -1)
-    for index in 0..collections.length(module.functions):
+    for index in 0..collections.length(complete_module.functions):
         if function_symbols[index] >= 0:
             let lowered = lower_hir_function(state, index, function_symbols[index], Substitutions([], []))
             state = state_functions(lowered.state, append(lowered.state.functions, lowered.function))
@@ -2853,7 +3016,7 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
         let lowered = lower_hir_function(state, pending.function_index, pending.symbol, pending.substitutions)
         state = state_functions(lowered.state, append(lowered.state.functions, lowered.function))
         pending_index = pending_index + 1
-    return HirResult(HirModule(state.symbols, module.structs, module.enums, state.functions), state.diagnostics)
+    return HirResult(HirModule(state.symbols, complete_module.structs, complete_module.enums, state.functions), state.diagnostics)
 
 fn analyze_source(source: String) -> HirResult:
     let parsed = parse_source(source)
@@ -3392,6 +3555,43 @@ fn llvm_array_update_name(type_name: String) -> String:
         return "@rocket_rt_array_update_string"
     return "@rocket_rt_array_update_managed"
 
+fn llvm_array_append_name(type_name: String) -> String:
+    if type_name == "Int":
+        return "@rocket_std_collections_append_int"
+    if type_name == "Float":
+        return "@rocket_std_collections_append_float"
+    if type_name == "Bool":
+        return "@rocket_std_collections_append_bool"
+    if type_name == "Char":
+        return "@rocket_std_collections_append_char"
+    if type_name == "String":
+        return "@rocket_std_collections_append_string"
+    return "@rocket_std_collections_append_managed"
+
+fn llvm_array_insert_name(type_name: String) -> String:
+    if type_name == "Int":
+        return "@rocket_std_collections_insert_int"
+    if type_name == "Float":
+        return "@rocket_std_collections_insert_float"
+    if type_name == "Bool":
+        return "@rocket_std_collections_insert_bool"
+    if type_name == "Char":
+        return "@rocket_std_collections_insert_char"
+    if type_name == "String":
+        return "@rocket_std_collections_insert_string"
+    return "@rocket_std_collections_insert_managed"
+
+fn llvm_key_suffix(type_name: String) -> String:
+    if type_name == "Int":
+        return "_int"
+    if type_name == "Float":
+        return "_float"
+    if type_name == "Bool":
+        return "_bool"
+    if type_name == "Char":
+        return "_char"
+    return "_string"
+
 fn llvm_index_name(type_name: String) -> String:
     if type_name == "Int":
         return "@rocket_rt_index_int"
@@ -3466,6 +3666,60 @@ fn intrinsic_runtime_name(intrinsic: Int) -> String:
         return "@rocket_std_string_builder_finish"
     if intrinsic == intrinsic_collections_length():
         return "@rocket_std_collections_length"
+    if intrinsic == intrinsic_collections_capacity():
+        return "@rocket_std_collections_capacity"
+    if intrinsic == intrinsic_collections_reserve():
+        return "@rocket_std_collections_reserve"
+    if intrinsic == intrinsic_collections_append():
+        return "@rocket_std_collections_append"
+    if intrinsic == intrinsic_collections_pop():
+        return "@rocket_std_collections_pop"
+    if intrinsic == intrinsic_collections_insert():
+        return "@rocket_std_collections_insert"
+    if intrinsic == intrinsic_collections_remove():
+        return "@rocket_std_collections_remove"
+    if intrinsic == intrinsic_collections_clear():
+        return "@rocket_std_collections_clear"
+    if intrinsic == intrinsic_collections_map_from_arrays():
+        return "@rocket_std_collections_map_from_arrays"
+    if intrinsic == intrinsic_collections_map_length():
+        return "@rocket_std_collections_map_length"
+    if intrinsic == intrinsic_collections_map_find():
+        return "@rocket_std_collections_map_find"
+    if intrinsic == intrinsic_collections_map_get():
+        return "@rocket_std_collections_map_get"
+    if intrinsic == intrinsic_collections_map_keys():
+        return "@rocket_std_collections_map_keys"
+    if intrinsic == intrinsic_collections_map_values():
+        return "@rocket_std_collections_map_values"
+    if intrinsic == intrinsic_collections_set_from_array():
+        return "@rocket_std_collections_set_from_array"
+    if intrinsic == intrinsic_collections_set_contains():
+        return "@rocket_std_collections_set_contains"
+    if intrinsic == intrinsic_collections_set_values():
+        return "@rocket_std_collections_set_values"
+    if intrinsic == intrinsic_collections_hash():
+        return "@rocket_std_collections_hash"
+    if intrinsic == intrinsic_collections_contains():
+        return "@rocket_std_collections_contains"
+    if intrinsic == intrinsic_collections_find():
+        return "@rocket_std_collections_find"
+    if intrinsic == intrinsic_collections_filter_equal():
+        return "@rocket_std_collections_filter_equal"
+    if intrinsic == intrinsic_collections_sort_int():
+        return "@rocket_std_collections_sort_int"
+    if intrinsic == intrinsic_collections_sort_float():
+        return "@rocket_std_collections_sort_float"
+    if intrinsic == intrinsic_collections_sort_char():
+        return "@rocket_std_collections_sort_char"
+    if intrinsic == intrinsic_collections_sort_string():
+        return "@rocket_std_collections_sort_string"
+    if intrinsic == intrinsic_collections_map_hash():
+        return "@rocket_std_collections_map_hash"
+    if intrinsic == intrinsic_collections_fold_sum_int():
+        return "@rocket_std_collections_fold_sum_int"
+    if intrinsic == intrinsic_collections_fold_sum_float():
+        return "@rocket_std_collections_fold_sum_float"
     if intrinsic == intrinsic_collections_concat():
         return "@rocket_std_collections_concat"
     if intrinsic == intrinsic_collections_reverse():
@@ -3590,6 +3844,70 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare void @rocket_std_string_builder_append(ptr, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_string_builder_finish(ptr)")
     emit_llvm_line(builder, "declare i64 @rocket_std_collections_length(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_collections_capacity(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_reserve(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_append_int(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_append_float(ptr, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_append_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_append_char(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_append_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_append_managed(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_pop(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_insert_int(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_insert_float(ptr, i64, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_insert_bool(ptr, i64, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_insert_char(ptr, i64, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_insert_string(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_insert_managed(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_remove(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_clear(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_from_arrays(ptr, ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_collections_map_length(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_find_int(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_find_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_find_char(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_find_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_get_int(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_get_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_get_char(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_get_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_keys(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_values(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_set_from_array(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_set_contains_int(ptr, i64)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_set_contains_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_set_contains_char(ptr, i8)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_set_contains_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_set_values(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_collections_hash_int(i64)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_collections_hash_bool(i8)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_collections_hash_char(i8)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_collections_hash_string(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_contains_int(ptr, i64)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_contains_float(ptr, double)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_contains_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_contains_char(ptr, i8)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_collections_contains_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_find_int(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_find_float(ptr, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_find_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_find_char(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_find_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_filter_equal_int(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_filter_equal_float(ptr, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_filter_equal_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_filter_equal_char(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_filter_equal_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_sort_int(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_sort_float(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_sort_char(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_sort_string(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_hash_int(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_hash_bool(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_hash_char(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_collections_map_hash_string(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_collections_fold_sum_int(ptr)")
+    emit_llvm_line(builder, "declare double @rocket_std_collections_fold_sum_float(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_collections_concat(ptr, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_collections_reverse(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_collections_join(ptr, ptr)")
@@ -3755,7 +4073,17 @@ fn emit_call_llvm(builder: std.string.Builder, module: MirModule, instruction: M
                 argument_name = extended
                 argument_type = "i8"
             arguments = append(arguments, string.concat(argument_type, string.concat(" ", argument_name)))
-        let runtime_name = intrinsic_runtime_name(symbol.intrinsic)
+        var runtime_name = intrinsic_runtime_name(symbol.intrinsic)
+        if symbol.intrinsic == intrinsic_collections_append():
+            runtime_name = llvm_array_append_name(collection_element_type(values[0].type_name))
+        if symbol.intrinsic == intrinsic_collections_insert():
+            runtime_name = llvm_array_insert_name(collection_element_type(values[0].type_name))
+        if symbol.intrinsic == intrinsic_collections_map_find() or symbol.intrinsic == intrinsic_collections_map_get() or symbol.intrinsic == intrinsic_collections_set_contains() or symbol.intrinsic == intrinsic_collections_contains() or symbol.intrinsic == intrinsic_collections_find() or symbol.intrinsic == intrinsic_collections_filter_equal():
+            runtime_name = string.concat(runtime_name, llvm_key_suffix(values[1].type_name))
+        if symbol.intrinsic == intrinsic_collections_hash():
+            runtime_name = string.concat(runtime_name, llvm_key_suffix(values[0].type_name))
+        if symbol.intrinsic == intrinsic_collections_map_hash():
+            runtime_name = string.concat(runtime_name, llvm_key_suffix(collection_element_type(values[0].type_name)))
         if instruction.type_name == "Unit":
             emit_llvm_line(builder, string.concat("  call void ", string.concat(runtime_name, string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))
             return LlvmValue("0", "Unit")
@@ -4536,7 +4864,7 @@ fn emit_assembly_command(input: String, output: String) -> Int:
     return direct_process(toolchain.clang, ["-S", "-O2", "-Wno-override-module", temporary_ir, "-o", output])
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.0.0")
+    print("Rocket compiler 1.1.0")
     print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
@@ -4585,7 +4913,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.0.0")
+        print("rocketc 1.1.0")
         return 0
     if collections.length(arguments) == 2 and arguments[0] == "check":
         return check_command(arguments[1])

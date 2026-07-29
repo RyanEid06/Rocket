@@ -1,0 +1,5 @@
+import std.collections
+
+fn main() -> Int:
+    let values = collections.insert([1], 2, 3)
+    return collections.length(values)

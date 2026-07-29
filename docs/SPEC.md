@@ -110,6 +110,35 @@ therefore continue to observe the pre-mutation value. A uniquely owned Array
 may reuse its storage as an implementation optimization without changing these
 semantics.
 
+Growing Array operations are exposed by `std.collections` and return updated
+values, so rebinding remains visible in source:
+
+```rocket
+import std.collections
+
+fn main() -> Int:
+    var values: Array[Int] = []
+    values = collections.reserve(values, 16)
+    values = collections.append(values, 10)
+    match collections.pop(values):
+        case Some(removed):
+            values = removed.values
+            print(removed.value)
+        case None:
+            print(0)
+    return 0
+```
+
+`capacity` reports the number of elements that can be held without another
+allocation. `reserve` never shrinks and rejects a negative requested capacity.
+`append` grows geometrically when needed. `pop` returns `None` for an empty
+Array; otherwise it returns `Some(std.collections.Pop[T])`, whose `values`
+field is the updated Array and whose `value` field is the removed last element.
+These persistent operations preserve their input even when their result is
+ignored. An implementation may reuse storage only when MIR proves the input is
+consumed by a direct rebind. Aliases and Slices retain their old length,
+capacity, and values.
+
 Indexing works on Array and Slice and returns the element value. A slice uses an
 exclusive end bound and retains its backing Array, so it remains valid after
 the original Array binding is replaced or leaves use:
@@ -123,6 +152,36 @@ Both index and slice bounds are checked at runtime. Negative indices,
 `index >= length`, `start < 0`, `end < start`, and `end > length` terminate the
 program with a deterministic runtime diagnostic. Slicing a Slice produces a
 view over the same retained backing Array.
+
+## Tuples, maps, and sets
+
+`std.collections.Tuple2[A, B]` and `Tuple3[A, B, C]` are immutable
+heterogeneous product values with `first`, `second`, and (for `Tuple3`) `third`
+fields. They use ordinary aggregate ownership and can carry managed values.
+
+`std.collections.Map[K, V]` stores unique keys in deterministic insertion
+order; `Set[T]` stores unique values in the same order. Eligible key/element
+types are `Int`, `Bool`, `Char`, and `String`. `Float` is excluded so NaN and
+signed-zero behavior cannot undermine equality. String equality and hashing use
+the complete length-aware UTF-8 byte sequence. `map_from_arrays` and
+`set_from_array` preserve the first occurrence and discard later duplicates.
+Iteration is obtained from the snapshot Arrays returned by `map_keys`,
+`map_values`, and `set_values`; no internal lookup-storage order is exposed.
+
+Stable hashing uses 64-bit FNV-1a over the canonical value bytes and clears the
+sign bit so the result fits non-negative `Int`. The byte order for `Int` is the
+Windows x64 little-endian target order in Rocket 1.1. Hash output is stable
+across runs of the same target and release line.
+
+Collection searching, equality filtering, scalar/String sorting, stable hash
+mapping, and numeric sum folds are ordinary deterministic standard-library
+operations. General callback-driven mapping, filtering, and folding require the
+function-value and closure rules introduced in Rocket 1.2; Rocket 1.1 does not
+create a privileged callback ABI ahead of that language design.
+
+`Queue[T]`, `Stack[T]`, and `ByteBuffer` are immutable library product values
+wrapping `Array[T]`, `Array[T]`, and `Array[Char]`. Their exposed snapshots use
+the same copy-on-write/persistent operations and ownership rules as Arrays.
 
 ## Ownership and lifetime
 
@@ -230,8 +289,9 @@ and deterministic behavior are specified in `STDLIB.md`.
 
 The self-hosted compiler uses ordinary public APIs rather than privileged
 syntax. `string.byte_at` and `string.slice` traverse immutable UTF-8 source by
-checked byte offsets, `collections.concat` builds persistent arrays, and
-`process.arguments` exposes command-line arguments after the executable name.
+checked byte offsets, `collections.append` grows compiler work lists,
+`collections.concat` composes persistent arrays, and `process.arguments`
+exposes command-line arguments after the executable name.
 These APIs have identical LLVM/runtime and preserved Stage 0 behavior.
 
 ## Package compilation model

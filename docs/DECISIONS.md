@@ -131,8 +131,8 @@ native interface generated programs depend on.
 
 The compiler is allowed to use ordinary `std.string`, `std.collections`,
 `std.file`, `std.path`, and `std.process` APIs. Byte traversal, persistent array
-concatenation, and process arguments are public, backend-parity-tested library
-features rather than hidden bootstrap hooks.
+growth/composition, and process arguments are public, backend-parity-tested
+library features rather than hidden bootstrap hooks.
 
 ## D014 - Rocket 1.0 freeze and self-contained Windows distribution
 
@@ -187,3 +187,34 @@ an owning temporary before retaining it into the source binding and releasing
 the prior value, so unique updates, shared clones, self-assignment, managed
 elements, and bounds failure all follow the existing ARC contract. Slices remain
 immutable; mutable slice views are not introduced.
+
+Array capacity and growth use ordinary `std.collections` functions until the
+general method model is introduced in Phase 12. `reserve` and `append` return an
+updated Array and require an explicit source-level rebind for mutation. `pop`
+returns `Option[std.collections.Pop[T]]`, carrying both the shortened Array and
+the removed element without hidden out-parameters, exceptions, or premature
+tuple syntax. Empty pop is `None`; negative reserve is a programmer-contract
+runtime failure. Capacity is snapshot state, so the functional calls preserve
+their input even when their result is ignored. Storage reuse requires a
+compiler-proven direct consuming rebind.
+
+`insert`, `remove`, and `clear` follow the same persistent rule. Insert accepts
+indices from zero through the current length. Remove uses checked element bounds
+and returns `std.collections.Removal[T]`, carrying the updated Array and removed
+value. Clear preserves capacity in its returned empty snapshot.
+
+Phase 11 Maps and Sets use deterministic insertion order as their public
+iteration contract; internal lookup representation is never observable.
+Eligible keys are `Int`, `Bool`, `Char`, and UTF-8 `String`. Float and aggregate
+keys are excluded. Stable FNV-1a hashing is defined over canonical bytes, while
+equality uses the existing scalar and length-aware String contracts. `Tuple2`
+and `Tuple3` are ordinary immutable ARC aggregates rather than special ABI
+values.
+
+Phase 11 includes only collection algorithms with closed, explicit semantics:
+search, equality filtering, scalar/String sorting, stable hash mapping, and
+numeric sum folds. General higher-order map/filter/fold operations are assigned
+to Phase 12 because adding them earlier would require an undocumented function-
+pointer or callback ABI before first-class function and closure semantics exist.
+Queue, Stack, and ByteBuffer remain transparent Array-backed library products so
+their later methods are additive convenience.

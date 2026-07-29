@@ -118,6 +118,213 @@ inline std::int64_t rocket_std_collections_length(const RocketSlice<T>& values) 
   return values.length;
 }
 template <typename T>
+inline std::int64_t rocket_std_collections_capacity(const RocketArray<T>& values) {
+  return static_cast<std::int64_t>(values->capacity());
+}
+template <typename T>
+inline RocketArray<T> rocket_std_collections_reserve(const RocketArray<T>& values,
+                                                     std::int64_t minimum) {
+  if (minimum < 0) rocket_integer_error("Array reserve capacity cannot be negative");
+  if (static_cast<std::uint64_t>(minimum) <= values->capacity()) return values;
+  RocketArray<T> result = rocket_array_clone(values, values->capacity());
+  result->reserve(static_cast<std::size_t>(minimum));
+  return result;
+}
+template <typename T>
+inline RocketArray<T> rocket_std_collections_append(const RocketArray<T>& values, T value) {
+  RocketArray<T> result = rocket_array_clone(values, values->capacity());
+  result->push_back(std::move(value));
+  return result;
+}
+template <typename T>
+inline RocketAggregate rocket_std_collections_pop(const RocketArray<T>& values) {
+  if (values->empty()) return rocket_stage0_variant(1);
+  RocketArray<T> result = rocket_array_clone(values, values->capacity());
+  T removed = std::move(result->back());
+  result->pop_back();
+  RocketAggregate popped = rocket_stage0_variant(0, {result, std::move(removed)});
+  return rocket_stage0_variant(0, {std::move(popped)});
+}
+template <typename T>
+inline RocketArray<T> rocket_std_collections_insert(const RocketArray<T>& values,
+                                                    std::int64_t index, T value) {
+  if (index < 0 || index > static_cast<std::int64_t>(values->size()))
+    rocket_bounds_error();
+  RocketArray<T> result = rocket_array_clone(values, values->capacity());
+  result->insert(result->begin() + index, std::move(value));
+  return result;
+}
+template <typename T>
+inline RocketAggregate rocket_std_collections_remove(const RocketArray<T>& values,
+                                                      std::int64_t index) {
+  if (index < 0 || index >= static_cast<std::int64_t>(values->size()))
+    rocket_bounds_error();
+  RocketArray<T> result = rocket_array_clone(values, values->capacity());
+  T removed = std::move((*result)[static_cast<std::size_t>(index)]);
+  result->erase(result->begin() + index);
+  return rocket_stage0_variant(0, {std::move(result), std::move(removed)});
+}
+template <typename T>
+inline RocketArray<T> rocket_std_collections_clear(const RocketArray<T>& values) {
+  auto result = std::make_shared<std::vector<T>>();
+  result->reserve(values->capacity());
+  return result;
+}
+template <typename K, typename V>
+inline RocketAggregate rocket_std_collections_map_from_arrays(const RocketArray<K>& keys,
+                                                              const RocketArray<V>& values) {
+  if (keys->size() != values->size()) rocket_integer_error("Map key/value length mismatch");
+  auto uniqueKeys = std::make_shared<std::vector<K>>();
+  auto uniqueValues = std::make_shared<std::vector<V>>();
+  uniqueKeys->reserve(keys->size());
+  uniqueValues->reserve(values->size());
+  for (std::size_t index = 0; index < keys->size(); ++index) {
+    if (std::find(uniqueKeys->begin(), uniqueKeys->end(), (*keys)[index]) ==
+        uniqueKeys->end()) {
+      uniqueKeys->push_back((*keys)[index]);
+      uniqueValues->push_back((*values)[index]);
+    }
+  }
+  return rocket_stage0_variant(0, {std::move(uniqueKeys), std::move(uniqueValues)});
+}
+template <typename K, typename V>
+inline std::int64_t rocket_std_collections_map_length(const RocketAggregate& map) {
+  return static_cast<std::int64_t>(rocket_field<RocketArray<K>>(map, 0)->size());
+}
+template <typename K, typename V>
+inline RocketAggregate rocket_std_collections_map_find(const RocketAggregate& map,
+                                                       const K& key) {
+  const auto keys = rocket_field<RocketArray<K>>(map, 0);
+  const auto found = std::find(keys->begin(), keys->end(), key);
+  if (found == keys->end()) return rocket_stage0_variant(1);
+  return rocket_stage0_variant(0, {static_cast<std::int64_t>(found - keys->begin())});
+}
+template <typename K, typename V>
+inline RocketAggregate rocket_std_collections_map_get(const RocketAggregate& map,
+                                                      const K& key) {
+  const auto keys = rocket_field<RocketArray<K>>(map, 0);
+  const auto found = std::find(keys->begin(), keys->end(), key);
+  if (found == keys->end()) return rocket_stage0_variant(1);
+  const auto values = rocket_field<RocketArray<V>>(map, 1);
+  return rocket_stage0_variant(0, {(*values)[static_cast<std::size_t>(found - keys->begin())]});
+}
+template <typename K, typename V>
+inline RocketArray<K> rocket_std_collections_map_keys(const RocketAggregate& map) {
+  return rocket_field<RocketArray<K>>(map, 0);
+}
+template <typename K, typename V>
+inline RocketArray<V> rocket_std_collections_map_values(const RocketAggregate& map) {
+  return rocket_field<RocketArray<V>>(map, 1);
+}
+template <typename T>
+inline RocketAggregate rocket_std_collections_set_from_array(const RocketArray<T>& values) {
+  auto unique = std::make_shared<std::vector<T>>();
+  unique->reserve(values->size());
+  for (const T& value : *values)
+    if (std::find(unique->begin(), unique->end(), value) == unique->end())
+      unique->push_back(value);
+  return rocket_stage0_variant(0, {std::move(unique)});
+}
+template <typename T>
+inline bool rocket_std_collections_set_contains(const RocketAggregate& set,
+                                                const T& value) {
+  const auto values = rocket_field<RocketArray<T>>(set, 0);
+  return std::find(values->begin(), values->end(), value) != values->end();
+}
+template <typename T>
+inline RocketArray<T> rocket_std_collections_set_values(const RocketAggregate& set) {
+  return rocket_field<RocketArray<T>>(set, 0);
+}
+inline std::uint64_t rocket_stage0_hash_bytes(const unsigned char* bytes, std::size_t length) {
+  std::uint64_t hash = 14695981039346656037ULL;
+  for (std::size_t index = 0; index < length; ++index) {
+    hash ^= bytes[index];
+    hash *= 1099511628211ULL;
+  }
+  return hash & 0x7fffffffffffffffULL;
+}
+inline std::int64_t rocket_std_collections_hash(std::int64_t value) {
+  return static_cast<std::int64_t>(rocket_stage0_hash_bytes(
+      reinterpret_cast<const unsigned char*>(&value), sizeof(value)));
+}
+inline std::int64_t rocket_std_collections_hash(bool value) {
+  const unsigned char byte = value ? 1 : 0;
+  return static_cast<std::int64_t>(rocket_stage0_hash_bytes(&byte, 1));
+}
+inline std::int64_t rocket_std_collections_hash(char value) {
+  const unsigned char byte = static_cast<unsigned char>(value);
+  return static_cast<std::int64_t>(rocket_stage0_hash_bytes(&byte, 1));
+}
+inline std::int64_t rocket_std_collections_hash(const std::string& value) {
+  return static_cast<std::int64_t>(rocket_stage0_hash_bytes(
+      reinterpret_cast<const unsigned char*>(value.data()), value.size()));
+}
+template <typename T>
+inline bool rocket_std_collections_contains(const RocketArray<T>& values, const T& value) {
+  return std::find(values->begin(), values->end(), value) != values->end();
+}
+template <typename T>
+inline RocketAggregate rocket_std_collections_find(const RocketArray<T>& values,
+                                                   const T& value) {
+  const auto found = std::find(values->begin(), values->end(), value);
+  if (found == values->end()) return rocket_stage0_variant(1);
+  return rocket_stage0_variant(0, {static_cast<std::int64_t>(found - values->begin())});
+}
+template <typename T>
+inline RocketArray<T> rocket_std_collections_filter_equal(const RocketArray<T>& values,
+                                                          const T& wanted) {
+  auto result = std::make_shared<std::vector<T>>();
+  for (const T& value : *values)
+    if (value == wanted) result->push_back(value);
+  return result;
+}
+inline RocketArray<std::int64_t> rocket_std_collections_sort_int(
+    const RocketArray<std::int64_t>& values) {
+  auto result = rocket_array_clone(values, values->capacity());
+  std::sort(result->begin(), result->end());
+  return result;
+}
+inline RocketArray<double> rocket_std_collections_sort_float(
+    const RocketArray<double>& values) {
+  auto result = rocket_array_clone(values, values->capacity());
+  std::stable_sort(result->begin(), result->end(), [](double left, double right) {
+    if (std::isnan(left)) return false;
+    if (std::isnan(right)) return true;
+    return left < right;
+  });
+  return result;
+}
+inline RocketArray<char> rocket_std_collections_sort_char(const RocketArray<char>& values) {
+  auto result = rocket_array_clone(values, values->capacity());
+  std::sort(result->begin(), result->end());
+  return result;
+}
+inline RocketArray<std::string> rocket_std_collections_sort_string(
+    const RocketArray<std::string>& values) {
+  auto result = rocket_array_clone(values, values->capacity());
+  std::sort(result->begin(), result->end());
+  return result;
+}
+template <typename T>
+inline RocketArray<std::int64_t> rocket_std_collections_map_hash(
+    const RocketArray<T>& values) {
+  auto result = std::make_shared<std::vector<std::int64_t>>();
+  result->reserve(values->size());
+  for (const T& value : *values) result->push_back(rocket_std_collections_hash(value));
+  return result;
+}
+inline std::int64_t rocket_std_collections_fold_sum_int(
+    const RocketArray<std::int64_t>& values) {
+  std::int64_t result = 0;
+  for (std::int64_t value : *values) result = rocket_int_add(result, value);
+  return result;
+}
+inline double rocket_std_collections_fold_sum_float(const RocketArray<double>& values) {
+  double result = 0.0;
+  for (double value : *values) result += value;
+  return result;
+}
+template <typename T>
 inline RocketArray<T> rocket_std_collections_reverse(const RocketArray<T>& values) {
   auto result = std::make_shared<std::vector<T>>(values->rbegin(), values->rend());
   return result;

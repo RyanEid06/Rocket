@@ -81,6 +81,33 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::StringBuilderAppend: return "rocket_std_string_builder_append";
   case Intrinsic::StringBuilderFinish: return "rocket_std_string_builder_finish";
   case Intrinsic::CollectionsLength: return "rocket_std_collections_length";
+  case Intrinsic::CollectionsCapacity: return "rocket_std_collections_capacity";
+  case Intrinsic::CollectionsReserve: return "rocket_std_collections_reserve";
+  case Intrinsic::CollectionsAppend: return "rocket_std_collections_append";
+  case Intrinsic::CollectionsPop: return "rocket_std_collections_pop";
+  case Intrinsic::CollectionsInsert: return "rocket_std_collections_insert";
+  case Intrinsic::CollectionsRemove: return "rocket_std_collections_remove";
+  case Intrinsic::CollectionsClear: return "rocket_std_collections_clear";
+  case Intrinsic::CollectionsMapFromArrays: return "rocket_std_collections_map_from_arrays";
+  case Intrinsic::CollectionsMapLength: return "rocket_std_collections_map_length";
+  case Intrinsic::CollectionsMapFind: return "rocket_std_collections_map_find";
+  case Intrinsic::CollectionsMapGet: return "rocket_std_collections_map_get";
+  case Intrinsic::CollectionsMapKeys: return "rocket_std_collections_map_keys";
+  case Intrinsic::CollectionsMapValues: return "rocket_std_collections_map_values";
+  case Intrinsic::CollectionsSetFromArray: return "rocket_std_collections_set_from_array";
+  case Intrinsic::CollectionsSetContains: return "rocket_std_collections_set_contains";
+  case Intrinsic::CollectionsSetValues: return "rocket_std_collections_set_values";
+  case Intrinsic::CollectionsHash: return "rocket_std_collections_hash";
+  case Intrinsic::CollectionsContains: return "rocket_std_collections_contains";
+  case Intrinsic::CollectionsFind: return "rocket_std_collections_find";
+  case Intrinsic::CollectionsFilterEqual: return "rocket_std_collections_filter_equal";
+  case Intrinsic::CollectionsSortInt: return "rocket_std_collections_sort_int";
+  case Intrinsic::CollectionsSortFloat: return "rocket_std_collections_sort_float";
+  case Intrinsic::CollectionsSortChar: return "rocket_std_collections_sort_char";
+  case Intrinsic::CollectionsSortString: return "rocket_std_collections_sort_string";
+  case Intrinsic::CollectionsMapHash: return "rocket_std_collections_map_hash";
+  case Intrinsic::CollectionsFoldSumInt: return "rocket_std_collections_fold_sum_int";
+  case Intrinsic::CollectionsFoldSumFloat: return "rocket_std_collections_fold_sum_float";
   case Intrinsic::CollectionsReverse: return "rocket_std_collections_reverse";
   case Intrinsic::CollectionsConcat: return "rocket_std_collections_concat";
   case Intrinsic::CollectionsJoin: return "rocket_std_collections_join";
@@ -162,10 +189,14 @@ std::string BootstrapCodeGenerator::generate() const {
          "rocket_integer_error(\"Int arithmetic overflow\"); return left / right; }\n"
          "template <typename T> RocketArray<T> rocket_array(std::initializer_list<T> values) { "
          "return std::make_shared<std::vector<T>>(values); }\n"
+         "template <typename T> RocketArray<T> rocket_array_clone(const RocketArray<T>& values, "
+         "std::size_t capacity) { auto result = std::make_shared<std::vector<T>>(); "
+         "result->reserve(capacity); result->insert(result->end(), values->begin(), values->end()); "
+         "return result; }\n"
          "template <typename T> RocketArray<T> rocket_array_update(const RocketArray<T>& values, "
          "std::int64_t index, T value) { "
          "if (index < 0 || index >= static_cast<std::int64_t>(values->size())) rocket_bounds_error(); "
-         "RocketArray<T> result = values.use_count() == 1 ? values : std::make_shared<std::vector<T>>(*values); "
+         "RocketArray<T> result = values.use_count() == 1 ? values : rocket_array_clone(values, values->capacity()); "
          "(*result)[static_cast<std::size_t>(index)] = std::move(value); return result; }\n"
          "template <typename T> T rocket_index(const RocketArray<T>& values, std::int64_t index) { "
          "if (index < 0 || index >= static_cast<std::int64_t>(values->size())) rocket_bounds_error(); "
@@ -316,6 +347,18 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
       if (symbol.intrinsic == Intrinsic::Print) out << "rocket_print";
       else if (const char* name = standardFunctionName(symbol.intrinsic)) out << name;
       else out << "/* unknown standard-library intrinsic */";
+      if (symbol.intrinsic == Intrinsic::CollectionsMapLength ||
+          symbol.intrinsic == Intrinsic::CollectionsMapFind ||
+          symbol.intrinsic == Intrinsic::CollectionsMapGet ||
+          symbol.intrinsic == Intrinsic::CollectionsMapKeys ||
+          symbol.intrinsic == Intrinsic::CollectionsMapValues) {
+        const Type map = symbol.parameterTypes[0];
+        out << '<' << cppType(map.arguments[0]) << ", " << cppType(map.arguments[1]) << '>';
+      } else if (symbol.intrinsic == Intrinsic::CollectionsSetContains ||
+                 symbol.intrinsic == Intrinsic::CollectionsSetValues) {
+        const Type set = symbol.parameterTypes[0];
+        out << '<' << cppType(set.arguments[0]) << '>';
+      }
     } else {
       out << functionName(value.callee);
     }

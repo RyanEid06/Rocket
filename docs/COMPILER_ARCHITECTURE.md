@@ -160,6 +160,21 @@ makes aliases and retained Slices stable snapshots while keeping the fast path
 allocation-free. Both paths retain a managed replacement before releasing the
 old element.
 
+Runtime Arrays also carry an explicit capacity. Persistent `reserve` and
+`append` return an owned Array at +1 and preserve their borrowed input. Storage
+may be reused only when MIR proves a direct consuming rebind; otherwise the
+runtime clones before changing capacity, length, or elements.
+`pop` returns `None` for empty input or an owned `Some(Pop[T])` aggregate that
+contains the updated Array and removed element. Managed elements are retained
+before they become aggregate fields and are released exactly once when removed
+from reused Array storage.
+
+Phase 11 Maps and Sets are aggregate products containing insertion-ordered
+Array snapshots. Canonical constructors remove later duplicates, and lookup
+uses the existing scalar or length-aware String equality contract. Stable hash
+entry points use the same FNV-1a bytes in the runtime and stage0 RAII library;
+iteration never exposes an implementation-dependent lookup order.
+
 The runtime reports bounds failures, invalid UTF-8, allocation failures,
 reference-count corruption, integer overflow, and integer division by zero to
 standard error and exits with status 101. Reference-count cycles remain a
@@ -216,3 +231,7 @@ contain explicit retain/release effects and each return block explicitly
 transfers a managed result and releases every owning non-parameter local.
 Canonical symbol allocation and textual IR make stage2/stage3 output directly
 byte-comparable.
+
+The Rocket compiler's internal generic `append` helper delegates to the public
+`std.collections.append` intrinsic. That production use exercises the Phase 11
+growth semantics throughout parsing and lowering during every bootstrap stage.

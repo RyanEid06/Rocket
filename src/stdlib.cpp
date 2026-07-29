@@ -521,6 +521,166 @@ std::wstring quoteWindowsArgument(const std::wstring& argument) {
 }
 #endif
 
+struct MapArrays {
+  RocketArray* keys;
+  RocketArray* values;
+};
+
+MapArrays mapArrays(RocketAggregate* map) {
+  auto* keys = static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(map, 0));
+  auto* values = static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(map, 1));
+  if (rocket_rt_collection_length(keys) != rocket_rt_collection_length(values)) {
+    std::fputs("rocket runtime error: Map key/value length mismatch\n", stderr);
+    std::exit(101);
+  }
+  return {keys, values};
+}
+
+void releaseMapArrays(MapArrays arrays) {
+  rocket_rt_release(arrays.keys);
+  rocket_rt_release(arrays.values);
+}
+
+std::int64_t findInt(RocketArray* values, std::int64_t key) {
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index)
+    if (rocket_rt_index_int(values, static_cast<std::int64_t>(index)) == key)
+      return static_cast<std::int64_t>(index);
+  return -1;
+}
+
+std::int64_t findFloat(RocketArray* values, double key) {
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index)
+    if (rocket_rt_index_float(values, static_cast<std::int64_t>(index)) == key)
+      return static_cast<std::int64_t>(index);
+  return -1;
+}
+
+std::int64_t findBool(RocketArray* values, std::uint8_t key) {
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index)
+    if (rocket_rt_index_bool(values, static_cast<std::int64_t>(index)) == (key ? 1 : 0))
+      return static_cast<std::int64_t>(index);
+  return -1;
+}
+
+std::int64_t findChar(RocketArray* values, std::uint8_t key) {
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index)
+    if (rocket_rt_index_char(values, static_cast<std::int64_t>(index)) == key)
+      return static_cast<std::int64_t>(index);
+  return -1;
+}
+
+std::int64_t findString(RocketArray* values, RocketString* key) {
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    RocketString* item = rocket_rt_index_string(values, static_cast<std::int64_t>(index));
+    const bool equal = rocket_rt_string_equal(item, key) != 0;
+    rocket_rt_release(item);
+    if (equal) return static_cast<std::int64_t>(index);
+  }
+  return -1;
+}
+
+RocketAggregate* optionalIndex(std::int64_t index) {
+  return index < 0 ? rocket_rt_aggregate_new(1, 0, 0) : intVariant(0, index);
+}
+
+RocketAggregate* optionalArrayValue(RocketArray* values, std::int64_t index) {
+  if (index < 0) return rocket_rt_aggregate_new(1, 0, 0);
+  switch (rocket_rt_collection_element_kind(values)) {
+  case ROCKET_ELEMENT_INT: return intVariant(0, rocket_rt_index_int(values, index));
+  case ROCKET_ELEMENT_FLOAT: {
+    RocketAggregate* result = rocket_rt_aggregate_new(0, 1, 0);
+    rocket_rt_aggregate_set_float(result, 0, rocket_rt_index_float(values, index));
+    return result;
+  }
+  case ROCKET_ELEMENT_BOOL: return boolVariant(0, rocket_rt_index_bool(values, index) != 0);
+  case ROCKET_ELEMENT_CHAR: {
+    RocketAggregate* result = rocket_rt_aggregate_new(0, 1, 0);
+    rocket_rt_aggregate_set_char(result, 0, rocket_rt_index_char(values, index));
+    return result;
+  }
+  case ROCKET_ELEMENT_STRING: {
+    RocketString* value = rocket_rt_index_string(values, index);
+    RocketAggregate* result = managedVariant(0, value);
+    rocket_rt_release(value);
+    return result;
+  }
+  case ROCKET_ELEMENT_MANAGED: {
+    void* value = rocket_rt_index_managed(values, index);
+    RocketAggregate* result = managedVariant(0, value);
+    rocket_rt_release(value);
+    return result;
+  }
+  default:
+    std::fputs("rocket runtime error: invalid Map value kind\n", stderr);
+    std::exit(101);
+  }
+}
+
+bool equalArrayElements(RocketArray* values, std::int64_t left, std::int64_t right) {
+  switch (rocket_rt_collection_element_kind(values)) {
+  case ROCKET_ELEMENT_INT:
+    return rocket_rt_index_int(values, left) == rocket_rt_index_int(values, right);
+  case ROCKET_ELEMENT_BOOL:
+    return rocket_rt_index_bool(values, left) == rocket_rt_index_bool(values, right);
+  case ROCKET_ELEMENT_CHAR:
+    return rocket_rt_index_char(values, left) == rocket_rt_index_char(values, right);
+  case ROCKET_ELEMENT_STRING: {
+    RocketString* a = rocket_rt_index_string(values, left);
+    RocketString* b = rocket_rt_index_string(values, right);
+    const bool equal = rocket_rt_string_equal(a, b) != 0;
+    rocket_rt_release(a);
+    rocket_rt_release(b);
+    return equal;
+  }
+  default:
+    std::fputs("rocket runtime error: Set or Map key type is not hashable\n", stderr);
+    std::exit(101);
+  }
+}
+
+RocketArray* appendArrayElement(RocketArray* target, RocketArray* source,
+                                std::int64_t index) {
+  switch (rocket_rt_collection_element_kind(source)) {
+  case ROCKET_ELEMENT_INT:
+    return rocket_rt_array_append_int(target, rocket_rt_index_int(source, index));
+  case ROCKET_ELEMENT_FLOAT:
+    return rocket_rt_array_append_float(target, rocket_rt_index_float(source, index));
+  case ROCKET_ELEMENT_BOOL:
+    return rocket_rt_array_append_bool(target, rocket_rt_index_bool(source, index));
+  case ROCKET_ELEMENT_CHAR:
+    return rocket_rt_array_append_char(target, rocket_rt_index_char(source, index));
+  case ROCKET_ELEMENT_STRING: {
+    RocketString* value = rocket_rt_index_string(source, index);
+    RocketArray* result = rocket_rt_array_append_string(target, value);
+    rocket_rt_release(value);
+    return result;
+  }
+  case ROCKET_ELEMENT_MANAGED: {
+    void* value = rocket_rt_index_managed(source, index);
+    RocketArray* result = rocket_rt_array_append_managed(target, value);
+    rocket_rt_release(value);
+    return result;
+  }
+  default:
+    std::fputs("rocket runtime error: invalid collection element kind\n", stderr);
+    std::exit(101);
+  }
+}
+
+std::uint64_t stableHash(const std::uint8_t* bytes, std::size_t length) {
+  std::uint64_t hash = 14695981039346656037ULL;
+  for (std::size_t index = 0; index < length; ++index) {
+    hash ^= bytes[index];
+    hash *= 1099511628211ULL;
+  }
+  return hash & 0x7fffffffffffffffULL;
+}
+
 } // namespace
 
 extern "C" {
@@ -615,6 +775,383 @@ RocketString* rocket_std_string_from_int(std::int64_t value) {
 
 std::int64_t rocket_std_collections_length(void* collection) {
   return static_cast<std::int64_t>(rocket_rt_collection_length(collection));
+}
+
+std::int64_t rocket_std_collections_capacity(RocketArray* values) {
+  const std::uint64_t capacity = rocket_rt_array_capacity(values);
+  if (capacity > static_cast<std::uint64_t>((std::numeric_limits<std::int64_t>::max)())) {
+    std::fputs("rocket runtime error: Array capacity exceeds Int range\n", stderr);
+    std::exit(101);
+  }
+  return static_cast<std::int64_t>(capacity);
+}
+
+RocketArray* rocket_std_collections_reserve(RocketArray* values,
+                                            std::int64_t minimumCapacity) {
+  return rocket_rt_array_reserve(values, minimumCapacity);
+}
+
+RocketArray* rocket_std_collections_append_int(RocketArray* values, std::int64_t value) {
+  return rocket_rt_array_append_int(values, value);
+}
+
+RocketArray* rocket_std_collections_append_float(RocketArray* values, double value) {
+  return rocket_rt_array_append_float(values, value);
+}
+
+RocketArray* rocket_std_collections_append_bool(RocketArray* values, std::uint8_t value) {
+  return rocket_rt_array_append_bool(values, value);
+}
+
+RocketArray* rocket_std_collections_append_char(RocketArray* values, std::uint8_t value) {
+  return rocket_rt_array_append_char(values, value);
+}
+
+RocketArray* rocket_std_collections_append_string(RocketArray* values, RocketString* value) {
+  return rocket_rt_array_append_string(values, value);
+}
+
+RocketArray* rocket_std_collections_append_managed(RocketArray* values, void* value) {
+  return rocket_rt_array_append_managed(values, value);
+}
+
+RocketAggregate* rocket_std_collections_pop(RocketArray* values) {
+  return rocket_rt_array_pop(values);
+}
+
+RocketArray* rocket_std_collections_insert_int(RocketArray* values, std::int64_t index,
+                                               std::int64_t value) {
+  return rocket_rt_array_insert_int(values, index, value);
+}
+
+RocketArray* rocket_std_collections_insert_float(RocketArray* values, std::int64_t index,
+                                                 double value) {
+  return rocket_rt_array_insert_float(values, index, value);
+}
+
+RocketArray* rocket_std_collections_insert_bool(RocketArray* values, std::int64_t index,
+                                                std::uint8_t value) {
+  return rocket_rt_array_insert_bool(values, index, value);
+}
+
+RocketArray* rocket_std_collections_insert_char(RocketArray* values, std::int64_t index,
+                                                std::uint8_t value) {
+  return rocket_rt_array_insert_char(values, index, value);
+}
+
+RocketArray* rocket_std_collections_insert_string(RocketArray* values, std::int64_t index,
+                                                  RocketString* value) {
+  return rocket_rt_array_insert_string(values, index, value);
+}
+
+RocketArray* rocket_std_collections_insert_managed(RocketArray* values, std::int64_t index,
+                                                   void* value) {
+  return rocket_rt_array_insert_managed(values, index, value);
+}
+
+RocketAggregate* rocket_std_collections_remove(RocketArray* values, std::int64_t index) {
+  return rocket_rt_array_remove(values, index);
+}
+
+RocketArray* rocket_std_collections_clear(RocketArray* values) {
+  return rocket_rt_array_clear(values);
+}
+
+RocketAggregate* rocket_std_collections_map_from_arrays(RocketArray* keys,
+                                                        RocketArray* values) {
+  if (rocket_rt_collection_length(keys) != rocket_rt_collection_length(values)) {
+    std::fputs("rocket runtime error: Map key/value length mismatch\n", stderr);
+    std::exit(101);
+  }
+  const std::uint64_t length = rocket_rt_collection_length(keys);
+  RocketArray* uniqueKeys = rocket_rt_array_new(rocket_rt_collection_element_kind(keys), 0);
+  RocketArray* uniqueValues = rocket_rt_array_new(rocket_rt_collection_element_kind(values), 0);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    bool duplicate = false;
+    for (std::uint64_t previous = 0; previous < index; ++previous)
+      if (equalArrayElements(keys, static_cast<std::int64_t>(index),
+                            static_cast<std::int64_t>(previous))) {
+        duplicate = true;
+        break;
+      }
+    if (!duplicate) {
+      RocketArray* nextKeys = appendArrayElement(
+          uniqueKeys, keys, static_cast<std::int64_t>(index));
+      RocketArray* nextValues = appendArrayElement(
+          uniqueValues, values, static_cast<std::int64_t>(index));
+      rocket_rt_release(uniqueKeys);
+      rocket_rt_release(uniqueValues);
+      uniqueKeys = nextKeys;
+      uniqueValues = nextValues;
+    }
+  }
+  RocketAggregate* map = rocket_rt_aggregate_new(0, 2, 3);
+  rocket_rt_aggregate_set_managed(map, 0, uniqueKeys);
+  rocket_rt_aggregate_set_managed(map, 1, uniqueValues);
+  rocket_rt_release(uniqueKeys);
+  rocket_rt_release(uniqueValues);
+  return map;
+}
+
+std::int64_t rocket_std_collections_map_length(RocketAggregate* map) {
+  MapArrays arrays = mapArrays(map);
+  const auto length = static_cast<std::int64_t>(rocket_rt_collection_length(arrays.keys));
+  releaseMapArrays(arrays);
+  return length;
+}
+
+#define ROCKET_MAP_LOOKUP(SUFFIX, TYPE, FIND)                                      \
+  RocketAggregate* rocket_std_collections_map_find_##SUFFIX(RocketAggregate* map, \
+                                                            TYPE key) {           \
+    MapArrays arrays = mapArrays(map);                                             \
+    const std::int64_t index = FIND(arrays.keys, key);                             \
+    releaseMapArrays(arrays);                                                      \
+    return optionalIndex(index);                                                   \
+  }                                                                                \
+  RocketAggregate* rocket_std_collections_map_get_##SUFFIX(RocketAggregate* map,  \
+                                                           TYPE key) {            \
+    MapArrays arrays = mapArrays(map);                                             \
+    const std::int64_t index = FIND(arrays.keys, key);                             \
+    RocketAggregate* result = optionalArrayValue(arrays.values, index);            \
+    releaseMapArrays(arrays);                                                      \
+    return result;                                                                 \
+  }
+
+ROCKET_MAP_LOOKUP(int, std::int64_t, findInt)
+ROCKET_MAP_LOOKUP(bool, std::uint8_t, findBool)
+ROCKET_MAP_LOOKUP(char, std::uint8_t, findChar)
+ROCKET_MAP_LOOKUP(string, RocketString*, findString)
+#undef ROCKET_MAP_LOOKUP
+
+RocketArray* rocket_std_collections_map_keys(RocketAggregate* map) {
+  return static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(map, 0));
+}
+
+RocketArray* rocket_std_collections_map_values(RocketAggregate* map) {
+  return static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(map, 1));
+}
+
+RocketAggregate* rocket_std_collections_set_from_array(RocketArray* values) {
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  RocketArray* unique = rocket_rt_array_new(rocket_rt_collection_element_kind(values), 0);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    bool duplicate = false;
+    for (std::uint64_t previous = 0; previous < index; ++previous) {
+      if (equalArrayElements(values, static_cast<std::int64_t>(index),
+                            static_cast<std::int64_t>(previous))) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) {
+      RocketArray* appended = appendArrayElement(unique, values,
+                                                 static_cast<std::int64_t>(index));
+      rocket_rt_release(unique);
+      unique = appended;
+    }
+  }
+  RocketAggregate* set = rocket_rt_aggregate_new(0, 1, 1);
+  rocket_rt_aggregate_set_managed(set, 0, unique);
+  rocket_rt_release(unique);
+  return set;
+}
+
+#define ROCKET_SET_CONTAINS(SUFFIX, TYPE, FIND)                                    \
+  std::uint8_t rocket_std_collections_set_contains_##SUFFIX(RocketAggregate* set,  \
+                                                             TYPE value) {         \
+    auto* values = static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(set, 0)); \
+    const bool found = FIND(values, value) >= 0;                                    \
+    rocket_rt_release(values);                                                      \
+    return found ? 1 : 0;                                                          \
+  }
+
+ROCKET_SET_CONTAINS(int, std::int64_t, findInt)
+ROCKET_SET_CONTAINS(bool, std::uint8_t, findBool)
+ROCKET_SET_CONTAINS(char, std::uint8_t, findChar)
+ROCKET_SET_CONTAINS(string, RocketString*, findString)
+#undef ROCKET_SET_CONTAINS
+
+RocketArray* rocket_std_collections_set_values(RocketAggregate* set) {
+  return static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(set, 0));
+}
+
+std::int64_t rocket_std_collections_hash_int(std::int64_t value) {
+  return static_cast<std::int64_t>(stableHash(
+      reinterpret_cast<const std::uint8_t*>(&value), sizeof(value)));
+}
+
+std::int64_t rocket_std_collections_hash_bool(std::uint8_t value) {
+  value = value ? 1 : 0;
+  return static_cast<std::int64_t>(stableHash(&value, 1));
+}
+
+std::int64_t rocket_std_collections_hash_char(std::uint8_t value) {
+  return static_cast<std::int64_t>(stableHash(&value, 1));
+}
+
+std::int64_t rocket_std_collections_hash_string(RocketString* value) {
+  return static_cast<std::int64_t>(stableHash(
+      rocket_rt_string_bytes(value),
+      static_cast<std::size_t>(rocket_rt_string_byte_length(value))));
+}
+
+#define ROCKET_COLLECTION_SEARCH(SUFFIX, TYPE, FIND)                                \
+  std::uint8_t rocket_std_collections_contains_##SUFFIX(RocketArray* values,       \
+                                                         TYPE value) {              \
+    return FIND(values, value) >= 0 ? 1 : 0;                                       \
+  }                                                                                 \
+  RocketAggregate* rocket_std_collections_find_##SUFFIX(RocketArray* values,       \
+                                                         TYPE value) {              \
+    return optionalIndex(FIND(values, value));                                     \
+  }
+
+ROCKET_COLLECTION_SEARCH(int, std::int64_t, findInt)
+ROCKET_COLLECTION_SEARCH(float, double, findFloat)
+ROCKET_COLLECTION_SEARCH(bool, std::uint8_t, findBool)
+ROCKET_COLLECTION_SEARCH(char, std::uint8_t, findChar)
+ROCKET_COLLECTION_SEARCH(string, RocketString*, findString)
+#undef ROCKET_COLLECTION_SEARCH
+
+#define ROCKET_COLLECTION_FILTER(SUFFIX, TYPE, GETTER, APPENDER)                    \
+  RocketArray* rocket_std_collections_filter_equal_##SUFFIX(RocketArray* values,   \
+                                                             TYPE wanted) {         \
+    RocketArray* result = rocket_rt_array_new(rocket_rt_collection_element_kind(values), 0); \
+    const std::uint64_t length = rocket_rt_collection_length(values);               \
+    for (std::uint64_t index = 0; index < length; ++index) {                        \
+      const TYPE item = GETTER(values, static_cast<std::int64_t>(index));           \
+      if (item == wanted) {                                                         \
+        RocketArray* appended = APPENDER(result, item);                             \
+        rocket_rt_release(result);                                                  \
+        result = appended;                                                          \
+      }                                                                             \
+    }                                                                               \
+    return result;                                                                  \
+  }
+
+ROCKET_COLLECTION_FILTER(int, std::int64_t, rocket_rt_index_int, rocket_rt_array_append_int)
+ROCKET_COLLECTION_FILTER(float, double, rocket_rt_index_float, rocket_rt_array_append_float)
+ROCKET_COLLECTION_FILTER(bool, std::uint8_t, rocket_rt_index_bool, rocket_rt_array_append_bool)
+ROCKET_COLLECTION_FILTER(char, std::uint8_t, rocket_rt_index_char, rocket_rt_array_append_char)
+#undef ROCKET_COLLECTION_FILTER
+
+RocketArray* rocket_std_collections_filter_equal_string(RocketArray* values,
+                                                        RocketString* wanted) {
+  RocketArray* result = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 0);
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    RocketString* item = rocket_rt_index_string(values, static_cast<std::int64_t>(index));
+    if (rocket_rt_string_equal(item, wanted)) {
+      RocketArray* appended = rocket_rt_array_append_string(result, item);
+      rocket_rt_release(result);
+      result = appended;
+    }
+    rocket_rt_release(item);
+  }
+  return result;
+}
+
+RocketArray* rocket_std_collections_sort_int(RocketArray* values) {
+  std::vector<std::int64_t> sorted;
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  sorted.reserve(static_cast<std::size_t>(length));
+  for (std::uint64_t index = 0; index < length; ++index)
+    sorted.push_back(rocket_rt_index_int(values, static_cast<std::int64_t>(index)));
+  std::sort(sorted.begin(), sorted.end());
+  RocketArray* result = rocket_rt_array_new(ROCKET_ELEMENT_INT, length);
+  for (std::uint64_t index = 0; index < length; ++index)
+    rocket_rt_array_set_int(result, static_cast<std::int64_t>(index), sorted[index]);
+  return result;
+}
+
+RocketArray* rocket_std_collections_sort_float(RocketArray* values) {
+  std::vector<double> sorted;
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  sorted.reserve(static_cast<std::size_t>(length));
+  for (std::uint64_t index = 0; index < length; ++index)
+    sorted.push_back(rocket_rt_index_float(values, static_cast<std::int64_t>(index)));
+  std::stable_sort(sorted.begin(), sorted.end(), [](double left, double right) {
+    if (std::isnan(left)) return false;
+    if (std::isnan(right)) return true;
+    return left < right;
+  });
+  RocketArray* result = rocket_rt_array_new(ROCKET_ELEMENT_FLOAT, length);
+  for (std::uint64_t index = 0; index < length; ++index)
+    rocket_rt_array_set_float(result, static_cast<std::int64_t>(index), sorted[index]);
+  return result;
+}
+
+RocketArray* rocket_std_collections_sort_char(RocketArray* values) {
+  std::vector<std::uint8_t> sorted;
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  sorted.reserve(static_cast<std::size_t>(length));
+  for (std::uint64_t index = 0; index < length; ++index)
+    sorted.push_back(rocket_rt_index_char(values, static_cast<std::int64_t>(index)));
+  std::sort(sorted.begin(), sorted.end());
+  RocketArray* result = rocket_rt_array_new(ROCKET_ELEMENT_CHAR, length);
+  for (std::uint64_t index = 0; index < length; ++index)
+    rocket_rt_array_set_char(result, static_cast<std::int64_t>(index), sorted[index]);
+  return result;
+}
+
+RocketArray* rocket_std_collections_sort_string(RocketArray* values) {
+  std::vector<std::string> sorted;
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  sorted.reserve(static_cast<std::size_t>(length));
+  for (std::uint64_t index = 0; index < length; ++index) {
+    RocketString* item = rocket_rt_index_string(values, static_cast<std::int64_t>(index));
+    sorted.push_back(stringValue(item));
+    rocket_rt_release(item);
+  }
+  std::sort(sorted.begin(), sorted.end());
+  return stringArray(sorted);
+}
+
+#define ROCKET_MAP_HASH(SUFFIX, GETTER, HASHER)                                     \
+  RocketArray* rocket_std_collections_map_hash_##SUFFIX(RocketArray* values) {     \
+    const std::uint64_t length = rocket_rt_collection_length(values);               \
+    RocketArray* result = rocket_rt_array_new(ROCKET_ELEMENT_INT, length);          \
+    for (std::uint64_t index = 0; index < length; ++index)                          \
+      rocket_rt_array_set_int(result, static_cast<std::int64_t>(index),             \
+                              HASHER(GETTER(values, static_cast<std::int64_t>(index)))); \
+    return result;                                                                  \
+  }
+
+ROCKET_MAP_HASH(int, rocket_rt_index_int, rocket_std_collections_hash_int)
+ROCKET_MAP_HASH(bool, rocket_rt_index_bool, rocket_std_collections_hash_bool)
+ROCKET_MAP_HASH(char, rocket_rt_index_char, rocket_std_collections_hash_char)
+#undef ROCKET_MAP_HASH
+
+RocketArray* rocket_std_collections_map_hash_string(RocketArray* values) {
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  RocketArray* result = rocket_rt_array_new(ROCKET_ELEMENT_INT, length);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    RocketString* value = rocket_rt_index_string(values, static_cast<std::int64_t>(index));
+    rocket_rt_array_set_int(result, static_cast<std::int64_t>(index),
+                            rocket_std_collections_hash_string(value));
+    rocket_rt_release(value);
+  }
+  return result;
+}
+
+std::int64_t rocket_std_collections_fold_sum_int(RocketArray* values) {
+  std::int64_t total = 0;
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    const std::int64_t value = rocket_rt_index_int(values, static_cast<std::int64_t>(index));
+    if ((value > 0 && total > (std::numeric_limits<std::int64_t>::max)() - value) ||
+        (value < 0 && total < (std::numeric_limits<std::int64_t>::min)() - value))
+      rocket_rt_panic_integer_overflow();
+    total += value;
+  }
+  return total;
+}
+
+double rocket_std_collections_fold_sum_float(RocketArray* values) {
+  double total = 0.0;
+  const std::uint64_t length = rocket_rt_collection_length(values);
+  for (std::uint64_t index = 0; index < length; ++index)
+    total += rocket_rt_index_float(values, static_cast<std::int64_t>(index));
+  return total;
 }
 
 RocketArray* rocket_std_collections_reverse(void* collection) {

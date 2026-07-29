@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rocket VERSION 1.0.0 LANGUAGES CXX)
+project(Rocket VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -162,6 +162,16 @@ add_test(NAME cli_check_phase9_bootstrap_primitives
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase9_bootstrap_primitives.rocket")
 add_test(NAME cli_check_phase11_array_mutation
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
+add_test(NAME cli_check_phase11_array_growth
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_growth.rocket")
+add_test(NAME cli_check_phase11_map_set_tuple
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
+add_test(NAME cli_phase11_invalid_key
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_invalid_key.rocket"
+    "-DEXPECTED=Map keys must be Int, Bool, Char, or String"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
 add_test(NAME cli_run_phase9_bootstrap_primitives
   COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase9_bootstrap_primitives.rocket"
     -- first second)
@@ -229,7 +239,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.0.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.1.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest
@@ -302,6 +312,16 @@ if(LLVM_FOUND)
   set_tests_properties(cli_run_phase11_array_mutation PROPERTIES
     PASS_REGULAR_EXPRESSION "99[\r\n]+20[\r\n]+20[\r\n]+new[\r\n]+old")
 
+  add_test(NAME cli_run_phase11_array_growth
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_growth.rocket")
+  set_tests_properties(cli_run_phase11_array_growth PROPERTIES
+    PASS_REGULAR_EXPRESSION "8[\r\n]+0[\r\n]+old[\r\n]+new[\r\n]+1[\r\n]+old[\r\n]+first[\r\n]+old[\r\n]+0[\r\n]+8")
+
+  add_test(NAME cli_run_phase11_map_set_tuple
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
+  set_tests_properties(cli_run_phase11_map_set_tuple PROPERTIES
+    PASS_REGULAR_EXPRESSION "answer[\r\n]+42[\r\n]+2[\r\n]+1[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+1[\r\n]+1[\r\n]+4567693929835203094[\r\n]+1[\r\n]+3[\r\n]+1[\r\n]+1[\r\n]+2[\r\n]+1[\r\n]+6[\r\n]+7[\r\n]+8[\r\n]+R")
+
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
@@ -326,6 +346,22 @@ if(LLVM_FOUND)
     FIXTURES_REQUIRED self_hosted_compiler
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+  add_test(NAME cli_self_hosted_run_phase11_array_growth
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_growth.rocket")
+  set_tests_properties(cli_self_hosted_run_phase11_array_growth PROPERTIES
+    PASS_REGULAR_EXPRESSION "8[\r\n]+0[\r\n]+old[\r\n]+new[\r\n]+1[\r\n]+old[\r\n]+first[\r\n]+old[\r\n]+0[\r\n]+8"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+  add_test(NAME cli_self_hosted_run_phase11_map_set_tuple
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
+  set_tests_properties(cli_self_hosted_run_phase11_map_set_tuple PROPERTIES
+    PASS_REGULAR_EXPRESSION "answer[\r\n]+42[\r\n]+2[\r\n]+1[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+1[\r\n]+1[\r\n]+4567693929835203094[\r\n]+1[\r\n]+3[\r\n]+1[\r\n]+1[\r\n]+2[\r\n]+1[\r\n]+6[\r\n]+7[\r\n]+8[\r\n]+R"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
   add_test(NAME cli_array_bounds_failure
     COMMAND ${CMAKE_COMMAND}
       "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -345,6 +381,27 @@ if(LLVM_FOUND)
       "-DROCKETC=$<TARGET_FILE:rocketc>"
       "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/array_update_bounds.rocket"
       "-DEXPECTED=rocket runtime error: index 2 out of bounds for length 2"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_phase11_negative_reserve_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_negative_reserve.rocket"
+      "-DEXPECTED=rocket runtime error: Array reserve capacity cannot be negative"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_phase11_insert_bounds_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_insert_bounds.rocket"
+      "-DEXPECTED=rocket runtime error: index 2 out of bounds for length 1"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_phase11_remove_bounds_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_remove_bounds.rocket"
+      "-DEXPECTED=rocket runtime error: index 1 out of bounds for length 1"
       -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
 
   add_test(NAME cli_int_overflow_failure
@@ -369,4 +426,12 @@ else()
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
   set_tests_properties(cli_run_stage0_phase11_array_mutation PROPERTIES
     PASS_REGULAR_EXPRESSION "99[\r\n]+20[\r\n]+20[\r\n]+new[\r\n]+old")
+  add_test(NAME cli_run_stage0_phase11_array_growth
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_growth.rocket")
+  set_tests_properties(cli_run_stage0_phase11_array_growth PROPERTIES
+    PASS_REGULAR_EXPRESSION "8[\r\n]+0[\r\n]+old[\r\n]+new[\r\n]+1[\r\n]+old[\r\n]+first[\r\n]+old[\r\n]+0[\r\n]+8")
+  add_test(NAME cli_run_stage0_phase11_map_set_tuple
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
+  set_tests_properties(cli_run_stage0_phase11_map_set_tuple PROPERTIES
+    PASS_REGULAR_EXPRESSION "answer[\r\n]+42[\r\n]+2[\r\n]+1[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+1[\r\n]+1[\r\n]+4567693929835203094[\r\n]+1[\r\n]+3[\r\n]+1[\r\n]+1[\r\n]+2[\r\n]+1[\r\n]+6[\r\n]+7[\r\n]+8[\r\n]+R")
 endif()

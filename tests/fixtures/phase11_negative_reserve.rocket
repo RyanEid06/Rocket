@@ -1,0 +1,5 @@
+import std.collections
+
+fn main() -> Int:
+    let values = collections.reserve([1], -1)
+    return collections.length(values)

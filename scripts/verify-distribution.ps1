@@ -28,6 +28,9 @@ if (Test-Path -LiteralPath $work) {
 New-Item -ItemType Directory -Path $work -Force | Out-Null
 $source = Join-Path $work 'hello.rocket'
 Copy-Item -LiteralPath (Join-Path $projectRoot 'examples\hello.rocket') -Destination $source
+$phase11Source = Join-Path $work 'phase11_map_set_tuple.rocket'
+Copy-Item -LiteralPath (Join-Path $projectRoot 'tests\fixtures\phase11_map_set_tuple.rocket') `
+    -Destination $phase11Source
 
 $savedEnvironment = @{
     ROCKET_CLANG = $env:ROCKET_CLANG
@@ -48,7 +51,7 @@ try {
     Push-Location $work
     try {
         $version = & $compiler --version
-        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.0.0') {
+        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.1.0') {
             throw "Relocated compiler version check failed: $($version -join ' ')"
         }
         & $compiler check $source
@@ -57,6 +60,11 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Relocated compiler build failed.' }
         & $compiler run $source
         if ($LASTEXITCODE -ne 0) { throw 'Relocated compiler run failed.' }
+        $phase11Output = & $compiler run $phase11Source 2>&1
+        if ($LASTEXITCODE -ne 0 -or
+            ($phase11Output -join "`n") -notmatch '4567693929835203094') {
+            throw "Relocated compiler Phase 11 run failed: $($phase11Output -join ' ')"
+        }
 
         $nativeProgram = Join-Path $work '.rocketc\main.exe'
         if (-not (Test-Path -LiteralPath $nativeProgram -PathType Leaf)) {
@@ -76,4 +84,4 @@ try {
     $env:PATH = $savedEnvironment.PATH
 }
 
-Write-Output "Rocket 1.0 distribution relocation test passed: $package"
+Write-Output "Rocket 1.1 distribution relocation test passed: $package"

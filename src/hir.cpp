@@ -21,6 +21,15 @@ bool containsTypeParameter(const Type& type) {
   return false;
 }
 
+bool isHashableKey(const Type& type) {
+  return type == Type::Int || type == Type::Bool || type == Type::Char ||
+         type == Type::String;
+}
+
+bool isCollectionComparable(const Type& type) {
+  return isHashableKey(type) || type == Type::Float;
+}
+
 } // namespace
 
 SymbolId HirLowerer::addSymbol(SymbolKind kind, const std::string& name, Type type,
@@ -68,6 +77,76 @@ void HirLowerer::registerBuiltinTypes() {
   typeDeclarations_.emplace(stringBuilder.name,
                             static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
   hir_.typeDeclarations.push_back(std::move(stringBuilder));
+
+  HirTypeDeclaration collectionPop;
+  collectionPop.kind = HirTypeDeclKind::Struct;
+  collectionPop.name = "std.collections.Pop";
+  collectionPop.location = {"<standard-library>", 1, 1};
+  collectionPop.publicDeclaration = true;
+  collectionPop.builtin = true;
+  collectionPop.typeParameters = {"T"};
+  collectionPop.fields = {{"values", arrayType(typeParameter("T")), collectionPop.location},
+                          {"value", typeParameter("T"), collectionPop.location}};
+  typeDeclarations_.emplace(collectionPop.name,
+                            static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+  hir_.typeDeclarations.push_back(std::move(collectionPop));
+
+  HirTypeDeclaration collectionRemoval;
+  collectionRemoval.kind = HirTypeDeclKind::Struct;
+  collectionRemoval.name = "std.collections.Removal";
+  collectionRemoval.location = {"<standard-library>", 1, 1};
+  collectionRemoval.publicDeclaration = true;
+  collectionRemoval.builtin = true;
+  collectionRemoval.typeParameters = {"T"};
+  collectionRemoval.fields = {
+      {"values", arrayType(typeParameter("T")), collectionRemoval.location},
+      {"value", typeParameter("T"), collectionRemoval.location}};
+  typeDeclarations_.emplace(collectionRemoval.name,
+                            static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+  hir_.typeDeclarations.push_back(std::move(collectionRemoval));
+
+  auto addCollectionStruct = [&](std::string name, std::vector<std::string> parameters,
+                                 std::vector<HirField> fields) {
+    HirTypeDeclaration declaration;
+    declaration.kind = HirTypeDeclKind::Struct;
+    declaration.name = std::move(name);
+    declaration.location = {"<standard-library>", 1, 1};
+    declaration.publicDeclaration = true;
+    declaration.builtin = true;
+    declaration.typeParameters = std::move(parameters);
+    declaration.fields = std::move(fields);
+    for (auto& field : declaration.fields) field.location = declaration.location;
+    typeDeclarations_.emplace(
+        declaration.name, static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
+    hir_.typeDeclarations.push_back(std::move(declaration));
+  };
+  const Location collectionLocation{"<standard-library>", 1, 1};
+  addCollectionStruct(
+      "std.collections.Tuple2", {"A", "B"},
+      {{"first", typeParameter("A"), collectionLocation},
+       {"second", typeParameter("B"), collectionLocation}});
+  addCollectionStruct(
+      "std.collections.Tuple3", {"A", "B", "C"},
+      {{"first", typeParameter("A"), collectionLocation},
+       {"second", typeParameter("B"), collectionLocation},
+       {"third", typeParameter("C"), collectionLocation}});
+  addCollectionStruct(
+      "std.collections.Map", {"K", "V"},
+      {{"keys", arrayType(typeParameter("K")), collectionLocation},
+       {"values", arrayType(typeParameter("V")), collectionLocation}});
+  addCollectionStruct(
+      "std.collections.Set", {"T"},
+      {{"values", arrayType(typeParameter("T")), collectionLocation}});
+  addCollectionStruct(
+      "std.collections.Queue", {"T"},
+      {{"values", arrayType(typeParameter("T")), collectionLocation}});
+  addCollectionStruct(
+      "std.collections.Stack", {"T"},
+      {{"values", arrayType(typeParameter("T")), collectionLocation}});
+  addCollectionStruct(
+      "std.collections.ByteBuffer", {},
+      {{"bytes", arrayType(Type::Char), collectionLocation}});
+
   HirTypeDeclaration jsonField;
   jsonField.kind = HirTypeDeclKind::Struct;
   jsonField.name = "std.json.JsonField";
@@ -151,10 +230,70 @@ void HirLowerer::registerStandardLibrary() {
       Intrinsic::StringBuilderFinish);
 
   const Type t = typeParameter("T");
+  const Type collectionPop{TypeKind::Struct, "std.collections.Pop", {t}};
+  const Type collectionRemoval{TypeKind::Struct, "std.collections.Removal", {t}};
+  const Type k = typeParameter("K");
+  const Type v = typeParameter("V");
+  const Type mapType{TypeKind::Struct, "std.collections.Map", {k, v}};
+  const Type setType{TypeKind::Struct, "std.collections.Set", {t}};
   add("std.collections.length", {arrayType(t)}, Type::Int,
       Intrinsic::CollectionsLength, {"T"});
   add("std.collections.slice_length", {sliceType(t)}, Type::Int,
       Intrinsic::CollectionsLength, {"T"});
+  add("std.collections.capacity", {arrayType(t)}, Type::Int,
+      Intrinsic::CollectionsCapacity, {"T"});
+  add("std.collections.reserve", {arrayType(t), Type::Int}, arrayType(t),
+      Intrinsic::CollectionsReserve, {"T"});
+  add("std.collections.append", {arrayType(t), t}, arrayType(t),
+      Intrinsic::CollectionsAppend, {"T"});
+  add("std.collections.pop", {arrayType(t)},
+      Type{TypeKind::Enum, "Option", {collectionPop}}, Intrinsic::CollectionsPop, {"T"});
+  add("std.collections.insert", {arrayType(t), Type::Int, t}, arrayType(t),
+      Intrinsic::CollectionsInsert, {"T"});
+  add("std.collections.remove", {arrayType(t), Type::Int}, collectionRemoval,
+      Intrinsic::CollectionsRemove, {"T"});
+  add("std.collections.clear", {arrayType(t)}, arrayType(t),
+      Intrinsic::CollectionsClear, {"T"});
+  add("std.collections.map_from_arrays", {arrayType(k), arrayType(v)}, mapType,
+      Intrinsic::CollectionsMapFromArrays, {"K", "V"});
+  add("std.collections.map_length", {mapType}, Type::Int,
+      Intrinsic::CollectionsMapLength, {"K", "V"});
+  add("std.collections.map_find", {mapType, k},
+      Type{TypeKind::Enum, "Option", {Type::Int}}, Intrinsic::CollectionsMapFind,
+      {"K", "V"});
+  add("std.collections.map_get", {mapType, k},
+      Type{TypeKind::Enum, "Option", {v}}, Intrinsic::CollectionsMapGet, {"K", "V"});
+  add("std.collections.map_keys", {mapType}, arrayType(k),
+      Intrinsic::CollectionsMapKeys, {"K", "V"});
+  add("std.collections.map_values", {mapType}, arrayType(v),
+      Intrinsic::CollectionsMapValues, {"K", "V"});
+  add("std.collections.set_from_array", {arrayType(t)}, setType,
+      Intrinsic::CollectionsSetFromArray, {"T"});
+  add("std.collections.set_contains", {setType, t}, Type::Bool,
+      Intrinsic::CollectionsSetContains, {"T"});
+  add("std.collections.set_values", {setType}, arrayType(t),
+      Intrinsic::CollectionsSetValues, {"T"});
+  add("std.collections.hash", {t}, Type::Int, Intrinsic::CollectionsHash, {"T"});
+  add("std.collections.contains", {arrayType(t), t}, Type::Bool,
+      Intrinsic::CollectionsContains, {"T"});
+  add("std.collections.find", {arrayType(t), t},
+      Type{TypeKind::Enum, "Option", {Type::Int}}, Intrinsic::CollectionsFind, {"T"});
+  add("std.collections.filter_equal", {arrayType(t), t}, arrayType(t),
+      Intrinsic::CollectionsFilterEqual, {"T"});
+  add("std.collections.sort_int", {arrayType(Type::Int)}, arrayType(Type::Int),
+      Intrinsic::CollectionsSortInt);
+  add("std.collections.sort_float", {arrayType(Type::Float)}, arrayType(Type::Float),
+      Intrinsic::CollectionsSortFloat);
+  add("std.collections.sort_char", {arrayType(Type::Char)}, arrayType(Type::Char),
+      Intrinsic::CollectionsSortChar);
+  add("std.collections.sort_string", {arrayType(Type::String)}, arrayType(Type::String),
+      Intrinsic::CollectionsSortString);
+  add("std.collections.map_hash", {arrayType(t)}, arrayType(Type::Int),
+      Intrinsic::CollectionsMapHash, {"T"});
+  add("std.collections.fold_sum_int", {arrayType(Type::Int)}, Type::Int,
+      Intrinsic::CollectionsFoldSumInt);
+  add("std.collections.fold_sum_float", {arrayType(Type::Float)}, Type::Float,
+      Intrinsic::CollectionsFoldSumFloat);
   add("std.collections.reverse", {arrayType(t)}, arrayType(t),
       Intrinsic::CollectionsReverse, {"T"});
   add("std.collections.concat", {arrayType(t), arrayType(t)}, arrayType(t),
@@ -971,6 +1110,11 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       }
       Type result{declaration.kind == HirTypeDeclKind::Struct ? TypeKind::Struct : TypeKind::Enum,
                   declaration.name, std::move(typeArguments)};
+      if ((declaration.name == "std.collections.Map" ||
+           declaration.name == "std.collections.Set") &&
+          !result.arguments.empty() && !isHashableKey(result.arguments[0]))
+        diagnostics_.error(expression.location,
+                           "Map and Set keys must be Int, Bool, Char, or String");
       return std::make_unique<HirAggregateExpr>(expression.location, std::move(result),
                                                  *aggregateDeclaration, tag,
                                                  std::move(arguments));
@@ -1020,6 +1164,32 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       for (const auto& parameter : definition.parameterTypes)
         parameterTypes.push_back(substitute(parameter, inferred));
       const Type result = substitute(definition.result, inferred);
+      if (definition.intrinsic == Intrinsic::CollectionsMapFromArrays ||
+          definition.intrinsic == Intrinsic::CollectionsMapLength ||
+          definition.intrinsic == Intrinsic::CollectionsMapFind ||
+          definition.intrinsic == Intrinsic::CollectionsMapGet ||
+          definition.intrinsic == Intrinsic::CollectionsMapKeys ||
+          definition.intrinsic == Intrinsic::CollectionsMapValues) {
+        if (!isHashableKey(inferred.at("K")))
+          diagnostics_.error(expression.location,
+                             "Map keys must be Int, Bool, Char, or String");
+      }
+      if (definition.intrinsic == Intrinsic::CollectionsSetFromArray ||
+          definition.intrinsic == Intrinsic::CollectionsSetContains ||
+          definition.intrinsic == Intrinsic::CollectionsSetValues ||
+          definition.intrinsic == Intrinsic::CollectionsHash ||
+          definition.intrinsic == Intrinsic::CollectionsMapHash) {
+        if (!isHashableKey(inferred.at("T")))
+          diagnostics_.error(expression.location,
+                             "Set elements and hash values must be Int, Bool, Char, or String");
+      }
+      if (definition.intrinsic == Intrinsic::CollectionsContains ||
+          definition.intrinsic == Intrinsic::CollectionsFind ||
+          definition.intrinsic == Intrinsic::CollectionsFilterEqual) {
+        if (!isCollectionComparable(inferred.at("T")))
+          diagnostics_.error(expression.location,
+                             "collection equality requires Int, Float, Bool, Char, or String");
+      }
       SymbolId callee = InvalidSymbol;
       if (auto found = specializations_.find(key); found != specializations_.end()) {
         callee = found->second;

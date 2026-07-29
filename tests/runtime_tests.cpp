@@ -86,6 +86,47 @@ int main() {
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
                        "scalar Array storage is destroyed deterministically", failures);
 
+  RocketArray* growing = rocket_rt_array_new(ROCKET_ELEMENT_INT, 0);
+  RocketArray* reserved = rocket_rt_array_reserve(growing, 8);
+  rocket_rt_release(growing);
+  growing = reserved;
+  rocket::test::expect(rocket_rt_array_capacity(growing) >= 8 &&
+                           rocket_rt_collection_length(growing) == 0,
+                       "Array reserve exposes capacity without changing length", failures);
+  RocketArray* growthAlias = growing;
+  rocket_rt_retain(growthAlias);
+  RocketArray* appended = rocket_rt_array_append_int(growing, 42);
+  rocket::test::expect(rocket_rt_collection_length(growing) == 0,
+                       "append preserves a uniquely owned input when result is separate",
+                       failures);
+  rocket_rt_release(growing);
+  growing = appended;
+  rocket::test::expect(rocket_rt_collection_length(growing) == 1 &&
+                           rocket_rt_index_int(growing, 0) == 42 &&
+                           rocket_rt_collection_length(growthAlias) == 0,
+                       "append preserves shared Array snapshots", failures);
+  RocketAggregate* popped = rocket_rt_array_pop(growing);
+  rocket::test::expect(rocket_rt_collection_length(growing) == 1,
+                       "pop preserves its input when the result is ignored", failures);
+  rocket::test::expect(rocket_rt_aggregate_tag(popped) == 0,
+                       "non-empty pop returns Some", failures);
+  auto* popValue = static_cast<RocketAggregate*>(rocket_rt_aggregate_get_managed(popped, 0));
+  auto* poppedArray = static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(popValue, 0));
+  rocket::test::expect(rocket_rt_collection_length(poppedArray) == 0 &&
+                           rocket_rt_aggregate_get_int(popValue, 1) == 42,
+                       "pop returns the shortened Array and removed value", failures);
+  rocket_rt_release(poppedArray);
+  rocket_rt_release(popValue);
+  rocket_rt_release(popped);
+  RocketAggregate* emptyPop = rocket_rt_array_pop(growthAlias);
+  rocket::test::expect(rocket_rt_aggregate_tag(emptyPop) == 1,
+                       "empty pop returns None", failures);
+  rocket_rt_release(emptyPop);
+  rocket_rt_release(growthAlias);
+  rocket_rt_release(growing);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "Array growth and pop release all owned results", failures);
+
   RocketString* oldText = rocket_rt_string_new(
       reinterpret_cast<const std::uint8_t*>("old"), 3);
   RocketString* newText = rocket_rt_string_new(
@@ -110,6 +151,73 @@ int main() {
   rocket_rt_release(managedAlias);
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
                        "managed Array mutation leaves no retained aliases", failures);
+
+  RocketString* firstGrowthText = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("first"), 5);
+  RocketString* secondGrowthText = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("second"), 6);
+  RocketArray* managedGrowth = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 1);
+  rocket_rt_array_set_string(managedGrowth, 0, firstGrowthText);
+  RocketArray* managedAppended =
+      rocket_rt_array_append_string(managedGrowth, secondGrowthText);
+  rocket_rt_release(managedGrowth);
+  RocketArray* managedInserted =
+      rocket_rt_array_insert_string(managedAppended, 1, firstGrowthText);
+  rocket_rt_release(managedAppended);
+  RocketAggregate* managedRemoved = rocket_rt_array_remove(managedInserted, 0);
+  rocket_rt_release(managedInserted);
+  auto* managedAfterRemove = static_cast<RocketArray*>(
+      rocket_rt_aggregate_get_managed(managedRemoved, 0));
+  auto* removedGrowthText = static_cast<RocketString*>(
+      rocket_rt_aggregate_get_managed(managedRemoved, 1));
+  RocketArray* managedCleared = rocket_rt_array_clear(managedAfterRemove);
+  rocket::test::expect(rocket_rt_collection_length(managedAfterRemove) == 2 &&
+                           rocket_rt_collection_length(managedCleared) == 0 &&
+                           rocket_rt_string_equal(removedGrowthText,
+                                                  firstGrowthText) == 1,
+                       "managed append, insert, remove, and clear preserve values",
+                       failures);
+  rocket_rt_release(managedCleared);
+  rocket_rt_release(removedGrowthText);
+  rocket_rt_release(managedAfterRemove);
+  rocket_rt_release(managedRemoved);
+  rocket_rt_release(firstGrowthText);
+  rocket_rt_release(secondGrowthText);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "managed Array growth operations release every retained element",
+                       failures);
+
+  RocketString* keyA = rocket_rt_string_new(reinterpret_cast<const std::uint8_t*>("a"), 1);
+  RocketString* keyB = rocket_rt_string_new(reinterpret_cast<const std::uint8_t*>("b"), 1);
+  RocketString* valueA = rocket_rt_string_new(reinterpret_cast<const std::uint8_t*>("one"), 3);
+  RocketString* valueB = rocket_rt_string_new(reinterpret_cast<const std::uint8_t*>("two"), 3);
+  RocketArray* mapKeys = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 2);
+  RocketArray* mapValues = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 2);
+  rocket_rt_array_set_string(mapKeys, 0, keyA);
+  rocket_rt_array_set_string(mapKeys, 1, keyB);
+  rocket_rt_array_set_string(mapValues, 0, valueA);
+  rocket_rt_array_set_string(mapValues, 1, valueB);
+  RocketAggregate* map = rocket_std_collections_map_from_arrays(mapKeys, mapValues);
+  RocketAggregate* foundValue = rocket_std_collections_map_get_string(map, keyB);
+  auto* foundText = static_cast<RocketString*>(rocket_rt_aggregate_get_managed(foundValue, 0));
+  rocket::test::expect(rocket_rt_string_equal(foundText, valueB) == 1,
+                       "Map lookup preserves managed values", failures);
+  RocketAggregate* set = rocket_std_collections_set_from_array(mapKeys);
+  rocket::test::expect(rocket_std_collections_set_contains_string(set, keyA) == 1 &&
+                           rocket_std_collections_set_contains_string(set, valueA) == 0,
+                       "Set membership uses String contents", failures);
+  rocket_rt_release(foundText);
+  rocket_rt_release(foundValue);
+  rocket_rt_release(set);
+  rocket_rt_release(map);
+  rocket_rt_release(mapKeys);
+  rocket_rt_release(mapValues);
+  rocket_rt_release(keyA);
+  rocket_rt_release(keyB);
+  rocket_rt_release(valueA);
+  rocket_rt_release(valueB);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "Map and Set release managed keys and values", failures);
 
   RocketString* aggregateText = rocket_rt_string_new(
       reinterpret_cast<const std::uint8_t*>("payload"), 7);
@@ -158,9 +266,32 @@ int main() {
     rocket_rt_aggregate_set_managed(aggregateValue, 0, field);
     rocket_rt_release(field);
     rocket_rt_release(aggregateValue);
+
+    RocketString* mapKey = rocket_rt_string_new(
+        reinterpret_cast<const std::uint8_t*>("key"), 3);
+    RocketString* mapValue = rocket_rt_string_new(
+        reinterpret_cast<const std::uint8_t*>("value"), 5);
+    RocketArray* stressKeys = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 1);
+    RocketArray* stressValues = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 1);
+    rocket_rt_array_set_string(stressKeys, 0, mapKey);
+    rocket_rt_array_set_string(stressValues, 0, mapValue);
+    RocketAggregate* stressMap =
+        rocket_std_collections_map_from_arrays(stressKeys, stressValues);
+    RocketAggregate* stressSet = rocket_std_collections_set_from_array(stressKeys);
+    RocketAggregate* stressFound =
+        rocket_std_collections_map_get_string(stressMap, mapKey);
+    void* stressFoundValue = rocket_rt_aggregate_get_managed(stressFound, 0);
+    rocket_rt_release(stressFoundValue);
+    rocket_rt_release(stressFound);
+    rocket_rt_release(stressSet);
+    rocket_rt_release(stressMap);
+    rocket_rt_release(stressKeys);
+    rocket_rt_release(stressValues);
+    rocket_rt_release(mapKey);
+    rocket_rt_release(mapValue);
   }
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
-                       "allocation stress leaves no String, Array, Slice, or aggregate leaks",
+                       "allocation stress leaves no collection or aggregate leaks",
                        failures);
   return rocket::test::finish(failures, "runtime");
 }

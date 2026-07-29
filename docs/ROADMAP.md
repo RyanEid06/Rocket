@@ -101,12 +101,11 @@ validation.
 
 ## Post-1.0 language roadmap
 
-### Phase 11 - Rocket 1.1: practical collections and controlled mutation
+### Phase 11 - Rocket 1.1: practical collections and controlled mutation - Completed
 
-**Status:** In progress. The first vertical slice, copy-on-write `Array[T]`
-element assignment through a direct `var` binding, is implemented in stage0,
-the self-hosted compiler, MIR, both backends, and runtime ABI v1. Full pinned
-LLVM/bootstrap validation and the remaining collection APIs are still required.
+**Status:** Completed. Stage0, the self-hosted compiler, MIR, both backends, and
+runtime ABI v1 implement the complete additive collection surface. Debug,
+Release, deterministic bootstrap, conformance, and performance gates pass.
 
 **Purpose:** Remove the largest day-to-day limitation in Rocket 1.0 and make
 stateful application code natural without abandoning memory safety.
@@ -120,7 +119,9 @@ stateful application code natural without abandoning memory safety.
 - Add generic `Map[K, V]` and `Set[T]` with deterministic iteration behavior.
 - Define equality and hashing contracts for all eligible key types.
 - Add tuples for lightweight heterogeneous values and multiple-result patterns.
-- Add collection iteration, searching, sorting, filtering, mapping, and folding.
+- Add deterministic collection iteration plus searching, sorting, equality
+  filtering, stable-hash mapping, and numeric folding. General callback-based
+  map/filter/fold operations follow Phase 12 function values and closures.
 - Add queues, stacks, and dynamically growing byte buffers as library types.
 - Preserve ARC correctness during mutation, reallocation, aliasing, and nested
   managed-value destruction.

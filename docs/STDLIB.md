@@ -1,6 +1,6 @@
-# Rocket Standard Library 1.0
+# Rocket Standard Library 1.1
 
-The Rocket 1.0 library is a set of built-in source modules. Import a module by its
+The Rocket 1.1 library is a set of built-in source modules. Import a module by its
 stable name; no package file or downloaded dependency is required:
 
 ```rocket
@@ -52,6 +52,57 @@ immutable `String` returned by `builder_finish` crosses ordinary text APIs.
 `concat[T](left: Array[T], right: Array[T])` returns a new array containing both
 inputs in order. `join` combines an `Array[String]` with a separator. All
 operations preserve their inputs.
+
+Rocket 1.1 adds copy-on-write growth operations:
+
+| Function | Result | Meaning |
+| --- | --- | --- |
+| `capacity[T](values: Array[T])` | `Int` | Current element capacity |
+| `reserve[T](values: Array[T], minimum: Int)` | `Array[T]` | Ensure at least `minimum` capacity |
+| `append[T](values: Array[T], value: T)` | `Array[T]` | Return the Array with `value` added |
+| `pop[T](values: Array[T])` | `Option[Pop[T]]` | Return the shortened Array and removed last value |
+| `insert[T](values: Array[T], index: Int, value: T)` | `Array[T]` | Insert before `index`, including at the end |
+| `remove[T](values: Array[T], index: Int)` | `Removal[T]` | Return the shortened Array and indexed value |
+| `clear[T](values: Array[T])` | `Array[T]` | Return an empty Array retaining its capacity |
+
+`Pop[T]` is a public standard-library struct with `values: Array[T]` and
+`value: T`. Empty `pop` returns `None`. A negative reserve request is a
+programmer-contract runtime failure. Existing aliases and Slices remain stable
+snapshots; capacity is part of that observable snapshot.
+`Removal[T]` has the same two fields as `Pop[T]`. Invalid insert/remove indices
+use the ordinary deterministic collection-bounds failure path.
+
+`Tuple2[A, B]` and `Tuple3[A, B, C]` provide `first`, `second`, and `third`
+fields. Map keys and Set elements are limited to `Int`, `Bool`, `Char`, and
+`String`. Construction preserves the first duplicate and all returned iteration
+Arrays use insertion order.
+
+| Function | Result |
+| --- | --- |
+| `map_from_arrays[K, V](keys: Array[K], values: Array[V])` | `Map[K, V]` |
+| `map_length[K, V](map: Map[K, V])` | `Int` |
+| `map_find[K, V](map: Map[K, V], key: K)` | `Option[Int]` |
+| `map_get[K, V](map: Map[K, V], key: K)` | `Option[V]` |
+| `map_keys[K, V](map: Map[K, V])` | `Array[K]` |
+| `map_values[K, V](map: Map[K, V])` | `Array[V]` |
+| `set_from_array[T](values: Array[T])` | `Set[T]` |
+| `set_contains[T](set: Set[T], value: T)` | `Bool` |
+| `set_values[T](set: Set[T])` | `Array[T]` |
+| `hash[T](value: T)` | `Int` |
+
+`contains` and `find` search scalar/String Arrays; `filter_equal` keeps values
+equal to a supplied scalar/String. `sort_int`, `sort_float`, `sort_char`, and
+`sort_string` return stable ascending snapshots (Float NaNs retain relative
+order after all ordered values). `map_hash` maps eligible values to stable
+hashes. `fold_sum_int` and `fold_sum_float` provide checked-Int and IEEE Float
+numeric folds. General callback-based `map`, `filter`, and `fold` arrive with
+first-class function values in Rocket 1.2 rather than using a privileged
+callback convention in 1.1.
+
+`Queue[T]`, `Stack[T]`, and `ByteBuffer` are ordinary immutable wrappers around
+an insertion-ordered `Array[T]`, `Array[T]`, and `Array[Char]` respectively.
+Their public `values`/`bytes` snapshots compose with the Array operations above;
+Phase 12 methods will add dot-call convenience without changing representation.
 
 ## `std.file` and `std.path`
 

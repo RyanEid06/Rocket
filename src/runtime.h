@@ -32,6 +32,8 @@ std::uint64_t rocket_rt_string_byte_length(const RocketString* string);
 const std::uint8_t* rocket_rt_string_bytes(const RocketString* string);
 
 RocketArray* rocket_rt_array_new(std::uint32_t elementKind, std::uint64_t length);
+std::uint64_t rocket_rt_array_capacity(const RocketArray* array);
+RocketArray* rocket_rt_array_reserve(RocketArray* array, std::int64_t minimumCapacity);
 void rocket_rt_array_set_int(RocketArray* array, std::int64_t index, std::int64_t value);
 void rocket_rt_array_set_float(RocketArray* array, std::int64_t index, double value);
 void rocket_rt_array_set_bool(RocketArray* array, std::int64_t index, std::uint8_t value);
@@ -50,6 +52,27 @@ RocketArray* rocket_rt_array_update_string(RocketArray* array, std::int64_t inde
                                            RocketString* value);
 RocketArray* rocket_rt_array_update_managed(RocketArray* array, std::int64_t index,
                                             void* value);
+RocketArray* rocket_rt_array_append_int(RocketArray* array, std::int64_t value);
+RocketArray* rocket_rt_array_append_float(RocketArray* array, double value);
+RocketArray* rocket_rt_array_append_bool(RocketArray* array, std::uint8_t value);
+RocketArray* rocket_rt_array_append_char(RocketArray* array, std::uint8_t value);
+RocketArray* rocket_rt_array_append_string(RocketArray* array, RocketString* value);
+RocketArray* rocket_rt_array_append_managed(RocketArray* array, void* value);
+RocketAggregate* rocket_rt_array_pop(RocketArray* array);
+RocketArray* rocket_rt_array_insert_int(RocketArray* array, std::int64_t index,
+                                        std::int64_t value);
+RocketArray* rocket_rt_array_insert_float(RocketArray* array, std::int64_t index,
+                                          double value);
+RocketArray* rocket_rt_array_insert_bool(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value);
+RocketArray* rocket_rt_array_insert_char(RocketArray* array, std::int64_t index,
+                                         std::uint8_t value);
+RocketArray* rocket_rt_array_insert_string(RocketArray* array, std::int64_t index,
+                                           RocketString* value);
+RocketArray* rocket_rt_array_insert_managed(RocketArray* array, std::int64_t index,
+                                            void* value);
+RocketAggregate* rocket_rt_array_remove(RocketArray* array, std::int64_t index);
+RocketArray* rocket_rt_array_clear(RocketArray* array);
 
 RocketSlice* rocket_rt_slice_new(void* collection, std::int64_t start, std::int64_t end);
 std::uint64_t rocket_rt_collection_length(const void* collection);
@@ -118,6 +141,79 @@ void rocket_std_string_builder_append(RocketStringBuilder* builder, RocketString
 RocketString* rocket_std_string_builder_finish(RocketStringBuilder* builder);
 
 std::int64_t rocket_std_collections_length(void* collection);
+std::int64_t rocket_std_collections_capacity(RocketArray* values);
+RocketArray* rocket_std_collections_reserve(RocketArray* values,
+                                            std::int64_t minimumCapacity);
+RocketArray* rocket_std_collections_append_int(RocketArray* values, std::int64_t value);
+RocketArray* rocket_std_collections_append_float(RocketArray* values, double value);
+RocketArray* rocket_std_collections_append_bool(RocketArray* values, std::uint8_t value);
+RocketArray* rocket_std_collections_append_char(RocketArray* values, std::uint8_t value);
+RocketArray* rocket_std_collections_append_string(RocketArray* values, RocketString* value);
+RocketArray* rocket_std_collections_append_managed(RocketArray* values, void* value);
+RocketAggregate* rocket_std_collections_pop(RocketArray* values);
+RocketArray* rocket_std_collections_insert_int(RocketArray* values, std::int64_t index,
+                                               std::int64_t value);
+RocketArray* rocket_std_collections_insert_float(RocketArray* values, std::int64_t index,
+                                                 double value);
+RocketArray* rocket_std_collections_insert_bool(RocketArray* values, std::int64_t index,
+                                                std::uint8_t value);
+RocketArray* rocket_std_collections_insert_char(RocketArray* values, std::int64_t index,
+                                                std::uint8_t value);
+RocketArray* rocket_std_collections_insert_string(RocketArray* values, std::int64_t index,
+                                                  RocketString* value);
+RocketArray* rocket_std_collections_insert_managed(RocketArray* values, std::int64_t index,
+                                                   void* value);
+RocketAggregate* rocket_std_collections_remove(RocketArray* values, std::int64_t index);
+RocketArray* rocket_std_collections_clear(RocketArray* values);
+RocketAggregate* rocket_std_collections_map_from_arrays(RocketArray* keys,
+                                                        RocketArray* values);
+std::int64_t rocket_std_collections_map_length(RocketAggregate* map);
+RocketAggregate* rocket_std_collections_map_find_int(RocketAggregate* map, std::int64_t key);
+RocketAggregate* rocket_std_collections_map_find_bool(RocketAggregate* map, std::uint8_t key);
+RocketAggregate* rocket_std_collections_map_find_char(RocketAggregate* map, std::uint8_t key);
+RocketAggregate* rocket_std_collections_map_find_string(RocketAggregate* map, RocketString* key);
+RocketAggregate* rocket_std_collections_map_get_int(RocketAggregate* map, std::int64_t key);
+RocketAggregate* rocket_std_collections_map_get_bool(RocketAggregate* map, std::uint8_t key);
+RocketAggregate* rocket_std_collections_map_get_char(RocketAggregate* map, std::uint8_t key);
+RocketAggregate* rocket_std_collections_map_get_string(RocketAggregate* map, RocketString* key);
+RocketArray* rocket_std_collections_map_keys(RocketAggregate* map);
+RocketArray* rocket_std_collections_map_values(RocketAggregate* map);
+RocketAggregate* rocket_std_collections_set_from_array(RocketArray* values);
+std::uint8_t rocket_std_collections_set_contains_int(RocketAggregate* set, std::int64_t value);
+std::uint8_t rocket_std_collections_set_contains_bool(RocketAggregate* set, std::uint8_t value);
+std::uint8_t rocket_std_collections_set_contains_char(RocketAggregate* set, std::uint8_t value);
+std::uint8_t rocket_std_collections_set_contains_string(RocketAggregate* set,
+                                                        RocketString* value);
+RocketArray* rocket_std_collections_set_values(RocketAggregate* set);
+std::int64_t rocket_std_collections_hash_int(std::int64_t value);
+std::int64_t rocket_std_collections_hash_bool(std::uint8_t value);
+std::int64_t rocket_std_collections_hash_char(std::uint8_t value);
+std::int64_t rocket_std_collections_hash_string(RocketString* value);
+std::uint8_t rocket_std_collections_contains_int(RocketArray* values, std::int64_t value);
+std::uint8_t rocket_std_collections_contains_float(RocketArray* values, double value);
+std::uint8_t rocket_std_collections_contains_bool(RocketArray* values, std::uint8_t value);
+std::uint8_t rocket_std_collections_contains_char(RocketArray* values, std::uint8_t value);
+std::uint8_t rocket_std_collections_contains_string(RocketArray* values, RocketString* value);
+RocketAggregate* rocket_std_collections_find_int(RocketArray* values, std::int64_t value);
+RocketAggregate* rocket_std_collections_find_float(RocketArray* values, double value);
+RocketAggregate* rocket_std_collections_find_bool(RocketArray* values, std::uint8_t value);
+RocketAggregate* rocket_std_collections_find_char(RocketArray* values, std::uint8_t value);
+RocketAggregate* rocket_std_collections_find_string(RocketArray* values, RocketString* value);
+RocketArray* rocket_std_collections_filter_equal_int(RocketArray* values, std::int64_t value);
+RocketArray* rocket_std_collections_filter_equal_float(RocketArray* values, double value);
+RocketArray* rocket_std_collections_filter_equal_bool(RocketArray* values, std::uint8_t value);
+RocketArray* rocket_std_collections_filter_equal_char(RocketArray* values, std::uint8_t value);
+RocketArray* rocket_std_collections_filter_equal_string(RocketArray* values, RocketString* value);
+RocketArray* rocket_std_collections_sort_int(RocketArray* values);
+RocketArray* rocket_std_collections_sort_float(RocketArray* values);
+RocketArray* rocket_std_collections_sort_char(RocketArray* values);
+RocketArray* rocket_std_collections_sort_string(RocketArray* values);
+RocketArray* rocket_std_collections_map_hash_int(RocketArray* values);
+RocketArray* rocket_std_collections_map_hash_bool(RocketArray* values);
+RocketArray* rocket_std_collections_map_hash_char(RocketArray* values);
+RocketArray* rocket_std_collections_map_hash_string(RocketArray* values);
+std::int64_t rocket_std_collections_fold_sum_int(RocketArray* values);
+double rocket_std_collections_fold_sum_float(RocketArray* values);
 RocketArray* rocket_std_collections_reverse(void* collection);
 RocketArray* rocket_std_collections_concat(void* left, void* right);
 RocketString* rocket_std_collections_join(RocketArray* values, RocketString* separator);

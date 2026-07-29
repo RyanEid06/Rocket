@@ -1,0 +1,51 @@
+import std.collections
+
+fn main() -> Int:
+    let pair = collections.Tuple2("answer", 42)
+    let triple = collections.Tuple3(pair.first, pair.second, true)
+    print(triple.first)
+    print(triple.second)
+    let table = collections.map_from_arrays(["b", "a", "b"], [2, 1, 9])
+    print(collections.map_length(table))
+    match collections.map_get(table, "a"):
+        case Some(value):
+            print(value)
+        case None:
+            return 2
+    match collections.map_get(table, "b"):
+        case Some(value):
+            print(value)
+        case None:
+            return 4
+    let keys = collections.map_keys(table)
+    print(keys[0])
+    print(keys[1])
+    let unique = collections.set_from_array(["b", "a", "b"])
+    let members = collections.set_values(unique)
+    print(collections.length(members))
+    print(members[0])
+    print(members[1])
+    print(collections.set_contains(unique, "a"))
+    print(collections.hash("stable") == collections.hash("stable"))
+    print(collections.hash("stable"))
+    let sorted = collections.sort_int([3, 1, 2])
+    print(sorted[0])
+    print(sorted[2])
+    print(collections.contains(sorted, 2))
+    match collections.find(sorted, 2):
+        case Some(index):
+            print(index)
+        case None:
+            return 3
+    let filtered = collections.filter_equal([1, 2, 1], 1)
+    print(collections.length(filtered))
+    let hashes = collections.map_hash(["stable"])
+    print(hashes[0] == collections.hash("stable"))
+    print(collections.fold_sum_int(sorted))
+    let queue = collections.Queue([7])
+    let stack = collections.Stack([8])
+    let buffer = collections.ByteBuffer(['R'])
+    print(queue.values[0])
+    print(stack.values[0])
+    print(buffer.bytes[0])
+    return 0

@@ -1,0 +1,29 @@
+import std.collections
+
+fn main() -> Int:
+    var values: Array[String] = []
+    values = collections.reserve(values, 8)
+    print(collections.capacity(values))
+    let empty_snapshot = values
+    values = collections.append(values, "old")
+    let first = values[0..1]
+    values = collections.append(values, "new")
+    print(collections.length(empty_snapshot))
+    print(first[0])
+    match collections.pop(values):
+        case Some(removed):
+            values = removed.values
+            print(removed.value)
+            print(collections.length(values))
+            print(values[0])
+        case None:
+            return 2
+    values = collections.insert(values, 0, "first")
+    print(values[0])
+    let removed = collections.remove(values, 1)
+    values = removed.values
+    print(removed.value)
+    values = collections.clear(values)
+    print(collections.length(values))
+    print(collections.capacity(values))
+    return 0
