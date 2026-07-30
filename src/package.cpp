@@ -68,6 +68,20 @@ bool containedPath(const std::filesystem::path& root,
   return !relative.empty() && *relative.begin() != "..";
 }
 
+std::vector<std::string> listValue(const std::string& text) {
+  std::vector<std::string> result;
+  std::size_t start = 0;
+  while (start <= text.size()) {
+    const std::size_t separator = text.find(';', start);
+    const std::string item = trim(text.substr(
+        start, separator == std::string::npos ? std::string::npos : separator - start));
+    if (!item.empty()) result.push_back(item);
+    if (separator == std::string::npos) break;
+    start = separator + 1;
+  }
+  return result;
+}
+
 bool write(const std::filesystem::path& path, const std::string& contents,
            std::string& error) {
   std::ofstream output(path, std::ios::binary);
@@ -104,7 +118,8 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     if (clean.empty()) continue;
     if (clean.front() == '[' && clean.back() == ']') {
       section = trim(clean.substr(1, clean.size() - 2));
-      if (section != "package" && section != "test") {
+      if (section != "package" && section != "test" && section != "build" &&
+          section != "native.windows-x64") {
         error = manifest.string() + ":" + std::to_string(lineNumber) +
                 ": unsupported manifest section '" + section + "'";
         return {};
@@ -134,6 +149,26 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     else if (qualified == "package.version") package.version = value;
     else if (qualified == "package.entry") package.entry = value;
     else if (qualified == "test.directory") package.tests = value;
+    else if (qualified == "build.kind") {
+      if (value == "executable") package.outputKind = PackageOutputKind::Executable;
+      else if (value == "static-library") package.outputKind = PackageOutputKind::StaticLibrary;
+      else if (value == "dynamic-library") package.outputKind = PackageOutputKind::DynamicLibrary;
+      else {
+        error = manifest.string() + ":" + std::to_string(lineNumber) +
+                ": build.kind must be executable, static-library, or dynamic-library";
+        return {};
+      }
+    }
+    else if (qualified == "build.name") package.outputName = value;
+    else if (qualified == "native.windows-x64.libraries")
+      package.nativeLibraries = listValue(value);
+    else if (qualified == "native.windows-x64.library-search") {
+      for (const auto& item : listValue(value))
+        package.nativeLibrarySearch.push_back(item);
+    }
+    else if (qualified == "native.windows-x64.headers") {
+      for (const auto& item : listValue(value)) package.nativeHeaders.push_back(item);
+    }
     else {
       error = manifest.string() + ":" + std::to_string(lineNumber) +
               ": unsupported manifest key '" + qualified + "'";
@@ -144,6 +179,14 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     error = manifest.string() + ": package.name must be a valid Rocket package name";
     return {};
   }
+  if (package.outputName.empty())
+    package.outputName = package.outputKind == PackageOutputKind::Executable
+                             ? "main"
+                             : package.name;
+  if (!validName(package.outputName)) {
+    error = manifest.string() + ": build.name must be a valid native artifact name";
+    return {};
+  }
   const auto entry = (package.root / package.entry).lexically_normal();
   const auto tests = (package.root / package.tests).lexically_normal();
   if (!containedPath(package.root, entry) || !containedPath(package.root, tests)) {
@@ -152,6 +195,33 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
   }
   package.entry = entry;
   package.tests = tests;
+  auto resolveContained = [&](std::filesystem::path path, const char* category)
+      -> std::optional<std::filesystem::path> {
+    if (path.is_absolute()) {
+      error = manifest.string() + ": " + category + " paths must be package-relative";
+      return std::nullopt;
+    }
+    auto resolved = (package.root / path).lexically_normal();
+    if (!containedPath(package.root, resolved)) {
+      error = manifest.string() + ": " + category + " paths must stay inside the package";
+      return std::nullopt;
+    }
+    return resolved;
+  };
+  for (auto& search : package.nativeLibrarySearch) {
+    auto resolved = resolveContained(search, "native library search");
+    if (!resolved) return {};
+    search = *resolved;
+  }
+  for (auto& header : package.nativeHeaders) {
+    auto resolved = resolveContained(header, "native header");
+    if (!resolved) return {};
+    header = *resolved;
+    if (!std::filesystem::is_regular_file(header)) {
+      error = "native header does not exist: '" + header.string() + "'";
+      return {};
+    }
+  }
   if (!std::filesystem::is_regular_file(package.entry)) {
     error = "package entry does not exist: '" + package.entry.string() + "'";
     return {};
@@ -176,7 +246,8 @@ bool createPackage(const std::filesystem::path& directory,
   if (filesystemError) { error = "could not create package test directory"; return false; }
   const std::string manifest = "[package]\nname = \"" + name +
       "\"\nversion = \"0.1.0\"\nentry = \"src/main.rocket\"\n\n"
-      "[test]\ndirectory = \"tests\"\n";
+      "[test]\ndirectory = \"tests\"\n\n"
+      "[build]\nkind = \"executable\"\nname = \"" + name + "\"\n";
   if (!write(root / "rocket.toml", manifest, error)) return false;
   if (!write(root / "src/main.rocket",
              "fn main() -> Int:\n    print(\"Hello from " + name + "\")\n    return 0\n", error)) return false;

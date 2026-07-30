@@ -16,6 +16,7 @@ enum class TokenKind {
   KwFn, KwLet, KwVar, KwIf, KwElse, KwWhile, KwFor, KwIn, KwBreak, KwContinue,
   KwReturn, KwTrue, KwFalse, KwAnd, KwOr, KwNot,
   KwStruct, KwEnum, KwTrait, KwImpl, KwWhere, KwConst, KwMatch, KwCase, KwPub, KwImport,
+  KwUnsafe, KwExtern, KwExport, KwOpaque, KwCallback,
   LParen, RParen, LBracket, RBracket, Colon, Comma, Arrow, FatArrow,
   Plus, Minus, Star, Slash, Dot, DotDot, Question,
   Equal, EqualEqual, BangEqual,

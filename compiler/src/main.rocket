@@ -69,6 +69,10 @@ struct AstFunction:
     method_owner: String
     method_trait: String
     associated_constant: Bool
+    native_import: Bool
+    native_export: Bool
+    native_constant: Bool
+    native_name: String
     constraints: Array[AstTraitConstraint]
     line: Int
     column: Int
@@ -84,6 +88,10 @@ struct AstStructDecl:
     public_declaration: Bool
     type_parameters: Array[String]
     fields: Array[AstTypeField]
+    representation: Int
+    callback_parameters: Array[AstParameter]
+    callback_result: String
+    native_name: String
     line: Int
     column: Int
 
@@ -206,6 +214,9 @@ struct HirSymbol:
     mutable_binding: Bool
     parameter_types: Array[String]
     intrinsic: Int
+    native_import: Bool
+    native_export: Bool
+    native_name: String
 
 struct HirExpr:
     kind: Int
@@ -246,6 +257,7 @@ struct HirModule:
     structs: Array[AstStructDecl]
     enums: Array[AstEnumDecl]
     functions: Array[HirFunction]
+    library: Bool
 
 struct ScopeBinding:
     name: String
@@ -277,6 +289,7 @@ struct LowerState:
     depth: Int
     return_type: String
     loop_depth: Int
+    unsafe_depth: Int
     substitutions: Substitutions
     pending: Array[PendingSpecialization]
     specializations: Array[Specialization]
@@ -351,6 +364,7 @@ struct MirModule:
     symbols: Array[HirSymbol]
     structs: Array[AstStructDecl]
     functions: Array[MirFunction]
+    library: Bool
 
 struct MirSymbolLocal:
     symbol: Int
@@ -409,18 +423,35 @@ struct PackageInfo:
     root: String
     entry: String
     test_directory: String
+    name: String
+    output_kind: Int
+    output_name: String
+    native_libraries: Array[String]
+    native_library_search: Array[String]
+    native_headers: Array[String]
     error: String
 
 struct ToolchainInfo:
     valid: Bool
     clang: String
     runtime: String
+    librarian: String
     library_directories: Array[String]
     error: String
 
 struct NativeBuildResult:
     status: Int
     executable: String
+
+struct BindingParameterResult:
+    valid: Bool
+    type_name: String
+    name: String
+
+struct BindingGenerationResult:
+    valid: Bool
+    output: String
+    error: String
 
 fn kind_end() -> Int:
     return 0
@@ -593,6 +624,21 @@ fn kind_fat_arrow() -> Int:
 fn kind_const() -> Int:
     return 56
 
+fn kind_unsafe() -> Int:
+    return 57
+
+fn kind_extern() -> Int:
+    return 58
+
+fn kind_export() -> Int:
+    return 59
+
+fn kind_opaque() -> Int:
+    return 60
+
+fn kind_callback() -> Int:
+    return 61
+
 fn expr_integer() -> Int:
     return 0
 
@@ -638,6 +684,9 @@ fn expr_propagate() -> Int:
 fn expr_lambda() -> Int:
     return 14
 
+fn expr_function_ref() -> Int:
+    return 15
+
 fn statement_binding() -> Int:
     return 0
 
@@ -673,6 +722,30 @@ fn statement_index_assignment() -> Int:
 
 fn statement_for_each() -> Int:
     return 11
+
+fn statement_unsafe() -> Int:
+    return 12
+
+fn representation_rocket() -> Int:
+    return 0
+
+fn representation_native() -> Int:
+    return 1
+
+fn representation_opaque() -> Int:
+    return 2
+
+fn representation_callback() -> Int:
+    return 3
+
+fn output_executable() -> Int:
+    return 0
+
+fn output_static_library() -> Int:
+    return 1
+
+fn output_dynamic_library() -> Int:
+    return 2
 
 fn symbol_builtin() -> Int:
     return 0
@@ -1710,6 +1783,11 @@ fn parse_match_statement(state: ParserState) -> StatementResult:
 
 fn parse_statement(state: ParserState) -> StatementResult:
     let token = current_token(state)
+    if token.kind == kind_identifier() and token.text == "unsafe" and current_token(advance_parser(state)).kind == kind_colon():
+        let colon = consume_token(advance_parser(state), kind_colon(), "expected ':' after 'unsafe'")
+        let newline = consume_token(colon.state, kind_newline(), "expected newline after 'unsafe:'")
+        let body = parse_block(newline.state)
+        return StatementResult(make_statement(statement_unsafe(), "", "", false, [], body.statements, [], [], token), body.state)
     if token.kind == kind_let() or token.kind == kind_var():
         var next = advance_parser(state)
         let name = consume_token(next, kind_identifier(), "expected binding name")
@@ -1801,7 +1879,90 @@ fn parse_function(state: ParserState, public_declaration: Bool) -> FunctionResul
     let colon = consume_token(next_after_type, kind_colon(), "expected ':' before function body")
     let newline = consume_token(colon.state, kind_newline(), "expected newline after function signature")
     let body = parse_block(newline.state)
-    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, "", "", false, constraints, keyword.token.line, keyword.token.column), body.state)
+    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, "", "", false, false, false, false, name.token.text, constraints, keyword.token.line, keyword.token.column), body.state)
+
+fn parse_extern_function(state: ParserState, public_declaration: Bool) -> FunctionResult:
+    let keyword = consume_token(state, kind_fn(), "expected 'fn'")
+    let name = consume_token(keyword.state, kind_identifier(), "expected native function name")
+    let open = consume_token(name.state, kind_lparen(), "expected '(' after native function name")
+    var next = open.state
+    var parameters: Array[AstParameter] = []
+    if not at_token(next, kind_rparen()):
+        while true:
+            let parameter = consume_token(next, kind_identifier(), "expected parameter name")
+            let colon = consume_token(parameter.state, kind_colon(), "expected ':' after parameter name")
+            let parameter_type = parse_type_name(colon.state)
+            parameters = append(parameters, AstParameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
+            next = parameter_type.state
+            let comma = match_token(next, kind_comma())
+            next = comma.state
+            if not comma.matched:
+                break
+    let close = consume_token(next, kind_rparen(), "expected ')' after native parameters")
+    let arrow = consume_token(close.state, kind_arrow(), "expected '->' and native result type")
+    let result_type = parse_type_name(arrow.state)
+    let newline = consume_token(result_type.state, kind_newline(), "expected newline after native function declaration")
+    let function = AstFunction(name.token.text, public_declaration, [], parameters, result_type.name, [], "", "", false, true, false, false, name.token.text, [], keyword.token.line, keyword.token.column)
+    return FunctionResult(function, newline.state)
+
+fn parse_extern_constant(state: ParserState, public_declaration: Bool) -> FunctionResult:
+    let keyword = consume_token(state, kind_const(), "expected 'const'")
+    let name = consume_token(keyword.state, kind_identifier(), "expected native constant name")
+    let colon = consume_token(name.state, kind_colon(), "expected ':' after native constant name")
+    let type_name = parse_type_name(colon.state)
+    let equal = consume_token(type_name.state, kind_equal(), "expected '=' after native constant type")
+    let value = parse_expression(equal.state)
+    let newline = consume_token(value.state, kind_newline(), "expected newline after native constant")
+    let returned = make_statement(statement_return(), "", "", false, [value.expression], [], [], [], keyword.token)
+    let constant = AstFunction(name.token.text, public_declaration, [], [], type_name.name, [returned], "", "", false, false, false, true, name.token.text, [], keyword.token.line, keyword.token.column)
+    return FunctionResult(constant, newline.state)
+
+fn parse_extern_type(state: ParserState, public_declaration: Bool) -> StructResult:
+    let token = current_token(state)
+    if token.kind == kind_identifier() and token.text == "opaque":
+        let name = consume_token(advance_parser(state), kind_identifier(), "expected opaque type name")
+        let newline = consume_token(name.state, kind_newline(), "expected newline after opaque declaration")
+        return StructResult(AstStructDecl(name.token.text, public_declaration, [], [], representation_opaque(), [], "", name.token.text, token.line, token.column), newline.state)
+    if token.kind == kind_identifier() and token.text == "callback":
+        let name = consume_token(advance_parser(state), kind_identifier(), "expected callback type name")
+        let open = consume_token(name.state, kind_lparen(), "expected '(' after callback type name")
+        var next = open.state
+        var parameters: Array[AstParameter] = []
+        if not at_token(next, kind_rparen()):
+            while true:
+                let parameter = consume_token(next, kind_identifier(), "expected callback parameter name")
+                let colon = consume_token(parameter.state, kind_colon(), "expected ':' after callback parameter name")
+                let parameter_type = parse_type_name(colon.state)
+                parameters = append(parameters, AstParameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
+                next = parameter_type.state
+                let comma = match_token(next, kind_comma())
+                next = comma.state
+                if not comma.matched:
+                    break
+        let close = consume_token(next, kind_rparen(), "expected ')' after callback parameters")
+        let arrow = consume_token(close.state, kind_arrow(), "expected '->' and callback result type")
+        let result = parse_type_name(arrow.state)
+        let newline = consume_token(result.state, kind_newline(), "expected newline after callback declaration")
+        return StructResult(AstStructDecl(name.token.text, public_declaration, [], [], representation_callback(), parameters, result.name, name.token.text, token.line, token.column), newline.state)
+    let keyword = consume_token(state, kind_struct(), "expected 'struct'")
+    let name = consume_token(keyword.state, kind_identifier(), "expected native struct name")
+    let colon = consume_token(name.state, kind_colon(), "expected ':' after native struct name")
+    let newline = consume_token(colon.state, kind_newline(), "expected newline after native struct declaration")
+    let opening = consume_token(newline.state, kind_indent(), "expected an indented native struct body")
+    var next = opening.state
+    var fields: Array[AstTypeField] = []
+    while not at_token(next, kind_dedent()) and not at_token(next, kind_end()):
+        if at_token(next, kind_newline()):
+            next = advance_parser(next)
+            continue
+        let field = consume_token(next, kind_identifier(), "expected native struct field name")
+        let field_colon = consume_token(field.state, kind_colon(), "expected ':' after native struct field name")
+        let field_type = parse_type_name(field_colon.state)
+        let field_newline = consume_token(field_type.state, kind_newline(), "expected newline after native struct field")
+        fields = append(fields, AstTypeField(field.token.text, field_type.name, field.token.line, field.token.column))
+        next = field_newline.state
+    let closing = consume_token(next, kind_dedent(), "expected end of native struct body")
+    return StructResult(AstStructDecl(name.token.text, public_declaration, [], fields, representation_native(), [], "", name.token.text, keyword.token.line, keyword.token.column), closing.state)
 
 fn parse_impl(state: ParserState) -> FunctionsResult:
     let keyword = consume_token(state, kind_impl(), "expected 'impl'")
@@ -1846,7 +2007,7 @@ fn parse_impl(state: ParserState) -> FunctionsResult:
                 constant_state = parser_error(constant_state, constant_name.token, "trait impl blocks cannot declare associated constants")
             let constant_full_name = string.concat(type_base(owner_name), string.concat(".", constant_name.token.text))
             let returned = make_statement(statement_return(), "", "", false, [constant_value.expression], [], [], [], constant_name.token)
-            methods = append(methods, AstFunction(constant_full_name, public_declaration, impl_parameters.values, [], constant_type.name, [returned], owner_name, trait_name, true, [], constant_name.token.line, constant_name.token.column))
+            methods = append(methods, AstFunction(constant_full_name, public_declaration, impl_parameters.values, [], constant_type.name, [returned], owner_name, trait_name, true, false, false, false, constant_full_name, [], constant_name.token.line, constant_name.token.column))
             next = constant_state
             continue
         if not at_token(next, kind_fn()):
@@ -1859,7 +2020,7 @@ fn parse_impl(state: ParserState) -> FunctionsResult:
         if trait_name != "":
             name = string.concat(type_base(owner_name), string.concat(".", string.concat(trait_name, string.concat(".", method.name))))
         let parameters = collections.concat(impl_parameters.values, method.type_parameters)
-        methods = append(methods, AstFunction(name, method.public_declaration, parameters, method.parameters, method.result_type, method.body, owner_name, trait_name, false, method.constraints, method.line, method.column))
+        methods = append(methods, AstFunction(name, method.public_declaration, parameters, method.parameters, method.result_type, method.body, owner_name, trait_name, false, false, false, false, name, method.constraints, method.line, method.column))
         next = parsed.state
     let closing = consume_token(next, kind_dedent(), "expected end of impl body")
     return FunctionsResult(methods, closing.state)
@@ -1921,7 +2082,7 @@ fn parse_struct(state: ParserState, public_declaration: Bool) -> StructResult:
         fields = append(fields, AstTypeField(field.token.text, field_type.name, field.token.line, field.token.column))
         next = field_newline.state
     let closing = consume_token(next, kind_dedent(), "expected end of struct body")
-    return StructResult(AstStructDecl(name.token.text, public_declaration, type_parameters.values, fields, keyword.token.line, keyword.token.column), closing.state)
+    return StructResult(AstStructDecl(name.token.text, public_declaration, type_parameters.values, fields, representation_rocket(), [], "", name.token.text, keyword.token.line, keyword.token.column), closing.state)
 
 fn parse_enum(state: ParserState, public_declaration: Bool) -> EnumResult:
     let keyword = consume_token(state, kind_enum(), "expected 'enum'")
@@ -1996,6 +2157,43 @@ fn parse_tokens(tokens: Array[Token], lexer_diagnostics: Array[Diagnostic]) -> P
         state = published.state
         if published.matched:
             public_declaration = true
+        var external = false
+        if at_token(state, kind_identifier()) and current_token(state).text == "extern":
+            external = true
+            state = advance_parser(state)
+        if external:
+            if at_token(state, kind_fn()):
+                let function = parse_extern_function(state, public_declaration)
+                functions = append(functions, function.function)
+                state = skip_newlines(function.state)
+                continue
+            if at_token(state, kind_const()):
+                let constant = parse_extern_constant(state, public_declaration)
+                functions = append(functions, constant.function)
+                state = skip_newlines(constant.state)
+                continue
+            if at_token(state, kind_struct()) or(at_token(state, kind_identifier()) and(current_token(state).text == "opaque" or current_token(state).text == "callback")):
+                let declaration = parse_extern_type(state, public_declaration)
+                structs = append(structs, declaration.declaration)
+                state = skip_newlines(declaration.state)
+                continue
+            state = parser_error(state, current_token(state), "expected 'fn', 'const', 'struct', 'opaque', or 'callback' after 'extern'")
+            state = synchronize_top_level(state)
+            continue
+        var exported = false
+        if at_token(state, kind_identifier()) and current_token(state).text == "export":
+            exported = true
+            state = advance_parser(state)
+        if exported:
+            if not at_token(state, kind_fn()):
+                state = parser_error(state, current_token(state), "expected 'fn' after 'export'")
+                state = synchronize_top_level(state)
+                continue
+            let parsed = parse_function(state, true)
+            let function = parsed.function
+            functions = append(functions, AstFunction(function.name, true, function.type_parameters, function.parameters, function.result_type, function.body, function.method_owner, function.method_trait, function.associated_constant, false, true, false, function.name, function.constraints, function.line, function.column))
+            state = skip_newlines(parsed.state)
+            continue
         if at_token(state, kind_fn()):
             let function = parse_function(state, public_declaration)
             functions = append(functions, function.function)
@@ -2024,7 +2222,7 @@ fn parse_tokens(tokens: Array[Token], lexer_diagnostics: Array[Diagnostic]) -> P
             state = skip_newlines(implementation.state)
             continue
         let unexpected = current_token(state)
-        state = parser_error(state, unexpected, "expected 'fn', 'struct', 'enum', 'trait', 'impl', or 'import' at top level")
+        state = parser_error(state, unexpected, "expected a declaration or import at top level")
         state = synchronize_top_level(state)
     return ParseResult(AstModule(imports, structs, enums, traits, functions), state.diagnostics)
 
@@ -2033,44 +2231,53 @@ fn parse_source(source: String) -> ParseResult:
     return parse_tokens(lexed.tokens, lexed.diagnostics)
 
 fn state_symbols(state: LowerState, symbols: Array[HirSymbol]) -> LowerState:
-    return LowerState(state.module, symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_module(state: LowerState, module: AstModule) -> LowerState:
-    return LowerState(module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_functions(state: LowerState, functions: Array[HirFunction]) -> LowerState:
-    return LowerState(state.module, state.symbols, functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_bindings(state: LowerState, bindings: Array[ScopeBinding]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_depth(state: LowerState, depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_function_context(state: LowerState, return_type: String, loop_depth: Int, substitutions: Substitutions) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, return_type, loop_depth, substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, return_type, loop_depth, state.unsafe_depth, substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_loop_depth(state: LowerState, loop_depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, loop_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+
+fn state_unsafe_depth(state: LowerState, unsafe_depth: Int) -> LowerState:
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
 
 fn state_pending(state: LowerState, pending: Array[PendingSpecialization]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, pending, state.specializations, state.diagnostics)
 
 fn state_specializations(state: LowerState, specializations: Array[Specialization]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, specializations, state.diagnostics)
 
 fn lower_error(state: LowerState, line: Int, column: Int, message: String) -> LowerState:
     let diagnostic = make_diagnostic("R4001", line, column, message)
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic))
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic))
 
 fn lower_issue(state: LowerState, code: String, line: Int, column: Int, message: String) -> LowerState:
     let diagnostic = make_diagnostic(code, line, column, message)
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic))
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic))
 
 fn add_hir_symbol(state: LowerState, kind: Int, name: String, type_name: String, mutable_binding: Bool, parameter_types: Array[String], intrinsic: Int) -> SymbolResult:
     let id = collections.length(state.symbols)
-    let symbol = HirSymbol(id, kind, name, type_name, mutable_binding, parameter_types, intrinsic)
+    let symbol = HirSymbol(id, kind, name, type_name, mutable_binding, parameter_types, intrinsic, false, false, name)
     return SymbolResult(id, state_symbols(state, append(state.symbols, symbol)))
+
+fn set_hir_native_symbol(state: LowerState, symbol: Int, native_import: Bool, native_export: Bool, native_name: String) -> LowerState:
+    var symbols = state.symbols
+    let value = symbols[symbol]
+    symbols[symbol] = HirSymbol(value.id, value.kind, value.name, value.type_name, value.mutable_binding, value.parameter_types, value.intrinsic, native_import, native_export, native_name)
+    return state_symbols(state, symbols)
 
 fn add_scope_binding(state: LowerState, name: String, symbol: Int) -> LowerState:
     return state_bindings(state, append(state.bindings, ScopeBinding(name, symbol, state.depth)))
@@ -2349,7 +2556,11 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
         for field_index in 0..collections.length(declaration.fields):
             let field = declaration.fields[field_index]
             fields = append(fields, AstTypeField(field.name, mapped_local_type(module, prefix_name, field.type_name), field.line, field.column))
-        structs = append(structs, AstStructDecl(mapped_declaration_name(prefix_name, declaration.name, declaration.public_declaration), declaration.public_declaration, declaration.type_parameters, fields, declaration.line, declaration.column))
+        var callback_parameters: Array[AstParameter] = []
+        for callback_index in 0..collections.length(declaration.callback_parameters):
+            let parameter = declaration.callback_parameters[callback_index]
+            callback_parameters = append(callback_parameters, AstParameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
+        structs = append(structs, AstStructDecl(mapped_declaration_name(prefix_name, declaration.name, declaration.public_declaration), declaration.public_declaration, declaration.type_parameters, fields, declaration.representation, callback_parameters, mapped_local_type(module, prefix_name, declaration.callback_result), declaration.native_name, declaration.line, declaration.column))
     var enums: Array[AstEnumDecl] = []
     for declaration_index in 0..collections.length(module.enums):
         let declaration = module.enums[declaration_index]
@@ -2384,7 +2595,7 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
         for constraint_index in 0..collections.length(function.constraints):
             let constraint = function.constraints[constraint_index]
             constraints = append(constraints, AstTraitConstraint(constraint.type_parameter, mapped_local_trait(module, prefix_name, constraint.trait_name), constraint.line, constraint.column))
-        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), mapped_local_type(module, prefix_name, function.method_owner), mapped_local_trait(module, prefix_name, function.method_trait), function.associated_constant, constraints, function.line, function.column))
+        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), mapped_local_type(module, prefix_name, function.method_owner), mapped_local_trait(module, prefix_name, function.method_trait), function.associated_constant, function.native_import, function.native_export, function.native_constant, function.native_name, constraints, function.line, function.column))
     return AstModule(module.imports, structs, enums, traits, functions)
 
 fn merge_ast_modules(left: AstModule, right: AstModule) -> AstModule:
@@ -2454,6 +2665,52 @@ fn collection_element_type(type_name: String) -> String:
     if collections.length(arguments) == 1:
         return arguments[0]
     return "<invalid>"
+
+fn is_native_primitive(type_name: String) -> Bool:
+    return type_name == "Int" or type_name == "Float" or type_name == "Bool" or type_name == "Char" or type_name == "Unit"
+
+fn foreign_type_index(module: AstModule, type_name: String) -> Int:
+    let base = type_base(type_name)
+    for index in 0..collections.length(module.structs):
+        if module.structs[index].name == base and module.structs[index].representation != representation_rocket():
+            return index
+    return -1
+
+fn is_native_type(module: AstModule, type_name: String) -> Bool:
+    return type_base(type_name) == "Pointer" or foreign_type_index(module, type_name) >= 0
+
+fn is_native_abi_value(module: AstModule, type_name: String) -> Bool:
+    if is_native_primitive(type_name):
+        return true
+    if type_base(type_name) == "Pointer":
+        return collections.length(type_arguments(type_name)) == 1
+    let index = foreign_type_index(module, type_name)
+    if index < 0:
+        return false
+    return module.structs[index].representation == representation_opaque() or module.structs[index].representation == representation_callback()
+
+fn collection_contains_native(module: AstModule, type_name: String) -> Bool:
+    if not is_array_type(type_name) and not is_slice_type(type_name):
+        return false
+    let element = collection_element_type(type_name)
+    return is_native_type(module, element) or collection_contains_native(module, element)
+
+fn callback_matches(module: AstModule, callback_index: Int, function_index: Int) -> Bool:
+    let signature = module.structs[callback_index]
+    let function = module.functions[function_index]
+    if function.native_import or function.native_constant or collections.length(function.type_parameters) != 0:
+        return false
+    if signature.callback_result != function.result_type or collections.length(signature.callback_parameters) != collections.length(function.parameters):
+        return false
+    for index in 0..collections.length(function.parameters):
+        if signature.callback_parameters[index].type_name != function.parameters[index].type_name:
+            return false
+    return true
+
+fn native_constant_literal(expression: AstExpr) -> Bool:
+    if expression.kind == expr_integer() or expression.kind == expr_float() or expression.kind == expr_character() or expression.kind == expr_bool():
+        return true
+    return expression.kind == expr_unary() and expression.text == "-" and collections.length(expression.children) == 1 and(expression.children[0].kind == expr_integer() or expression.children[0].kind == expr_float())
 
 fn callable_name(expression: AstExpr) -> String:
     if expression.kind == expr_name():
@@ -2744,6 +3001,8 @@ fn lower_array_expression(state: LowerState, expression: AstExpr, expected: Stri
     if element_type == "":
         next = lower_error(next, expression.line, expression.column, "cannot infer the type of an empty Array")
         element_type = "<invalid>"
+    if is_native_type(next.module, element_type):
+        next = lower_error(next, expression.line, expression.column, "collections cannot contain native values")
     return HirExprResult(hir_expression(expr_array(), "", make_type("Array", [element_type]), elements, -1, -1, expression), next)
 
 fn find_specialization(state: LowerState, key: String) -> Int:
@@ -2804,6 +3063,9 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
 fn struct_call(state: LowerState, expression: AstExpr, declaration_index: Int, arguments: Array[AstExpr], expected_type: String) -> HirExprResult:
     let declaration = state.module.structs[declaration_index]
     var next = state
+    if declaration.representation != representation_rocket():
+        next = lower_error(next, expression.line, expression.column, "native types cannot be constructed as Rocket values; use an extern function returning a pointer or opaque handle")
+        return HirExprResult(hir_expression(expr_call(), declaration.name, "<invalid>", [], -1, -1, expression), next)
     var substitutions = Substitutions([], [])
     if type_base(expected_type) == declaration.name:
         substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), expected_type, declaration.type_parameters, substitutions)
@@ -2916,6 +3178,8 @@ fn builtin_enum_constructor_call(state: LowerState, expression: AstExpr, name: S
 fn user_call(state: LowerState, expression: AstExpr, function_index: Int, arguments: Array[AstExpr]) -> HirExprResult:
     let function = state.module.functions[function_index]
     var next = state
+    if function.native_import and state.unsafe_depth == 0:
+        next = lower_error(next, expression.line, expression.column, string.concat("call to extern function '", string.concat(function.name, "' requires an explicit unsafe block")))
     var substitutions = Substitutions([], [])
     var lowered_arguments: Array[HirExpr] = []
     for index in 0..collections.length(arguments):
@@ -3089,6 +3353,9 @@ fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: 
             lowered_arguments = append(lowered_arguments, lowered.expression)
         if collections.length(arguments) != 1:
             next = lower_error(next, expression.line, expression.column, "print expects one argument")
+        else:
+            if is_native_type(next.module, lowered_arguments[0].type_name):
+                next = lower_error(next, expression.line, expression.column, "print does not accept aggregate or native values")
         return HirExprResult(hir_expression(expr_call(), name, "Unit", lowered_arguments, 0, -1, expression), next)
     let standard = standard_signature(name)
     if standard.found:
@@ -3163,6 +3430,24 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
     if expression.kind == expr_bool():
         return HirExprResult(hir_expression(expression.kind, expression.text, "Bool", [], -1, -1, expression), state)
     if expression.kind == expr_name():
+        let callback_index = foreign_type_index(state.module, expected)
+        if callback_index >= 0 and state.module.structs[callback_index].representation == representation_callback():
+            let function_index = find_function_index(state.module, expression.text)
+            if function_index >= 0 and callback_matches(state.module, callback_index, function_index):
+                let function_symbol = find_symbol_by_name(state, expression.text, symbol_function())
+                if function_symbol >= 0:
+                    return HirExprResult(hir_expression(expr_function_ref(), expression.text, expected, [], function_symbol, -1, expression), state)
+            let next = lower_error(state, expression.line, expression.column, string.concat("callback argument '", string.concat(expression.text, "' must name a top-level noncapturing function with the declared callback signature")))
+            return HirExprResult(hir_expression(expr_function_ref(), expression.text, "<invalid>", [], -1, -1, expression), next)
+        let constant_index = find_function_index(state.module, expression.text)
+        if constant_index >= 0 and state.module.functions[constant_index].native_constant:
+            let constant = state.module.functions[constant_index]
+            if collections.length(constant.body) == 1 and collections.length(constant.body[0].expressions) == 1:
+                let lowered = lower_hir_expression(state, constant.body[0].expressions[0], constant.result_type)
+                if lowered.expression.type_name != constant.result_type:
+                    let next = lower_error(lowered.state, expression.line, expression.column, "extern constant initializer does not match its declared type")
+                    return HirExprResult(lowered.expression, next)
+                return lowered
         let symbol = find_scope_symbol(state, expression.text)
         if symbol < 0:
             let next = lower_error(state, expression.line, expression.column, string.concat("undefined name '", string.concat(expression.text, "'")))
@@ -3188,13 +3473,13 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
             let symbol = captures[index].symbol
             fields = append(fields, AstTypeField(captures[index].name, state.symbols[symbol].type_name, expression.line, expression.column))
             captured_values = append(captured_values, hir_expression(expr_name(), captures[index].name, state.symbols[symbol].type_name, [], symbol, -1, expression))
-        let closure = AstStructDecl(closure_name, false, [], fields, expression.line, expression.column)
+        let closure = AstStructDecl(closure_name, false, [], fields, representation_rocket(), [], "", closure_name, expression.line, expression.column)
         let self_parameter = AstParameter("self", closure_name, expression.line, expression.column)
         let rewritten = rewrite_lambda_captures(body, captures)
         let returned = AstStatement(statement_return(), "", "", false, [rewritten], [], [], [], expression.line, expression.column)
         let callable_name = string.concat(closure_name, ".call")
         let result_type = substitute_type(expression.text, state.substitutions)
-        let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), result_type, [returned], closure_name, "", false, [], expression.line, expression.column)
+        let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), result_type, [returned], closure_name, "", false, false, false, false, callable_name, [], expression.line, expression.column)
         var module = state.module
         module = AstModule(module.imports, append(module.structs, closure), module.enums, module.traits, append(module.functions, callable))
         var next = state_module(state, module)
@@ -3382,6 +3667,11 @@ fn lower_hir_match(state: LowerState, statement: AstStatement) -> HirStatementRe
     return HirStatementResult(hir_statement(statement_match(), -1, [value.expression], [], [], cases, statement), next)
 
 fn lower_hir_statement(state: LowerState, statement: AstStatement) -> HirStatementResult:
+    if statement.kind == statement_unsafe():
+        let entered = state_unsafe_depth(state, state.unsafe_depth + 1)
+        let body = lower_hir_block(entered, statement.body, true)
+        let next = state_unsafe_depth(body.state, body.state.unsafe_depth - 1)
+        return HirStatementResult(hir_statement(statement_unsafe(), -1, [], body.statements, [], [], statement), next)
     if statement.kind == statement_binding():
         var expected = substitute_type(statement.type_name, state.substitutions)
         let initializer = lower_hir_expression(state, statement.expressions[0], expected)
@@ -3547,22 +3837,38 @@ fn lower_hir_function(state: LowerState, function_index: Int, symbol: Int, subst
     next = state_bindings(state_function_context(state_depth(body.state, saved_depth), saved_return, saved_loop, saved_substitutions), saved_bindings)
     return HirFunctionResult(HirFunction(symbol, parameters, substitute_type(function.result_type, substitutions), body.statements), next)
 
-fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> HirResult:
-    let pop_type = AstStructDecl("std.collections.Pop", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1), AstTypeField("value", "T", 1, 1)], 1, 1)
-    let removal_type = AstStructDecl("std.collections.Removal", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1), AstTypeField("value", "T", 1, 1)], 1, 1)
-    let tuple2_type = AstStructDecl("std.collections.Tuple2", true, ["A", "B"], [AstTypeField("first", "A", 1, 1), AstTypeField("second", "B", 1, 1)], 1, 1)
-    let tuple3_type = AstStructDecl("std.collections.Tuple3", true, ["A", "B", "C"], [AstTypeField("first", "A", 1, 1), AstTypeField("second", "B", 1, 1), AstTypeField("third", "C", 1, 1)], 1, 1)
-    let map_type = AstStructDecl("std.collections.Map", true, ["K", "V"], [AstTypeField("keys", "Array[K]", 1, 1), AstTypeField("values", "Array[V]", 1, 1)], 1, 1)
-    let set_type = AstStructDecl("std.collections.Set", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], 1, 1)
-    let queue_type = AstStructDecl("std.collections.Queue", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], 1, 1)
-    let stack_type = AstStructDecl("std.collections.Stack", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], 1, 1)
-    let buffer_type = AstStructDecl("std.collections.ByteBuffer", true, [], [AstTypeField("bytes", "Array[Char]", 1, 1)], 1, 1)
+fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], library: Bool) -> HirResult:
+    let pop_type = AstStructDecl("std.collections.Pop", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1), AstTypeField("value", "T", 1, 1)], representation_rocket(), [], "", "std.collections.Pop", 1, 1)
+    let removal_type = AstStructDecl("std.collections.Removal", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1), AstTypeField("value", "T", 1, 1)], representation_rocket(), [], "", "std.collections.Removal", 1, 1)
+    let tuple2_type = AstStructDecl("std.collections.Tuple2", true, ["A", "B"], [AstTypeField("first", "A", 1, 1), AstTypeField("second", "B", 1, 1)], representation_rocket(), [], "", "std.collections.Tuple2", 1, 1)
+    let tuple3_type = AstStructDecl("std.collections.Tuple3", true, ["A", "B", "C"], [AstTypeField("first", "A", 1, 1), AstTypeField("second", "B", 1, 1), AstTypeField("third", "C", 1, 1)], representation_rocket(), [], "", "std.collections.Tuple3", 1, 1)
+    let map_type = AstStructDecl("std.collections.Map", true, ["K", "V"], [AstTypeField("keys", "Array[K]", 1, 1), AstTypeField("values", "Array[V]", 1, 1)], representation_rocket(), [], "", "std.collections.Map", 1, 1)
+    let set_type = AstStructDecl("std.collections.Set", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], representation_rocket(), [], "", "std.collections.Set", 1, 1)
+    let queue_type = AstStructDecl("std.collections.Queue", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], representation_rocket(), [], "", "std.collections.Queue", 1, 1)
+    let stack_type = AstStructDecl("std.collections.Stack", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], representation_rocket(), [], "", "std.collections.Stack", 1, 1)
+    let buffer_type = AstStructDecl("std.collections.ByteBuffer", true, [], [AstTypeField("bytes", "Array[Char]", 1, 1)], representation_rocket(), [], "", "std.collections.ByteBuffer", 1, 1)
     let builtins = [pop_type, removal_type, tuple2_type, tuple3_type, map_type, set_type, queue_type, stack_type, buffer_type]
     let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.traits, module.functions)
-    var state = LowerState(complete_module, [], [], [], 0, "", 0, Substitutions([], []), [], [], parser_diagnostics)
+    var state = LowerState(complete_module, [], [], [], 0, "", 0, 0, Substitutions([], []), [], [], parser_diagnostics)
     let print_symbol = add_hir_symbol(state, symbol_builtin(), "print", "Unit", false, [], intrinsic_print())
     state = print_symbol.state
     var function_symbols: Array[Int] = []
+    for declaration_index in 0..collections.length(complete_module.structs):
+        let declaration = complete_module.structs[declaration_index]
+        if declaration.representation == representation_native():
+            if collections.length(declaration.fields) == 0:
+                state = lower_error(state, declaration.line, declaration.column, "native struct must declare at least one field")
+            for field_index in 0..collections.length(declaration.fields):
+                let field = declaration.fields[field_index]
+                if not is_native_abi_value(complete_module, field.type_name) or field.type_name == "Unit" or foreign_type_index(complete_module, field.type_name) >= 0 and complete_module.structs[foreign_type_index(complete_module, field.type_name)].representation == representation_callback():
+                    state = lower_error(state, field.line, field.column, "native struct fields must use primitive, Pointer, or opaque types")
+        if declaration.representation == representation_callback():
+            for parameter_index in 0..collections.length(declaration.callback_parameters):
+                let parameter = declaration.callback_parameters[parameter_index]
+                if not is_native_abi_value(complete_module, parameter.type_name) or parameter.type_name == "Unit" or foreign_type_index(complete_module, parameter.type_name) >= 0 and complete_module.structs[foreign_type_index(complete_module, parameter.type_name)].representation == representation_callback():
+                    state = lower_error(state, parameter.line, parameter.column, "callback parameters must use primitive, Pointer, or opaque types")
+            if not is_native_abi_value(complete_module, declaration.callback_result) or foreign_type_index(complete_module, declaration.callback_result) >= 0 and complete_module.structs[foreign_type_index(complete_module, declaration.callback_result)].representation == representation_callback():
+                state = lower_error(state, declaration.line, declaration.column, "callback results must use primitive, Pointer, opaque, or Unit types")
     for trait_index in 0..collections.length(complete_module.traits):
         let trait_declaration = complete_module.traits[trait_index]
         for earlier in 0..trait_index:
@@ -3576,6 +3882,18 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
                 state = lower_error(state, method.line, method.column, "trait methods require first parameter 'self: Self'")
     for index in 0..collections.length(complete_module.functions):
         let function = complete_module.functions[index]
+        if collection_contains_native(complete_module, function.result_type):
+            state = lower_error(state, function.line, function.column, "collections cannot contain native values")
+        for parameter_index in 0..collections.length(function.parameters):
+            if collection_contains_native(complete_module, function.parameters[parameter_index].type_name):
+                state = lower_error(state, function.parameters[parameter_index].line, function.parameters[parameter_index].column, "collections cannot contain native values")
+        if function.native_constant:
+            if not is_native_primitive(function.result_type) or function.result_type == "Unit":
+                state = lower_error(state, function.line, function.column, "extern constants must use Int, Float, Bool, or Char")
+            if collections.length(function.body) != 1 or collections.length(function.body[0].expressions) != 1 or not native_constant_literal(function.body[0].expressions[0]):
+                state = lower_error(state, function.line, function.column, "native constant initializer must be a primitive literal")
+            function_symbols = append(function_symbols, -1)
+            continue
         if function.method_owner != "":
             let owner_base = type_base(function.method_owner)
             if find_struct_index(complete_module, owner_base) < 0 and find_enum_index(complete_module, owner_base) < 0:
@@ -3621,12 +3939,21 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
             for parameter_index in 0..collections.length(function.parameters):
                 parameter_types = append(parameter_types, function.parameters[parameter_index].type_name)
             let added = add_hir_symbol(state, symbol_function(), function.name, function.result_type, false, parameter_types, intrinsic_none())
-            state = added.state
+            state = set_hir_native_symbol(added.state, added.symbol, function.native_import, function.native_export, function.native_name)
+            if function.native_import or function.native_export:
+                for parameter_index in 0..collections.length(parameter_types):
+                    let parameter_type = parameter_types[parameter_index]
+                    let foreign_index = foreign_type_index(complete_module, parameter_type)
+                    if not is_native_abi_value(complete_module, parameter_type) or parameter_type == "Unit" or foreign_index >= 0 and complete_module.structs[foreign_index].representation == representation_native():
+                        state = lower_error(state, function.line, function.column, "native function parameters must use primitive, Pointer, opaque, or callback types")
+                let result_index = foreign_type_index(complete_module, function.result_type)
+                if not is_native_abi_value(complete_module, function.result_type) or result_index >= 0 and complete_module.structs[result_index].representation == representation_native() or function.native_export and result_index >= 0 and complete_module.structs[result_index].representation == representation_callback():
+                    state = lower_error(state, function.line, function.column, "native function result must use primitive, Pointer, opaque, or Unit type")
             function_symbols = append(function_symbols, added.symbol)
         else:
             function_symbols = append(function_symbols, -1)
     for index in 0..collections.length(complete_module.functions):
-        if function_symbols[index] >= 0:
+        if function_symbols[index] >= 0 and not complete_module.functions[index].native_import:
             let lowered = lower_hir_function(state, index, function_symbols[index], Substitutions([], []))
             state = state_functions(lowered.state, append(lowered.state.functions, lowered.function))
     var pending_index = 0
@@ -3635,15 +3962,19 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic]) -> Hir
         let lowered = lower_hir_function(state, pending.function_index, pending.symbol, pending.substitutions)
         state = state_functions(lowered.state, append(lowered.state.functions, lowered.function))
         pending_index = pending_index + 1
-    return HirResult(HirModule(state.symbols, state.module.structs, state.module.enums, state.functions), state.diagnostics)
+    return HirResult(HirModule(state.symbols, state.module.structs, state.module.enums, state.functions, library), state.diagnostics)
 
 fn analyze_source(source: String) -> HirResult:
     let parsed = parse_source(source)
-    return lower_to_hir(parsed.module, parsed.diagnostics)
+    return lower_to_hir(parsed.module, parsed.diagnostics, false)
 
 fn analyze_program(source_path: String) -> HirResult:
     let parsed = parse_program(source_path)
-    return lower_to_hir(parsed.module, parsed.diagnostics)
+    return lower_to_hir(parsed.module, parsed.diagnostics, false)
+
+fn analyze_program_kind(source_path: String, library: Bool) -> HirResult:
+    let parsed = parse_program(source_path)
+    return lower_to_hir(parsed.module, parsed.diagnostics, library)
 
 fn empty_mir_operand() -> MirOperand:
     return MirOperand(-1, "", "Unit", false)
@@ -3715,7 +4046,7 @@ fn return_terminator(returned: MirOperand, has_returned: Bool) -> MirTerminator:
 
 fn emit_copy(state: MirState, destination: Int, source: MirOperand, type_name: String) -> MirState:
     var next = state
-    if managed_type(type_name):
+    if managed_type_for_structs(state.module.structs, type_name):
         next = emit_mir_instruction(next, MirInstruction(mir_retain(), -1, [source], -1, -1, "", type_name))
         let previous = MirOperand(destination, "", type_name, false)
         next = emit_mir_instruction(next, MirInstruction(mir_release(), -1, [previous], -1, -1, "", type_name))
@@ -3774,6 +4105,10 @@ fn lower_mir_expression(state: MirState, expression: HirExpr) -> MirOperandResul
         next = finish_mir_block(next, goto_terminator(join.block))
         next = start_mir_block(next, join.block)
         return MirOperandResult(destination.operand, next)
+    if expression.kind == expr_function_ref():
+        let destination = add_mir_local(state, expression.type_name, false)
+        let instruction = MirInstruction(mir_constant(), destination.operand.local, [], expression.symbol, -1, string.from_int(expression.symbol), expression.type_name)
+        return MirOperandResult(destination.operand, emit_mir_instruction(destination.state, instruction))
     if expression.kind == expr_integer() or expression.kind == expr_float() or expression.kind == expr_character() or expression.kind == expr_string() or expression.kind == expr_bool():
         let destination = add_mir_local(state, expression.type_name, false)
         let instruction = MirInstruction(mir_constant(), destination.operand.local, [], -1, -1, expression.text, expression.type_name)
@@ -3951,6 +4286,8 @@ fn lower_mir_match(state: MirState, statement: HirStatement) -> MirState:
     return start_mir_block(next, exit_block.block)
 
 fn lower_mir_statement(state: MirState, statement: HirStatement) -> MirState:
+    if statement.kind == statement_unsafe():
+        return lower_mir_block(state, statement.body)
     if statement.kind == statement_binding():
         let value = lower_mir_expression(state, statement.expressions[0])
         let destination = add_mir_local(value.state, value.operand.type_name, false)
@@ -3997,17 +4334,17 @@ fn lower_mir_statement(state: MirState, statement: HirStatement) -> MirState:
         return lower_mir_match(state, statement)
     return mir_error(state, statement.line, statement.column, "unsupported HIR statement reached MIR")
 
-fn add_explicit_ownership(function: MirFunction) -> MirFunction:
+fn add_explicit_ownership(module: HirModule, function: MirFunction) -> MirFunction:
     var blocks: Array[MirBlock] = []
     for block_index in 0..collections.length(function.blocks):
         let block = function.blocks[block_index]
         var instructions = block.instructions
         if block.terminator.kind == terminator_return():
-            if block.terminator.has_returned and managed_type(function.result_type):
+            if block.terminator.has_returned and managed_type_for_structs(module.structs, function.result_type):
                 instructions = append(instructions, MirInstruction(mir_retain(), -1, [block.terminator.returned], -1, -1, "return transfer", function.result_type))
             for local_index in 0..collections.length(function.locals):
                 let local = function.locals[local_index]
-                if managed_type(local.type_name) and not local.parameter:
+                if managed_type_for_structs(module.structs, local.type_name) and not local.parameter:
                     instructions = append(instructions, MirInstruction(mir_release(), -1, [MirOperand(local.id, "", local.type_name, false)], -1, -1, "function cleanup", local.type_name))
         blocks = append(blocks, MirBlock(block.id, instructions, block.terminator))
     return MirFunction(function.symbol, function.parameters, function.locals, blocks, function.result_type)
@@ -4029,7 +4366,7 @@ fn build_mir_function(module: HirModule, function: HirFunction, input_diagnostic
             let fallback = MirOperand(-1, "0", function.result_type, true)
             state = finish_mir_block(state, return_terminator(fallback, true))
     let lowered = MirFunction(function.symbol, parameters, state.locals, state.blocks, function.result_type)
-    return MirFunctionBuildResult(add_explicit_ownership(lowered), state.diagnostics)
+    return MirFunctionBuildResult(add_explicit_ownership(module, lowered), state.diagnostics)
 
 fn block_exists(blocks: Array[MirBlock], id: Int) -> Bool:
     for index in 0..collections.length(blocks):
@@ -4068,7 +4405,7 @@ fn lower_to_mir(hir: HirModule, input_diagnostics: Array[Diagnostic]) -> MirResu
         let built = build_mir_function(hir, hir.functions[index], diagnostics)
         functions = append(functions, built.function)
         diagnostics = verify_mir_function(built.function, built.diagnostics)
-    return MirResult(MirModule(hir.symbols, hir.structs, functions), diagnostics)
+    return MirResult(MirModule(hir.symbols, hir.structs, functions, hir.library), diagnostics)
 
 fn compile_to_mir(source: String) -> MirResult:
     let hir = analyze_source(source)
@@ -4076,6 +4413,10 @@ fn compile_to_mir(source: String) -> MirResult:
 
 fn compile_program_to_mir(source_path: String) -> MirResult:
     let hir = analyze_program(source_path)
+    return lower_to_mir(hir.module, hir.diagnostics)
+
+fn compile_program_to_mir_kind(source_path: String, library: Bool) -> MirResult:
+    let hir = analyze_program_kind(source_path, library)
     return lower_to_mir(hir.module, hir.diagnostics)
 
 fn llvm_type(type_name: String) -> String:
@@ -4094,11 +4435,57 @@ fn llvm_result_type(type_name: String) -> String:
         return "void"
     return llvm_type(type_name)
 
+fn native_llvm_type(type_name: String) -> String:
+    if type_name == "Unit":
+        return "void"
+    if type_name == "Int":
+        return "i64"
+    if type_name == "Float":
+        return "double"
+    if type_name == "Bool" or type_name == "Char":
+        return "i8"
+    return "ptr"
+
+fn callback_wrapper_name(symbol: Int) -> String:
+    return string.concat("@rocket_callback_", string.from_int(symbol))
+
+fn native_symbol_name(symbol: HirSymbol) -> String:
+    return string.concat("@", symbol.native_name)
+
+fn mir_function_for_symbol(module: MirModule, symbol: Int) -> Int:
+    for index in 0..collections.length(module.functions):
+        if module.functions[index].symbol == symbol:
+            return index
+    return -1
+
+fn callback_declaration_for_type(module: MirModule, type_name: String) -> Int:
+    for index in 0..collections.length(module.structs):
+        if module.structs[index].name == type_name and module.structs[index].representation == representation_callback():
+            return index
+    return -1
+
+fn symbol_matches_callback(module: MirModule, symbol: HirSymbol, callback_declaration: AstStructDecl) -> Bool:
+    if symbol.native_import or collections.length(symbol.parameter_types) != collections.length(callback_declaration.callback_parameters) or symbol.type_name != callback_declaration.callback_result:
+        return false
+    for index in 0..collections.length(symbol.parameter_types):
+        if symbol.parameter_types[index] != callback_declaration.callback_parameters[index].type_name:
+            return false
+    return mir_function_for_symbol(module, symbol.id) >= 0
+
 fn managed_type(type_name: String) -> Bool:
-    return type_name != "Int" and type_name != "Float" and type_name != "Bool" and type_name != "Char" and type_name != "Unit" and type_name != "<invalid>"
+    return type_name != "Int" and type_name != "Float" and type_name != "Bool" and type_name != "Char" and type_name != "Unit" and type_name != "<invalid>" and type_base(type_name) != "Pointer"
+
+fn managed_type_for_structs(structs: Array[AstStructDecl], type_name: String) -> Bool:
+    if not managed_type(type_name):
+        return false
+    let base = type_base(type_name)
+    for index in 0..collections.length(structs):
+        if structs[index].name == base and structs[index].representation != representation_rocket():
+            return false
+    return true
 
 fn llvm_zero(type_name: String) -> String:
-    if managed_type(type_name):
+    if llvm_type(type_name) == "ptr":
         return "null"
     if type_name == "Float":
         return "0.000000e+00"
@@ -4747,6 +5134,26 @@ fn emit_call_llvm(builder: std.string.Builder, module: MirModule, instruction: M
             emit_llvm_line(builder, string.concat("  ", string.concat(truncated, string.concat(" = trunc i8 ", string.concat(call_result, " to i1")))))
             return LlvmValue(truncated, "Bool")
         return LlvmValue(call_result, instruction.type_name)
+    if symbol.native_import:
+        var arguments: Array[String] = []
+        for index in 0..collections.length(values):
+            var argument_name = values[index].name
+            let argument_type = native_llvm_type(values[index].type_name)
+            if values[index].type_name == "Bool":
+                let extended = string.concat("%", string.concat(name, string.concat("_native_bool_", string.from_int(index))))
+                emit_llvm_line(builder, string.concat("  ", string.concat(extended, string.concat(" = zext i1 ", string.concat(argument_name, " to i8")))))
+                argument_name = extended
+            arguments = append(arguments, string.concat(argument_type, string.concat(" ", argument_name)))
+        if instruction.type_name == "Unit":
+            emit_llvm_line(builder, string.concat("  call void ", string.concat(native_symbol_name(symbol), string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))
+            return LlvmValue("0", "Unit")
+        let raw = string.concat("%", string.concat(name, "_native_call"))
+        emit_llvm_line(builder, string.concat("  ", string.concat(raw, string.concat(" = call ", string.concat(native_llvm_type(instruction.type_name), string.concat(" ", string.concat(native_symbol_name(symbol), string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))))))
+        if instruction.type_name == "Bool":
+            let converted = string.concat("%", string.concat(name, "_native_bool_result"))
+            emit_llvm_line(builder, string.concat("  ", string.concat(converted, string.concat(" = trunc i8 ", string.concat(raw, " to i1")))))
+            return LlvmValue(converted, "Bool")
+        return LlvmValue(raw, instruction.type_name)
     var arguments: Array[String] = []
     for index in 0..collections.length(values):
         arguments = append(arguments, string.concat(llvm_type(values[index].type_name), string.concat(" ", values[index].name)))
@@ -4772,15 +5179,18 @@ fn emit_mir_instruction_llvm(builder: std.string.Builder, globals: std.string.Bu
         store_copied_llvm(builder, instruction.destination, values[0], name)
         return
     if instruction.kind == mir_constant():
-        if instruction.type_name == "String":
-            let global_name = string.concat("@rocket_string_", name)
-            let length = string.byte_length(instruction.text)
-            emit_llvm_line(globals, string.concat(global_name, string.concat(" = private unnamed_addr constant [", string.concat(string.from_int(length), string.concat(" x i8] c\"", string.concat(llvm_escape_bytes(instruction.text), "\""))))))
-            let result = string.concat("%", string.concat(name, "_string"))
-            emit_llvm_line(builder, string.concat("  ", string.concat(result, string.concat(" = call ptr @rocket_rt_string_new(ptr ", string.concat(global_name, string.concat(", i64 ", string.concat(string.from_int(length), ")")))))))
-            store_owned_llvm(builder, instruction.destination, LlvmValue(result, "String"), name)
+        if callback_declaration_for_type(module, instruction.type_name) >= 0:
+            store_owned_llvm(builder, instruction.destination, LlvmValue(callback_wrapper_name(instruction.symbol), instruction.type_name), name)
         else:
-            store_owned_llvm(builder, instruction.destination, LlvmValue(llvm_constant_value(MirOperand(-1, instruction.text, instruction.type_name, true)), instruction.type_name), name)
+            if instruction.type_name == "String":
+                let global_name = string.concat("@rocket_string_", name)
+                let length = string.byte_length(instruction.text)
+                emit_llvm_line(globals, string.concat(global_name, string.concat(" = private unnamed_addr constant [", string.concat(string.from_int(length), string.concat(" x i8] c\"", string.concat(llvm_escape_bytes(instruction.text), "\""))))))
+                let result = string.concat("%", string.concat(name, "_string"))
+                emit_llvm_line(builder, string.concat("  ", string.concat(result, string.concat(" = call ptr @rocket_rt_string_new(ptr ", string.concat(global_name, string.concat(", i64 ", string.concat(string.from_int(length), ")")))))))
+                store_owned_llvm(builder, instruction.destination, LlvmValue(result, "String"), name)
+            else:
+                store_owned_llvm(builder, instruction.destination, LlvmValue(llvm_constant_value(MirOperand(-1, instruction.text, instruction.type_name, true)), instruction.type_name), name)
         return
     if instruction.kind == mir_unary():
         let result = string.concat("%", string.concat(name, "_unary"))
@@ -4934,7 +5344,93 @@ fn emit_mir_function_llvm(builder: std.string.Builder, globals: std.string.Build
     emit_llvm_line(builder, "}")
     emit_llvm_line(builder, "")
 
+fn emit_native_declarations(builder: std.string.Builder, module: MirModule) -> Unit:
+    for symbol_index in 0..collections.length(module.symbols):
+        let symbol = module.symbols[symbol_index]
+        if symbol.kind == symbol_function() and symbol.native_import:
+            var parameters: Array[String] = []
+            for parameter_index in 0..collections.length(symbol.parameter_types):
+                parameters = append(parameters, native_llvm_type(symbol.parameter_types[parameter_index]))
+            emit_llvm_line(builder, string.concat("declare ", string.concat(native_llvm_type(symbol.type_name), string.concat(" ", string.concat(native_symbol_name(symbol), string.concat("(", string.concat(collections.join(parameters, ", "), ")")))))))
+    emit_llvm_line(builder, "")
+
+fn emit_callback_wrapper(builder: std.string.Builder, module: MirModule, symbol: HirSymbol, callback_declaration: AstStructDecl) -> Unit:
+    var parameters: Array[String] = []
+    for index in 0..collections.length(callback_declaration.callback_parameters):
+        parameters = append(parameters, string.concat(native_llvm_type(callback_declaration.callback_parameters[index].type_name), string.concat(" %arg", string.from_int(index))))
+    emit_llvm_line(builder, string.concat("define ", string.concat(native_llvm_type(callback_declaration.callback_result), string.concat(" ", string.concat(callback_wrapper_name(symbol.id), string.concat("(", string.concat(collections.join(parameters, ", "), ") {")))))))
+    emit_llvm_line(builder, "entry:")
+    var arguments: Array[String] = []
+    for index in 0..collections.length(callback_declaration.callback_parameters):
+        let type_name = callback_declaration.callback_parameters[index].type_name
+        var value = string.concat("%arg", string.from_int(index))
+        if type_name == "Bool":
+            let converted = string.concat("%rocket_callback_bool_", string.from_int(index))
+            emit_llvm_line(builder, string.concat("  ", string.concat(converted, string.concat(" = trunc i8 ", string.concat(value, " to i1")))))
+            value = converted
+        arguments = append(arguments, string.concat(llvm_type(type_name), string.concat(" ", value)))
+    if callback_declaration.callback_result == "Unit":
+        emit_llvm_line(builder, string.concat("  call void ", string.concat(llvm_function_name(symbol.id), string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))
+        emit_llvm_line(builder, "  ret void")
+    else:
+        let called = "%rocket_callback_result"
+        emit_llvm_line(builder, string.concat("  ", string.concat(called, string.concat(" = call ", string.concat(llvm_type(callback_declaration.callback_result), string.concat(" ", string.concat(llvm_function_name(symbol.id), string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))))))
+        if callback_declaration.callback_result == "Bool":
+            emit_llvm_line(builder, string.concat("  %rocket_callback_native_bool = zext i1 ", string.concat(called, " to i8")))
+            emit_llvm_line(builder, "  ret i8 %rocket_callback_native_bool")
+        else:
+            emit_llvm_line(builder, string.concat("  ret ", string.concat(native_llvm_type(callback_declaration.callback_result), string.concat(" ", called))))
+    emit_llvm_line(builder, "}")
+    emit_llvm_line(builder, "")
+
+fn emit_callback_wrappers(builder: std.string.Builder, module: MirModule) -> Unit:
+    for symbol_index in 0..collections.length(module.symbols):
+        let symbol = module.symbols[symbol_index]
+        if symbol.kind != symbol_function() or symbol.native_import:
+            continue
+        for declaration_index in 0..collections.length(module.structs):
+            let declaration = module.structs[declaration_index]
+            if declaration.representation == representation_callback() and symbol_matches_callback(module, symbol, declaration):
+                emit_callback_wrapper(builder, module, symbol, declaration)
+                break
+
+fn emit_export_wrapper(builder: std.string.Builder, symbol: HirSymbol) -> Unit:
+    var parameters: Array[String] = []
+    for index in 0..collections.length(symbol.parameter_types):
+        parameters = append(parameters, string.concat(native_llvm_type(symbol.parameter_types[index]), string.concat(" %arg", string.from_int(index))))
+    emit_llvm_line(builder, string.concat("define dllexport ", string.concat(native_llvm_type(symbol.type_name), string.concat(" ", string.concat(native_symbol_name(symbol), string.concat("(", string.concat(collections.join(parameters, ", "), ") {")))))))
+    emit_llvm_line(builder, "entry:")
+    var arguments: Array[String] = []
+    for index in 0..collections.length(symbol.parameter_types):
+        let type_name = symbol.parameter_types[index]
+        var value = string.concat("%arg", string.from_int(index))
+        if type_name == "Bool":
+            let converted = string.concat("%rocket_export_bool_", string.from_int(index))
+            emit_llvm_line(builder, string.concat("  ", string.concat(converted, string.concat(" = trunc i8 ", string.concat(value, " to i1")))))
+            value = converted
+        arguments = append(arguments, string.concat(llvm_type(type_name), string.concat(" ", value)))
+    if symbol.type_name == "Unit":
+        emit_llvm_line(builder, string.concat("  call void ", string.concat(llvm_function_name(symbol.id), string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))
+        emit_llvm_line(builder, "  ret void")
+    else:
+        let called = "%rocket_export_result"
+        emit_llvm_line(builder, string.concat("  ", string.concat(called, string.concat(" = call ", string.concat(llvm_type(symbol.type_name), string.concat(" ", string.concat(llvm_function_name(symbol.id), string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))))))
+        if symbol.type_name == "Bool":
+            emit_llvm_line(builder, string.concat("  %rocket_export_native_bool = zext i1 ", string.concat(called, " to i8")))
+            emit_llvm_line(builder, "  ret i8 %rocket_export_native_bool")
+        else:
+            emit_llvm_line(builder, string.concat("  ret ", string.concat(native_llvm_type(symbol.type_name), string.concat(" ", called))))
+    emit_llvm_line(builder, "}")
+    emit_llvm_line(builder, "")
+
+fn emit_export_wrappers(builder: std.string.Builder, module: MirModule) -> Unit:
+    for index in 0..collections.length(module.symbols):
+        if module.symbols[index].native_export:
+            emit_export_wrapper(builder, module.symbols[index])
+
 fn emit_native_entrypoint(builder: std.string.Builder, module: MirModule) -> Unit:
+    if module.library:
+        return
     var main_symbol = -1
     for index in 0..collections.length(module.functions):
         let symbol = module.functions[index].symbol
@@ -4958,8 +5454,11 @@ fn generate_llvm_ir(module: MirModule) -> String:
     emit_llvm_line(output, "; The pinned Windows Clang driver supplies the concrete target triple")
     emit_llvm_line(output, "")
     emit_runtime_declarations(output)
+    emit_native_declarations(output, module)
     for index in 0..collections.length(module.functions):
         emit_mir_function_llvm(output, globals, module, module.functions[index])
+    emit_callback_wrappers(output, module)
+    emit_export_wrappers(output, module)
     emit_native_entrypoint(output, module)
     emit_llvm_line(output, "; String constants")
     string.builder_append(output, string.builder_finish(globals))
@@ -5031,11 +5530,15 @@ fn emit_ir_file(input: String, output: String) -> Int:
             print(string.concat("rocketc: error[R5002]: ", error))
             return 1
 
-fn manifest_value(source: String, key: String) -> String:
+fn manifest_value(source: String, section: String, key: String) -> String:
     let lines = string.split(source, "\n")
+    var current_section = ""
     for index in 0..collections.length(lines):
         let line = string.trim(lines[index])
-        if string.starts_with(line, key):
+        if string.starts_with(line, "[") and string.ends_with(line, "]"):
+            current_section = string.slice(line, 1, string.byte_length(line) - 1)
+            continue
+        if current_section == section and string.starts_with(line, string.concat(key, " ")):
             var equals = -1
             for byte_index in 0..string.byte_length(line):
                 if string.byte_at(line, byte_index) == '=':
@@ -5046,6 +5549,18 @@ fn manifest_value(source: String, key: String) -> String:
                     return string.slice(raw, 1, string.byte_length(raw) - 1)
     return ""
 
+fn manifest_list(source: String, section: String, key: String) -> Array[String]:
+    let raw = manifest_value(source, section, key)
+    var values: Array[String] = []
+    if raw == "":
+        return values
+    let pieces = string.split(raw, ";")
+    for index in 0..collections.length(pieces):
+        let value = string.trim(pieces[index])
+        if value != "":
+            values = append(values, value)
+    return values
+
 fn safe_manifest_relative_path(value: String) -> Bool:
     if value == "" or string.contains(value, "..") or string.contains(value, ":"):
         return false
@@ -5055,25 +5570,57 @@ fn safe_manifest_relative_path(value: String) -> Bool:
 fn resolve_package(input: String) -> PackageInfo:
     let normalized = std.path.normalize(input)
     if std.path.extension(normalized) == ".rocket":
-        return PackageInfo(true, source_parent(normalized), normalized, std.path.join(source_parent(normalized), "tests"), "")
+        return PackageInfo(true, source_parent(normalized), normalized, std.path.join(source_parent(normalized), "tests"), "main", output_executable(), "main", [], [], [], "")
     let manifest_path = std.path.join(normalized, "rocket.toml")
     let loaded = file.read_text(manifest_path)
     match loaded:
         case Err(error):
-            return PackageInfo(false, normalized, "", "", string.concat("cannot read rocket.toml: ", error))
+            return PackageInfo(false, normalized, "", "", "", output_executable(), "", [], [], [], string.concat("cannot read rocket.toml: ", error))
         case Ok(source):
-            let package_name = manifest_value(source, "name")
-            let version = manifest_value(source, "version")
-            let entry_relative = manifest_value(source, "entry")
-            var tests_relative = manifest_value(source, "directory")
+            let package_name = manifest_value(source, "package", "name")
+            let version = manifest_value(source, "package", "version")
+            let entry_relative = manifest_value(source, "package", "entry")
+            var tests_relative = manifest_value(source, "test", "directory")
             if tests_relative == "":
                 tests_relative = "tests"
+            var output_kind = output_executable()
+            let kind = manifest_value(source, "build", "kind")
+            if kind == "static-library":
+                output_kind = output_static_library()
+            else:
+                if kind == "dynamic-library":
+                    output_kind = output_dynamic_library()
+                else:
+                    if kind != "" and kind != "executable":
+                        return PackageInfo(false, normalized, "", "", package_name, output_executable(), "", [], [], [], "build.kind must be executable, static-library, or dynamic-library")
+            var output_name = manifest_value(source, "build", "name")
+            if output_name == "":
+                if output_kind == output_executable():
+                    output_name = "main"
+                else:
+                    output_name = package_name
+            let native_libraries = manifest_list(source, "native.windows-x64", "libraries")
+            let native_search_relative = manifest_list(source, "native.windows-x64", "library-search")
+            let native_headers_relative = manifest_list(source, "native.windows-x64", "headers")
+            var native_search: Array[String] = []
+            var native_headers: Array[String] = []
+            for index in 0..collections.length(native_search_relative):
+                if not safe_manifest_relative_path(native_search_relative[index]):
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], "native library search paths must remain inside the package")
+                native_search = append(native_search, std.path.normalize(std.path.join(normalized, native_search_relative[index])))
+            for index in 0..collections.length(native_headers_relative):
+                if not safe_manifest_relative_path(native_headers_relative[index]):
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], "native headers must remain inside the package")
+                let header = std.path.normalize(std.path.join(normalized, native_headers_relative[index]))
+                if not file.exists(header):
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], string.concat("native header does not exist: ", header))
+                native_headers = append(native_headers, header)
             if package_name == "" or version == "" or not safe_manifest_relative_path(entry_relative) or not safe_manifest_relative_path(tests_relative):
-                return PackageInfo(false, normalized, "", "", "invalid package name, version, entry, or test directory")
+                return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, "invalid package name, version, entry, or test directory")
             let entry = std.path.normalize(std.path.join(normalized, entry_relative))
             if not file.exists(entry):
-                return PackageInfo(false, normalized, entry, "", string.concat("package entry does not exist: ", entry))
-            return PackageInfo(true, normalized, entry, std.path.normalize(std.path.join(normalized, tests_relative)), "")
+                return PackageInfo(false, normalized, entry, "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, string.concat("package entry does not exist: ", entry))
+            return PackageInfo(true, normalized, entry, std.path.normalize(std.path.join(normalized, tests_relative)), package_name, output_kind, output_name, native_libraries, native_search, native_headers, "")
 
 fn environment_or_empty(name: String) -> String:
     let result = process.environment(name)
@@ -5117,10 +5664,13 @@ fn locate_toolchain() -> ToolchainInfo:
         runtime_path = first_existing([std.path.join(install_root, "lib/rocket_runtime.lib"), std.path.join(compiler_directory, "rocket_runtime.lib"), "lib/rocket_runtime.lib", "out/build/windows-debug/rocket_runtime.lib", "out/build/windows-release/rocket_runtime.lib"])
     let library_directories = existing_directories([std.path.join(install_root, "lib/msvc"), std.path.join(install_root, "lib/ucrt"), std.path.join(install_root, "lib/um")])
     if clang_path == "":
-        return ToolchainInfo(false, "", runtime_path, library_directories, "could not locate the pinned clang.exe; set ROCKET_CLANG")
+        return ToolchainInfo(false, "", runtime_path, "", library_directories, "could not locate the pinned clang.exe; set ROCKET_CLANG")
     if runtime_path == "":
-        return ToolchainInfo(false, clang_path, "", library_directories, "could not locate rocket_runtime.lib; set ROCKET_RUNTIME")
-    return ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), library_directories, "")
+        return ToolchainInfo(false, clang_path, "", "", library_directories, "could not locate rocket_runtime.lib; set ROCKET_RUNTIME")
+    let librarian = std.path.join(source_parent(std.path.normalize(clang_path)), "llvm-lib.exe")
+    if not file.exists(librarian):
+        return ToolchainInfo(false, clang_path, runtime_path, "", library_directories, "could not locate llvm-lib.exe next to clang.exe")
+    return ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), std.path.normalize(librarian), library_directories, "")
 
 fn ensure_directory(directory: String) -> Int:
     let created = file.create_directory(directory)
@@ -5131,8 +5681,337 @@ fn ensure_directory(directory: String) -> Int:
             print(string.concat("rocketc: error[R5002]: ", error))
             return 1
 
-fn write_generated_ir(input: String, output: String) -> Int:
-    let result = compile_program_to_mir(input)
+fn native_declaration_name(module: AstModule, type_name: String) -> String:
+    let base = type_base(type_name)
+    for index in 0..collections.length(module.structs):
+        if module.structs[index].name == base and module.structs[index].representation != representation_rocket():
+            return module.structs[index].native_name
+    return base
+
+fn native_c_type(module: AstModule, type_name: String) -> String:
+    if type_name == "Int":
+        return "int64_t"
+    if type_name == "Float":
+        return "double"
+    if type_name == "Bool":
+        return "rocket_bool"
+    if type_name == "Char":
+        return "uint8_t"
+    if type_name == "Unit":
+        return "void"
+    if type_base(type_name) == "Pointer":
+        let arguments = type_arguments(type_name)
+        if collections.length(arguments) == 0 or arguments[0] == "Unit":
+            return "void*"
+        return string.concat(native_c_type(module, arguments[0]), "*")
+    let index = foreign_type_index(module, type_name)
+    if index >= 0 and module.structs[index].representation == representation_opaque():
+        return string.concat(module.structs[index].native_name, "*")
+    return native_declaration_name(module, type_name)
+
+fn uppercase_guard(value: String) -> String:
+    let lower = "abcdefghijklmnopqrstuvwxyz"
+    let upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let builder = string.builder()
+    for index in 0..string.byte_length(value):
+        let character = string.slice(value, index, index + 1)
+        var written = false
+        for letter in 0..string.byte_length(lower):
+            if character == string.slice(lower, letter, letter + 1):
+                string.builder_append(builder, string.slice(upper, letter, letter + 1))
+                written = true
+        if not written:
+            if string.contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", character):
+                string.builder_append(builder, character)
+            else:
+                string.builder_append(builder, "_")
+    return string.builder_finish(builder)
+
+fn generate_native_header(module: AstModule, package_name: String) -> String:
+    let guard = string.concat("ROCKET_", string.concat(uppercase_guard(package_name), "_H"))
+    let output = string.builder()
+    string.builder_append(output, string.concat("#ifndef ", string.concat(guard, string.concat("\n#define ", string.concat(guard, "\n\n")))))
+    string.builder_append(output, "#include <stdint.h>\n\ntypedef uint8_t rocket_bool;\n#ifndef ROCKET_API\n#define ROCKET_API\n#endif\n\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n")
+    var wrote_type = false
+    for index in 0..collections.length(module.structs):
+        let declaration = module.structs[index]
+        if declaration.representation == representation_opaque():
+            string.builder_append(output, string.concat("typedef struct ", string.concat(declaration.native_name, string.concat(" ", string.concat(declaration.native_name, ";\n")))))
+            wrote_type = true
+        if declaration.representation == representation_native():
+            string.builder_append(output, string.concat("typedef struct ", string.concat(declaration.native_name, " { ")))
+            for field_index in 0..collections.length(declaration.fields):
+                let field = declaration.fields[field_index]
+                string.builder_append(output, string.concat(native_c_type(module, field.type_name), string.concat(" ", string.concat(field.name, "; "))))
+            string.builder_append(output, string.concat("} ", string.concat(declaration.native_name, ";\n")))
+            wrote_type = true
+        if declaration.representation == representation_callback():
+            string.builder_append(output, string.concat("typedef ", string.concat(native_c_type(module, declaration.callback_result), string.concat(" (*", string.concat(declaration.native_name, ")(")))))
+            if collections.length(declaration.callback_parameters) == 0:
+                string.builder_append(output, "void")
+            for parameter_index in 0..collections.length(declaration.callback_parameters):
+                if parameter_index > 0:
+                    string.builder_append(output, ", ")
+                let parameter = declaration.callback_parameters[parameter_index]
+                string.builder_append(output, string.concat(native_c_type(module, parameter.type_name), string.concat(" ", parameter.name)))
+            string.builder_append(output, ");\n")
+            wrote_type = true
+    if wrote_type:
+        string.builder_append(output, "\n")
+    for index in 0..collections.length(module.functions):
+        let function = module.functions[index]
+        if function.native_export:
+            string.builder_append(output, string.concat("ROCKET_API ", string.concat(native_c_type(module, function.result_type), string.concat(" ", string.concat(function.native_name, "(")))))
+            if collections.length(function.parameters) == 0:
+                string.builder_append(output, "void")
+            for parameter_index in 0..collections.length(function.parameters):
+                if parameter_index > 0:
+                    string.builder_append(output, ", ")
+                let parameter = function.parameters[parameter_index]
+                string.builder_append(output, string.concat(native_c_type(module, parameter.type_name), string.concat(" ", parameter.name)))
+            string.builder_append(output, ");\n")
+    string.builder_append(output, "\n#ifdef __cplusplus\n}\n#endif\n\n#endif\n")
+    return string.builder_finish(output)
+
+fn emit_header_command(input: String, output_path: String) -> Int:
+    let package = resolve_package(input)
+    if not package.valid:
+        print(string.concat("rocketc: error[R5001]: ", package.error))
+        return 1
+    let parsed = parse_program(package.entry)
+    let checked = lower_to_hir(parsed.module, parsed.diagnostics, true)
+    if collections.length(checked.diagnostics) != 0:
+        for index in 0..collections.length(checked.diagnostics):
+            print(diagnostic_text(package.entry, checked.diagnostics[index]))
+        return 1
+    let header = generate_native_header(parsed.module, package.name)
+    if output_path == "":
+        print(header)
+        return 0
+    let written = file.write_text(output_path, header)
+    match written:
+        case Ok(value):
+            return 0
+        case Err(error):
+            print(string.concat("rocketc: error[R5002]: ", error))
+            return 1
+
+fn substring_index(value: String, pattern: String) -> Int:
+    if string.byte_length(pattern) == 0:
+        return 0
+    if string.byte_length(pattern) > string.byte_length(value):
+        return -1
+    for index in 0..string.byte_length(value) - string.byte_length(pattern) + 1:
+        if string.slice(value, index, index + string.byte_length(pattern)) == pattern:
+            return index
+    return -1
+
+fn last_space_index(value: String) -> Int:
+    var result = -1
+    for index in 0..string.byte_length(value):
+        let character = string.byte_at(value, index)
+        if character == ' ' or character == '\t':
+            result = index
+    return result
+
+fn parse_binding_parameter(value: String) -> BindingParameterResult:
+    let clean = string.trim(value)
+    let space = last_space_index(clean)
+    if space < 0:
+        return BindingParameterResult(false, "", "")
+    var type_name = string.trim(string.slice(clean, 0, space))
+    var name = string.trim(string.slice(clean, space + 1, string.byte_length(clean)))
+    while string.starts_with(name, "*"):
+        type_name = string.concat(type_name, "*")
+        name = string.slice(name, 1, string.byte_length(name))
+    return BindingParameterResult(type_name != "" and name != "", type_name, name)
+
+fn binding_c_type(type_name: String, opaque_types: Array[String], structures: Array[String], callbacks: Array[String]) -> String:
+    var value = string.trim(type_name)
+    if string.starts_with(value, "const "):
+        value = string.trim(string.slice(value, 6, string.byte_length(value)))
+    while string.contains(value, "  "):
+        let pieces = string.split(value, "  ")
+        value = collections.join(pieces, " ")
+    if value == "int64_t":
+        return "Int"
+    if value == "double":
+        return "Float"
+    if value == "rocket_bool":
+        return "Bool"
+    if value == "uint8_t":
+        return "Char"
+    if value == "void":
+        return "Unit"
+    if value == "void*":
+        return "Pointer[Unit]"
+    if string.ends_with(value, "*"):
+        let base = string.trim(string.slice(value, 0, string.byte_length(value) - 1))
+        if contains_string(opaque_types, base):
+            return base
+        if contains_string(structures, base):
+            return string.concat("Pointer[", string.concat(base, "]"))
+        let inner = binding_c_type(base, opaque_types, structures, callbacks)
+        if inner == "":
+            return ""
+        return string.concat("Pointer[", string.concat(inner, "]"))
+    if contains_string(opaque_types, value) or contains_string(structures, value) or contains_string(callbacks, value):
+        return value
+    return ""
+
+fn integer_define_value(value: String) -> Bool:
+    if value == "":
+        return false
+    var start = 0
+    if string.starts_with(value, "-"):
+        if string.byte_length(value) == 1:
+            return false
+        start = 1
+    for index in start..string.byte_length(value):
+        if not string.contains("0123456789", string.slice(value, index, index + 1)):
+            return false
+    return true
+
+fn binding_type_sets(lines: Array[String], set_kind: Int) -> Array[String]:
+    var result: Array[String] = []
+    for index in 0..collections.length(lines):
+        let current = string.trim(lines[index])
+        if string.starts_with(current, "typedef struct "):
+            let open = substring_index(current, " { ")
+            if open >= 0:
+                if set_kind == representation_native():
+                    result = append(result, string.slice(current, 15, open))
+            else:
+                let pieces = string.split(current, " ")
+                if collections.length(pieces) == 4:
+                    let final = pieces[3]
+                    if string.ends_with(final, ";") and pieces[2] == string.slice(final, 0, string.byte_length(final) - 1) and set_kind == representation_opaque():
+                        result = append(result, pieces[2])
+        if string.starts_with(current, "typedef ") and string.contains(current, " (*") and string.contains(current, ")("):
+            let marker = substring_index(current, " (*")
+            let close = substring_index(current, ")(")
+            if marker >= 0 and close > marker and set_kind == representation_callback():
+                result = append(result, string.slice(current, marker + 3, close))
+    return result
+
+fn generate_rocket_bindings(header: String) -> BindingGenerationResult:
+    let lines = string.split(header, "\n")
+    let opaque_types = binding_type_sets(lines, representation_opaque())
+    let structures = binding_type_sets(lines, representation_native())
+    let callbacks = binding_type_sets(lines, representation_callback())
+    let output = string.builder()
+    string.builder_append(output, "# Generated deterministically by rocketc bind.\n")
+    for index in 0..collections.length(lines):
+        let current = string.trim(lines[index])
+        if string.starts_with(current, "#define "):
+            let pieces = string.split(current, " ")
+            if collections.length(pieces) == 3 and integer_define_value(pieces[2]):
+                string.builder_append(output, string.concat("pub extern const ", string.concat(pieces[1], string.concat(": Int = ", string.concat(pieces[2], "\n")))))
+            continue
+        if current == "" or string.starts_with(current, "#") or current == "extern \"C\" {" or current == "}" or current == "typedef uint8_t rocket_bool;":
+            continue
+        if string.starts_with(current, "typedef struct "):
+            let open = substring_index(current, " { ")
+            if open < 0:
+                let pieces = string.split(current, " ")
+                if collections.length(pieces) == 4 and contains_string(opaque_types, pieces[2]):
+                    string.builder_append(output, string.concat("pub extern opaque ", string.concat(pieces[2], "\n")))
+                continue
+            let close = substring_index(current, " } ")
+            if close < 0:
+                return BindingGenerationResult(false, "", string.concat("unsupported native struct declaration '", string.concat(current, "'")))
+            let name = string.slice(current, 15, open)
+            string.builder_append(output, string.concat("pub extern struct ", string.concat(name, ":\n")))
+            let fields = string.split(string.slice(current, open + 3, close), ";")
+            for field_index in 0..collections.length(fields):
+                if string.trim(fields[field_index]) != "":
+                    let parameter = parse_binding_parameter(fields[field_index])
+                    if not parameter.valid:
+                        return BindingGenerationResult(false, "", string.concat("unsupported native struct field '", string.concat(fields[field_index], "'")))
+                    let mapped = binding_c_type(parameter.type_name, opaque_types, structures, callbacks)
+                    if mapped == "":
+                        return BindingGenerationResult(false, "", string.concat("unsupported C binding type '", string.concat(parameter.type_name, "'")))
+                    string.builder_append(output, string.concat("    ", string.concat(parameter.name, string.concat(": ", string.concat(mapped, "\n")))))
+            continue
+        if string.starts_with(current, "typedef ") and string.contains(current, " (*") and string.contains(current, ")("):
+            let marker = substring_index(current, " (*")
+            let close = substring_index(current, ")(")
+            let end = substring_index(current, ");")
+            let result_type = binding_c_type(string.slice(current, 8, marker), opaque_types, structures, callbacks)
+            if result_type == "" or end < close:
+                return BindingGenerationResult(false, "", string.concat("unsupported callback declaration '", string.concat(current, "'")))
+            let name = string.slice(current, marker + 3, close)
+            let parameters = string.split(string.slice(current, close + 2, end), ",")
+            string.builder_append(output, string.concat("pub extern callback ", string.concat(name, "(")))
+            if not(collections.length(parameters) == 1 and string.trim(parameters[0]) == "void"):
+                for parameter_index in 0..collections.length(parameters):
+                    let parameter = parse_binding_parameter(parameters[parameter_index])
+                    if not parameter.valid:
+                        return BindingGenerationResult(false, "", string.concat("unsupported callback parameter '", string.concat(parameters[parameter_index], "'")))
+                    let mapped = binding_c_type(parameter.type_name, opaque_types, structures, callbacks)
+                    if mapped == "":
+                        return BindingGenerationResult(false, "", string.concat("unsupported C binding type '", string.concat(parameter.type_name, "'")))
+                    if parameter_index > 0:
+                        string.builder_append(output, ", ")
+                    string.builder_append(output, string.concat(parameter.name, string.concat(": ", mapped)))
+            string.builder_append(output, string.concat(") -> ", string.concat(result_type, "\n")))
+            continue
+        if string.starts_with(current, "ROCKET_API ") or string.ends_with(current, ");") and not string.starts_with(current, "typedef "):
+            let open = substring_index(current, "(")
+            let close = substring_index(current, ");")
+            if open < 0 or close < open:
+                return BindingGenerationResult(false, "", string.concat("unsupported C function declaration '", string.concat(current, "'")))
+            var signature_start = 0
+            if string.starts_with(current, "ROCKET_API "):
+                signature_start = 11
+            let signature = string.slice(current, signature_start, open)
+            let separator = last_space_index(signature)
+            if separator < 0:
+                return BindingGenerationResult(false, "", string.concat("unsupported C function declaration '", string.concat(current, "'")))
+            let result_type = binding_c_type(string.slice(signature, 0, separator), opaque_types, structures, callbacks)
+            let name = string.slice(signature, separator + 1, string.byte_length(signature))
+            if result_type == "":
+                return BindingGenerationResult(false, "", string.concat("unsupported C binding type in '", string.concat(current, "'")))
+            let parameters = string.split(string.slice(current, open + 1, close), ",")
+            string.builder_append(output, string.concat("pub extern fn ", string.concat(name, "(")))
+            if not(collections.length(parameters) == 1 and string.trim(parameters[0]) == "void"):
+                for parameter_index in 0..collections.length(parameters):
+                    let parameter = parse_binding_parameter(parameters[parameter_index])
+                    if not parameter.valid:
+                        return BindingGenerationResult(false, "", string.concat("unsupported C function parameter '", string.concat(parameters[parameter_index], "'")))
+                    let mapped = binding_c_type(parameter.type_name, opaque_types, structures, callbacks)
+                    if mapped == "":
+                        return BindingGenerationResult(false, "", string.concat("unsupported C binding type '", string.concat(parameter.type_name, "'")))
+                    if parameter_index > 0:
+                        string.builder_append(output, ", ")
+                    string.builder_append(output, string.concat(parameter.name, string.concat(": ", mapped)))
+            string.builder_append(output, string.concat(") -> ", string.concat(result_type, "\n")))
+    return BindingGenerationResult(true, string.builder_finish(output), "")
+
+fn bind_command(header_path: String, output_path: String) -> Int:
+    let loaded = file.read_text(header_path)
+    match loaded:
+        case Err(error):
+            print(string.concat("rocketc: error[R5002]: ", error))
+            return 1
+        case Ok(header):
+            let generated = generate_rocket_bindings(header)
+            if not generated.valid:
+                print(string.concat("rocketc: error[R5002]: ", generated.error))
+                return 1
+            if output_path == "":
+                print(generated.output)
+                return 0
+            let written = file.write_text(output_path, generated.output)
+            match written:
+                case Ok(value):
+                    return 0
+                case Err(error):
+                    print(string.concat("rocketc: error[R5002]: ", error))
+                    return 1
+
+fn write_generated_ir_kind(input: String, output: String, library: Bool) -> Int:
+    let result = compile_program_to_mir_kind(input, library)
     if collections.length(result.diagnostics) != 0:
         for index in 0..collections.length(result.diagnostics):
             print(diagnostic_text(input, result.diagnostics[index]))
@@ -5145,6 +6024,9 @@ fn write_generated_ir(input: String, output: String) -> Int:
             print(string.concat("rocketc: error[R5002]: ", error))
             return 1
 
+fn write_generated_ir(input: String, output: String) -> Int:
+    return write_generated_ir_kind(input, output, false)
+
 fn direct_process(program: String, arguments: Array[String]) -> Int:
     let result = process.run(program, arguments)
     match result:
@@ -5154,7 +6036,32 @@ fn direct_process(program: String, arguments: Array[String]) -> Int:
             print(string.concat("rocketc: error[R5002]: ", error))
             return 1
 
-fn build_native_source(source: String, artifact_directory: String, artifact_name: String) -> NativeBuildResult:
+fn native_library_arguments(package: PackageInfo) -> Array[String]:
+    var result: Array[String] = []
+    for index in 0..collections.length(package.native_libraries):
+        let library = package.native_libraries[index]
+        var resolved = ""
+        if string.contains(library, "/") or string.contains(library, "\\"):
+            if safe_manifest_relative_path(library):
+                let candidate = std.path.normalize(std.path.join(package.root, library))
+                if file.exists(candidate):
+                    resolved = candidate
+        else:
+            for search_index in 0..collections.length(package.native_library_search):
+                let candidate = std.path.join(package.native_library_search[search_index], library)
+                if resolved == "" and file.exists(candidate):
+                    resolved = std.path.normalize(candidate)
+            if resolved == "":
+                let candidate = std.path.join(package.root, library)
+                if file.exists(candidate):
+                    resolved = std.path.normalize(candidate)
+        if resolved == "":
+            result = append(result, library)
+        else:
+            result = append(result, resolved)
+    return result
+
+fn build_native_source_with_package(package: PackageInfo, source: String, artifact_directory: String, artifact_name: String, output_kind: Int) -> NativeBuildResult:
     if ensure_directory(artifact_directory) != 0:
         return NativeBuildResult(1, "")
     let toolchain = locate_toolchain()
@@ -5163,27 +6070,46 @@ fn build_native_source(source: String, artifact_directory: String, artifact_name
         return NativeBuildResult(1, "")
     let ir = std.path.join(artifact_directory, string.concat(artifact_name, ".ll"))
     let object = std.path.join(artifact_directory, string.concat(artifact_name, ".obj"))
-    let executable = std.path.join(artifact_directory, string.concat(artifact_name, ".exe"))
-    if write_generated_ir(source, ir) != 0:
-        return NativeBuildResult(1, executable)
+    var artifact = std.path.join(artifact_directory, string.concat(artifact_name, ".exe"))
+    if output_kind == output_static_library():
+        artifact = std.path.join(artifact_directory, string.concat(artifact_name, ".lib"))
+    if output_kind == output_dynamic_library():
+        artifact = std.path.join(artifact_directory, string.concat(artifact_name, ".dll"))
+    if write_generated_ir_kind(source, ir, output_kind != output_executable()) != 0:
+        return NativeBuildResult(1, artifact)
     if direct_process(toolchain.clang, ["-c", "-O2", "-Wno-override-module", ir, "-o", object]) != 0:
-        return NativeBuildResult(1, executable)
+        return NativeBuildResult(1, artifact)
+    if output_kind == output_static_library():
+        if direct_process(toolchain.librarian, [string.concat("/OUT:", artifact), object]) != 0:
+            return NativeBuildResult(1, artifact)
+        return NativeBuildResult(0, artifact)
     var link_arguments: Array[String] = [object, toolchain.runtime, "-fuse-ld=lld"]
+    if output_kind == output_dynamic_library():
+        link_arguments = ["-shared", object, toolchain.runtime, "-fuse-ld=lld"]
     for index in 0..collections.length(toolchain.library_directories):
         link_arguments = append(link_arguments, "-L")
         link_arguments = append(link_arguments, toolchain.library_directories[index])
+    for index in 0..collections.length(package.native_library_search):
+        link_arguments = append(link_arguments, "-L")
+        link_arguments = append(link_arguments, package.native_library_search[index])
+    link_arguments = collections.concat(link_arguments, native_library_arguments(package))
     link_arguments = append(link_arguments, "-o")
-    link_arguments = append(link_arguments, executable)
+    link_arguments = append(link_arguments, artifact)
     if direct_process(toolchain.clang, link_arguments) != 0:
-        return NativeBuildResult(1, executable)
-    return NativeBuildResult(0, executable)
+        return NativeBuildResult(1, artifact)
+    return NativeBuildResult(0, artifact)
+
+fn build_native_source(source: String, artifact_directory: String, artifact_name: String) -> NativeBuildResult:
+    let root = source_parent(std.path.normalize(source))
+    let package = PackageInfo(true, root, source, std.path.join(root, "tests"), artifact_name, output_executable(), artifact_name, [], [], [], "")
+    return build_native_source_with_package(package, source, artifact_directory, artifact_name, output_executable())
 
 fn check_command(input: String) -> Int:
     let package = resolve_package(input)
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
         return 1
-    let result = analyze_program(package.entry)
+    let result = analyze_program_kind(package.entry, package.output_kind != output_executable())
     if collections.length(result.diagnostics) != 0:
         for index in 0..collections.length(result.diagnostics):
             print(diagnostic_text(package.entry, result.diagnostics[index]))
@@ -5196,14 +6122,25 @@ fn build_command(input: String) -> NativeBuildResult:
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
         return NativeBuildResult(1, "")
-    let result = build_native_source(package.entry, std.path.join(package.root, ".rocketc"), "main")
+    let result = build_native_source_with_package(package, package.entry, std.path.join(package.root, ".rocketc"), package.output_name, package.output_kind)
     if result.status == 0:
+        if package.output_kind != output_executable():
+            let header = std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, ".h"))
+            if emit_header_command(input, header) != 0:
+                return NativeBuildResult(1, result.executable)
         print(string.concat("built ", result.executable))
     return result
 
 fn run_command(arguments: Array[String]) -> Int:
     if collections.length(arguments) < 2:
         print("rocketc: error[R5002]: run expects a source file or package")
+        return 1
+    let package = resolve_package(arguments[1])
+    if not package.valid:
+        print(string.concat("rocketc: error[R5001]: ", package.error))
+        return 1
+    if package.output_kind != output_executable():
+        print("rocketc: error[R5002]: run requires an executable package")
         return 1
     let built = build_command(arguments[1])
     if built.status != 0:
@@ -5229,7 +6166,7 @@ fn right_trim_line(value: String) -> String:
     return string.slice(value, 0, end)
 
 fn formatter_word(kind: Int) -> Bool:
-    return kind == kind_identifier() or kind == kind_integer() or kind == kind_float() or kind == kind_character() or kind == kind_string() or kind == kind_impl() or kind == kind_trait() or kind == kind_where() or kind == kind_const() or(kind >= kind_fn() and kind <= kind_import())
+    return kind == kind_identifier() or kind == kind_integer() or kind == kind_float() or kind == kind_character() or kind == kind_string() or kind == kind_impl() or kind == kind_trait() or kind == kind_where() or kind == kind_const() or(kind >= kind_fn() and kind <= kind_import()) or(kind >= kind_unsafe() and kind <= kind_callback())
 
 fn formatter_binary(kind: Int) -> Bool:
     return kind == kind_plus() or kind == kind_minus() or kind == kind_star() or kind == kind_slash() or kind == kind_equal() or kind == kind_equal_equal() or kind == kind_bang_equal() or kind == kind_less() or kind == kind_less_equal() or kind == kind_greater() or kind == kind_greater_equal() or kind == kind_arrow() or kind == kind_fat_arrow() or kind == kind_and() or kind == kind_or()
@@ -5459,7 +6396,7 @@ fn test_command(input: String) -> Int:
             for index in 0..collections.length(entries):
                 if std.path.extension(entries[index]) == ".rocket":
                     let source = std.path.join(package.test_directory, entries[index])
-                    let built = build_native_source(source, artifact_directory, string.concat("test-", string.from_int(index)))
+                    let built = build_native_source_with_package(package, source, artifact_directory, string.concat("test-", string.from_int(index)), output_executable())
                     if built.status == 0 and direct_process(built.executable, []) == 0:
                         passed = passed + 1
                     else:
@@ -5477,7 +6414,7 @@ fn new_command(directory: String) -> Int:
     if ensure_directory(std.path.join(root, "src")) != 0 or ensure_directory(std.path.join(root, "tests")) != 0:
         return 1
     let name = std.path.basename(root)
-    let manifest = string.concat("[package]\nname = \"", string.concat(name, "\"\nversion = \"1.0.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n"))
+    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.3.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
     let main_source = "fn main() -> Int:\n    print(\"Hello from Rocket\")\n    return 0\n"
     let test_source = "fn main() -> Int:\n    return 0\n"
     let manifest_written = file.write_text(std.path.join(root, "rocket.toml"), manifest)
@@ -5511,18 +6448,20 @@ fn emit_assembly_command(input: String, output: String) -> Int:
         print(string.concat("rocketc: error[R5002]: ", toolchain.error))
         return 1
     let temporary_ir = string.concat(output, ".ll")
-    if write_generated_ir(package.entry, temporary_ir) != 0:
+    if write_generated_ir_kind(package.entry, temporary_ir, package.output_kind != output_executable()) != 0:
         return 1
     return direct_process(toolchain.clang, ["-S", "-O2", "-Wno-override-module", temporary_ir, "-o", output])
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.2.0")
-    print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm> [arguments]")
+    print("Rocket compiler 1.3.0")
+    print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm|emit-header|bind> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
     print("  run <path> -- ...   build and run with optional arguments")
     print("  test <package>      build and run package tests")
     print("  fmt <path> [--check] format or verify source formatting")
+    print("  emit-header <package> [--output output.h] generate a deterministic C header")
+    print("  bind <header.h> [--output bindings.rocket] generate deterministic Rocket bindings")
 
 fn lexer_self_test() -> Int:
     let source = "fn main() -> Int:\r\n    let text = \"Rocket\\n\"\r\n    return 0\r\n"
@@ -5565,7 +6504,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.2.0")
+        print("rocketc 1.3.0")
         return 0
     if collections.length(arguments) == 2 and arguments[0] == "check":
         return check_command(arguments[1])
@@ -5587,8 +6526,19 @@ fn main() -> Int:
         if not package.valid:
             print(string.concat("rocketc: error[R5001]: ", package.error))
             return 1
-        return emit_ir_file(package.entry, arguments[2])
+        let status = write_generated_ir_kind(package.entry, arguments[2], package.output_kind != output_executable())
+        if status == 0:
+            print(string.concat("emitted self-hosted LLVM IR to ", arguments[2]))
+        return status
     if collections.length(arguments) == 3 and arguments[0] == "emit-asm":
         return emit_assembly_command(arguments[1], arguments[2])
+    if collections.length(arguments) == 2 and arguments[0] == "emit-header":
+        return emit_header_command(arguments[1], "")
+    if collections.length(arguments) == 4 and arguments[0] == "emit-header" and arguments[2] == "--output":
+        return emit_header_command(arguments[1], arguments[3])
+    if collections.length(arguments) == 2 and arguments[0] == "bind":
+        return bind_command(arguments[1], "")
+    if collections.length(arguments) == 4 and arguments[0] == "bind" and arguments[2] == "--output":
+        return bind_command(arguments[1], arguments[3])
     print("rocketc: error[R5002]: unknown or incomplete command; use --help")
     return 1

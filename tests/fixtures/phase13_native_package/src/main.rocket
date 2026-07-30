@@ -1,0 +1,43 @@
+import native_bindings
+import safe_native
+
+fn doubled(value: Int) -> Int:
+    return value * 2
+
+export fn rocket_phase13_twice(value: Int) -> Int:
+    return value * 2
+
+fn main() -> Int:
+    if safe_native.add(20, 17) != 37:
+        return 1
+    if safe_native.invert(false) != true:
+        return 2
+    match safe_native.validate(-1):
+        case Ok(value):
+            return 3
+        case Err(message):
+            if message != "native status failure":
+                return 3
+    unsafe:
+        if native_bindings.phase13_scale(2.5) != 5.0:
+            return 4
+        if native_bindings.phase13_echo_char('R') != 'R':
+            return 5
+        if native_bindings.phase13_counter_live_count() != 0:
+            return 6
+        let counter = native_bindings.phase13_counter_new(40 + 5)
+        if native_bindings.phase13_counter_read(counter) != 45:
+            return 7
+        if native_bindings.phase13_counter_live_count() != 1:
+            return 8
+        native_bindings.phase13_counter_destroy(counter)
+        if native_bindings.phase13_counter_live_count() != 0:
+            return 9
+        let point = native_bindings.phase13_point_new(19, 23)
+        if native_bindings.phase13_point_sum(point) != 42:
+            return 10
+        native_bindings.phase13_point_destroy(point)
+        if native_bindings.phase13_apply(doubled, 21) != 42:
+            return 11
+    print("native-interop-ok")
+    return 0

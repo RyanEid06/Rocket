@@ -16,8 +16,8 @@ IR, then uses pinned Clang/LLD only as the object/link driver.
 ## Bootstrap implementation subset
 
 The compiler sources use the frozen Rocket 1.0 syntax plus additive Rocket 1.1
-collection APIs and the Rocket 1.2 abstraction features, with these specified
-standard APIs:
+collection APIs, Rocket 1.2 abstraction features, and the Rocket 1.3 native
+interoperability surface, with these specified standard APIs:
 
 - checked `string.byte_at` and `string.slice` for source traversal;
 - mutable `string.Builder` construction for linear-time IR and formatter output;
@@ -27,10 +27,12 @@ standard APIs:
 - `file.create_directory` for contained package artifact directories;
 - existing file, path, string, collection, environment, and direct-process APIs.
 
-The Rocket 1.2 compiler parses impls, traits and constraints, lambdas,
-associated constants, and user-defined iteration. These features are
-implemented independently in stage0 and the Rocket compiler and participate in
-the normal stage2/stage3 determinism proof.
+The Rocket 1.3 compiler parses impls, traits and constraints, lambdas,
+associated constants, user-defined iteration, unsafe blocks, native declarations,
+and native exports. Stage0 and the Rocket compiler independently validate and
+lower the same narrow C ABI, build native library products, consume target-aware
+linker configuration, and generate byte-identical C headers and Rocket bindings.
+These features participate in the normal stage2/stage3 determinism proof.
 
 No compiler-only syntax, source preprocessor, C++ callback, or runtime compile
 function is permitted. Stage0 and the production runtime implement the same
@@ -43,6 +45,8 @@ public calls, and both backends run the same bootstrap primitive fixture.
 - Stage1, stage2, and stage3 report the same version and diagnostic codes.
 - The self-hosted compiler passes compiler conformance fixtures, native runtime
   and standard-library integration fixtures, and all CLI/package workflows.
+- Stage0 and self-hosted `emit-header`/`bind` output is byte-identical, and both
+  build and run the same native package and library fixtures.
 - `scripts/bootstrap.ps1` starts from a clean artifact directory, records hashes,
   and fails if any stage is substituted, stale, or non-deterministic.
 - C++ stage0 remains independently buildable with LLVM disabled.
@@ -63,6 +67,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ```
 
 The resulting `out/bootstrap/windows-release/SHA256SUMS.txt` records every
-compiler executable and the equal stage2/stage3 IR hashes. The script also
-runs successful and failing language fixtures plus package check, format, run,
-and test workflows through the generated compiler.
+compiler executable and the equal stage2/stage3 IR hashes. The script also runs
+successful and failing language fixtures, native package and library builds,
+deterministic header/binding generation, and package check, format, run, and
+test workflows through the generated compiler.

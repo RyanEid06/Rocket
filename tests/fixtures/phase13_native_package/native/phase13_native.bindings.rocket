@@ -1,0 +1,20 @@
+# Generated deterministically by rocketc bind.
+pub extern const NATIVE_BIAS: Int = 5
+pub extern opaque NativeCounter
+pub extern struct NativePoint:
+    x: Int
+    y: Int
+pub extern callback NativeUnary(value: Int) -> Int
+pub extern fn phase13_add(left: Int, right: Int) -> Int
+pub extern fn phase13_not(value: Bool) -> Bool
+pub extern fn phase13_scale(value: Float) -> Float
+pub extern fn phase13_echo_char(value: Char) -> Char
+pub extern fn phase13_status(value: Int) -> Int
+pub extern fn phase13_counter_new(value: Int) -> NativeCounter
+pub extern fn phase13_counter_read(counter: NativeCounter) -> Int
+pub extern fn phase13_counter_destroy(counter: NativeCounter) -> Unit
+pub extern fn phase13_counter_live_count() -> Int
+pub extern fn phase13_point_new(x: Int, y: Int) -> Pointer[NativePoint]
+pub extern fn phase13_point_sum(point: Pointer[NativePoint]) -> Int
+pub extern fn phase13_point_destroy(point: Pointer[NativePoint]) -> Unit
+pub extern fn phase13_apply(action: NativeUnary, value: Int) -> Int

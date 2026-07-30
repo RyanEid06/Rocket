@@ -84,6 +84,8 @@ private:
       return Type{TypeKind::Array, "Array", std::move(arguments)};
     if (name == "Slice" && arguments.size() == 1)
       return Type{TypeKind::Slice, "Slice", std::move(arguments)};
+    if (name == "Pointer" && arguments.size() == 1)
+      return Type{TypeKind::Pointer, "Pointer", std::move(arguments)};
     return Type{TypeKind::Struct, name, std::move(arguments)};
   }
 
@@ -106,8 +108,12 @@ std::string typeName(const Type& type) {
   case TypeKind::Invalid: return "<invalid>";
   case TypeKind::Array: return "Array[" + typeName(type.arguments.at(0)) + "]";
   case TypeKind::Slice: return "Slice[" + typeName(type.arguments.at(0)) + "]";
+  case TypeKind::Pointer: return "Pointer[" + typeName(type.arguments.at(0)) + "]";
   case TypeKind::Struct:
   case TypeKind::Enum:
+  case TypeKind::NativeStruct:
+  case TypeKind::Opaque:
+  case TypeKind::Callback:
   case TypeKind::TypeParameter: {
     std::string result = type.declaration;
     if (!type.arguments.empty()) {
@@ -129,6 +135,16 @@ bool isSliceType(const Type& type) { return type.kind == TypeKind::Slice; }
 bool isCollectionType(const Type& type) { return isArrayType(type) || isSliceType(type); }
 bool isAggregateType(const Type& type) {
   return type.kind == TypeKind::Struct || type.kind == TypeKind::Enum;
+}
+bool isPointerType(const Type& type) { return type.kind == TypeKind::Pointer; }
+bool isNativeType(const Type& type) {
+  return type.kind == TypeKind::Pointer || type.kind == TypeKind::NativeStruct ||
+         type.kind == TypeKind::Opaque || type.kind == TypeKind::Callback;
+}
+bool isNativeAbiValueType(const Type& type) {
+  return type == Type::Int || type == Type::Float || type == Type::Bool ||
+         type == Type::Char || type == Type::Unit || type.kind == TypeKind::Pointer ||
+         type.kind == TypeKind::Opaque || type.kind == TypeKind::Callback;
 }
 bool isManagedType(const Type& type) {
   return type == Type::String || isCollectionType(type) || isAggregateType(type);

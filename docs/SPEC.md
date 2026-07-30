@@ -1,4 +1,4 @@
-# Rocket Language Specification 1.2 Development Draft
+# Rocket Language Specification 1.3
 
 This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
@@ -300,6 +300,53 @@ named, and variadic arguments are intentionally reserved until their evaluation
 order and C-ABI interaction can be specified without ambiguity. User generic
 specialization is deterministic and capped at 4,096 generated instances per
 compilation.
+
+## Native interoperability (Rocket 1.3)
+
+Native operations are declarations, not inferred behavior. The supported forms
+are `extern fn`, `extern const`, `extern struct`, `extern opaque`,
+`extern callback`, and `export fn`. Calling an `extern fn` is permitted only
+inside an explicitly indented `unsafe:` block. An unsafe block changes no type,
+ownership, or control-flow rule; it records that the programmer is accepting
+the foreign contract. A safe Rocket wrapper keeps its own `unsafe:` block small
+and exposes ordinary checked functions to callers.
+The five Phase 13 spellings are contextual rather than globally reserved, so
+older code may continue to use them as ordinary identifiers elsewhere.
+
+The stable `C` ABI is currently defined only for Windows x64. `Int` is
+`int64_t`, `Float` is `double`, `Bool` is an unsigned 8-bit `rocket_bool` whose
+canonical values are zero and one, `Char` is `uint8_t`, and `Unit` is `void`.
+`Pointer[T]` is a non-owning C pointer. `Pointer[Unit]` is `void*`. Rocket has no
+pointer arithmetic, pointer dereference, pointer construction, or universal
+null value; a pointer can only cross another native call. Managed `String`,
+collections, Rocket structs/enums, closures, `Option`, and `Result` never cross
+this ABI.
+
+`extern opaque Handle` represents a C pointer to an incomplete named type.
+`extern struct S:` records a deterministic C field layout for header/binding
+generation, but structs are passed only as `Pointer[S]`, never by value.
+Native-struct fields may be primitive values, pointers, or opaque handles.
+`extern callback C(...) -> R` is a C function pointer. A callback argument must
+name a top-level, non-capturing Rocket function with an exactly matching
+signature. The C callee may invoke it synchronously only for the duration of the
+extern call and may not store it. Callback parameters/results use primitive,
+pointer, or opaque types; callbacks cannot return callbacks.
+
+Opaque handles and pointers are borrowed unless the C API documents an acquire
+or release function. Rocket ARC never retains or releases them. A handle
+returned as owned by C must be released exactly once through its documented
+extern destructor and must not be used afterward. Rocket does not diagnose
+foreign use-after-free, double-free, null, or alias violations. C errors cross
+the boundary as primitive status/result values and safe wrappers translate
+those values to `Option` or `Result`. Strings require an API-specific pointer
+plus explicit byte-length convention; direct Rocket `String` ABI exposure is
+not supported.
+
+`extern const NAME: Primitive = literal` imports a deterministic compile-time
+literal rather than native storage. `export fn` emits a C-visible unmangled
+wrapper and is restricted to the same non-managed ABI values. Native imports,
+exports, types, and callbacks cannot be generic. A library module may omit
+`main`; executable modules retain the required `fn main() -> Int` entry point.
 
 ## Enums and pattern matching
 

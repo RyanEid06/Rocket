@@ -28,7 +28,7 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.2 is self-hosted. The production `rocketc` is written in Rocket,
+Rocket 1.3 is self-hosted. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -92,12 +92,19 @@ Implemented:
   monomorphized closure values, persistent user-defined iterators, associated
   constants, specialization limits, module visibility, and matching stage0 and
   self-hosted behavior.
+- Rocket 1.3 explicit unsafe regions, narrow Windows x64 C imports and exports,
+  primitive constants, non-owning pointers and opaque handles, pointer-only
+  native layouts, synchronous non-storing callbacks, target-scoped native
+  linker inputs, static/dynamic library products, deterministic C headers and
+  Rocket bindings, safe-wrapper conventions, and matching stage0/self-hosted
+  behavior.
 
 Not implemented yet:
 
-- A stable C FFI, graphics bindings, a production-scale standard library,
-  third-party dependency management and registry, semantic language-server/
-  debugger features, robust concurrency/async support, and non-Windows targets.
+- Graphics bindings, a production-scale standard library, third-party dependency
+  management and registry, semantic language-server/debugger features, robust
+  concurrency/async support, broader native calling conventions, dynamic native
+  loading, and non-Windows targets.
   No casino implementation has begun.
 
 ## Canonical build commands
@@ -435,15 +442,48 @@ Known limitations remain those in the implementation-state list above; no langua
   `.call` symbol and preserves enclosing substitutions through nested generated
   callables, with generic, managed-capture, and invalid-argument coverage.
 
+**Phase 13 - Rocket 1.3 native interoperability and library production
+(completed)**
+
+- Added lexical `unsafe:` blocks and restricted all imported native calls to an
+  explicit unsafe region without weakening ordinary type, control-flow, or ARC
+  validation.
+- Froze a narrow Windows x64 C ABI for primitive `extern fn` imports and
+  unmangled `export fn` wrappers. Added compile-time `extern const`, non-owning
+  `Pointer[T]`, pointer-valued `extern opaque`, pointer-only `extern struct`
+  layouts, and exact top-level noncapturing `extern callback` values.
+- Kept native pointers and handles outside Rocket ARC. Documented borrowed/owned
+  handle conventions, explicit release calls, status translation, pointer-plus-
+  length strings, and synchronous non-storing callback lifetimes.
+- Added `[build]` executable/static/dynamic products and target-scoped
+  `[native.windows-x64]` libraries, search paths, and header inputs. Static and
+  dynamic Rocket libraries can omit `main` and emit deterministic C headers.
+- Added deterministic `rocketc emit-header` and narrow-C-subset `rocketc bind`
+  workflows. Generated binding declarations are public so handwritten modules
+  can expose small safe wrappers.
+- Implemented equivalent parsing, validation, MIR lowering, C ABI emission,
+  native linking, library production, and generation behavior in the permanent
+  C++ stage0 and Rocket-written compiler.
+- Added bidirectional C/Rocket static and dynamic consumers, native handle,
+  pointer-layout, callback, primitive/Bool, unsafe-failure, safe-wrapper,
+  manifest, and deterministic stage0/self-host generation coverage.
+- Verified pinned LLVM Debug and Release matrices (102/102 tests each) and
+  LLVM-disabled stage0 Debug and Release matrices (66/66 tests each). The
+  Rocket 1.3 conformance suite passes 57 cases and all six performance gates
+  pass, including native package checking and static-library production.
+- Verified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap with
+  Phase 13 native package, library, header, and binding checks. Stage2 and
+  stage3 LLVM IR are byte-identical at SHA-256
+  `e30135a93fca7c049bf201d7cb6ca714c466dbe9fb6d2812e2038a8f32326560`.
+
 ## Current next task
 
-**Phase 13 - Rocket 1.3 native interoperability and library production.**
+**Phase 14 - Rocket 1.4 graphics, audio, and real application validation.**
 
-Start with the explicit `unsafe` boundary and a narrow, stable C ABI covering
-primitive imports/exports. Then add target-aware linker configuration, pointers
-and opaque handles, callbacks and supported structures, library outputs, and a
-deterministic header binding generator. Preserve stage0 and the complete Rocket
-1.2 bootstrap/conformance surface before application work.
+Use the completed Phase 13 binding pipeline to generate low-level raylib
+bindings, then design safe Rocket resource wrappers and validate them in a
+non-casino reference application. Do not begin this phase until Phase 13 is
+accepted and explicitly requested.
 
 ## New-chat prompt
 

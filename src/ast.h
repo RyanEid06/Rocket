@@ -95,7 +95,7 @@ struct PropagateExpr final : Expr {
 
 enum class StmtKind {
   Binding, Assignment, IndexAssignment, Return, Expression, If, While, For, Break,
-  Continue, Match
+  Continue, Match, Unsafe
 };
 
 struct Stmt {
@@ -204,6 +204,12 @@ struct MatchStmt final : Stmt {
   std::vector<MatchCase> cases;
 };
 
+struct UnsafeStmt final : Stmt {
+  UnsafeStmt(Location location, std::vector<std::unique_ptr<Stmt>> body)
+      : Stmt(StmtKind::Unsafe, std::move(location)), body(std::move(body)) {}
+  std::vector<std::unique_ptr<Stmt>> body;
+};
+
 struct TraitConstraint {
   std::string typeParameter;
   std::string traitName;
@@ -236,6 +242,12 @@ struct Function {
   std::string methodTrait;
   std::vector<TraitConstraint> constraints;
   bool associatedConstant = false;
+  // Phase 13 declarations preserve their source-level C symbol even after
+  // module qualification rewrites the Rocket declaration name.
+  bool nativeImport = false;
+  bool nativeExport = false;
+  bool nativeConstant = false;
+  std::string nativeName;
 };
 
 struct TraitMethod {
@@ -254,12 +266,18 @@ struct TraitDecl {
 
 struct TypeField { std::string name; std::string typeName; Location location; };
 
+enum class StructRepresentation { Rocket, Native, Opaque, Callback };
+
 struct StructDecl {
   std::string name;
   Location location;
   bool publicDeclaration = false;
   std::vector<std::string> typeParameters;
   std::vector<TypeField> fields;
+  StructRepresentation representation = StructRepresentation::Rocket;
+  std::vector<Parameter> callbackParameters;
+  std::string callbackReturnType;
+  std::string nativeName;
 };
 
 struct EnumVariant {
@@ -285,6 +303,7 @@ struct Module {
   std::vector<EnumDecl> enums;
   std::vector<TraitDecl> traits;
   std::vector<Function> functions;
+  bool library = false;
 };
 
 } // namespace rocket

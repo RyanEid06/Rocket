@@ -1,0 +1,14 @@
+export fn rocket_phase13_add(left: Int, right: Int) -> Int:
+    return left + right
+
+export fn rocket_phase13_truth(value: Bool) -> Bool:
+    return value
+
+export fn rocket_phase13_float(value: Float) -> Float:
+    return value
+
+export fn rocket_phase13_char(value: Char) -> Char:
+    return value
+
+export fn rocket_phase13_noop() -> Unit:
+    return

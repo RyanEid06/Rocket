@@ -1,7 +1,8 @@
-# Rocket Standard Library 1.1 with 1.2 development additions
+# Rocket Standard Library through 1.3
 
-The Rocket 1.1 library is a set of built-in source modules. Import a module by its
-stable name; no package file or downloaded dependency is required:
+The stable library is a set of built-in source modules, including the Rocket 1.2
+dot-call additions and unchanged by Rocket 1.3 native interoperability. Import a
+module by its stable name; no package file or downloaded dependency is required:
 
 ```rocket
 import std.file

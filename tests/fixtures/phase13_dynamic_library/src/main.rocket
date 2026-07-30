@@ -1,0 +1,2 @@
+export fn rocket_phase13_dynamic(value: Int) -> Int:
+    return value + 1

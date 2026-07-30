@@ -1,0 +1,16 @@
+[package]
+name = "phase13_native"
+version = "1.3.0"
+entry = "src/main.rocket"
+
+[test]
+directory = "tests"
+
+[build]
+kind = "executable"
+name = "phase13_native"
+
+[native.windows-x64]
+libraries = "rocket_phase13_native.lib"
+library-search = ".rocketc/native"
+headers = "native/phase13_native.h"

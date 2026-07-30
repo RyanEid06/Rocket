@@ -254,3 +254,26 @@ Rocket 1.2 keeps parameters positional, required, and fixed-arity, and caps user
 monomorphization at 4,096 specializations per compilation. These choices avoid
 hidden mutation, dynamic dispatch, order-dependent overload selection, and
 unbounded accidental code growth.
+
+## D019 - Narrow explicit C ABI and non-owning native values
+
+**Accepted for Rocket 1.3.** Native calls require lexical `unsafe:` blocks and
+use one frozen Windows x64 C ABI. The boundary admits fixed-width primitives,
+non-dereferenceable `Pointer[T]`, opaque pointer handles, pointer-only native
+structures, and synchronous non-storing callbacks to top-level noncapturing
+Rocket functions. Managed Rocket values and by-value aggregates are excluded.
+
+Native pointers and handles are never ARC values. Ownership, nullability,
+release functions, error codes, and string byte lengths belong to the declared C
+contract; ordinary Rocket modules should expose safe `Option`/`Result` wrappers
+and keep their unsafe regions minimal. This design makes the unsafety visible
+without pretending the compiler can verify foreign allocation or callback
+lifetime behavior.
+
+`rocket.toml` scopes linker inputs to `[native.windows-x64]`; library products
+are selected by `[build].kind`. Binding generation supports a deliberately
+closed C-header subset and emits public low-level declarations deterministically.
+Rocket exports use unmangled C wrappers, while internal Rocket/runtime ABI v1 is
+not exposed or changed. Broader calling conventions, direct strings, stored or
+capturing callbacks, unions, variadics, and by-value native aggregates require a
+future recorded ABI decision.

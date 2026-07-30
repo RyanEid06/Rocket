@@ -84,6 +84,15 @@ int main() {
                            methodTokens[0].kind == rocket::TokenKind::KwImpl,
                        "impl is a dedicated Phase 12 keyword", failures);
 
+  rocket::Diagnostics contextualDiagnostics;
+  const auto contextualTokens = rocket::Lexer(
+      "test.rocket", "fn use(callback: Int, unsafe: Int) -> Int:\n    return callback + unsafe\n",
+      contextualDiagnostics).lex();
+  rocket::test::expect(!contextualDiagnostics.hasErrors() &&
+                           contextualTokens[3].kind == rocket::TokenKind::Identifier &&
+                           contextualTokens[7].kind == rocket::TokenKind::Identifier,
+                       "Phase 13 spellings remain contextual and valid identifiers", failures);
+
   rocket::Diagnostics badIndentation;
   rocket::Lexer badLexer("test.rocket", "fn main() -> Int:\n   return 0\n", badIndentation);
   badLexer.lex();

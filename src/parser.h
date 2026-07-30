@@ -25,6 +25,9 @@ private:
   void synchronize();
 
   Function parseFunction(bool isPublic);
+  Function parseExternFunction(bool isPublic);
+  Function parseExternConstant(bool isPublic);
+  StructDecl parseExternType(bool isPublic);
   std::vector<Function> parseImpl();
   TraitDecl parseTrait(bool isPublic);
   TraitMethod parseTraitMethod();
@@ -37,6 +40,7 @@ private:
   std::unique_ptr<Stmt> parseWhile();
   std::unique_ptr<Stmt> parseFor();
   std::unique_ptr<Stmt> parseMatch();
+  std::unique_ptr<Stmt> parseUnsafe();
   std::unique_ptr<Expr> parseExpression();
   std::unique_ptr<Expr> parseOr();
   std::unique_ptr<Expr> parseAnd();

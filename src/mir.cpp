@@ -174,6 +174,7 @@ MirModule MirLowerer::lower() {
   mir_ = {};
   mir_.symbols = hir_.symbols;
   mir_.typeDeclarations = hir_.typeDeclarations;
+  mir_.library = hir_.library;
   for (const auto& function : hir_.functions)
     mir_.functions.push_back(lowerFunction(function));
   function_ = nullptr;
@@ -402,6 +403,8 @@ std::optional<MirBlockId> MirLowerer::lowerStatement(const HirStmt& statement,
     for (const MirBlockId arm : liveArms) terminate(arm, MirTerminator::goTo(join));
     return join;
   }
+  case HirStmtKind::Unsafe:
+    return lowerBlock(static_cast<const HirUnsafeStmt&>(statement).body, current);
   }
   return current;
 }
@@ -418,6 +421,11 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
   case HirExprKind::Name: {
     const auto& name = static_cast<const HirNameExpr&>(expression);
     return MirOperand::localValue(name.type, localForSymbol(name.symbol));
+  }
+  case HirExprKind::FunctionRef: {
+    const auto& reference = static_cast<const HirFunctionRefExpr&>(expression);
+    return MirOperand::constantValue(reference.type,
+                                     std::to_string(reference.symbol));
   }
   case HirExprKind::Unary: {
     const auto& unary = static_cast<const HirUnaryExpr&>(expression);

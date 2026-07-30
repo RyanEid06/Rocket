@@ -45,7 +45,35 @@ Module Parser::parseModule() {
       continue;
     }
     const bool isPublic = match(TokenKind::KwPub);
-    if (at(TokenKind::KwFn)) {
+    if (at(TokenKind::Identifier) && current().text == "extern") {
+      ++index_;
+      if (at(TokenKind::KwFn)) {
+        module.functions.push_back(parseExternFunction(isPublic));
+      } else if (at(TokenKind::KwConst)) {
+        module.functions.push_back(parseExternConstant(isPublic));
+      } else if (at(TokenKind::KwStruct) ||
+                 (at(TokenKind::Identifier) &&
+                  (current().text == "opaque" || current().text == "callback"))) {
+        module.structs.push_back(parseExternType(isPublic));
+      } else {
+        diagnostics_.error(current().location,
+                           "expected 'fn', 'const', 'struct', 'opaque', or 'callback' after 'extern'",
+                           DiagnosticCode::Syntax);
+        synchronize();
+      }
+    } else if (at(TokenKind::Identifier) && current().text == "export") {
+      ++index_;
+      if (!at(TokenKind::KwFn)) {
+        diagnostics_.error(current().location, "expected 'fn' after 'export'",
+                           DiagnosticCode::Syntax);
+        synchronize();
+      } else {
+        Function function = parseFunction(true);
+        function.nativeExport = true;
+        function.nativeName = function.name;
+        module.functions.push_back(std::move(function));
+      }
+    } else if (at(TokenKind::KwFn)) {
       module.functions.push_back(parseFunction(isPublic));
     } else if (at(TokenKind::KwStruct)) {
       module.structs.push_back(parseStruct(isPublic));
@@ -61,7 +89,7 @@ Module Parser::parseModule() {
       for (auto& method : methods) module.functions.push_back(std::move(method));
     } else {
       diagnostics_.error(current().location,
-                         "expected 'fn', 'struct', 'enum', 'trait', 'impl', or 'import' at top level",
+                         "expected a declaration or import at top level",
                          DiagnosticCode::Syntax);
       synchronize();
       continue;
@@ -69,6 +97,100 @@ Module Parser::parseModule() {
     skipNewlines();
   }
   return module;
+}
+
+Function Parser::parseExternFunction(bool isPublic) {
+  const Token start = consume(TokenKind::KwFn, "expected 'fn'");
+  const Token name = consume(TokenKind::Identifier, "expected native function name");
+  consume(TokenKind::LParen, "expected '(' after native function name");
+  std::vector<Parameter> parameters;
+  if (!at(TokenKind::RParen)) {
+    do {
+      const Token parameter = consume(TokenKind::Identifier, "expected parameter name");
+      consume(TokenKind::Colon, "expected ':' after parameter name");
+      parameters.push_back({parameter.text, parseTypeName(), parameter.location});
+    } while (match(TokenKind::Comma));
+  }
+  consume(TokenKind::RParen, "expected ')' after native parameters");
+  consume(TokenKind::Arrow, "expected '->' and native result type");
+  const std::string resultType = parseTypeName();
+  consume(TokenKind::Newline, "expected newline after native function declaration");
+  Function function{name.text, start.location, isPublic, {}, std::move(parameters),
+                    resultType, {}};
+  function.nativeImport = true;
+  function.nativeName = name.text;
+  return function;
+}
+
+Function Parser::parseExternConstant(bool isPublic) {
+  const Token start = consume(TokenKind::KwConst, "expected 'const'");
+  const Token name = consume(TokenKind::Identifier, "expected native constant name");
+  consume(TokenKind::Colon, "expected ':' after native constant name");
+  const std::string type = parseTypeName();
+  consume(TokenKind::Equal, "expected '=' after native constant type");
+  auto value = parseExpression();
+  consume(TokenKind::Newline, "expected newline after native constant");
+  Function constant{name.text, start.location, isPublic, {}, {}, type, {}};
+  constant.body.push_back(std::make_unique<ReturnStmt>(start.location, std::move(value)));
+  constant.nativeConstant = true;
+  constant.nativeName = name.text;
+  return constant;
+}
+
+StructDecl Parser::parseExternType(bool isPublic) {
+  StructDecl declaration;
+  declaration.publicDeclaration = isPublic;
+  if (at(TokenKind::Identifier) && current().text == "opaque") {
+    ++index_;
+    const Token name = consume(TokenKind::Identifier, "expected opaque type name");
+    consume(TokenKind::Newline, "expected newline after opaque declaration");
+    declaration.name = name.text;
+    declaration.nativeName = name.text;
+    declaration.location = name.location;
+    declaration.representation = StructRepresentation::Opaque;
+    return declaration;
+  }
+  if (at(TokenKind::Identifier) && current().text == "callback") {
+    ++index_;
+    const Token name = consume(TokenKind::Identifier, "expected callback type name");
+    declaration.name = name.text;
+    declaration.nativeName = name.text;
+    declaration.location = name.location;
+    declaration.representation = StructRepresentation::Callback;
+    consume(TokenKind::LParen, "expected '(' after callback type name");
+    if (!at(TokenKind::RParen)) {
+      do {
+        const Token parameter = consume(TokenKind::Identifier, "expected callback parameter name");
+        consume(TokenKind::Colon, "expected ':' after callback parameter name");
+        declaration.callbackParameters.push_back(
+            {parameter.text, parseTypeName(), parameter.location});
+      } while (match(TokenKind::Comma));
+    }
+    consume(TokenKind::RParen, "expected ')' after callback parameters");
+    consume(TokenKind::Arrow, "expected '->' and callback result type");
+    declaration.callbackReturnType = parseTypeName();
+    consume(TokenKind::Newline, "expected newline after callback declaration");
+    return declaration;
+  }
+
+  const Token start = consume(TokenKind::KwStruct, "expected 'struct'");
+  const Token name = consume(TokenKind::Identifier, "expected native struct name");
+  declaration.name = name.text;
+  declaration.nativeName = name.text;
+  declaration.location = start.location;
+  declaration.representation = StructRepresentation::Native;
+  consume(TokenKind::Colon, "expected ':' after native struct name");
+  consume(TokenKind::Newline, "expected newline after native struct declaration");
+  consume(TokenKind::Indent, "expected an indented native struct body");
+  while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
+    if (match(TokenKind::Newline)) continue;
+    const Token field = consume(TokenKind::Identifier, "expected native struct field name");
+    consume(TokenKind::Colon, "expected ':' after native struct field name");
+    declaration.fields.push_back({field.text, parseTypeName(), field.location});
+    consume(TokenKind::Newline, "expected newline after native struct field");
+  }
+  consume(TokenKind::Dedent, "expected end of native struct body");
+  return declaration;
 }
 
 std::vector<Function> Parser::parseImpl() {
@@ -330,6 +452,9 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
   if (at(TokenKind::KwWhile)) return parseWhile();
   if (at(TokenKind::KwFor)) return parseFor();
   if (at(TokenKind::KwMatch)) return parseMatch();
+  if (at(TokenKind::Identifier) && current().text == "unsafe" &&
+      index_ + 1 < tokens_.size() && tokens_[index_ + 1].kind == TokenKind::Colon)
+    return parseUnsafe();
   if (match(TokenKind::KwBreak)) {
     const Token keyword = previous();
     consume(TokenKind::Newline, "expected newline after 'break'");
@@ -364,6 +489,13 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
   }
   consume(TokenKind::Newline, "expected newline after expression");
   return std::make_unique<ExprStmt>(location, std::move(expression));
+}
+
+std::unique_ptr<Stmt> Parser::parseUnsafe() {
+  const Token keyword = consume(TokenKind::Identifier, "expected 'unsafe'");
+  consume(TokenKind::Colon, "expected ':' after 'unsafe'");
+  consume(TokenKind::Newline, "expected newline after 'unsafe'");
+  return std::make_unique<UnsafeStmt>(keyword.location, parseBlock());
 }
 
 std::unique_ptr<Stmt> Parser::parseMatch() {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Rocket VERSION 1.2.0 LANGUAGES CXX)
+project(Rocket VERSION 1.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,12 +22,19 @@ else()
   target_compile_options(rocket_runtime PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+add_library(rocket_phase13_native STATIC tests/native/phase13_native.cpp)
+target_include_directories(rocket_phase13_native PUBLIC tests/native)
+set_target_properties(rocket_phase13_native PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package/.rocketc/native")
+
 add_library(rocketc_core
   src/lexer.cpp
   src/parser.cpp
   src/module_loader.cpp
   src/formatter.cpp
   src/package.cpp
+  src/native.cpp
   src/type.cpp
   src/hir.cpp
   src/sema.cpp
@@ -84,9 +91,11 @@ add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
 file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/src" ROCKETC_SOURCE_INCLUDE_PATH)
 file(TO_CMAKE_PATH "${CMAKE_CXX_COMPILER}" ROCKETC_STAGE0_CXX_PATH)
+file(TO_CMAKE_PATH "${CMAKE_AR}" ROCKETC_STAGE0_AR_PATH)
 target_compile_definitions(rocketc PRIVATE
   ROCKETC_SOURCE_INCLUDE_PATH="${ROCKETC_SOURCE_INCLUDE_PATH}"
-  ROCKETC_STAGE0_CXX_PATH="${ROCKETC_STAGE0_CXX_PATH}")
+  ROCKETC_STAGE0_CXX_PATH="${ROCKETC_STAGE0_CXX_PATH}"
+  ROCKETC_STAGE0_AR_PATH="${ROCKETC_STAGE0_AR_PATH}")
 target_compile_definitions(rocketc PRIVATE ROCKETC_VERSION="${PROJECT_VERSION}")
 if(LLVM_FOUND)
   file(TO_CMAKE_PATH "${LLVM_TOOLS_BINARY_DIR}/clang.exe" ROCKETC_CLANG_PATH)
@@ -138,6 +147,7 @@ endif()
 add_rocketc_test(diagnostics)
 add_rocketc_test(formatter)
 add_rocketc_test(package)
+add_rocketc_test(native)
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
@@ -176,6 +186,14 @@ foreach(feature traits closures iterators associated_constants)
 endforeach()
 add_test(NAME cli_check_phase12_generic_lambdas
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
+add_test(NAME cli_check_phase13_native
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
+add_test(NAME cli_phase13_unsafe_failure
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_unsafe_failure.rocket"
+    "-DEXPECTED=requires an explicit unsafe block"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
 add_test(NAME cli_phase12_constraint_failure
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -273,7 +291,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.2.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.3.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest
@@ -380,6 +398,72 @@ if(LLVM_FOUND)
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
   set_tests_properties(cli_run_phase12_generic_lambdas PROPERTIES
     PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture[\r\n]+9[\r\n]+immediate[\r\n]+8[\r\n]+nested[\r\n]+10[\r\n]+deep")
+
+  add_test(NAME cli_emit_ir_phase13_native
+    COMMAND rocketc emit-ir "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
+  set_tests_properties(cli_emit_ir_phase13_native PROPERTIES
+    PASS_REGULAR_EXPRESSION "declare i64 @phase13_add\\(i64, i64\\)")
+  add_test(NAME cli_run_phase13_native
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
+  set_tests_properties(cli_run_phase13_native PROPERTIES
+    PASS_REGULAR_EXPRESSION "native-interop-ok")
+  add_test(NAME cli_build_phase13_static_library
+    COMMAND rocketc build "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library")
+  set_tests_properties(cli_build_phase13_static_library PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase13_math.lib")
+  add_test(NAME cli_build_phase13_dynamic_library
+    COMMAND rocketc build "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library")
+  set_tests_properties(cli_build_phase13_dynamic_library PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase13_math_dynamic.dll")
+
+  add_test(NAME cli_phase13_static_c_consumer
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library"
+      "-DCXX=${CMAKE_CXX_COMPILER}"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/native/phase13_static_consumer.cpp"
+      "-DHEADER_DIRECTORY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library/.rocketc"
+      "-DLIBRARY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library/.rocketc/phase13_math.lib"
+      "-DRUNTIME=$<TARGET_FILE:rocket_runtime>"
+      "-DEXECUTABLE=${CMAKE_BINARY_DIR}/phase13-consumers/static-consumer.exe"
+      "-DCONFIGURATION=${CMAKE_BUILD_TYPE}"
+      -P "${CMAKE_SOURCE_DIR}/tests/native/phase13_consumer_test.cmake")
+  add_test(NAME cli_phase13_dynamic_c_consumer
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library"
+      "-DCXX=${CMAKE_CXX_COMPILER}"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/native/phase13_dynamic_consumer.cpp"
+      "-DHEADER_DIRECTORY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library/.rocketc"
+      "-DLIBRARY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library/.rocketc/phase13_math_dynamic.lib"
+      "-DEXECUTABLE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library/.rocketc/phase13-dynamic-consumer.exe"
+      "-DCONFIGURATION=${CMAKE_BUILD_TYPE}"
+      -P "${CMAKE_SOURCE_DIR}/tests/native/phase13_consumer_test.cmake")
+
+  add_test(NAME cli_self_hosted_check_phase13_native
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
+  set_tests_properties(cli_self_hosted_check_phase13_native PROPERTIES
+    PASS_REGULAR_EXPRESSION "check succeeded"
+    FIXTURES_REQUIRED self_hosted_compiler)
+  add_test(NAME cli_self_hosted_run_phase13_native
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
+  set_tests_properties(cli_self_hosted_run_phase13_native PROPERTIES
+    PASS_REGULAR_EXPRESSION "native-interop-ok"
+    FIXTURES_REQUIRED self_hosted_compiler
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+  add_test(NAME cli_phase13_generation_parity
+    COMMAND ${CMAKE_COMMAND}
+      "-DSTAGE0=$<TARGET_FILE:rocketc>"
+      "-DSELFHOST=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+      "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library"
+      "-DHEADER=${CMAKE_SOURCE_DIR}/tests/native/phase13_native.h"
+      "-DEXPECTED_BINDINGS=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package/native/phase13_native.bindings.rocket"
+      "-DWORK=${CMAKE_BINARY_DIR}/phase13-generation"
+      -P "${CMAKE_SOURCE_DIR}/tests/native/phase13_generation_test.cmake")
+  set_tests_properties(cli_phase13_generation_parity PROPERTIES
+    FIXTURES_REQUIRED self_hosted_compiler)
 
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
@@ -508,6 +592,14 @@ if(LLVM_FOUND)
       "-DEXPECTED=rocket runtime error: Int division by zero"
       -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
 else()
+  add_test(NAME cli_run_stage0_phase13_native
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
+  set_tests_properties(cli_run_stage0_phase13_native PROPERTIES
+    PASS_REGULAR_EXPRESSION "native-interop-ok")
+  add_test(NAME cli_build_stage0_phase13_static_library
+    COMMAND rocketc build "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library")
+  set_tests_properties(cli_build_stage0_phase13_static_library PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase13_math.lib")
   add_test(NAME cli_run_stage0_phase7_stdlib
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
   set_tests_properties(cli_run_stage0_phase7_stdlib PROPERTIES

@@ -126,6 +126,7 @@ $conformanceSources = @(
     (Join-Path $fixtures 'phase12_iterators.rocket')
     (Join-Path $fixtures 'phase12_associated_constants.rocket')
     (Join-Path $fixtures 'phase12_generic_lambdas.rocket')
+    (Join-Path $fixtures 'phase13_native_package')
 )
 foreach ($compiler in $stage1, $stage2, $stage3) {
     foreach ($source in $conformanceSources) {
@@ -137,6 +138,32 @@ foreach ($compiler in $stage1, $stage2, $stage3) {
 foreach ($source in $conformanceSources) {
     & $stage3 run $source
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+& $stage3 build (Join-Path $fixtures 'phase13_static_library')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $stage3 build (Join-Path $fixtures 'phase13_dynamic_library')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$generationDirectory = Join-Path $bootstrapRoot 'phase13-generation'
+New-Item -ItemType Directory -Path $generationDirectory -Force | Out-Null
+$header1 = Join-Path $generationDirectory 'header1.h'
+$header2 = Join-Path $generationDirectory 'header2.h'
+$bindings1 = Join-Path $generationDirectory 'bindings1.rocket'
+$bindings2 = Join-Path $generationDirectory 'bindings2.rocket'
+& $stage3 emit-header (Join-Path $fixtures 'phase13_static_library') --output $header1
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $stage3 emit-header (Join-Path $fixtures 'phase13_static_library') --output $header2
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $stage3 bind (Join-Path $projectRoot 'tests\native\phase13_native.h') --output $bindings1
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $stage3 bind (Join-Path $projectRoot 'tests\native\phase13_native.h') --output $bindings2
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ((Get-FileHash -LiteralPath $header1 -Algorithm SHA256).Hash -ne
+    (Get-FileHash -LiteralPath $header2 -Algorithm SHA256).Hash -or
+    (Get-FileHash -LiteralPath $bindings1 -Algorithm SHA256).Hash -ne
+    (Get-FileHash -LiteralPath $bindings2 -Algorithm SHA256).Hash) {
+    throw 'Phase 13 native header or binding generation is not deterministic.'
 }
 
 $packageFixture = Join-Path $fixtures 'phase8_package'

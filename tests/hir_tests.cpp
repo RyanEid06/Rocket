@@ -229,5 +229,40 @@ int main() {
                            invalidGenericLambdaDiagnostics.hasErrors(),
                        "generic lambda result mismatches remain diagnosed", failures);
 
+  const std::string nativeSource =
+      "extern callback Unary(value: Int) -> Int\n"
+      "extern fn apply(action: Unary, value: Int) -> Int\n"
+      "fn twice(value: Int) -> Int:\n"
+      "    return value * 2\n"
+      "fn main() -> Int:\n"
+      "    unsafe:\n"
+      "        return apply(twice, 21)\n";
+  rocket::Diagnostics nativeDiagnostics;
+  auto native = rocket::test::lowerToHir(nativeSource, nativeDiagnostics);
+  rocket::test::expect(native.has_value(),
+                       "native calls inside unsafe lower to HIR", failures);
+  if (native.has_value()) {
+    bool importFound = false;
+    bool callbackFound = false;
+    for (const auto& symbol : native->symbols)
+      importFound = importFound || (symbol.name == "apply" && symbol.nativeImport);
+    const auto& unsafe = static_cast<const rocket::HirUnsafeStmt&>(
+        *native->functions.back().body[0]);
+    const auto& returned = static_cast<const rocket::HirReturnStmt&>(*unsafe.body[0]);
+    const auto& call = static_cast<const rocket::HirCallExpr&>(*returned.value);
+    callbackFound = call.arguments[0]->kind == rocket::HirExprKind::FunctionRef;
+    rocket::test::expect(importFound && callbackFound,
+                         "HIR marks C imports and typed callback function references", failures);
+  }
+
+  rocket::Diagnostics unsafeDiagnostics;
+  auto unsafeFailure = rocket::test::lowerToHir(
+      "extern fn native_add(left: Int, right: Int) -> Int\n"
+      "fn main() -> Int:\n"
+      "    return native_add(1, 2)\n",
+      unsafeDiagnostics);
+  rocket::test::expect(!unsafeFailure.has_value() && unsafeDiagnostics.hasErrors(),
+                       "extern calls are rejected outside explicit unsafe blocks", failures);
+
   return rocket::test::finish(failures, "hir");
 }

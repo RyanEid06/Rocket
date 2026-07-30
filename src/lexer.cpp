@@ -43,6 +43,11 @@ const char* tokenName(TokenKind kind) {
   case TokenKind::KwCase: return "case";
   case TokenKind::KwPub: return "pub";
   case TokenKind::KwImport: return "import";
+  case TokenKind::KwUnsafe: return "unsafe";
+  case TokenKind::KwExtern: return "extern";
+  case TokenKind::KwExport: return "export";
+  case TokenKind::KwOpaque: return "opaque";
+  case TokenKind::KwCallback: return "callback";
   case TokenKind::LParen: return "(";
   case TokenKind::RParen: return ")";
   case TokenKind::LBracket: return "[";

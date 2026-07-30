@@ -1,0 +1,15 @@
+import native_bindings
+
+pub fn add(left: Int, right: Int) -> Int:
+    unsafe:
+        return native_bindings.phase13_add(left, right)
+
+pub fn invert(value: Bool) -> Bool:
+    unsafe:
+        return native_bindings.phase13_not(value)
+
+pub fn validate(value: Int) -> Result[Int, String]:
+    unsafe:
+        if native_bindings.phase13_status(value) == 0:
+            return Ok(value)
+    return Err("native status failure")

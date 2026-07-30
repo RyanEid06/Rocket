@@ -35,7 +35,8 @@ class ModuleLowerer {
 public:
   explicit ModuleLowerer(const MirModule& mir)
       : mir_(mir), module_(std::make_unique<llvm::Module>("rocket", context_)),
-        builder_(context_), functions_(mir.symbols.size(), nullptr) {}
+        builder_(context_), functions_(mir.symbols.size(), nullptr),
+        callbackWrappers_(mir.symbols.size(), nullptr) {}
 
   bool prepare(bool optimize, std::string& error) {
     if (!createTargetMachine(error) || !lower(error) || !verify(error)) return false;
@@ -94,6 +95,10 @@ private:
     case TypeKind::Slice:
     case TypeKind::Struct:
     case TypeKind::Enum:
+    case TypeKind::Pointer:
+    case TypeKind::NativeStruct:
+    case TypeKind::Opaque:
+    case TypeKind::Callback:
       return llvm::PointerType::getUnqual(context_);
     case TypeKind::Unit: return llvm::Type::getInt8Ty(context_);
     case TypeKind::TypeParameter:
@@ -122,11 +127,43 @@ private:
     case TypeKind::Slice:
     case TypeKind::Struct:
     case TypeKind::Enum:
+    case TypeKind::Pointer:
+    case TypeKind::NativeStruct:
+    case TypeKind::Opaque:
+    case TypeKind::Callback:
       return llvm::ConstantPointerNull::get(llvm::PointerType::getUnqual(context_));
     case TypeKind::TypeParameter:
     case TypeKind::Invalid: break;
     }
     return nullptr;
+  }
+
+  llvm::Type* nativeValueType(Type type) {
+    if (type == Type::Bool || type == Type::Char)
+      return llvm::Type::getInt8Ty(context_);
+    if (type == Type::Int) return llvm::Type::getInt64Ty(context_);
+    if (type == Type::Float) return llvm::Type::getDoubleTy(context_);
+    if (type.kind == TypeKind::Pointer || type.kind == TypeKind::Opaque ||
+        type.kind == TypeKind::Callback)
+      return llvm::PointerType::getUnqual(context_);
+    return type == Type::Unit ? llvm::Type::getVoidTy(context_) : nullptr;
+  }
+
+  llvm::FunctionType* nativeFunctionType(const HirSymbol& symbol) {
+    std::vector<llvm::Type*> parameters;
+    for (const auto& parameter : symbol.parameterTypes)
+      parameters.push_back(nativeValueType(parameter));
+    return llvm::FunctionType::get(nativeValueType(symbol.type), parameters, false);
+  }
+
+  llvm::Value* toNativeValue(llvm::Value* value, Type type) {
+    if (type == Type::Bool) return builder_.CreateZExt(value, nativeValueType(type), "abi.bool");
+    return value;
+  }
+
+  llvm::Value* fromNativeValue(llvm::Value* value, Type type) {
+    if (type == Type::Bool) return builder_.CreateTrunc(value, valueType(type), "rocket.bool");
+    return value;
   }
 
   bool createTargetMachine(std::string& error) {
@@ -172,10 +209,86 @@ private:
       functions_[function.symbol] = lowered;
     }
 
+    for (const auto& symbol : mir_.symbols) {
+      if (!symbol.nativeImport) continue;
+      if (module_->getFunction(symbol.nativeName)) {
+        error = "duplicate native C symbol '" + symbol.nativeName + "'";
+        return false;
+      }
+      functions_[symbol.id] = llvm::Function::Create(
+          nativeFunctionType(symbol), llvm::Function::ExternalLinkage,
+          symbol.nativeName, *module_);
+    }
+
     for (const auto& function : mir_.functions) {
       if (!lowerFunction(function, error)) return false;
     }
-    return lowerEntrypoint(error);
+    if (!lowerNativeExports(error)) return false;
+    return mir_.library || lowerEntrypoint(error);
+  }
+
+  llvm::Function* callbackWrapper(SymbolId target, Type callbackType,
+                                  std::string& error) {
+    if (target >= callbackWrappers_.size() || !functions_[target]) {
+      error = "invalid Rocket callback target";
+      return nullptr;
+    }
+    if (callbackWrappers_[target]) return callbackWrappers_[target];
+    const HirSymbol& symbol = mir_.symbols[target];
+    auto* signature = nativeFunctionType(symbol);
+    auto* wrapper = llvm::Function::Create(
+        signature, llvm::Function::InternalLinkage,
+        "rocket_callback_" + std::to_string(target), *module_);
+    callbackWrappers_[target] = wrapper;
+    const auto saved = builder_.saveIP();
+    auto* entry = llvm::BasicBlock::Create(context_, "entry", wrapper);
+    builder_.SetInsertPoint(entry);
+    std::vector<llvm::Value*> arguments;
+    std::size_t index = 0;
+    for (llvm::Argument& argument : wrapper->args())
+      arguments.push_back(fromNativeValue(&argument, symbol.parameterTypes[index++]));
+    llvm::CallInst* call = builder_.CreateCall(functions_[target], arguments,
+                                                symbol.type == Type::Unit ? "" : "callback");
+    if (symbol.type == Type::Unit)
+      builder_.CreateRetVoid();
+    else
+      builder_.CreateRet(toNativeValue(call, symbol.type));
+    builder_.restoreIP(saved);
+    (void)callbackType;
+    return wrapper;
+  }
+
+  bool lowerNativeExports(std::string& error) {
+    for (const auto& symbol : mir_.symbols) {
+      if (!symbol.nativeExport) continue;
+      if (!functions_[symbol.id]) {
+        error = "native export has no Rocket implementation";
+        return false;
+      }
+      if (module_->getFunction(symbol.nativeName)) {
+        error = "duplicate native C symbol '" + symbol.nativeName + "'";
+        return false;
+      }
+      auto* wrapper = llvm::Function::Create(
+          nativeFunctionType(symbol), llvm::Function::ExternalLinkage,
+          symbol.nativeName, *module_);
+#ifdef _WIN32
+      wrapper->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
+#endif
+      auto* entry = llvm::BasicBlock::Create(context_, "entry", wrapper);
+      builder_.SetInsertPoint(entry);
+      std::vector<llvm::Value*> arguments;
+      std::size_t index = 0;
+      for (llvm::Argument& argument : wrapper->args())
+        arguments.push_back(fromNativeValue(&argument, symbol.parameterTypes[index++]));
+      llvm::CallInst* call = builder_.CreateCall(functions_[symbol.id], arguments,
+                                                  symbol.type == Type::Unit ? "" : "export");
+      if (symbol.type == Type::Unit)
+        builder_.CreateRetVoid();
+      else
+        builder_.CreateRet(toNativeValue(call, symbol.type));
+    }
+    return true;
   }
 
   bool lowerFunction(const MirFunction& function, std::string& error) {
@@ -275,8 +388,21 @@ private:
     case TypeKind::Slice:
     case TypeKind::Struct:
     case TypeKind::Enum:
+    case TypeKind::Pointer:
+    case TypeKind::NativeStruct:
+    case TypeKind::Opaque:
       error = "aggregate constant reached LLVM lowering";
       return nullptr;
+    case TypeKind::Callback: {
+      SymbolId target = InvalidSymbol;
+      try {
+        target = static_cast<SymbolId>(std::stoul(operand.constant));
+      } catch (...) {
+        error = "invalid callback constant reached LLVM lowering";
+        return nullptr;
+      }
+      return callbackWrapper(target, operand.type, error);
+    }
     case TypeKind::TypeParameter:
     case TypeKind::Invalid:
       error = "invalid operand type reached LLVM lowering";
@@ -336,17 +462,21 @@ private:
       return lowerStandard(value, locals, error);
     }
 
+    const HirSymbol& callee = mir_.symbols[value.callee];
     std::vector<llvm::Value*> arguments;
     arguments.reserve(value.arguments.size());
     for (const auto& argument : value.arguments) {
       llvm::Value* lowered = lowerOperand(argument, locals, error);
       if (!lowered) return nullptr;
-      arguments.push_back(lowered);
+      const std::size_t index = arguments.size();
+      arguments.push_back(callee.nativeImport
+                              ? toNativeValue(lowered, callee.parameterTypes[index])
+                              : lowered);
     }
     llvm::CallInst* call = builder_.CreateCall(functions_[value.callee], arguments,
                                                 value.type == Type::Unit ? "" : "call");
     if (value.type == Type::Unit) return zero(Type::Unit);
-    return call;
+    return callee.nativeImport ? fromNativeValue(call, value.type) : call;
   }
 
   static std::uint32_t runtimeElementKind(Type element) {
@@ -997,6 +1127,7 @@ private:
   std::unique_ptr<llvm::Module> module_;
   llvm::IRBuilder<> builder_;
   std::vector<llvm::Function*> functions_;
+  std::vector<llvm::Function*> callbackWrappers_;
   std::unique_ptr<llvm::TargetMachine> targetMachine_;
 };
 

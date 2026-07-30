@@ -5,7 +5,17 @@
 
 namespace rocket {
 
-std::string BootstrapCodeGenerator::cppType(Type type) {
+std::string BootstrapCodeGenerator::nativeTypeName(const Type& type,
+                                                   const char* prefix) const {
+  std::string result = prefix;
+  for (char character : type.declaration)
+    result += std::isalnum(static_cast<unsigned char>(character)) || character == '_'
+                  ? character
+                  : '_';
+  return result;
+}
+
+std::string BootstrapCodeGenerator::cppType(Type type) const {
   switch (type.kind) {
   case TypeKind::Int: return "std::int64_t";
   case TypeKind::Float: return "double";
@@ -17,14 +27,28 @@ std::string BootstrapCodeGenerator::cppType(Type type) {
     return "RocketArray<" + cppType(collectionElementType(type)) + ">";
   case TypeKind::Slice:
     return "RocketSlice<" + cppType(collectionElementType(type)) + ">";
+  case TypeKind::Pointer:
+    if (type.arguments.empty() || type.arguments[0] == Type::Unit) return "void*";
+    return nativeCppType(type.arguments[0]) + "*";
   case TypeKind::Struct:
     if (type.declaration == "std.string.Builder") return "RocketStringBuilder";
     return "RocketAggregate";
   case TypeKind::Enum: return "RocketAggregate";
+  case TypeKind::NativeStruct: return nativeTypeName(type, "RocketNative_");
+  case TypeKind::Opaque: return nativeTypeName(type, "RocketOpaque_") + "*";
+  case TypeKind::Callback: return nativeTypeName(type, "RocketCallback_");
   case TypeKind::TypeParameter:
   case TypeKind::Invalid: break;
   }
   return "void";
+}
+
+std::string BootstrapCodeGenerator::nativeCppType(Type type) const {
+  if (type == Type::Bool || type == Type::Char) return "std::uint8_t";
+  if (type == Type::Int) return "std::int64_t";
+  if (type == Type::Float) return "double";
+  if (type == Type::Unit) return "void";
+  return cppType(std::move(type));
 }
 
 std::string BootstrapCodeGenerator::functionName(SymbolId symbol) const {
@@ -213,6 +237,44 @@ std::string BootstrapCodeGenerator::generate() const {
          "if (start < 0 || end < start || end > values.length) rocket_bounds_error(); "
          "return {values.owner, values.offset + start, end - start}; }\n"
          "#include \"stage0_stdlib.h\"\n\n";
+  for (const auto& declaration : module_.typeDeclarations) {
+    const Type type{declaration.kind == HirTypeDeclKind::NativeStruct
+                        ? TypeKind::NativeStruct
+                        : declaration.kind == HirTypeDeclKind::Opaque
+                              ? TypeKind::Opaque
+                              : declaration.kind == HirTypeDeclKind::Callback
+                                    ? TypeKind::Callback
+                                    : TypeKind::Invalid,
+                    declaration.name};
+    if (declaration.kind == HirTypeDeclKind::NativeStruct) {
+      out << "struct " << nativeTypeName(type, "RocketNative_") << " { ";
+      for (const auto& field : declaration.fields)
+        out << nativeCppType(field.type) << ' ' << field.name << "; ";
+      out << "};\n";
+    } else if (declaration.kind == HirTypeDeclKind::Opaque) {
+      out << "struct " << nativeTypeName(type, "RocketOpaque_") << ";\n";
+    } else if (declaration.kind == HirTypeDeclKind::Callback) {
+      out << "using " << nativeTypeName(type, "RocketCallback_") << " = "
+          << nativeCppType(declaration.callbackResult) << "(*)" << '(';
+      for (std::size_t index = 0; index < declaration.callbackParameters.size(); ++index) {
+        if (index) out << ", ";
+        out << nativeCppType(declaration.callbackParameters[index]);
+      }
+      out << ");\n";
+    }
+  }
+  out << '\n';
+  for (const auto& symbol : module_.symbols) {
+    if (!symbol.nativeImport) continue;
+    out << "extern \"C\" " << nativeCppType(symbol.type) << ' ' << symbol.nativeName
+        << '(';
+    for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
+      if (index) out << ", ";
+      out << nativeCppType(symbol.parameterTypes[index]);
+    }
+    out << ");\n";
+  }
+  out << '\n';
   for (const auto& function : module_.functions) {
     out << cppType(function.result) << ' ' << functionName(function.symbol) << '(';
     for (std::size_t i = 0; i < function.parameters.size(); ++i) {
@@ -222,10 +284,76 @@ std::string BootstrapCodeGenerator::generate() const {
     }
     out << ");\n";
   }
+  for (const auto& function : module_.functions) {
+    const auto& symbol = module_.symbols[function.symbol];
+    bool compatible = isNativeAbiValueType(symbol.type) &&
+                      symbol.type.kind != TypeKind::Callback;
+    for (const auto& parameter : symbol.parameterTypes)
+      compatible = compatible && isNativeAbiValueType(parameter) &&
+                   parameter != Type::Unit && parameter.kind != TypeKind::Callback;
+    if (!compatible) continue;
+    out << nativeCppType(symbol.type) << " rocket_callback_" << symbol.id << '(';
+    for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
+      if (index) out << ", ";
+      out << nativeCppType(symbol.parameterTypes[index]) << " argument" << index;
+    }
+    out << ");\n";
+  }
   out << '\n';
   for (const auto& function : module_.functions) emitFunction(out, function);
 
   for (const auto& function : module_.functions) {
+    const auto& symbol = module_.symbols[function.symbol];
+    bool compatible = isNativeAbiValueType(symbol.type) &&
+                      symbol.type.kind != TypeKind::Callback;
+    for (const auto& parameter : symbol.parameterTypes)
+      compatible = compatible && isNativeAbiValueType(parameter) &&
+                   parameter != Type::Unit && parameter.kind != TypeKind::Callback;
+    if (!compatible) continue;
+    out << nativeCppType(symbol.type) << " rocket_callback_" << symbol.id << '(';
+    for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
+      if (index) out << ", ";
+      out << nativeCppType(symbol.parameterTypes[index]) << " argument" << index;
+    }
+    out << ") { ";
+    if (symbol.type != Type::Unit) out << "return static_cast<" << nativeCppType(symbol.type) << ">(";
+    out << functionName(symbol.id) << '(';
+    for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
+      if (index) out << ", ";
+      if (symbol.parameterTypes[index] == Type::Bool)
+        out << "argument" << index << " != 0";
+      else
+        out << "argument" << index;
+    }
+    out << ')';
+    if (symbol.type != Type::Unit) out << ')';
+    out << "; }\n";
+  }
+
+  for (const auto& symbol : module_.symbols) {
+    if (!symbol.nativeExport) continue;
+    out << "extern \"C\" __declspec(dllexport) " << nativeCppType(symbol.type)
+        << ' ' << symbol.nativeName << '(';
+    for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
+      if (index) out << ", ";
+      out << nativeCppType(symbol.parameterTypes[index]) << " argument" << index;
+    }
+    out << ") { ";
+    if (symbol.type != Type::Unit) out << "return static_cast<" << nativeCppType(symbol.type) << ">(";
+    out << functionName(symbol.id) << '(';
+    for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
+      if (index) out << ", ";
+      if (symbol.parameterTypes[index] == Type::Bool)
+        out << "argument" << index << " != 0";
+      else
+        out << "argument" << index;
+    }
+    out << ')';
+    if (symbol.type != Type::Unit) out << ')';
+    out << "; }\n";
+  }
+
+  if (!module_.library) for (const auto& function : module_.functions) {
     if (module_.symbols[function.symbol].name == "main") {
       out << "int main(int argc, char** argv) { rocket_std_process_set_arguments(argc, argv); "
           << "return static_cast<int>(" << functionName(function.symbol) << "()); }\n";
@@ -341,7 +469,8 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
     out << ')';
     break;
   }
-  case MirRvalueKind::Call:
+  case MirRvalueKind::Call: {
+    bool nativeUnit = false;
     if (module_.symbols[value.callee].kind == SymbolKind::BuiltinFunction) {
       const HirSymbol& symbol = module_.symbols[value.callee];
       if (symbol.intrinsic == Intrinsic::Print) out << "rocket_print";
@@ -360,7 +489,10 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
         out << '<' << cppType(set.arguments[0]) << '>';
       }
     } else {
-      out << functionName(value.callee);
+      const auto& symbol = module_.symbols[value.callee];
+      nativeUnit = symbol.nativeImport && symbol.type == Type::Unit;
+      if (nativeUnit) out << '(';
+      out << (symbol.nativeImport ? symbol.nativeName : functionName(value.callee));
     }
     out << '(';
     for (std::size_t i = 0; i < value.arguments.size(); ++i) {
@@ -368,7 +500,9 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
       emitOperand(out, value.arguments[i]);
     }
     out << ')';
+    if (nativeUnit) out << ", RocketUnit{})";
     break;
+  }
   case MirRvalueKind::Array:
     out << "rocket_array<" << cppType(collectionElementType(value.type)) << ">({";
     for (std::size_t i = 0; i < value.arguments.size(); ++i) {
@@ -440,7 +574,13 @@ void BootstrapCodeGenerator::emitOperand(std::ostream& out,
   case TypeKind::Slice:
   case TypeKind::Struct:
   case TypeKind::Enum:
+  case TypeKind::Pointer:
+  case TypeKind::NativeStruct:
+  case TypeKind::Opaque:
     out << "/* invalid aggregate constant */";
+    break;
+  case TypeKind::Callback:
+    out << "&rocket_callback_" << operand.constant;
     break;
   case TypeKind::TypeParameter:
   case TypeKind::Invalid: out << "/* invalid */"; break;

@@ -401,8 +401,15 @@ void HirLowerer::registerTypeDeclarations() {
     }
     const std::uint32_t index = static_cast<std::uint32_t>(hir_.typeDeclarations.size());
     typeDeclarations_.emplace(structure.name, index);
-    hir_.typeDeclarations.push_back({HirTypeDeclKind::Struct, structure.name,
-                                     structure.location, structure.publicDeclaration, false,
+    HirTypeDeclKind kind = HirTypeDeclKind::Struct;
+    if (structure.representation == StructRepresentation::Native)
+      kind = HirTypeDeclKind::NativeStruct;
+    else if (structure.representation == StructRepresentation::Opaque)
+      kind = HirTypeDeclKind::Opaque;
+    else if (structure.representation == StructRepresentation::Callback)
+      kind = HirTypeDeclKind::Callback;
+    hir_.typeDeclarations.push_back({kind, structure.name, structure.location,
+                                     structure.publicDeclaration, false,
                                      structure.typeParameters, {}, {}});
   }
   for (const auto& enumeration : ast_.enums) {
@@ -434,12 +441,42 @@ void HirLowerer::registerTypeDeclarations() {
         target.location.line != structure.location.line)
       continue;
     const Substitutions parameters = makeParameters(structure.typeParameters, structure.location);
+    if (structure.representation != StructRepresentation::Rocket &&
+        !structure.typeParameters.empty())
+      diagnostics_.error(structure.location,
+                         "native type declarations cannot be generic");
     std::unordered_set<std::string> fields;
     for (const auto& field : structure.fields) {
       if (!fields.insert(field.name).second)
         diagnostics_.error(field.location, "duplicate field '" + field.name + "'");
       target.fields.push_back({field.name, resolveType(field.typeName, field.location, parameters),
                                field.location});
+    }
+    if (target.kind == HirTypeDeclKind::NativeStruct) {
+      if (target.fields.empty())
+        diagnostics_.error(structure.location,
+                           "native struct must declare at least one field");
+      for (const auto& field : target.fields)
+        if (field.type != Type::Int && field.type != Type::Float &&
+            field.type != Type::Bool && field.type != Type::Char &&
+            field.type.kind != TypeKind::Pointer && field.type.kind != TypeKind::Opaque)
+          diagnostics_.error(field.location,
+                             "native struct fields must use primitive, Pointer, or opaque types");
+    } else if (target.kind == HirTypeDeclKind::Callback) {
+      for (const auto& parameter : structure.callbackParameters)
+        target.callbackParameters.push_back(
+            resolveType(parameter.typeName, parameter.location, parameters));
+      target.callbackResult = resolveType(structure.callbackReturnType,
+                                          structure.location, parameters);
+      for (const auto& parameter : target.callbackParameters)
+        if (!isNativeAbiValueType(parameter) || parameter == Type::Unit ||
+            parameter.kind == TypeKind::Callback)
+          diagnostics_.error(structure.location,
+                             "callback parameters must use primitive, Pointer, or opaque types");
+      if (!isNativeAbiValueType(target.callbackResult) ||
+          target.callbackResult.kind == TypeKind::Callback)
+        diagnostics_.error(structure.location,
+                           "callback results must use primitive, Pointer, opaque, or Unit types");
     }
   }
 
@@ -578,6 +615,7 @@ std::optional<HirModule> HirLowerer::lower() {
   functions_.clear();
   genericFunctions_.clear();
   associatedConstants_.clear();
+  nativeConstants_.clear();
   typeDeclarations_.clear();
   traits_.clear();
   traitImplementations_.clear();
@@ -588,6 +626,8 @@ std::optional<HirModule> HirLowerer::lower() {
   pendingLambdas_.clear();
   userSpecializationCount_ = 0;
   functionSymbols_.clear();
+  unsafeDepth_ = 0;
+  hir_.library = ast_.library;
 
   registerBuiltinTypes();
   registerStandardLibrary();
@@ -600,6 +640,13 @@ std::optional<HirModule> HirLowerer::lower() {
 
   for (const auto& function : ast_.functions) {
     if (function.associatedConstant) associatedConstants_.insert(function.name);
+    if (function.nativeConstant) {
+      if (!nativeConstants_.emplace(function.name, &function).second)
+        diagnostics_.error(function.location,
+                           "duplicate native constant '" + function.name + "'");
+      functionSymbols_.push_back(InvalidSymbol);
+      continue;
+    }
     if (!function.methodOwner.empty()) {
       Substitutions parameters;
       for (const auto& parameter : function.typeParameters) {
@@ -695,6 +742,10 @@ std::optional<HirModule> HirLowerer::lower() {
       functionSymbols_.push_back(InvalidSymbol);
       continue;
     }
+    if ((function.nativeImport || function.nativeExport) &&
+        !function.typeParameters.empty())
+      diagnostics_.error(function.location,
+                         "native functions cannot be generic");
     if (!function.typeParameters.empty()) {
       genericFunctions_.emplace(function.name, &function);
       functionSymbols_.push_back(InvalidSymbol);
@@ -707,7 +758,24 @@ std::optional<HirModule> HirLowerer::lower() {
     const Type result = resolveType(function.returnType, function.location);
     const SymbolId symbol = addSymbol(SymbolKind::Function, function.name, result, false,
                                       function.location, parameters);
-    functionSymbols_.push_back(symbol);
+    hir_.symbols[symbol].nativeImport = function.nativeImport;
+    hir_.symbols[symbol].nativeExport = function.nativeExport;
+    hir_.symbols[symbol].nativeName = function.nativeName;
+    auto validNativeParameter = [](const Type& type) {
+      return isNativeAbiValueType(type) && type != Type::Unit &&
+             type.kind != TypeKind::NativeStruct;
+    };
+    if (function.nativeImport || function.nativeExport) {
+      for (const auto& parameter : parameters)
+        if (!validNativeParameter(parameter))
+          diagnostics_.error(function.location,
+                             "native function parameters must use primitive, Pointer, opaque, or callback types");
+      if (!isNativeAbiValueType(result) || result.kind == TypeKind::NativeStruct ||
+          (function.nativeExport && result.kind == TypeKind::Callback))
+        diagnostics_.error(function.location,
+                           "native function result must use primitive, Pointer, opaque, or Unit type");
+    }
+    functionSymbols_.push_back(function.nativeImport ? InvalidSymbol : symbol);
     functions_.emplace(function.name, symbol);
   }
 
@@ -731,10 +799,10 @@ std::optional<HirModule> HirLowerer::lower() {
   }
 
   auto main = functions_.find("main");
-  if (main == functions_.end()) {
+  if (!ast_.library && main == functions_.end()) {
     diagnostics_.error({"<module>", 1, 1}, "program must define fn main() -> Int",
                        DiagnosticCode::ControlFlow);
-  } else {
+  } else if (!ast_.library) {
     const auto& signature = hir_.symbol(main->second);
     if (!signature.parameterTypes.empty() || signature.type != Type::Int)
       diagnostics_.error({"<module>", 1, 1},
@@ -779,11 +847,18 @@ Type HirLowerer::resolveParsedType(const Type& parsed, const Location& location,
     auto parameter = substitutions.find(parsed.declaration);
     if (parameter != substitutions.end()) return parameter->second;
   }
-  if (parsed.kind == TypeKind::Array || parsed.kind == TypeKind::Slice) {
+  if (parsed.kind == TypeKind::Array || parsed.kind == TypeKind::Slice ||
+      parsed.kind == TypeKind::Pointer) {
     Type argument = resolveParsedType(parsed.arguments.at(0), location, substitutions);
-    if (argument == Type::Unit)
+    if ((parsed.kind == TypeKind::Array || parsed.kind == TypeKind::Slice) &&
+        argument == Type::Unit)
       diagnostics_.error(location, "collections cannot contain Unit values");
-    return parsed.kind == TypeKind::Array ? arrayType(argument) : sliceType(argument);
+    if ((parsed.kind == TypeKind::Array || parsed.kind == TypeKind::Slice) &&
+        isNativeType(argument))
+      diagnostics_.error(location, "collections cannot contain native values");
+    if (parsed.kind == TypeKind::Array) return arrayType(argument);
+    if (parsed.kind == TypeKind::Slice) return sliceType(argument);
+    return Type{TypeKind::Pointer, "Pointer", {argument}};
   }
   if (parsed.kind != TypeKind::Struct) return parsed;
 
@@ -802,8 +877,12 @@ Type HirLowerer::resolveParsedType(const Type& parsed, const Location& location,
   std::vector<Type> arguments;
   for (const auto& argument : parsed.arguments)
     arguments.push_back(resolveParsedType(argument, location, substitutions));
-  return Type{declaration.kind == HirTypeDeclKind::Struct ? TypeKind::Struct : TypeKind::Enum,
-              declaration.name, std::move(arguments)};
+  TypeKind kind = TypeKind::Struct;
+  if (declaration.kind == HirTypeDeclKind::Enum) kind = TypeKind::Enum;
+  else if (declaration.kind == HirTypeDeclKind::NativeStruct) kind = TypeKind::NativeStruct;
+  else if (declaration.kind == HirTypeDeclKind::Opaque) kind = TypeKind::Opaque;
+  else if (declaration.kind == HirTypeDeclKind::Callback) kind = TypeKind::Callback;
+  return Type{kind, declaration.name, std::move(arguments)};
 }
 
 Type HirLowerer::substitute(const Type& pattern, const Substitutions& substitutions) const {
@@ -850,6 +929,7 @@ HirFunction HirLowerer::lowerFunction(const Function& function, SymbolId symbol)
   scopes_.clear();
   scopes_.emplace_back();
   loopDepth_ = 0;
+  unsafeDepth_ = 0;
 
   HirFunction result;
   result.symbol = symbol;
@@ -1121,6 +1201,13 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
     return std::make_unique<HirLoopControlStmt>(
         statement.kind == StmtKind::Break ? HirStmtKind::Break : HirStmtKind::Continue,
         statement.location);
+  }
+  case StmtKind::Unsafe: {
+    const auto& unsafe = static_cast<const UnsafeStmt&>(statement);
+    ++unsafeDepth_;
+    auto body = lowerBlock(unsafe.body, returnType, true);
+    --unsafeDepth_;
+    return std::make_unique<HirUnsafeStmt>(unsafe.location, std::move(body));
   }
   case StmtKind::Match: {
     const auto& match = static_cast<const MatchStmt&>(statement);
@@ -1514,6 +1601,61 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                                             static_cast<const LiteralExpr&>(expression).value);
   case ExprKind::Name: {
     const auto& name = static_cast<const LiteralExpr&>(expression).value;
+    if (expected.has_value() && expected->kind == TypeKind::Callback) {
+      auto callback = typeDeclarations_.find(expected->declaration);
+      auto target = functions_.find(name);
+      if (callback == typeDeclarations_.end() || target == functions_.end()) {
+        diagnostics_.error(expression.location,
+                           "callback value must name a compatible top-level Rocket function");
+        return std::make_unique<HirFunctionRefExpr>(expression.location,
+                                                    *expected, InvalidSymbol);
+      }
+      const auto& callbackType = hir_.typeDeclarations[callback->second];
+      const auto& function = hir_.symbol(target->second);
+      if (function.nativeImport || function.parameterTypes != callbackType.callbackParameters ||
+          function.type != callbackType.callbackResult)
+        diagnostics_.error(expression.location,
+                           "function '" + name + "' does not match callback type " +
+                               typeName(*expected));
+      return std::make_unique<HirFunctionRefExpr>(expression.location, *expected,
+                                                  target->second);
+    }
+    if (auto constant = nativeConstants_.find(name);
+        constant != nativeConstants_.end()) {
+      const Function& declaration = *constant->second;
+      const Type declared = resolveType(declaration.returnType, declaration.location);
+      if (declaration.body.size() != 1 ||
+          declaration.body.front()->kind != StmtKind::Return) {
+        diagnostics_.error(declaration.location,
+                           "native constant requires one literal initializer");
+        return std::make_unique<HirLiteralExpr>(expression.location,
+                                                Type::Invalid, "0");
+      }
+      const auto& returned = static_cast<const ReturnStmt&>(*declaration.body.front());
+      bool primitiveLiteral = returned.value &&
+          (returned.value->kind == ExprKind::Integer ||
+           returned.value->kind == ExprKind::Float ||
+           returned.value->kind == ExprKind::Character ||
+           returned.value->kind == ExprKind::Bool);
+      if (returned.value && returned.value->kind == ExprKind::Unary) {
+        const auto& unary = static_cast<const UnaryExpr&>(*returned.value);
+        primitiveLiteral = unary.op == TokenKind::Minus && unary.operand &&
+            (unary.operand->kind == ExprKind::Integer ||
+             unary.operand->kind == ExprKind::Float);
+      }
+      if (!primitiveLiteral)
+        diagnostics_.error(declaration.location,
+                           "native constant initializer must be a primitive literal");
+      auto value = returned.value
+                       ? lowerExpression(*returned.value, declared)
+                       : std::make_unique<HirLiteralExpr>(expression.location,
+                                                          Type::Invalid, "0");
+      if (value->type != Type::Invalid && value->type != declared)
+        diagnostics_.error(declaration.location,
+                           "native constant initializer type does not match " +
+                               typeName(declared));
+      return value;
+    }
     if (auto capture = activeCaptures_.find(name); capture != activeCaptures_.end()) {
       auto closure = std::make_unique<HirNameExpr>(
           expression.location, hir_.symbol(capture->second.closure).type,
@@ -1868,11 +2010,17 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       if (arguments.size() != 1)
         diagnostics_.error(expression.location, "print expects exactly one argument",
                            DiagnosticCode::Arity);
-      else if (isCollectionType(arguments[0]->type) || isAggregateType(arguments[0]->type))
-        diagnostics_.error(arguments[0]->location, "print does not accept aggregate values");
+      else if (isCollectionType(arguments[0]->type) || isAggregateType(arguments[0]->type) ||
+               isNativeType(arguments[0]->type))
+        diagnostics_.error(arguments[0]->location,
+                           "print does not accept aggregate or native values");
       return std::make_unique<HirCallExpr>(expression.location, Type::Unit, callee,
                                            std::move(arguments));
     }
+    if (signature.nativeImport && unsafeDepth_ == 0)
+      diagnostics_.error(expression.location,
+                         "call to extern function '" + name +
+                             "' requires an explicit unsafe block");
     if (arguments.size() != signature.parameterTypes.size())
       diagnostics_.error(expression.location, "function '" + name + "' expects " +
                                                  std::to_string(signature.parameterTypes.size()) +
@@ -2082,6 +2230,9 @@ bool HirLowerer::definitelyReturns(const HirBlock& body) const {
         if (allReturn) return true;
       }
     }
+    if (statement->kind == HirStmtKind::Unsafe &&
+        definitelyReturns(static_cast<const HirUnsafeStmt&>(*statement).body))
+      return true;
   }
   return false;
 }

@@ -1,0 +1,4 @@
+extern fn phase13_add(left: Int, right: Int) -> Int
+
+fn main() -> Int:
+    return phase13_add(1, 2)

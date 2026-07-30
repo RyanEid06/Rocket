@@ -19,8 +19,12 @@ enum class TypeKind {
   Unit,
   Array,
   Slice,
+  Pointer,
   Struct,
   Enum,
+  NativeStruct,
+  Opaque,
+  Callback,
   TypeParameter,
 };
 
@@ -66,6 +70,9 @@ bool isArrayType(const Type& type);
 bool isSliceType(const Type& type);
 bool isCollectionType(const Type& type);
 bool isAggregateType(const Type& type);
+bool isNativeType(const Type& type);
+bool isNativeAbiValueType(const Type& type);
+bool isPointerType(const Type& type);
 Type collectionElementType(const Type& type);
 Type arrayType(const Type& element);
 Type sliceType(const Type& element);

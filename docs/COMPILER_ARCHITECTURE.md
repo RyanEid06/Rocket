@@ -257,3 +257,29 @@ substituted before their monomorphic closure declarations and `call` symbols are
 queued. `for` over an iterable lowers to explicit cursor,
 condition, value, body, advance, and exit blocks. Associated constants lower to
 zero-argument functions. None of these features changes runtime ABI v1.
+
+## Native ABI and library production
+
+The parser records native declarations and unsafe blocks explicitly. Module
+loading qualifies their Rocket names while preserving each unmangled C name.
+HIR resolves `Pointer[T]`, native-layout, opaque, and callback types; validates
+the closed ABI type set; expands native constants to typed literals; requires an
+unsafe depth for imported calls; and turns compatible top-level function names
+into typed callback references. MIR erases the lexical unsafe marker after HIR
+validation and carries callback targets as resolved symbol constants. Native
+pointer and handle values are excluded from managed retain/release insertion.
+
+The LLVM backend declares imported C symbols, performs the `i1`/`i8` conversion
+at Bool boundaries, materializes deterministic callback trampolines, and emits
+`dllexport` wrappers for Rocket exports. Internal Rocket calling conventions and
+runtime ABI v1 remain private and unchanged. The preserved C++ backend emits
+equivalent `extern "C"` declarations/wrappers and uses the configured MSVC
+compiler/librarian when LLVM is disabled.
+
+Target resolution reads `[build]` and `[native.windows-x64]` before compilation.
+Executable linking consumes native libraries in manifest order; static output
+archives the Rocket object; dynamic output links a DLL and import library.
+Header and binding generation walk source declarations in canonical module
+order and do not include timestamps, paths, hashes, or unordered-container
+iteration. Stage0 and the Rocket compiler therefore produce byte-identical
+native interface artifacts.

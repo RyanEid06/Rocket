@@ -7,12 +7,19 @@
 
 namespace rocket {
 
+enum class PackageOutputKind { Executable, StaticLibrary, DynamicLibrary };
+
 struct Package {
   std::filesystem::path root;
   std::string name;
   std::string version;
   std::filesystem::path entry;
   std::filesystem::path tests;
+  PackageOutputKind outputKind = PackageOutputKind::Executable;
+  std::string outputName;
+  std::vector<std::string> nativeLibraries;
+  std::vector<std::filesystem::path> nativeLibrarySearch;
+  std::vector<std::filesystem::path> nativeHeaders;
 };
 
 std::optional<Package> loadPackage(const std::filesystem::path& path,

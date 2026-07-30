@@ -115,5 +115,31 @@ int main() {
                          "Array mutation lowers through the copy-on-write runtime ABI",
                          failures);
   }
+
+  rocket::Diagnostics nativeDiagnostics;
+  auto nativeMir = rocket::test::lowerToMir(
+      "extern callback Unary(value: Int) -> Int\n"
+      "extern fn native_apply(action: Unary, value: Int) -> Int\n"
+      "fn twice(value: Int) -> Int:\n"
+      "    return value * 2\n"
+      "export fn rocket_twice(value: Int) -> Int:\n"
+      "    return value * 2\n"
+      "fn main() -> Int:\n"
+      "    unsafe:\n"
+      "        return native_apply(twice, 21)\n",
+      nativeDiagnostics);
+  rocket::test::expect(nativeMir.has_value(),
+                       "native import/export/callback fixture lowers to MIR", failures);
+  if (nativeMir.has_value()) {
+    std::string error;
+    std::string ir;
+    rocket::test::expect(rocket::generateLlvmIr(*nativeMir, false, ir, error),
+                         "native MIR lowers to LLVM IR: " + error, failures);
+    rocket::test::expect(ir.find("declare i64 @native_apply(ptr, i64)") != std::string::npos &&
+                             ir.find("define internal i64 @rocket_callback_") != std::string::npos &&
+                             ir.find("define dllexport i64 @rocket_twice") != std::string::npos,
+                         "LLVM emits stable C declarations, callback trampolines, and exports",
+                         failures);
+  }
   return rocket::test::finish(failures, "llvm_codegen");
 }

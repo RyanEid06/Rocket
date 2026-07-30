@@ -19,7 +19,9 @@ private:
                       Type functionResult) const;
   void emitRvalue(std::ostream& out, const MirRvalue& value) const;
   void emitOperand(std::ostream& out, const MirOperand& operand) const;
-  static std::string cppType(Type type);
+  std::string cppType(Type type) const;
+  std::string nativeCppType(Type type) const;
+  std::string nativeTypeName(const Type& type, const char* prefix) const;
   static std::string escaped(const std::string& text);
   static std::string escapedCharacter(const std::string& text);
   static const char* standardFunctionName(Intrinsic intrinsic);

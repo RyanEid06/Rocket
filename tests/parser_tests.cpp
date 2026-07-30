@@ -133,5 +133,46 @@ int main() {
   rocket::test::expect(methods.functions[0].methodOwner == "Counter" &&
                            methods.functions[1].parameters[0].name == "self",
                        "method AST records its impl owner and explicit receiver", failures);
+
+  rocket::Diagnostics nativeDiagnostics;
+  auto native = rocket::test::parse(
+      "extern opaque Handle\n"
+      "extern struct Point:\n"
+      "    x: Int\n"
+      "extern callback Unary(value: Int) -> Int\n"
+      "extern const BIAS: Int = 5\n"
+      "extern fn apply(action: Unary, value: Int) -> Int\n"
+      "export fn twice(value: Int) -> Int:\n"
+      "    return value * 2\n"
+      "fn main() -> Int:\n"
+      "    unsafe:\n"
+      "        return apply(twice, BIAS)\n",
+      nativeDiagnostics);
+  rocket::test::expect(!nativeDiagnostics.hasErrors(),
+                       "Phase 13 native declarations and unsafe blocks parse", failures);
+  rocket::test::expect(native.structs.size() == 3 &&
+                           native.structs[0].representation == rocket::StructRepresentation::Opaque &&
+                           native.structs[1].representation == rocket::StructRepresentation::Native &&
+                           native.structs[2].representation == rocket::StructRepresentation::Callback,
+                       "native type declarations retain their representations", failures);
+  rocket::test::expect(native.functions.size() == 4 &&
+                           native.functions[0].nativeConstant &&
+                           native.functions[1].nativeImport &&
+                           native.functions[2].nativeExport &&
+                           native.functions[3].body[0]->kind == rocket::StmtKind::Unsafe,
+                       "native constants, imports, exports, and unsafe AST metadata are explicit",
+                       failures);
+
+  rocket::Diagnostics contextualDiagnostics;
+  auto contextual = rocket::test::parse(
+      "fn apply(callback: Int, unsafe: Int) -> Int:\n"
+      "    return callback + unsafe\n"
+      "fn main() -> Int:\n"
+      "    return apply(40, 2)\n",
+      contextualDiagnostics);
+  rocket::test::expect(!contextualDiagnostics.hasErrors() &&
+                           contextual.functions.size() == 2,
+                       "Phase 13 contextual words preserve earlier identifier source",
+                       failures);
   return rocket::test::finish(failures, "parser");
 }

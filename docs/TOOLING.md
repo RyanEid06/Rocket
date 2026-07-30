@@ -1,4 +1,4 @@
-# Rocket Tooling and Packages 1.0
+# Rocket Tooling and Packages 1.3
 
 ## Create and use a package
 
@@ -31,6 +31,10 @@ entry = "src/main.rocket"
 
 [test]
 directory = "tests"
+
+[build]
+kind = "executable"
+name = "hello"
 ```
 
 Names start with a letter or underscore. Entry and test paths are relative and
@@ -40,6 +44,68 @@ test may use `import src.math` even though its file lives under `tests/`.
 
 Standalone `.rocket` files remain supported. When no input is supplied,
 package-aware commands use the current directory.
+
+## Native inputs and library products
+
+`[build].kind` is `executable`, `static-library`, or `dynamic-library`.
+`[build].name` is the artifact basename. For backward compatibility, an
+executable package without `[build]` still writes `.rocketc/main.exe`; a library
+without an explicit name uses the package name. Library builds emit `.lib` or
+`.dll` plus a deterministic `.h` header and do not synthesize `main`.
+
+Windows x64 native inputs are explicit and target-scoped:
+
+```toml
+[native.windows-x64]
+libraries = "vendor_math.lib;vendor_handles.lib"
+library-search = "native/lib"
+headers = "native/vendor.h"
+```
+
+Lists use semicolons inside one quoted value. Search and header paths are
+package-relative, containment-checked, and deterministic. Named libraries are
+resolved in listed search directories, then the package root, and passed to the
+native linker in manifest order. Headers are validated inputs; Rocket never
+implicitly parses C during a normal build.
+
+Generate an importable low-level binding module and a C consumer header with:
+
+```powershell
+rocketc bind native/vendor.h --output native_bindings.rocket
+rocketc emit-header . --output .rocketc/my_library.h
+```
+
+`bind` intentionally accepts only the frozen C subset: `int64_t`, `double`,
+`uint8_t`, `rocket_bool`, `void`, pointers, one-line named struct typedefs,
+opaque struct typedefs, function-pointer typedefs, integer `#define` constants,
+and ordinary or `ROCKET_API` function prototypes. Output declarations are
+`pub extern` so a safe wrapper module can import them. Preprocessor conditionals,
+unions, bitfields, arrays, variadics, calling-convention attributes, C++ APIs,
+and macro expressions are rejected or ignored rather than guessed.
+
+Keep generated modules low-level and put policy in a handwritten wrapper. The
+wrapper owns the smallest possible unsafe region and translates documented C
+status values into Rocket's checked values:
+
+```rocket
+import native_bindings
+
+pub fn validate(value: Int) -> Result[Int, String]:
+    unsafe:
+        if native_bindings.vendor_status(value) == 0:
+            return Ok(value)
+    return Err("vendor rejected the value")
+```
+
+An owned handle follows the same rule: acquire it inside the wrapper, release it
+exactly once with the documented C destructor, never use it afterward, and do
+not rely on Rocket ARC to manage it. A wrapper must not let a synchronous native
+callback or pointer escape beyond the lifetime promised by the C API.
+
+Static Rocket libraries do not embed `rocket_runtime.lib`; a native consumer
+must link the matching runtime when an exported function reaches runtime
+services. Dynamic Rocket libraries embed the runtime and produce an import
+library beside the DLL. Native library packages cannot be passed to `run`.
 
 ## Test runner
 
@@ -77,7 +143,7 @@ host.
 
 ## Other commands
 
-`check`, `build`, `run`, `emit-ir`, and `emit-asm` accept either a standalone
+`check`, `build`, `run`, `emit-ir`, `emit-asm`, and `emit-header` accept either a standalone
 source, a package directory, or a `rocket.toml` path. Program arguments follow
 `--`. `rocketc --version` prints the compiler version.
 

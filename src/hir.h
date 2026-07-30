@@ -107,10 +107,14 @@ struct HirSymbol {
   Location location;
   std::vector<Type> parameterTypes;
   Intrinsic intrinsic = Intrinsic::None;
+  bool nativeImport = false;
+  bool nativeExport = false;
+  std::string nativeName;
 };
 
 enum class HirExprKind {
-  Literal, Name, Unary, Binary, Call, Array, Index, Slice, Aggregate, Field, Propagate
+  Literal, Name, FunctionRef, Unary, Binary, Call, Array, Index, Slice, Aggregate, Field,
+  Propagate
 };
 
 struct HirExpr {
@@ -132,6 +136,13 @@ struct HirNameExpr final : HirExpr {
   HirNameExpr(Location location, Type type, SymbolId symbol)
       : HirExpr(HirExprKind::Name, std::move(location), type), symbol(symbol) {}
   SymbolId symbol;
+};
+
+struct HirFunctionRefExpr final : HirExpr {
+  HirFunctionRefExpr(Location location, Type type, SymbolId symbol)
+      : HirExpr(HirExprKind::FunctionRef, std::move(location), std::move(type)),
+        symbol(symbol) {}
+  SymbolId symbol = InvalidSymbol;
 };
 
 struct HirUnaryExpr final : HirExpr {
@@ -219,7 +230,7 @@ struct HirPropagateExpr final : HirExpr {
 
 enum class HirStmtKind {
   Binding, Assignment, IndexAssignment, Return, Expression, If, While, For, Break,
-  Continue, Match, ForEach
+  Continue, Match, ForEach, Unsafe
 };
 
 struct HirStmt {
@@ -320,6 +331,12 @@ struct HirMatchStmt final : HirStmt {
   std::vector<HirMatchCase> cases;
 };
 
+struct HirUnsafeStmt final : HirStmt {
+  HirUnsafeStmt(Location location, HirBlock body)
+      : HirStmt(HirStmtKind::Unsafe, std::move(location)), body(std::move(body)) {}
+  HirBlock body;
+};
+
 struct HirParameter { SymbolId symbol = InvalidSymbol; };
 
 struct HirFunction {
@@ -330,7 +347,7 @@ struct HirFunction {
   HirBlock body;
 };
 
-enum class HirTypeDeclKind { Struct, Enum };
+enum class HirTypeDeclKind { Struct, Enum, NativeStruct, Opaque, Callback };
 
 struct HirField {
   std::string name;
@@ -353,6 +370,8 @@ struct HirTypeDeclaration {
   std::vector<std::string> typeParameters;
   std::vector<HirField> fields;
   std::vector<HirVariant> variants;
+  std::vector<Type> callbackParameters;
+  Type callbackResult = Type::Invalid;
 };
 
 struct HirForEachStmt final : HirStmt {
@@ -392,6 +411,7 @@ struct HirModule {
   std::vector<HirTypeDeclaration> typeDeclarations;
   std::vector<HirTraitDeclaration> traitDeclarations;
   std::vector<HirFunction> functions;
+  bool library = false;
 
   const HirSymbol& symbol(SymbolId id) const { return symbols.at(id); }
 };
@@ -489,6 +509,7 @@ private:
   std::unordered_map<std::string, SymbolId> functions_;
   std::unordered_map<std::string, const Function*> genericFunctions_;
   std::unordered_set<std::string> associatedConstants_;
+  std::unordered_map<std::string, const Function*> nativeConstants_;
   std::unordered_map<std::string, std::uint32_t> typeDeclarations_;
   std::unordered_map<std::string, std::uint32_t> traits_;
   std::vector<TraitImplementation> traitImplementations_;
@@ -504,6 +525,7 @@ private:
   std::unordered_map<std::string, ActiveCapture> activeCaptures_;
   Type currentReturnType_ = Type::Invalid;
   int loopDepth_ = 0;
+  int unsafeDepth_ = 0;
 };
 
 } // namespace rocket

@@ -109,6 +109,7 @@ struct MirModule {
   std::vector<HirSymbol> symbols;
   std::vector<HirTypeDeclaration> typeDeclarations;
   std::vector<MirFunction> functions;
+  bool library = false;
 };
 
 class MirLowerer {

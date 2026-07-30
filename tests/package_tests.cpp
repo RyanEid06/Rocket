@@ -54,7 +54,33 @@ int main() {
                            error.find("must stay inside") != std::string::npos,
                        "manifest paths cannot escape the package root", failures);
 
+  const auto native = std::filesystem::current_path() / "package_test_native";
+  std::filesystem::remove_all(native, errorCode);
+  std::filesystem::create_directories(native / "src", errorCode);
+  std::filesystem::create_directories(native / "native/lib", errorCode);
+  write(native / "src/library.rocket", "export fn answer() -> Int:\n    return 42\n");
+  write(native / "native/api.h", "int64_t answer(void);\n");
+  write(native / "rocket.toml",
+        "[package]\nname = \"native_package\"\nentry = \"src/library.rocket\"\n"
+        "[build]\nkind = \"static-library\"\nname = \"native_math\"\n"
+        "[native.windows-x64]\nlibraries = \"first.lib; second.lib\"\n"
+        "library-search = \"native/lib\"\nheaders = \"native/api.h\"\n");
+  error.clear();
+  auto nativePackage = rocket::loadPackage(native, error);
+  rocket::test::expect(
+      nativePackage.has_value() &&
+          nativePackage->outputKind == rocket::PackageOutputKind::StaticLibrary &&
+          nativePackage->outputName == "native_math" &&
+          nativePackage->nativeLibraries.size() == 2 &&
+          nativePackage->nativeLibraries[0] == "first.lib" &&
+          nativePackage->nativeLibraries[1] == "second.lib" &&
+          nativePackage->nativeLibrarySearch.size() == 1 &&
+          nativePackage->nativeHeaders.size() == 1,
+      "target-aware native inputs and library products load deterministically: " + error,
+      failures);
+
   std::filesystem::remove_all(workspace, errorCode);
   std::filesystem::remove_all(invalid, errorCode);
+  std::filesystem::remove_all(native, errorCode);
   return rocket::test::finish(failures, "package");
 }

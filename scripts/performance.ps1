@@ -51,12 +51,14 @@ Measure-RocketCommand 'hello-check' @('check', (Join-Path $projectRoot 'examples
 Measure-RocketCommand 'hello-build' @('build', (Join-Path $projectRoot 'examples\hello.rocket')) 15
 Measure-RocketCommand 'compiler-hir-self-check' @('--check-hir', $compilerSource) 120
 Measure-RocketCommand 'compiler-mir-self-check' @('--check-mir', $compilerSource) 180
+Measure-RocketCommand 'native-interop-check' @('check', (Join-Path $projectRoot 'tests\fixtures\phase13_native_package')) 5
+Measure-RocketCommand 'native-library-build' @('build', (Join-Path $projectRoot 'tests\fixtures\phase13_static_library')) 15
 
 $reportDirectory = Join-Path $projectRoot 'out\performance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.2-$configurationName.json"
+$reportPath = Join-Path $reportDirectory "rocket-1.3-$configurationName.json"
 $report = [pscustomobject]@{
-    version = '1.2.0'
+    version = '1.3.0'
     configuration = $Configuration
     compiler = $Compiler
     sha256 = (Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -64,7 +66,7 @@ $report = [pscustomobject]@{
     measurements = $measurements
 }
 $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $reportPath -Encoding utf8
-Write-Output "Rocket 1.2 performance gates passed: $reportPath"
+Write-Output "Rocket 1.3 performance gates passed: $reportPath"
 foreach ($measurement in $measurements) {
     Write-Output ("  {0}: {1}s <= {2}s" -f $measurement.name, $measurement.seconds,
         $measurement.maximum_seconds)

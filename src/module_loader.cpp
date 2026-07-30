@@ -404,6 +404,10 @@ private:
         }
         break;
       }
+      case StmtKind::Unsafe:
+        rewriteBlock(module, static_cast<UnsafeStmt&>(*statement).body,
+                     typeParameters);
+        break;
       case StmtKind::Break:
       case StmtKind::Continue: break;
       }
@@ -417,6 +421,11 @@ private:
       structure.name = qualified(module.name, structure.name);
       for (auto& field : structure.fields)
         rewriteTypeSpelling(module, field.typeName, parameters, field.location);
+      for (auto& parameter : structure.callbackParameters)
+        rewriteTypeSpelling(module, parameter.typeName, parameters, parameter.location);
+      if (!structure.callbackReturnType.empty())
+        rewriteTypeSpelling(module, structure.callbackReturnType, parameters,
+                            structure.location);
     }
     for (auto& enumeration : module.ast.enums) {
       const std::unordered_set<std::string> parameters(enumeration.typeParameters.begin(),

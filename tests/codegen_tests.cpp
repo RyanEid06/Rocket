@@ -101,5 +101,24 @@ int main() {
                              generated.find("values.use_count() == 1") != std::string::npos,
                          "fallback backend emits copy-on-write Array mutation", failures);
   }
+
+  rocket::Diagnostics nativeDiagnostics;
+  auto nativeMir = rocket::test::lowerToMir(
+      "extern fn native_release(value: Pointer[Unit]) -> Unit\n"
+      "extern fn native_open() -> Pointer[Unit]\n"
+      "fn main() -> Int:\n"
+      "    unsafe:\n"
+      "        native_release(native_open())\n"
+      "    return 0\n",
+      nativeDiagnostics);
+  rocket::test::expect(nativeMir.has_value(),
+                       "native Unit fallback fixture lowers to MIR", failures);
+  if (nativeMir.has_value()) {
+    const std::string generated = rocket::BootstrapCodeGenerator(*nativeMir).generate();
+    rocket::test::expect(
+        generated.find("native_release(") != std::string::npos &&
+            generated.find(", RocketUnit{})") != std::string::npos,
+        "fallback backend materializes Unit after a void C import", failures);
+  }
   return rocket::test::finish(failures, "codegen");
 }
