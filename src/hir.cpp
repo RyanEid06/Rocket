@@ -238,6 +238,7 @@ void HirLowerer::registerStandardLibrary() {
   standardFunctions_.clear();
   const Type optionString{TypeKind::Enum, "Option", {Type::String}};
   const Type json{TypeKind::Enum, "std.json.Json"};
+  const Type byteBuffer{TypeKind::Struct, "std.collections.ByteBuffer"};
   const Type nestedStrings = arrayType(arrayType(Type::String));
   auto result = [](Type success) {
     return Type{TypeKind::Enum, "Result", {std::move(success), Type::String}};
@@ -360,6 +361,32 @@ void HirLowerer::registerStandardLibrary() {
   add("std.file.list", {Type::String}, result(arrayType(Type::String)), Intrinsic::FileList);
   add("std.file.create_directory", {Type::String}, result(Type::Bool),
       Intrinsic::FileCreateDirectory);
+  add("std.file.read_binary", {Type::String}, result(byteBuffer),
+      Intrinsic::FileReadBinary);
+  add("std.file.write_binary", {Type::String, byteBuffer}, result(Type::Bool),
+      Intrinsic::FileWriteBinary);
+  add("std.file.append_binary", {Type::String, byteBuffer}, result(Type::Bool),
+      Intrinsic::FileAppendBinary);
+
+  add("std.binary.from_string", {Type::String}, byteBuffer,
+      Intrinsic::BinaryFromString);
+  add("std.binary.to_string", {byteBuffer}, result(Type::String),
+      Intrinsic::BinaryToString);
+  add("std.binary.length", {byteBuffer}, Type::Int, Intrinsic::BinaryLength);
+  add("std.binary.slice", {byteBuffer, Type::Int, Type::Int}, result(byteBuffer),
+      Intrinsic::BinarySlice);
+  add("std.binary.read_u8", {byteBuffer, Type::Int}, result(Type::Int),
+      Intrinsic::BinaryReadU8);
+  add("std.binary.read_u16_le", {byteBuffer, Type::Int}, result(Type::Int),
+      Intrinsic::BinaryReadU16Le);
+  add("std.binary.read_u32_le", {byteBuffer, Type::Int}, result(Type::Int),
+      Intrinsic::BinaryReadU32Le);
+  add("std.binary.write_u8", {Type::Int}, result(byteBuffer),
+      Intrinsic::BinaryWriteU8);
+  add("std.binary.write_u16_le", {Type::Int}, result(byteBuffer),
+      Intrinsic::BinaryWriteU16Le);
+  add("std.binary.write_u32_le", {Type::Int}, result(byteBuffer),
+      Intrinsic::BinaryWriteU32Le);
 
   add("std.path.join", {Type::String, Type::String}, Type::String, Intrinsic::PathJoin);
   add("std.path.basename", {Type::String}, Type::String, Intrinsic::PathBasename);

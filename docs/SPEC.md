@@ -435,7 +435,8 @@ Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files. Their function signatures are statically
 checked and lower to typed MIR calls. The stable Phase 7 modules are
 `std.string`, `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`,
-`std.random`, `std.process`, and `std.time`.
+`std.random`, `std.process`, `std.time`, and the Rocket 1.5 foundation module
+`std.binary`.
 
 Standard APIs use the same `Option` and `Result` enums as user code. File,
 process, conversion, JSON, and CSV failures are recoverable values. No standard

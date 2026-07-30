@@ -296,3 +296,17 @@ state machine without platform devices. This preserves the general C ABI,
 keeps all handwritten C++ application logic out of the reference program, and
 defers automatic destructors or linear resource types to a future language
 decision.
+
+## D021 - Immutable byte buffers and explicit binary encodings
+
+**Accepted for the Rocket 1.5 foundation.** Binary data uses the existing
+`std.collections.ByteBuffer` product over `Array[Char]`; it does not add a
+privileged mutable buffer, pointer type, or runtime object kind. Binary slicing,
+reading, UTF-8 decoding, and unsigned integer encoding return `Result` for
+data-dependent failures. Integer byte order and width are explicit in API names.
+
+Binary file operations are synchronous and preserve bytes exactly. They return
+ordinary `Result` values for host failures and document blocking behavior.
+Stage0 and self-hosted compilers expose the same standard signatures and runtime
+entry points. Stateful buffered streams may build on persistent cursor values in
+a later slice without changing this representation or weakening error handling.

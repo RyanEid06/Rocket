@@ -120,6 +120,53 @@ int main(int argc, char** argv) {
                            firstRandom >= -10 && firstRandom < 10,
                        "seeded random sequences are reproducible and range-bounded", failures);
 
+  RocketString* binaryText = string(std::string("R\0cket", 6));
+  RocketAggregate* binaryBuffer = rocket_std_binary_from_string(binaryText);
+  RocketAggregate* decodedBinary = rocket_std_binary_to_string(binaryBuffer);
+  auto* decodedBinaryText = static_cast<RocketString*>(
+      rocket_rt_aggregate_get_managed(decodedBinary, 0));
+  rocket::test::expect(rocket_std_binary_length(binaryBuffer) == 6 &&
+                           value(decodedBinaryText) == std::string("R\0cket", 6),
+                       "binary buffers preserve embedded zero bytes and valid UTF-8", failures);
+  RocketAggregate* encodedU32 = rocket_std_binary_write_u32_le(0x12345678);
+  auto* encodedU32Buffer = static_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(encodedU32, 0));
+  RocketAggregate* readU32 = rocket_std_binary_read_u32_le(encodedU32Buffer, 0);
+  RocketAggregate* shortRead = rocket_std_binary_read_u32_le(encodedU32Buffer, 1);
+  rocket::test::expect(rocket_rt_aggregate_tag(readU32) == 0 &&
+                           rocket_rt_aggregate_get_int(readU32, 0) == 0x12345678 &&
+                           rocket_rt_aggregate_tag(shortRead) == 1,
+                       "little-endian reads round-trip and reject truncated input", failures);
+  RocketAggregate* middleResult = rocket_std_binary_slice(encodedU32Buffer, 1, 2);
+  auto* middleBuffer = static_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(middleResult, 0));
+  RocketAggregate* middleValue = rocket_std_binary_read_u16_le(middleBuffer, 0);
+  rocket::test::expect(rocket_rt_aggregate_get_int(middleValue, 0) == 0x3456,
+                       "binary slices preserve byte order for 16-bit decoding", failures);
+  RocketAggregate* invalidByteResult = rocket_std_binary_write_u8(255);
+  auto* invalidUtf8Buffer = static_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(invalidByteResult, 0));
+  RocketAggregate* byteValue = rocket_std_binary_read_u8(invalidUtf8Buffer, 0);
+  RocketAggregate* invalidUtf8 = rocket_std_binary_to_string(invalidUtf8Buffer);
+  RocketAggregate* invalidInteger = rocket_std_binary_write_u8(256);
+  rocket::test::expect(rocket_rt_aggregate_get_int(byteValue, 0) == 255 &&
+                           rocket_rt_aggregate_tag(invalidUtf8) == 1 &&
+                           rocket_rt_aggregate_tag(invalidInteger) == 1,
+                       "binary conversion validates UTF-8 and unsigned integer ranges", failures);
+  rocket_rt_release(invalidInteger);
+  rocket_rt_release(invalidUtf8);
+  rocket_rt_release(byteValue);
+  rocket_rt_release(invalidUtf8Buffer);
+  rocket_rt_release(invalidByteResult);
+  rocket_rt_release(middleValue);
+  rocket_rt_release(middleBuffer);
+  rocket_rt_release(middleResult);
+  rocket_rt_release(shortRead);
+  rocket_rt_release(readU32);
+  rocket_rt_release(decodedBinaryText);
+  rocket_rt_release(decodedBinary);
+  rocket_rt_release(binaryText);
+
   const std::filesystem::path temporary =
       std::filesystem::current_path() / "rocket_stdlib_test_temp.txt";
   RocketString* path = string(temporary.string());
@@ -142,6 +189,39 @@ int main(int argc, char** argv) {
   rocket_rt_release(wrote);
   rocket_rt_release(contents);
   rocket_rt_release(path);
+
+  const std::filesystem::path binaryTemporary =
+      std::filesystem::current_path() / "rocket_stdlib_test_temp.bin";
+  RocketString* binaryPath = string(binaryTemporary.string());
+  RocketAggregate* wroteBinary = rocket_std_file_write_binary(binaryPath, encodedU32Buffer);
+  RocketAggregate* encodedU16 = rocket_std_binary_write_u16_le(0xabcd);
+  auto* encodedU16Buffer = static_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(encodedU16, 0));
+  RocketAggregate* appendedBinary = rocket_std_file_append_binary(binaryPath, encodedU16Buffer);
+  RocketAggregate* readBinary = rocket_std_file_read_binary(binaryPath);
+  auto* readBinaryBuffer = static_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(readBinary, 0));
+  RocketAggregate* readBinaryValue = rocket_std_binary_read_u32_le(readBinaryBuffer, 0);
+  RocketAggregate* readBinaryTail = rocket_std_binary_read_u16_le(readBinaryBuffer, 4);
+  rocket::test::expect(rocket_rt_aggregate_tag(wroteBinary) == 0 &&
+                           rocket_rt_aggregate_tag(appendedBinary) == 0 &&
+                           rocket_std_binary_length(readBinaryBuffer) == 6 &&
+                           rocket_rt_aggregate_get_int(readBinaryValue, 0) == 0x12345678 &&
+                           rocket_rt_aggregate_get_int(readBinaryTail, 0) == 0xabcd,
+                       "binary file write and append preserve exact buffer bytes", failures);
+  std::filesystem::remove(binaryTemporary);
+  rocket_rt_release(readBinaryTail);
+  rocket_rt_release(readBinaryValue);
+  rocket_rt_release(readBinaryBuffer);
+  rocket_rt_release(readBinary);
+  rocket_rt_release(wroteBinary);
+  rocket_rt_release(appendedBinary);
+  rocket_rt_release(encodedU16Buffer);
+  rocket_rt_release(encodedU16);
+  rocket_rt_release(binaryPath);
+  rocket_rt_release(encodedU32Buffer);
+  rocket_rt_release(encodedU32);
+  rocket_rt_release(binaryBuffer);
 
   const std::filesystem::path temporaryDirectory =
       std::filesystem::current_path() / "rocket_stdlib_test_directory" / "nested";

@@ -348,6 +348,111 @@ inline std::string rocket_std_collections_join(const RocketArray<std::string>& v
   return result;
 }
 
+inline RocketAggregate rocket_stage0_byte_buffer(RocketArray<char> bytes) {
+  return rocket_stage0_variant(0, {std::move(bytes)});
+}
+inline RocketArray<char> rocket_stage0_buffer_bytes(const RocketAggregate& buffer) {
+  return rocket_field<RocketArray<char>>(buffer, 0);
+}
+inline bool rocket_stage0_valid_utf8(std::string_view input) {
+  std::size_t index = 0;
+  while (index < input.size()) {
+    const auto first = static_cast<unsigned char>(input[index]);
+    if (first <= 0x7f) { ++index; continue; }
+    std::size_t count = 0;
+    std::uint32_t codepoint = 0;
+    std::uint32_t minimum = 0;
+    if (first >= 0xc2 && first <= 0xdf) {
+      count = 2; codepoint = first & 0x1f; minimum = 0x80;
+    } else if (first >= 0xe0 && first <= 0xef) {
+      count = 3; codepoint = first & 0x0f; minimum = 0x800;
+    } else if (first >= 0xf0 && first <= 0xf4) {
+      count = 4; codepoint = first & 0x07; minimum = 0x10000;
+    } else return false;
+    if (count > input.size() - index) return false;
+    for (std::size_t continuation = 1; continuation < count; ++continuation) {
+      const auto byte = static_cast<unsigned char>(input[index + continuation]);
+      if ((byte & 0xc0) != 0x80) return false;
+      codepoint = (codepoint << 6) | (byte & 0x3f);
+    }
+    if (codepoint < minimum || codepoint > 0x10ffff ||
+        (codepoint >= 0xd800 && codepoint <= 0xdfff)) return false;
+    index += count;
+  }
+  return true;
+}
+inline RocketAggregate rocket_std_binary_from_string(const std::string& value) {
+  auto bytes = std::make_shared<std::vector<char>>(value.begin(), value.end());
+  return rocket_stage0_byte_buffer(std::move(bytes));
+}
+inline RocketAggregate rocket_std_binary_to_string(const RocketAggregate& buffer) {
+  const auto bytes = rocket_stage0_buffer_bytes(buffer);
+  const std::string value(bytes->begin(), bytes->end());
+  if (!rocket_stage0_valid_utf8(value))
+    return rocket_stage0_error("buffer is not valid UTF-8");
+  return rocket_stage0_ok(value);
+}
+inline std::int64_t rocket_std_binary_length(const RocketAggregate& buffer) {
+  return static_cast<std::int64_t>(rocket_stage0_buffer_bytes(buffer)->size());
+}
+inline RocketAggregate rocket_std_binary_slice(const RocketAggregate& buffer,
+                                                std::int64_t offset,
+                                                std::int64_t length) {
+  const auto bytes = rocket_stage0_buffer_bytes(buffer);
+  if (offset < 0 || length < 0 || offset > static_cast<std::int64_t>(bytes->size()) ||
+      length > static_cast<std::int64_t>(bytes->size()) - offset)
+    return rocket_stage0_error("binary slice is outside the buffer");
+  auto result = std::make_shared<std::vector<char>>(
+      bytes->begin() + offset, bytes->begin() + offset + length);
+  return rocket_stage0_ok(rocket_stage0_byte_buffer(std::move(result)));
+}
+inline RocketAggregate rocket_stage0_binary_read(const RocketAggregate& buffer,
+                                                  std::int64_t offset,
+                                                  std::size_t width) {
+  const auto bytes = rocket_stage0_buffer_bytes(buffer);
+  if (offset < 0 || offset > static_cast<std::int64_t>(bytes->size()) ||
+      width > bytes->size() - static_cast<std::size_t>(offset))
+    return rocket_stage0_error("binary read is outside the buffer");
+  std::uint64_t value = 0;
+  for (std::size_t index = 0; index < width; ++index)
+    value |= static_cast<std::uint64_t>(static_cast<unsigned char>(
+                 (*bytes)[static_cast<std::size_t>(offset) + index])) << (index * 8);
+  return rocket_stage0_ok(static_cast<std::int64_t>(value));
+}
+inline RocketAggregate rocket_std_binary_read_u8(const RocketAggregate& buffer,
+                                                  std::int64_t offset) {
+  return rocket_stage0_binary_read(buffer, offset, 1);
+}
+inline RocketAggregate rocket_std_binary_read_u16_le(const RocketAggregate& buffer,
+                                                      std::int64_t offset) {
+  return rocket_stage0_binary_read(buffer, offset, 2);
+}
+inline RocketAggregate rocket_std_binary_read_u32_le(const RocketAggregate& buffer,
+                                                      std::int64_t offset) {
+  return rocket_stage0_binary_read(buffer, offset, 4);
+}
+inline RocketAggregate rocket_stage0_binary_write(std::int64_t value,
+                                                   std::size_t width) {
+  const std::uint64_t maximum = width == 1 ? 0xffULL
+                               : width == 2 ? 0xffffULL
+                                            : 0xffffffffULL;
+  if (value < 0 || static_cast<std::uint64_t>(value) > maximum)
+    return rocket_stage0_error("binary integer is outside the unsigned encoding range");
+  auto bytes = std::make_shared<std::vector<char>>(width);
+  for (std::size_t index = 0; index < width; ++index)
+    (*bytes)[index] = static_cast<char>(static_cast<std::uint64_t>(value) >> (index * 8));
+  return rocket_stage0_ok(rocket_stage0_byte_buffer(std::move(bytes)));
+}
+inline RocketAggregate rocket_std_binary_write_u8(std::int64_t value) {
+  return rocket_stage0_binary_write(value, 1);
+}
+inline RocketAggregate rocket_std_binary_write_u16_le(std::int64_t value) {
+  return rocket_stage0_binary_write(value, 2);
+}
+inline RocketAggregate rocket_std_binary_write_u32_le(std::int64_t value) {
+  return rocket_stage0_binary_write(value, 4);
+}
+
 inline std::filesystem::path rocket_stage0_path(const std::string& value) {
   const std::u8string utf8(reinterpret_cast<const char8_t*>(value.data()), value.size());
   return std::filesystem::path(utf8);
@@ -383,6 +488,35 @@ inline RocketAggregate rocket_std_file_write_text(const std::string& path,
 inline RocketAggregate rocket_std_file_append_text(const std::string& path,
                                                     const std::string& contents) {
   return rocket_stage0_write_file(path, contents, std::ios::app);
+}
+inline RocketAggregate rocket_std_file_read_binary(const std::string& path) {
+  try {
+    std::ifstream input(rocket_stage0_path(path), std::ios::binary);
+    if (!input) return rocket_stage0_error("could not open file for binary reading");
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    return rocket_stage0_ok(rocket_std_binary_from_string(contents.str()));
+  } catch (const std::exception& error) { return rocket_stage0_error(error.what()); }
+}
+inline RocketAggregate rocket_stage0_write_binary_file(
+    const std::string& path, const RocketAggregate& buffer, std::ios::openmode mode) {
+  try {
+    std::ofstream output(rocket_stage0_path(path), std::ios::binary | mode);
+    if (!output) return rocket_stage0_error("could not open file for binary writing");
+    const auto bytes = rocket_stage0_buffer_bytes(buffer);
+    if (!bytes->empty())
+      output.write(bytes->data(), static_cast<std::streamsize>(bytes->size()));
+    if (!output) return rocket_stage0_error("could not write binary file contents");
+    return rocket_stage0_ok(true);
+  } catch (const std::exception& error) { return rocket_stage0_error(error.what()); }
+}
+inline RocketAggregate rocket_std_file_write_binary(const std::string& path,
+                                                     const RocketAggregate& buffer) {
+  return rocket_stage0_write_binary_file(path, buffer, std::ios::trunc);
+}
+inline RocketAggregate rocket_std_file_append_binary(const std::string& path,
+                                                      const RocketAggregate& buffer) {
+  return rocket_stage0_write_binary_file(path, buffer, std::ios::app);
 }
 inline bool rocket_std_file_exists(const std::string& path) {
   std::error_code error;

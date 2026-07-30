@@ -1,8 +1,9 @@
-# Rocket Standard Library through 1.3
+# Rocket Standard Library through the Rocket 1.5 foundation
 
 The stable library is a set of built-in source modules, including the Rocket 1.2
-dot-call additions and unchanged by Rocket 1.3 native interoperability. Import a
-module by its stable name; no package file or downloaded dependency is required:
+dot-call additions, the unchanged Rocket 1.3 native boundary, and the first
+Rocket 1.5 production-library APIs. Import a module by its stable name; no
+package file or downloaded dependency is required:
 
 ```rocket
 import std.file
@@ -111,6 +112,33 @@ String construction may use `String.from_int(value)`, while
 `std.string.from_int(value)` remains valid. These aliases resolve to the same
 standard intrinsics and do not add runtime entry points.
 
+## `std.binary` (Rocket 1.5 foundation)
+
+`std.collections.ByteBuffer` is an immutable wrapper around `Array[Char]` and
+stores arbitrary bytes, including zero and invalid UTF-8. Binary operations
+never panic for data-dependent bounds, encoding, or numeric-range failures;
+they return `Result[..., String]`.
+
+| Function | Result | Meaning |
+| --- | --- | --- |
+| `from_string(value: String)` | `ByteBuffer` | Copy the complete UTF-8 byte sequence, including embedded zero bytes |
+| `to_string(buffer: ByteBuffer)` | `Result[String, String]` | Validate UTF-8 and copy it into an immutable String |
+| `length(buffer: ByteBuffer)` | `Int` | Return the byte count |
+| `slice(buffer: ByteBuffer, offset: Int, length: Int)` | `Result[ByteBuffer, String]` | Copy a checked byte range |
+| `read_u8(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read one unsigned byte |
+| `read_u16_le(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read a little-endian unsigned 16-bit integer |
+| `read_u32_le(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read a little-endian unsigned 32-bit integer |
+| `write_u8(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 8-bit integer |
+| `write_u16_le(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 16-bit integer |
+| `write_u32_le(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 32-bit integer |
+
+Offsets are zero-based. Reads reject negative or truncated ranges. Writes
+reject negative values and values outside the selected unsigned width. The
+little-endian spelling is explicit so serialized data is independent of the
+host CPU. These functions are synchronous CPU operations and do not retain
+hidden mutable cursor state. Buffered stream objects and additional encodings
+remain later Phase 15 work.
+
 ## `std.file` and `std.path`
 
 `file.read_text`, `write_text`, and `append_text` use binary byte-preserving I/O
@@ -118,6 +146,12 @@ and return `Result`. `file.exists` returns `Bool`; `file.create_directory`
 creates missing parent directories and returns `Result[Bool, String]`;
 `file.remove` returns `Result[Bool, String]`; `file.list` returns a lexically sorted
 `Result[Array[String], String]` containing entry names.
+
+`file.read_binary(path)` returns `Result[ByteBuffer, String]` without text
+decoding. `file.write_binary(path, buffer)` replaces a file and
+`file.append_binary(path, buffer)` appends to it; both return
+`Result[Bool, String]`. All file functions are synchronous and may block the
+calling thread. Operating-system errors are recoverable `Err(String)` values.
 
 Paths are UTF-8 at the Rocket boundary. `path.join`, `basename`, `extension`,
 and `normalize` perform lexical platform-native operations. They do not touch

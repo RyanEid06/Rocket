@@ -265,6 +265,9 @@ add_test(NAME cli_check_phase6_modules
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase6_modules.rocket")
 add_test(NAME cli_check_phase7_stdlib
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
+add_test(NAME cli_check_phase15_binary_io
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_binary_io.rocket")
+set_tests_properties(cli_check_phase15_binary_io PROPERTIES LABELS "phase15;stdlib")
 add_test(NAME cli_check_phase8_package
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
 add_test(NAME cli_check_phase9_bootstrap_primitives
@@ -481,6 +484,12 @@ if(LLVM_FOUND)
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
   set_tests_properties(cli_run_phase7_stdlib PROPERTIES
     PASS_REGULAR_EXPRESSION "Rocket Standard Library[\r\n]+23")
+
+  add_test(NAME cli_run_phase15_binary_io
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_binary_io.rocket")
+  set_tests_properties(cli_run_phase15_binary_io PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-binary-ok"
+    LABELS "phase15;stdlib")
 
   add_test(NAME cli_run_phase11_array_mutation
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
@@ -763,6 +772,11 @@ else()
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
   set_tests_properties(cli_run_stage0_phase7_stdlib PROPERTIES
     PASS_REGULAR_EXPRESSION "Rocket Standard Library[\r\n]+23")
+  add_test(NAME cli_run_stage0_phase15_binary_io
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_binary_io.rocket")
+  set_tests_properties(cli_run_stage0_phase15_binary_io PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-binary-ok"
+    LABELS "phase15;stdlib;stage0")
   add_test(NAME cli_run_stage0_phase11_array_mutation
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
   set_tests_properties(cli_run_stage0_phase11_array_mutation PROPERTIES

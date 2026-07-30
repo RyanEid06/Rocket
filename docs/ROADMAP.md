@@ -223,14 +223,19 @@ a substantial event-driven native application.
 - A clean Windows machine can build and run the packaged application from the
   published instructions.
 
-### Phase 15 - Rocket 1.5: production standard library
+### Phase 15 - Rocket 1.5: production standard library - In progress
 
 **Purpose:** Cover the common facilities required by tools, games, services, and
 desktop applications without forcing every project to reinvent foundations.
 
 **Library work:**
 
-- Add byte buffers, binary I/O, buffered streams, and encoding primitives.
+- Foundation delivered: immutable byte buffers, exact binary file I/O,
+  bounds-checked slicing, UTF-8 conversion, and explicit little-endian unsigned
+  integer codecs with stage0/self-hosted parity.
+
+- Continue the delivered byte/binary foundation with buffered streams and
+  additional encoding primitives.
 - Add complete Unicode scalar iteration, normalization boundaries, and practical
   grapheme-aware APIs.
 - Add regular expressions through a safe, documented implementation or binding.

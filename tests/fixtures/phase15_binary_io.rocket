@@ -1,0 +1,100 @@
+import std.binary
+import std.file
+
+fn main() -> Int:
+    let encoded = binary.write_u32_le(305419896)
+    match encoded:
+        case Ok(buffer):
+            if binary.length(buffer) != 4:
+                return 1
+            let decoded = binary.read_u32_le(buffer, 0)
+            match decoded:
+                case Ok(value):
+                    if value != 305419896:
+                        return 2
+                case Err(error):
+                    print(error)
+                    return 3
+            let middle = binary.slice(buffer, 1, 2)
+            match middle:
+                case Ok(part):
+                    let middle_value = binary.read_u16_le(part, 0)
+                    match middle_value:
+                        case Ok(value):
+                            if value != 13398:
+                                return 4
+                        case Err(error):
+                            print(error)
+                            return 5
+                case Err(error):
+                    print(error)
+                    return 6
+            let wrote = file.write_binary("phase15_binary_temp.bin", buffer)
+            match wrote:
+                case Ok(success):
+                    if not success:
+                        return 7
+                case Err(error):
+                    print(error)
+                    return 8
+            let encoded_tail = binary.write_u16_le(43981)
+            match encoded_tail:
+                case Ok(tail):
+                    let appended = file.append_binary("phase15_binary_temp.bin", tail)
+                    match appended:
+                        case Ok(success):
+                            if not success:
+                                return 9
+                        case Err(error):
+                            print(error)
+                            return 10
+                case Err(error):
+                    print(error)
+                    return 11
+        case Err(error):
+            print(error)
+            return 12
+
+    let stored = file.read_binary("phase15_binary_temp.bin")
+    match stored:
+        case Ok(buffer):
+            if binary.length(buffer) != 6:
+                return 13
+            let decoded = binary.read_u32_le(buffer, 0)
+            match decoded:
+                case Ok(value):
+                    if value != 305419896:
+                        return 14
+                case Err(error):
+                    print(error)
+                    return 15
+            let tail = binary.read_u16_le(buffer, 4)
+            match tail:
+                case Ok(value):
+                    if value != 43981:
+                        return 16
+                case Err(error):
+                    print(error)
+                    return 17
+        case Err(error):
+            print(error)
+            return 18
+    file.remove("phase15_binary_temp.bin")
+
+    let text_buffer = binary.from_string("Rocket UTF-8")
+    let text = binary.to_string(text_buffer)
+    match text:
+        case Ok(value):
+            if value != "Rocket UTF-8":
+                return 19
+        case Err(error):
+            print(error)
+            return 20
+
+    let invalid = binary.write_u8(256)
+    match invalid:
+        case Ok(buffer):
+            return 21
+        case Err(error):
+            print("phase15-binary-ok")
+    return 0

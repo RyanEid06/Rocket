@@ -116,6 +116,7 @@ $conformanceSources = @(
     (Join-Path $fixtures 'phase6_types.rocket')
     (Join-Path $fixtures 'phase6_modules.rocket')
     (Join-Path $fixtures 'phase7_stdlib.rocket')
+    (Join-Path $fixtures 'phase15_binary_io.rocket')
     (Join-Path $fixtures 'phase11_array_mutation.rocket')
     (Join-Path $fixtures 'phase11_array_growth.rocket')
     (Join-Path $fixtures 'phase11_map_set_tuple.rocket')

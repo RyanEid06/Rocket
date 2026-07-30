@@ -681,6 +681,102 @@ std::uint64_t stableHash(const std::uint8_t* bytes, std::size_t length) {
   return hash & 0x7fffffffffffffffULL;
 }
 
+RocketArray* byteArray(std::string_view bytes) {
+  RocketArray* result = rocket_rt_array_new(ROCKET_ELEMENT_CHAR, bytes.size());
+  for (std::size_t index = 0; index < bytes.size(); ++index)
+    rocket_rt_array_set_char(result, static_cast<std::int64_t>(index),
+                             static_cast<std::uint8_t>(bytes[index]));
+  return result;
+}
+
+RocketAggregate* byteBuffer(RocketArray* bytes) {
+  RocketAggregate* result = rocket_rt_aggregate_new(0, 1, 1);
+  rocket_rt_aggregate_set_managed(result, 0, bytes);
+  return result;
+}
+
+RocketArray* byteBufferBytes(RocketAggregate* buffer) {
+  return static_cast<RocketArray*>(rocket_rt_aggregate_get_managed(buffer, 0));
+}
+
+std::string byteBufferValue(RocketAggregate* buffer) {
+  RocketArray* bytes = byteBufferBytes(buffer);
+  const std::uint64_t length = rocket_rt_collection_length(bytes);
+  std::string result(static_cast<std::size_t>(length), '\0');
+  for (std::uint64_t index = 0; index < length; ++index)
+    result[static_cast<std::size_t>(index)] = static_cast<char>(
+        rocket_rt_index_char(bytes, static_cast<std::int64_t>(index)));
+  rocket_rt_release(bytes);
+  return result;
+}
+
+bool validUtf8(std::string_view input) {
+  std::size_t index = 0;
+  while (index < input.size()) {
+    const auto first = static_cast<std::uint8_t>(input[index]);
+    if (first <= 0x7f) { ++index; continue; }
+    std::size_t count = 0;
+    std::uint32_t codepoint = 0;
+    std::uint32_t minimum = 0;
+    if (first >= 0xc2 && first <= 0xdf) {
+      count = 2; codepoint = first & 0x1f; minimum = 0x80;
+    } else if (first >= 0xe0 && first <= 0xef) {
+      count = 3; codepoint = first & 0x0f; minimum = 0x800;
+    } else if (first >= 0xf0 && first <= 0xf4) {
+      count = 4; codepoint = first & 0x07; minimum = 0x10000;
+    } else {
+      return false;
+    }
+    if (count > input.size() - index) return false;
+    for (std::size_t continuation = 1; continuation < count; ++continuation) {
+      const auto byte = static_cast<std::uint8_t>(input[index + continuation]);
+      if ((byte & 0xc0) != 0x80) return false;
+      codepoint = (codepoint << 6) | (byte & 0x3f);
+    }
+    if (codepoint < minimum || codepoint > 0x10ffff ||
+        (codepoint >= 0xd800 && codepoint <= 0xdfff))
+      return false;
+    index += count;
+  }
+  return true;
+}
+
+RocketAggregate* binaryRead(RocketAggregate* buffer, std::int64_t offset,
+                            std::uint64_t width) {
+  RocketArray* bytes = byteBufferBytes(buffer);
+  const std::uint64_t length = rocket_rt_collection_length(bytes);
+  if (offset < 0 || static_cast<std::uint64_t>(offset) > length ||
+      width > length - static_cast<std::uint64_t>(offset)) {
+    rocket_rt_release(bytes);
+    return errorResult("binary read is outside the buffer");
+  }
+  std::uint64_t value = 0;
+  for (std::uint64_t index = 0; index < width; ++index)
+    value |= static_cast<std::uint64_t>(rocket_rt_index_char(
+                 bytes, offset + static_cast<std::int64_t>(index)))
+             << (index * 8);
+  rocket_rt_release(bytes);
+  return okInt(static_cast<std::int64_t>(value));
+}
+
+RocketAggregate* binaryWrite(std::int64_t value, std::uint64_t width) {
+  const std::uint64_t maximum = width == 1 ? 0xffULL
+                               : width == 2 ? 0xffffULL
+                                            : 0xffffffffULL;
+  if (value < 0 || static_cast<std::uint64_t>(value) > maximum)
+    return errorResult("binary integer is outside the unsigned encoding range");
+  RocketArray* bytes = rocket_rt_array_new(ROCKET_ELEMENT_CHAR, width);
+  for (std::uint64_t index = 0; index < width; ++index)
+    rocket_rt_array_set_char(bytes, static_cast<std::int64_t>(index),
+                             static_cast<std::uint8_t>(
+                                 static_cast<std::uint64_t>(value) >> (index * 8)));
+  RocketAggregate* buffer = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
 } // namespace
 
 extern "C" {
@@ -1254,6 +1350,80 @@ RocketString* rocket_std_collections_join(RocketArray* values, RocketString* sep
   return makeString(output);
 }
 
+RocketAggregate* rocket_std_binary_from_string(RocketString* value) {
+  RocketArray* bytes = byteArray(stringValue(value));
+  RocketAggregate* result = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  return result;
+}
+
+RocketAggregate* rocket_std_binary_to_string(RocketAggregate* buffer) {
+  const std::string bytes = byteBufferValue(buffer);
+  if (!validUtf8(bytes)) return errorResult("buffer is not valid UTF-8");
+  RocketString* value = makeString(bytes);
+  RocketAggregate* result = okManaged(value);
+  rocket_rt_release(value);
+  return result;
+}
+
+std::int64_t rocket_std_binary_length(RocketAggregate* buffer) {
+  RocketArray* bytes = byteBufferBytes(buffer);
+  const auto length = static_cast<std::int64_t>(rocket_rt_collection_length(bytes));
+  rocket_rt_release(bytes);
+  return length;
+}
+
+RocketAggregate* rocket_std_binary_slice(RocketAggregate* buffer,
+                                         std::int64_t offset,
+                                         std::int64_t length) {
+  RocketArray* bytes = byteBufferBytes(buffer);
+  const std::uint64_t available = rocket_rt_collection_length(bytes);
+  if (offset < 0 || length < 0 || static_cast<std::uint64_t>(offset) > available ||
+      static_cast<std::uint64_t>(length) >
+          available - static_cast<std::uint64_t>(offset)) {
+    rocket_rt_release(bytes);
+    return errorResult("binary slice is outside the buffer");
+  }
+  RocketArray* sliced = rocket_rt_array_new(ROCKET_ELEMENT_CHAR,
+                                             static_cast<std::uint64_t>(length));
+  for (std::int64_t index = 0; index < length; ++index)
+    rocket_rt_array_set_char(sliced, index,
+                             rocket_rt_index_char(bytes, offset + index));
+  rocket_rt_release(bytes);
+  RocketAggregate* slicedBuffer = byteBuffer(sliced);
+  rocket_rt_release(sliced);
+  RocketAggregate* result = okManaged(slicedBuffer);
+  rocket_rt_release(slicedBuffer);
+  return result;
+}
+
+RocketAggregate* rocket_std_binary_read_u8(RocketAggregate* buffer,
+                                           std::int64_t offset) {
+  return binaryRead(buffer, offset, 1);
+}
+
+RocketAggregate* rocket_std_binary_read_u16_le(RocketAggregate* buffer,
+                                               std::int64_t offset) {
+  return binaryRead(buffer, offset, 2);
+}
+
+RocketAggregate* rocket_std_binary_read_u32_le(RocketAggregate* buffer,
+                                               std::int64_t offset) {
+  return binaryRead(buffer, offset, 4);
+}
+
+RocketAggregate* rocket_std_binary_write_u8(std::int64_t value) {
+  return binaryWrite(value, 1);
+}
+
+RocketAggregate* rocket_std_binary_write_u16_le(std::int64_t value) {
+  return binaryWrite(value, 2);
+}
+
+RocketAggregate* rocket_std_binary_write_u32_le(std::int64_t value) {
+  return binaryWrite(value, 4);
+}
+
 RocketAggregate* rocket_std_file_read_text(RocketString* path) {
   try {
     std::ifstream input(pathValue(path), std::ios::binary);
@@ -1318,6 +1488,44 @@ RocketAggregate* rocket_std_file_create_directory(RocketString* path) {
     if (error) return errorResult(error.message());
     return okBool(created);
   } catch (const std::exception& error) { return errorResult(error.what()); }
+}
+
+RocketAggregate* rocket_std_file_read_binary(RocketString* path) {
+  try {
+    std::ifstream input(pathValue(path), std::ios::binary);
+    if (!input) return errorResult("could not open file for binary reading");
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    const std::string bytes = contents.str();
+    RocketArray* array = byteArray(bytes);
+    RocketAggregate* buffer = byteBuffer(array);
+    rocket_rt_release(array);
+    RocketAggregate* result = okManaged(buffer);
+    rocket_rt_release(buffer);
+    return result;
+  } catch (const std::exception& error) { return errorResult(error.what()); }
+}
+
+RocketAggregate* writeBinaryFile(RocketString* path, RocketAggregate* buffer,
+                                 std::ios::openmode mode) {
+  try {
+    std::ofstream output(pathValue(path), std::ios::binary | mode);
+    if (!output) return errorResult("could not open file for binary writing");
+    const std::string bytes = byteBufferValue(buffer);
+    output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    if (!output) return errorResult("could not write binary file contents");
+    return okBool(true);
+  } catch (const std::exception& error) { return errorResult(error.what()); }
+}
+
+RocketAggregate* rocket_std_file_write_binary(RocketString* path,
+                                              RocketAggregate* buffer) {
+  return writeBinaryFile(path, buffer, std::ios::trunc);
+}
+
+RocketAggregate* rocket_std_file_append_binary(RocketString* path,
+                                               RocketAggregate* buffer) {
+  return writeBinaryFile(path, buffer, std::ios::app);
 }
 
 RocketString* rocket_std_path_join(RocketString* left, RocketString* right) {

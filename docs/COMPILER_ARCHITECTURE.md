@@ -310,3 +310,24 @@ The handwritten Rocket wrapper is the safety boundary and contains every
 constants used as imported values and both test runners preserve package-native
 link inputs. Bootstrap compares stage2/stage3 raylib binding output and builds
 and tests the reference package without launching its interactive window.
+
+## Rocket 1.5 standard-library foundation
+
+The first Phase 15 slice keeps `ByteBuffer` as the existing transparent,
+immutable `Array[Char]` wrapper. `std.binary` is typed through ordinary virtual
+standard signatures, lowers to explicit MIR calls, and uses runtime ABI entry
+points that accept or return ARC aggregates. No byte-buffer-specific MIR type,
+mutation rule, pointer exposure, or calling convention is introduced.
+
+Binary reads and slices return `Result` for data-dependent bounds failures.
+Unsigned integer writes also return `Result` for range failures. Little-endian
+width is encoded in each function name and runtime entry point. String decoding
+validates complete UTF-8, rejecting overlong forms, surrogate code points,
+invalid continuations, and scalar values above U+10FFFF. File binary APIs move
+the same buffer representation through synchronous byte-preserving streams and
+translate host failures to `Err(String)`.
+
+The C++ stage0 header supplies equivalent RAII implementations, while the
+self-hosted compiler declares the same signatures and ABI names. This preserves
+bootstrap parity and leaves stateful buffered streams, broader Unicode, crypto,
+networking, archives, and databases for additive Phase 15 slices.

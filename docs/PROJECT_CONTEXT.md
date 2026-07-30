@@ -28,7 +28,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.4 is self-hosted. The production `rocketc` is written in Rocket,
+Rocket 1.5 standard-library development is in progress on the self-hosted
+Rocket 1.4 foundation. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -103,10 +104,17 @@ Implemented:
   validated opaque resource tokens, deterministic cleanup, a reusable app
   scaffold and bundle workflow, and the non-casino Orbital Workshop reference
   application with matching stage0/self-hosted behavior.
+- Rocket 1.5 binary-data foundation with immutable ByteBuffer values, exact
+  binary file I/O, checked slicing, UTF-8 validation, explicit little-endian
+  unsigned integer codecs, ordinary Result failures, and matching stage0 and
+  self-hosted compiler signatures.
 
 Not implemented yet:
 
-- A production-scale standard library, third-party dependency management and
+- The remaining production-scale standard library (buffered streams, complete
+  Unicode, regex, secure randomness/crypto, networking/HTTP, calendars/time
+  zones, logging/configuration, archives, databases, and application testing),
+  third-party dependency management and
   registry, semantic language-server/debugger features, robust concurrency/async
   support, broader native calling conventions, dynamic native loading, the full
   raylib surface, and non-Windows targets.
@@ -517,11 +525,30 @@ Known limitations remain those in the implementation-state list above; no langua
   IR SHA-256 is
   `5e5a33f1a38ac2192ee71b972e79bfc67f1e5e85ba6e0fbe19ffe63fdfe7e407`.
 
+**Phase 15 - Rocket 1.5 production standard library (in progress)**
+
+- Accepted Phase 14 and began Phase 15 from the completed `7f1e145` baseline.
+- Kept `std.collections.ByteBuffer` as a transparent immutable Array-backed
+  product and added `std.binary` UTF-8 conversion, checked slicing, byte counts,
+  unsigned 8/16/32-bit little-endian reads, and matching writes.
+- Added synchronous exact-byte `file.read_binary`, `write_binary`, and
+  `append_binary` APIs. Data, bounds, encoding, numeric-range, and host failures
+  use ordinary `Result[..., String]` values.
+- Added runtime ABI functions, preserved stage0 RAII implementations,
+  self-hosted compiler signatures/runtime declarations, direct lifetime tests,
+  and LLVM/stage0 Rocket integration coverage.
+- Recorded architecture and standard-library contracts plus decision D021.
+- Verified pinned LLVM Debug and Release matrices (113/113 tests each) and
+  LLVM-disabled stage0 Debug and Release matrices (73/73 tests each).
+- Verified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap with
+  the Phase 15 binary fixture checked by all stages and run by stage3. Stage2
+  and stage3 LLVM IR are byte-identical at SHA-256
+  `290261b620449944f5d8b6f8fe8843b70e511662a9f2f48edd01c4f3668c1a7f`.
+
 ## Current next task
 
-**Phase 15 - Rocket 1.5 production standard library.**
-
-Do not begin Phase 15 until Phase 14 is reviewed and explicitly accepted.
+**Continue Phase 15 with persistent buffered reader/writer values and additional
+encoding primitives, then proceed to complete Unicode scalar and grapheme APIs.**
 
 ## New-chat prompt
 

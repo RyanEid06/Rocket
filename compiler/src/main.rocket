@@ -987,6 +987,45 @@ fn intrinsic_collections_fold_sum_int() -> Int:
 fn intrinsic_collections_fold_sum_float() -> Int:
     return 73
 
+fn intrinsic_file_read_binary() -> Int:
+    return 74
+
+fn intrinsic_file_write_binary() -> Int:
+    return 75
+
+fn intrinsic_file_append_binary() -> Int:
+    return 76
+
+fn intrinsic_binary_from_string() -> Int:
+    return 77
+
+fn intrinsic_binary_to_string() -> Int:
+    return 78
+
+fn intrinsic_binary_length() -> Int:
+    return 79
+
+fn intrinsic_binary_slice() -> Int:
+    return 80
+
+fn intrinsic_binary_read_u8() -> Int:
+    return 81
+
+fn intrinsic_binary_read_u16_le() -> Int:
+    return 82
+
+fn intrinsic_binary_read_u32_le() -> Int:
+    return 83
+
+fn intrinsic_binary_write_u8() -> Int:
+    return 84
+
+fn intrinsic_binary_write_u16_le() -> Int:
+    return 85
+
+fn intrinsic_binary_write_u32_le() -> Int:
+    return 86
+
 fn mir_constant() -> Int:
     return 0
 
@@ -2886,6 +2925,32 @@ fn standard_signature(name: String) -> StandardSignature:
         return StandardSignature(true, [], ["String"], "Result[Array[String], String]", intrinsic_file_list())
     if name == "std.file.create_directory":
         return StandardSignature(true, [], ["String"], "Result[Bool, String]", intrinsic_file_create_directory())
+    if name == "std.file.read_binary":
+        return StandardSignature(true, [], ["String"], "Result[std.collections.ByteBuffer, String]", intrinsic_file_read_binary())
+    if name == "std.file.write_binary":
+        return StandardSignature(true, [], ["String", "std.collections.ByteBuffer"], "Result[Bool, String]", intrinsic_file_write_binary())
+    if name == "std.file.append_binary":
+        return StandardSignature(true, [], ["String", "std.collections.ByteBuffer"], "Result[Bool, String]", intrinsic_file_append_binary())
+    if name == "std.binary.from_string":
+        return StandardSignature(true, [], ["String"], "std.collections.ByteBuffer", intrinsic_binary_from_string())
+    if name == "std.binary.to_string":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer"], "Result[String, String]", intrinsic_binary_to_string())
+    if name == "std.binary.length":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer"], "Int", intrinsic_binary_length())
+    if name == "std.binary.slice":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "Int", "Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_slice())
+    if name == "std.binary.read_u8":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "Int"], "Result[Int, String]", intrinsic_binary_read_u8())
+    if name == "std.binary.read_u16_le":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "Int"], "Result[Int, String]", intrinsic_binary_read_u16_le())
+    if name == "std.binary.read_u32_le":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "Int"], "Result[Int, String]", intrinsic_binary_read_u32_le())
+    if name == "std.binary.write_u8":
+        return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_write_u8())
+    if name == "std.binary.write_u16_le":
+        return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_write_u16_le())
+    if name == "std.binary.write_u32_le":
+        return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_write_u32_le())
     if name == "std.path.join":
         return StandardSignature(true, [], ["String", "String"], "String", intrinsic_path_join())
     if name == "std.path.basename":
@@ -4779,6 +4844,32 @@ fn intrinsic_runtime_name(intrinsic: Int) -> String:
         return "@rocket_std_file_list"
     if intrinsic == intrinsic_file_create_directory():
         return "@rocket_std_file_create_directory"
+    if intrinsic == intrinsic_file_read_binary():
+        return "@rocket_std_file_read_binary"
+    if intrinsic == intrinsic_file_write_binary():
+        return "@rocket_std_file_write_binary"
+    if intrinsic == intrinsic_file_append_binary():
+        return "@rocket_std_file_append_binary"
+    if intrinsic == intrinsic_binary_from_string():
+        return "@rocket_std_binary_from_string"
+    if intrinsic == intrinsic_binary_to_string():
+        return "@rocket_std_binary_to_string"
+    if intrinsic == intrinsic_binary_length():
+        return "@rocket_std_binary_length"
+    if intrinsic == intrinsic_binary_slice():
+        return "@rocket_std_binary_slice"
+    if intrinsic == intrinsic_binary_read_u8():
+        return "@rocket_std_binary_read_u8"
+    if intrinsic == intrinsic_binary_read_u16_le():
+        return "@rocket_std_binary_read_u16_le"
+    if intrinsic == intrinsic_binary_read_u32_le():
+        return "@rocket_std_binary_read_u32_le"
+    if intrinsic == intrinsic_binary_write_u8():
+        return "@rocket_std_binary_write_u8"
+    if intrinsic == intrinsic_binary_write_u16_le():
+        return "@rocket_std_binary_write_u16_le"
+    if intrinsic == intrinsic_binary_write_u32_le():
+        return "@rocket_std_binary_write_u32_le"
     if intrinsic == intrinsic_path_join():
         return "@rocket_std_path_join"
     if intrinsic == intrinsic_path_basename():
@@ -4957,6 +5048,19 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare ptr @rocket_std_file_remove(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_file_list(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_file_create_directory(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_file_read_binary(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_file_write_binary(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_file_append_binary(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_from_string(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_to_string(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_binary_length(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_slice(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_read_u8(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_read_u16_le(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_read_u32_le(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u8(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u16_le(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u32_le(i64)")
     emit_llvm_line(builder, "declare ptr @rocket_std_path_join(ptr, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_path_basename(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_path_extension(ptr)")

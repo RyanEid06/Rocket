@@ -225,6 +225,27 @@ std::uint8_t rocket_std_file_exists(RocketString* path);
 RocketAggregate* rocket_std_file_remove(RocketString* path);
 RocketAggregate* rocket_std_file_list(RocketString* path);
 RocketAggregate* rocket_std_file_create_directory(RocketString* path);
+RocketAggregate* rocket_std_file_read_binary(RocketString* path);
+RocketAggregate* rocket_std_file_write_binary(RocketString* path,
+                                               RocketAggregate* buffer);
+RocketAggregate* rocket_std_file_append_binary(RocketString* path,
+                                                RocketAggregate* buffer);
+
+RocketAggregate* rocket_std_binary_from_string(RocketString* value);
+RocketAggregate* rocket_std_binary_to_string(RocketAggregate* buffer);
+std::int64_t rocket_std_binary_length(RocketAggregate* buffer);
+RocketAggregate* rocket_std_binary_slice(RocketAggregate* buffer,
+                                         std::int64_t offset,
+                                         std::int64_t length);
+RocketAggregate* rocket_std_binary_read_u8(RocketAggregate* buffer,
+                                           std::int64_t offset);
+RocketAggregate* rocket_std_binary_read_u16_le(RocketAggregate* buffer,
+                                               std::int64_t offset);
+RocketAggregate* rocket_std_binary_read_u32_le(RocketAggregate* buffer,
+                                               std::int64_t offset);
+RocketAggregate* rocket_std_binary_write_u8(std::int64_t value);
+RocketAggregate* rocket_std_binary_write_u16_le(std::int64_t value);
+RocketAggregate* rocket_std_binary_write_u32_le(std::int64_t value);
 
 RocketString* rocket_std_path_join(RocketString* left, RocketString* right);
 RocketString* rocket_std_path_basename(RocketString* path);
