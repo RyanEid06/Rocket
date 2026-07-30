@@ -1,5 +1,10 @@
 # Rocket 1.0 Syntax Dictionary
 
+> Historical compatibility reference: this document intentionally describes
+> only the frozen Rocket 1.0 surface. See the additive 1.1-1.5 dictionaries,
+> [SPEC.md](SPEC.md), and [STDLIB.md](STDLIB.md) for the current implemented
+> language and library surface.
+
 This is the practical, copyable reference for writing Rocket 1.0 programs. It
 summarizes the frozen language specification, standard modules, package format,
 and compiler commands. Where this guide says a feature is unavailable, do not

@@ -1,4 +1,8 @@
-# Rocket Tooling and Packages 1.4
+# Rocket Tooling and Packages through the 1.7 Foundations
+
+Rocket 1.5 is the latest completed release. This guide also documents the
+available but incomplete Rocket 1.6 dependency-resolution and Rocket 1.7
+language-server foundations; their deferred work is not a release promise.
 
 ## Create and use a package
 

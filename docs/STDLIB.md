@@ -105,7 +105,7 @@ callback convention in 1.1.
 `Queue[T]`, `Stack[T]`, and `ByteBuffer` are ordinary immutable wrappers around
 an insertion-ordered `Array[T]`, `Array[T]`, and `Array[Char]` respectively.
 Their public `values`/`bytes` snapshots compose with the Array operations above;
-Rocket 1.2 development adds dot-call convenience without changing
+Rocket 1.2 adds dot-call convenience without changing
 representation. Examples include `values.length()`, `values.append(value)`,
 `map.get(key)`, `set.contains(value)`, and `text.trim()`. `Slice[T]` currently
 supports `length()`; Array-only operations remain unavailable on Slice. Static

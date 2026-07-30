@@ -2,6 +2,13 @@
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
+Rocket is complete through the validated 1.5 standard-library release. The
+repository also contains incomplete Rocket 1.6 package-management and Rocket
+1.7 language-server foundations; those foundations are available for continued
+development but are not completed releases. Phases 16 through 20 must pass the
+[master roadmap](docs/ROADMAP.md) before the separate casino application may
+begin.
+
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
 optimized Windows x64 executables. Its linked ABI-v1 runtime provides ARC,
@@ -77,6 +84,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.p
 
 See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md),
+[package-resolution foundation](docs/PACKAGES.md),
 [language-server protocol](docs/LANGUAGE_SERVER.md),
 [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md),
 [Rocket 1.1 syntax additions](docs/ROCKET_1_1_SYNTAX_DICTIONARY.md),

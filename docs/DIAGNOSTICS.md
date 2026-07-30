@@ -1,4 +1,8 @@
-# Rocket Diagnostic Catalog 1.0
+# Rocket Diagnostic Catalog
+
+The `Rdddd` format and original categories were frozen for Rocket 1.0. The
+catalog has since grown additively for native interoperability and the Rocket
+1.6 package foundation without changing existing code identities.
 
 Compiler diagnostics use the stable shape:
 
