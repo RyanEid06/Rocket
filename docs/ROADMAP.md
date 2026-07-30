@@ -269,6 +269,14 @@ desktop applications without forcing every project to reinvent foundations.
 
 ### Phase 16 - Rocket 1.6: dependency management and package ecosystem
 
+**Foundation implemented; completion work remains.** The existing stage0
+foundation parses Semantic Versioning registry, pinned-Git, and local-path
+dependencies; resolves deterministic single-version graphs; writes and verifies
+`rocket.lock`; maintains a SHA-256 content-addressed cache; and provides
+`resolve`, `tree`, and basic license/integrity `audit` commands. It currently
+uses reviewed local/file registry and Git exports only and is not a complete
+package ecosystem.
+
 **Purpose:** Make reusable third-party Rocket libraries discoverable,
 reproducible, secure, and easy to publish.
 
@@ -285,6 +293,53 @@ reproducible, secure, and easy to publish.
   metadata, and dependency auditing.
 - Define build-script and native-dependency policy without granting unrestricted
   implicit code execution.
+
+**Unfinished handoff checklist:**
+
+- Integrate resolved packages into normal compiler module lookup so `check`,
+  `build`, `run`, and `test` consume the exact dependency roots and checksums
+  recorded in `rocket.lock`; imports must never bypass the selected graph.
+- Bring the Rocket-written production compiler CLI to feature parity with the
+  C++ stage0 `resolve`, `tree`, `audit`, locked, and offline workflows, with the
+  same deterministic output and stable diagnostics.
+- Implement authenticated HTTPS registry transport with bounded downloads,
+  redirect and timeout policy, TLS validation, checksum and signed-index
+  verification, safe archive extraction, transactional cache installation, and
+  no credential leakage in manifests, lockfiles, diagnostics, or logs.
+- Implement Git dependency acquisition without shell-command construction:
+  require an immutable commit, verify the fetched object matches the requested
+  revision, reject moving refs/submodules unless explicitly reviewed, and make
+  locked offline reuse independent of a working Git checkout.
+- Turn the registry governance design into tested behavior: immutable
+  `(namespace, name, version)` records, verified namespace ownership and
+  transfer history, reserved-name and anti-typosquatting rules, yanking without
+  deletion, auditable scoped/revocable credentials, and emergency security
+  actions.
+- Add `login`/credential management and `publish` commands with preflight
+  validation, deterministic source archives, duplicate/case-collision/link/path
+  traversal and decompression-limit checks, ownership enforcement, immutable
+  version refusal, and safe retry behavior.
+- Add package documentation generation and publication with API cross-links,
+  examples, package/version identity, deterministic output, and no execution of
+  untrusted examples during publishing.
+- Expand licensing and dependency auditing with SPDX validation, license-policy
+  configuration, signed advisory data, affected-version evaluation, yanked and
+  compromised-package reporting, provenance display, and useful nonzero exit
+  statuses for CI.
+- Finalize an explicit native-dependency/build-script capability policy. If a
+  build hook is introduced, declare and validate its inputs, outputs, target,
+  environment, network access, cache key, sandbox, and user approval; never run
+  dependency code implicitly during resolve, audit, or documentation.
+- Prove clean and offline locked builds produce byte-identical source selection
+  and build artifacts where the pinned toolchain permits, including relocation
+  to a machine with an empty package cache.
+- Add end-to-end tests for conflicting constraints, hostile archives, checksum
+  and signature failures, namespace takeover/typosquatting, revoked credentials,
+  yanks, compromised advisories, poisoned caches, interrupted downloads, and
+  deterministic recovery.
+- Publish several independent test packages through the real workflow and
+  consume them transitively from real executable and library applications in
+  both online and locked-offline modes.
 
 **Acceptance gate:**
 
@@ -318,6 +373,54 @@ operate in substantial codebases.
 - Add code coverage, benchmarking, profiling hooks, and machine-readable compiler
   and test output.
 - Evaluate a REPL based on incremental AOT compilation; a JIT remains optional.
+
+**Unfinished handoff checklist:**
+
+- Replace protocol 0.1's self-contained-document analysis with an incremental,
+  dependency-aware project graph spanning package manifests, locked
+  dependencies, standard modules, open unsaved overlays, and multi-file imports.
+  Support bounded invalidation, cancellation, stale-result suppression, and
+  measured latency/memory limits on large workspaces.
+- Add semantic completion and automatic imports with deterministic ranking,
+  visibility checks, incomplete-code recovery, dependency awareness, and edits
+  that preserve valid Rocket source.
+- Add hover types and documentation plus signature help, including generics,
+  traits, overload/specialization information, parameter position, and links to
+  versioned generated package documentation.
+- Add go-to-definition, find references, and workspace rename across modules and
+  packages. Distinguish definitions from textual matches and reject unsafe or
+  conflicting renames before producing edits.
+- Add versioned semantic-token support for declarations, references, types,
+  fields, parameters, traits, native symbols, and inactive/error regions, with
+  deterministic full and incremental responses.
+- Add code actions for stable compiler diagnostics and safe source
+  transformations, including missing imports where unambiguous; actions must be
+  tested for idempotence and must not silently change program meaning.
+- Support negotiated incremental document synchronization in addition to the
+  bounded full-sync baseline, robust workspace/configuration changes, request
+  cancellation, concurrent clients' request ordering, and protocol-level
+  performance telemetry that does not leak source text.
+- Complete the language-level documentation generator with symbol cross-links,
+  examples, search metadata, source locations, package/version awareness,
+  deterministic output, and malformed/incomplete-source diagnostics.
+- Emit native debug information and integrate a documented editor-neutral debug
+  adapter or equivalent workflow for breakpoints, source mapping, stack traces,
+  variable inspection, and precise panic/runtime-failure locations in both
+  Debug and optimized builds.
+- Finish code-coverage collection and reports, benchmark harnesses, profiler
+  hooks/symbolization, and stable machine-readable compiler/test/build output
+  suitable for CI and editor integrations.
+- Evaluate and document an incremental-AOT REPL prototype, including state
+  lifetime, redefinition, diagnostics, dependency loading, startup latency, and
+  platform limitations; keep JIT support optional unless the evidence justifies
+  it.
+- Add editor-neutral conformance tests for every request and capability,
+  multi-package and incomplete-code fixtures, UTF-16/ranged-edit edge cases,
+  cancellation/staleness races, malformed and oversized messages, deterministic
+  output, and bounded latency regression gates.
+- Validate debugging against optimized and unoptimized executables and prove the
+  versioned protocol and tooling can be used by at least one client other than
+  the existing dependency-free VS Code extension.
 
 **Acceptance gate:**
 
