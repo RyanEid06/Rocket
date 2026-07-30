@@ -97,6 +97,9 @@ add_library(rocketc_core
   src/codegen.cpp
 )
 target_include_directories(rocketc_core PUBLIC src)
+if(WIN32)
+  target_link_libraries(rocketc_core PRIVATE bcrypt)
+endif()
 if(MSVC)
   target_compile_options(rocketc_core PRIVATE /W4 /permissive-)
 else()
@@ -426,6 +429,14 @@ add_test(NAME cli_phase8_invalid_manifest
     "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_invalid_package"
     "-DEXPECTED=error[R5001]"
     -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+add_test(NAME cli_phase16_dependency_workflow
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DFIXTURE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase16_packages"
+    "-DWORK=${CMAKE_BINARY_DIR}/phase16-dependencies"
+    -P "${CMAKE_SOURCE_DIR}/tests/phase16_dependency_test.cmake")
+set_tests_properties(cli_phase16_dependency_workflow PROPERTIES
+  LABELS "phase16;package")
 add_test(NAME cli_phase6_visibility
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"

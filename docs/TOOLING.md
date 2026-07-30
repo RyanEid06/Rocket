@@ -45,6 +45,26 @@ test may use `import src.math` even though its file lives under `tests/`.
 Standalone `.rocket` files remain supported. When no input is supplied,
 package-aware commands use the current directory.
 
+## Phase 16 dependency foundation
+
+The stage0 package workflow accepts `[package].license`, `[package].registry`,
+and a `[dependencies]` table. Registry constraints and pinned `path:`/`git:`
+forms, deterministic `rocket.lock`, SHA-256 caching, offline verification,
+dependency trees, and integrity/license audits are specified in `PACKAGES.md`.
+
+```powershell
+rocketc resolve .
+rocketc resolve . --locked
+rocketc resolve . --offline
+rocketc tree .
+rocketc audit .
+```
+
+Commit `rocket.lock`; do not commit `.rocketc`. The first resolver transport is
+a reviewed local directory or `file://` registry. Network fetching, publishing,
+cached-module import integration, and self-hosted CLI parity remain explicit
+later Phase 16 work rather than hidden behavior in normal compilation.
+
 ## Native inputs and library products
 
 `[build].kind` is `executable`, `static-library`, or `dynamic-library`.

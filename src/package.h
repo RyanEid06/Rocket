@@ -9,10 +9,22 @@ namespace rocket {
 
 enum class PackageOutputKind { Executable, StaticLibrary, DynamicLibrary };
 
+enum class DependencySourceKind { Registry, Git, Path };
+
+struct PackageDependency {
+  std::string name;
+  DependencySourceKind source = DependencySourceKind::Registry;
+  std::string requirement;
+  std::string location;
+  std::string revision;
+};
+
 struct Package {
   std::filesystem::path root;
   std::string name;
   std::string version;
+  std::string license;
+  std::string registry;
   std::filesystem::path entry;
   std::filesystem::path tests;
   PackageOutputKind outputKind = PackageOutputKind::Executable;
@@ -20,6 +32,28 @@ struct Package {
   std::vector<std::string> nativeLibraries;
   std::vector<std::filesystem::path> nativeLibrarySearch;
   std::vector<std::filesystem::path> nativeHeaders;
+  std::vector<PackageDependency> dependencies;
+};
+
+struct LockedPackage {
+  std::string name;
+  std::string version;
+  std::string source;
+  std::string checksum;
+  std::string license;
+  std::vector<std::string> dependencies;
+};
+
+struct PackageLock {
+  std::string rootName;
+  std::string rootVersion;
+  std::vector<std::string> rootDependencies;
+  std::vector<LockedPackage> packages;
+};
+
+struct ResolveOptions {
+  bool offline = false;
+  bool locked = false;
 };
 
 std::optional<Package> loadPackage(const std::filesystem::path& path,
@@ -30,5 +64,19 @@ std::vector<std::filesystem::path> packageTests(const Package& package,
                                                 std::string& error);
 std::vector<std::filesystem::path> rocketSources(const std::filesystem::path& path,
                                                  std::string& error);
+
+bool isValidSemanticVersion(const std::string& version);
+bool semanticVersionSatisfies(const std::string& version,
+                              const std::string& requirement);
+bool resolvePackageDependencies(const Package& package,
+                                const ResolveOptions& options,
+                                PackageLock& lock, std::string& error);
+bool readPackageLock(const std::filesystem::path& path, PackageLock& lock,
+                     std::string& error);
+bool writePackageLock(const std::filesystem::path& path, const PackageLock& lock,
+                      std::string& error);
+std::string packageDependencyTree(const PackageLock& lock);
+bool auditPackageDependencies(const Package& package, const PackageLock& lock,
+                              std::string& report, std::string& error);
 
 } // namespace rocket

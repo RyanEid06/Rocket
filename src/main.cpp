@@ -509,6 +509,48 @@ int testCommand(const fs::path& path) {
   return failed == 0 ? 0 : 1;
 }
 
+int dependencyCommand(const std::string& command, const fs::path& path,
+                      const rocket::ResolveOptions& options = {}) {
+  std::string error;
+  auto package = rocket::loadPackage(path, error);
+  if (!package) {
+    cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+    return 2;
+  }
+  rocket::PackageLock lock;
+  if (command == "resolve") {
+    if (!rocket::resolvePackageDependencies(*package, options, lock, error)) {
+      cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+      return 1;
+    }
+    if (options.offline)
+      std::cout << "offline resolution verified " << lock.packages.size()
+                << " cached package(s)\n";
+    else if (options.locked)
+      std::cout << "locked resolution verified " << lock.packages.size()
+                << " package(s)\n";
+    else
+      std::cout << "resolved " << lock.packages.size() << " package(s); wrote "
+                << (package->root / "rocket.lock").string() << '\n';
+    return 0;
+  }
+  if (!rocket::readPackageLock(package->root / "rocket.lock", lock, error)) {
+    cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+    return 1;
+  }
+  if (command == "tree") {
+    std::cout << rocket::packageDependencyTree(lock);
+    return 0;
+  }
+  std::string report;
+  if (!rocket::auditPackageDependencies(*package, lock, report, error)) {
+    cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+    return 1;
+  }
+  std::cout << report;
+  return 0;
+}
+
 void usage() {
   std::cerr
       << "Rocket compiler " ROCKETC_VERSION "\n"
@@ -517,6 +559,9 @@ void usage() {
          "  rocketc bind <header.h> [--output bindings.rocket]\n"
          "  rocketc fmt [file.rocket|directory] [--check]\n"
          "  rocketc test [file.rocket|package]\n"
+         "  rocketc resolve [package] [--locked|--offline]\n"
+         "  rocketc tree [package]\n"
+         "  rocketc audit [package]\n"
          "  rocketc new <directory> [--name package-name]\n"
          "  rocketc --version\n";
 }
@@ -574,6 +619,37 @@ int main(int argc, char** argv) {
       return 2;
     }
     return testCommand(argc >= 3 ? fs::path(argv[2]) : fs::path("."));
+  }
+  if (command == "resolve") {
+    fs::path path = ".";
+    bool pathSet = false;
+    rocket::ResolveOptions options;
+    for (int index = 2; index < argc; ++index) {
+      const std::string argument = argv[index];
+      if (argument == "--offline") options.offline = true;
+      else if (argument == "--locked") options.locked = true;
+      else if (!pathSet) { path = argument; pathSet = true; }
+      else {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "unexpected resolve argument '" + argument + "'");
+        return 2;
+      }
+    }
+    if (options.offline && options.locked) {
+      cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                    "resolve accepts either --offline or --locked, not both");
+      return 2;
+    }
+    return dependencyCommand(command, path, options);
+  }
+  if (command == "tree" || command == "audit") {
+    if (argc > 3) {
+      cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                    command + " accepts only one package path");
+      return 2;
+    }
+    return dependencyCommand(command, argc == 3 ? fs::path(argv[2])
+                                                 : fs::path("."));
   }
   if (command == "bind") {
     if (argc != 3 && argc != 5) { usage(); return 2; }

@@ -467,3 +467,13 @@ Formatting is not semantically observable. The canonical formatter preserves
 tokens, literals, and line comments while normalizing whitespace and newlines.
 Each test-runner input is an ordinary independent program with the same required
 `fn main() -> Int` entry signature; zero is success and nonzero is failure.
+
+Rocket 1.6 package metadata is an additive tooling contract. Package versions
+are exact Semantic Versioning 2.0.0 values. `[dependencies]` maps a package name
+to a registry constraint, `path:` source, or immutable-revision `git:` source.
+Resolution is deterministic, permits only one selected version per package
+name, and records exact source checksums and graph edges in committed
+`rocket.lock`. A locked offline operation may consume only SHA-256-verified
+content from the package-local generated cache. These rules do not add implicit
+source imports, build-script execution, or a language/runtime ABI feature. The
+complete transport and governance contract is in `PACKAGES.md`.

@@ -28,7 +28,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.5 standard-library development is in progress on the self-hosted
+Rocket 1.5 standard-library development and the explicitly reprioritized first
+Rocket 1.6 package-management milestone are in progress on the self-hosted
 Rocket 1.4 foundation. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
@@ -108,14 +109,21 @@ Implemented:
   binary file I/O, checked slicing, UTF-8 validation, explicit little-endian
   unsigned integer codecs, ordinary Result failures, and matching stage0 and
   self-hosted compiler signatures.
+- Rocket 1.6 stage0 dependency-resolution foundation with Semantic Versioning,
+  registry/path/revision-pinned Git manifest sources, deterministic lockfiles,
+  single-version conflict diagnostics, SHA-256 content-addressed caching,
+  locked/offline verification, dependency trees, integrity/license auditing,
+  hostile-cache tests, and a governed-registry security contract.
 
 Not implemented yet:
 
 - The remaining production-scale standard library (buffered streams, complete
   Unicode, regex, secure randomness/crypto, networking/HTTP, calendars/time
   zones, logging/configuration, archives, databases, and application testing),
-  third-party dependency management and
-  registry, semantic language-server/debugger features, robust concurrency/async
+  production dependency imports, self-hosted resolver parity, authenticated
+  registry/Git transport, publishing, signed registry metadata, advisory feeds,
+  package documentation generation, semantic language-server/debugger features,
+  robust concurrency/async
   support, broader native calling conventions, dynamic native loading, the full
   raylib surface, and non-Windows targets.
   No casino implementation has begun.
@@ -545,10 +553,42 @@ Known limitations remain those in the implementation-state list above; no langua
   and stage3 LLVM IR are byte-identical at SHA-256
   `290261b620449944f5d8b6f8fe8843b70e511662a9f2f48edd01c4f3668c1a7f`.
 
+**Phase 16 - Rocket 1.6 dependency management (foundation in progress)**
+
+- Began Phase 16 from the committed Phase 15 binary-data foundation at
+  `26bd93e` after the user explicitly reprioritized package work.
+- Extended stage0 `rocket.toml` parsing with exact Semantic Versioning 2.0.0,
+  license/registry metadata, registry constraints, local paths, and Git sources
+  pinned to 40- or 64-digit immutable revisions.
+- Added highest-compatible deterministic graph resolution with lexical output,
+  one-version-per-name conflict detection, cycle rejection, and registry
+  directory/manifest version agreement.
+- Added committed deterministic `rocket.lock` files and `rocketc resolve`
+  locked/offline modes, `tree`, and `audit` commands.
+- Added Windows SHA-256 content-addressed source caching with revalidation,
+  transactional copy/rename, symlink rejection, stale-lock checks, missing-cache
+  diagnostics, registry license enforcement, and poisoned-cache refusal.
+- Specified the package, cache, lockfile, no-implicit-build-script, security
+  reporting, namespace ownership, yanking, authentication, and future public
+  registry governance contracts in `PACKAGES.md` and decision D022.
+- Added focused SemVer, transitive resolution, newest-compatible selection,
+  lock round-trip, offline, audit, tampering, and duplicate-version tests plus a
+  complete CLI fixture workflow.
+- Verified pinned LLVM Debug and Release matrices (114/114 tests each) and
+  LLVM-disabled stage0 Debug and Release matrices (74/74 tests each).
+- Reverified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap and
+  the existing compiler/native/package conformance gates. Stage2 and stage3
+  LLVM IR remain byte-identical at SHA-256
+  `290261b620449944f5d8b6f8fe8843b70e511662a9f2f48edd01c4f3668c1a7f`.
+
 ## Current next task
 
-**Continue Phase 15 with persistent buffered reader/writer values and additional
-encoding primitives, then proceed to complete Unicode scalar and grapheme APIs.**
+**Continue Phase 16 by wiring locked cached packages into deterministic module
+loading and implementing matching resolver commands in the Rocket-written
+production compiler. Then add authenticated HTTPS/Git transport, safe archive
+validation, signed registry metadata, advisory ingestion, publishing, and
+package documentation generation. Phase 15's buffered stream and Unicode work
+remains intentionally incomplete and must be resumed before Rocket 1.5 freezes.**
 
 ## New-chat prompt
 

@@ -1,10 +1,23 @@
 #include "package.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <cstdint>
+#include <cstdlib>
 #include <fstream>
+#include <limits>
+#include <map>
+#include <set>
 #include <sstream>
 #include <unordered_set>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt.lib")
+#endif
 
 namespace rocket {
 namespace {
@@ -62,6 +75,119 @@ bool validName(const std::string& name) {
   });
 }
 
+struct SemanticVersion {
+  std::uint64_t major = 0;
+  std::uint64_t minor = 0;
+  std::uint64_t patch = 0;
+  std::string prerelease;
+};
+
+bool parseNumber(const std::string& text, std::uint64_t& value) {
+  if (text.empty() || (text.size() > 1 && text.front() == '0')) return false;
+  value = 0;
+  for (const char character : text) {
+    if (!std::isdigit(static_cast<unsigned char>(character))) return false;
+    const std::uint64_t digit = static_cast<std::uint64_t>(character - '0');
+    if (value > (UINT64_MAX - digit) / 10) return false;
+    value = value * 10 + digit;
+  }
+  return true;
+}
+
+bool validIdentifierList(const std::string& text, bool numericLeadingZeros) {
+  if (text.empty()) return false;
+  std::size_t start = 0;
+  while (start <= text.size()) {
+    const std::size_t end = text.find('.', start);
+    const std::string item = text.substr(
+        start, end == std::string::npos ? std::string::npos : end - start);
+    if (item.empty()) return false;
+    bool numeric = true;
+    for (const char character : item) {
+      if (!std::isalnum(static_cast<unsigned char>(character)) && character != '-')
+        return false;
+      if (!std::isdigit(static_cast<unsigned char>(character))) numeric = false;
+    }
+    if (numericLeadingZeros && numeric && item.size() > 1 && item.front() == '0')
+      return false;
+    if (end == std::string::npos) break;
+    start = end + 1;
+  }
+  return true;
+}
+
+bool parseSemanticVersion(const std::string& text, SemanticVersion& version) {
+  if (text.empty() || text.front() == 'v' || text.front() == 'V') return false;
+  const std::size_t plus = text.find('+');
+  const std::string withoutBuild = text.substr(0, plus);
+  if (plus != std::string::npos &&
+      !validIdentifierList(text.substr(plus + 1), false)) return false;
+  const std::size_t dash = withoutBuild.find('-');
+  const std::string core = withoutBuild.substr(0, dash);
+  version.prerelease = dash == std::string::npos ? std::string{}
+                                                  : withoutBuild.substr(dash + 1);
+  if (dash != std::string::npos &&
+      !validIdentifierList(version.prerelease, true)) return false;
+  const std::size_t first = core.find('.');
+  const std::size_t second = first == std::string::npos
+                                 ? std::string::npos
+                                 : core.find('.', first + 1);
+  if (first == std::string::npos || second == std::string::npos ||
+      core.find('.', second + 1) != std::string::npos) return false;
+  return parseNumber(core.substr(0, first), version.major) &&
+         parseNumber(core.substr(first + 1, second - first - 1), version.minor) &&
+         parseNumber(core.substr(second + 1), version.patch);
+}
+
+int compareIdentifiers(const std::string& left, const std::string& right) {
+  const auto digits = [](const std::string& value) {
+    return !value.empty() &&
+           std::all_of(value.begin(), value.end(), [](const char character) {
+             return std::isdigit(static_cast<unsigned char>(character));
+           });
+  };
+  const bool leftNumeric = digits(left);
+  const bool rightNumeric = digits(right);
+  if (leftNumeric && rightNumeric) {
+    if (left.size() != right.size()) return left.size() < right.size() ? -1 : 1;
+  } else if (leftNumeric != rightNumeric) {
+    return leftNumeric ? -1 : 1;
+  }
+  if (left == right) return 0;
+  return left < right ? -1 : 1;
+}
+
+int compareSemanticVersions(const SemanticVersion& left,
+                            const SemanticVersion& right) {
+  if (left.major != right.major) return left.major < right.major ? -1 : 1;
+  if (left.minor != right.minor) return left.minor < right.minor ? -1 : 1;
+  if (left.patch != right.patch) return left.patch < right.patch ? -1 : 1;
+  if (left.prerelease.empty() != right.prerelease.empty())
+    return left.prerelease.empty() ? 1 : -1;
+  if (left.prerelease.empty()) return 0;
+  auto identifiers = [](const std::string& value) {
+    std::vector<std::string> result;
+    std::size_t start = 0;
+    while (start <= value.size()) {
+      const std::size_t end = value.find('.', start);
+      result.push_back(value.substr(
+          start, end == std::string::npos ? std::string::npos : end - start));
+      if (end == std::string::npos) break;
+      start = end + 1;
+    }
+    return result;
+  };
+  const auto leftParts = identifiers(left.prerelease);
+  const auto rightParts = identifiers(right.prerelease);
+  const std::size_t count = std::min(leftParts.size(), rightParts.size());
+  for (std::size_t index = 0; index < count; ++index) {
+    const int compared = compareIdentifiers(leftParts[index], rightParts[index]);
+    if (compared != 0) return compared;
+  }
+  if (leftParts.size() == rightParts.size()) return 0;
+  return leftParts.size() < rightParts.size() ? -1 : 1;
+}
+
 bool containedPath(const std::filesystem::path& root,
                    const std::filesystem::path& candidate) {
   const auto relative = candidate.lexically_relative(root);
@@ -97,7 +223,140 @@ bool ignoredDirectory(const std::filesystem::path& path) {
          name == "build" || name == "dependencies" || name == "node_modules";
 }
 
+bool semanticRequirementMatches(const std::string& versionText,
+                                const std::string& requirementText) {
+  SemanticVersion version;
+  if (!parseSemanticVersion(versionText, version)) return false;
+  std::string operation;
+  std::string requestedText = trim(requirementText);
+  for (const std::string candidate : {">=", "<=", "^", "~", ">", "<", "="}) {
+    if (requestedText.starts_with(candidate)) {
+      operation = candidate;
+      requestedText = trim(requestedText.substr(candidate.size()));
+      break;
+    }
+  }
+  SemanticVersion requested;
+  if (!parseSemanticVersion(requestedText, requested)) return false;
+  if (!version.prerelease.empty() && requested.prerelease.empty()) return false;
+  const int lower = compareSemanticVersions(version, requested);
+  if (operation.empty() || operation == "=") return lower == 0;
+  if (operation == ">=") return lower >= 0;
+  if (operation == ">") return lower > 0;
+  if (operation == "<=") return lower <= 0;
+  if (operation == "<") return lower < 0;
+  SemanticVersion upper = requested;
+  upper.prerelease.clear();
+  if (operation == "~") {
+    if (upper.minor == (std::numeric_limits<std::uint64_t>::max)()) {
+      if (upper.major == (std::numeric_limits<std::uint64_t>::max)())
+        return lower >= 0;
+      ++upper.major;
+      upper.minor = 0;
+    } else {
+      ++upper.minor;
+    }
+    upper.patch = 0;
+  } else if (requested.major != 0) {
+    if (upper.major == (std::numeric_limits<std::uint64_t>::max)())
+      return lower >= 0;
+    ++upper.major;
+    upper.minor = 0;
+    upper.patch = 0;
+  } else if (requested.minor != 0) {
+    if (upper.minor == (std::numeric_limits<std::uint64_t>::max)()) {
+      upper.major = 1;
+      upper.minor = 0;
+    } else {
+      ++upper.minor;
+    }
+    upper.patch = 0;
+  } else {
+    if (upper.patch == (std::numeric_limits<std::uint64_t>::max)()) {
+      upper.minor = 1;
+      upper.patch = 0;
+    } else {
+      ++upper.patch;
+    }
+  }
+  return lower >= 0 && compareSemanticVersions(version, upper) < 0;
+}
+
+bool parseDependencySpec(const std::string& name, const std::string& value,
+                         PackageDependency& dependency, std::string& error) {
+  if (!validName(name)) {
+    error = "dependency names must be valid Rocket package names";
+    return false;
+  }
+  dependency.name = name;
+  if (value.starts_with("path:")) {
+    dependency.source = DependencySourceKind::Path;
+    dependency.location = value.substr(5);
+    if (dependency.location.empty() ||
+        std::filesystem::path(dependency.location).is_absolute() ||
+        dependency.location.find("://") != std::string::npos) {
+      error = "path dependency '" + name +
+              "' requires a relative filesystem location";
+      return false;
+    }
+    return true;
+  }
+  if (value.starts_with("git:")) {
+    dependency.source = DependencySourceKind::Git;
+    const std::string git = value.substr(4);
+    const std::size_t hash = git.rfind('#');
+    if (hash == std::string::npos) {
+      error = "Git dependency '" + name + "' must pin an immutable revision";
+      return false;
+    }
+    dependency.location = git.substr(0, hash);
+    dependency.revision = git.substr(hash + 1);
+    const bool validRevision =
+        (dependency.revision.size() == 40 || dependency.revision.size() == 64) &&
+        std::all_of(dependency.revision.begin(), dependency.revision.end(),
+                    [](const char character) {
+                      return std::isxdigit(static_cast<unsigned char>(character));
+                    });
+    if (dependency.location.empty() || !validRevision) {
+      error = "Git dependency '" + name +
+              "' requires a 40- or 64-digit hexadecimal revision";
+      return false;
+    }
+    return true;
+  }
+  dependency.source = DependencySourceKind::Registry;
+  dependency.requirement = value;
+  if (!semanticRequirementMatches("0.0.0", value) &&
+      !semanticRequirementMatches("1.0.0", value) &&
+      !semanticRequirementMatches("999.999.999", value)) {
+    std::string requested = trim(value);
+    for (const std::string prefix : {">=", "<=", "^", "~", ">", "<", "="}) {
+      if (requested.starts_with(prefix)) {
+        requested = trim(requested.substr(prefix.size()));
+        break;
+      }
+    }
+    SemanticVersion parsed;
+    if (!parseSemanticVersion(requested, parsed)) {
+      error = "registry dependency '" + name +
+              "' has an invalid semantic-version requirement";
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace
+
+bool isValidSemanticVersion(const std::string& version) {
+  SemanticVersion parsed;
+  return parseSemanticVersion(version, parsed);
+}
+
+bool semanticVersionSatisfies(const std::string& version,
+                              const std::string& requirement) {
+  return semanticRequirementMatches(version, requirement);
+}
 
 std::optional<Package> loadPackage(const std::filesystem::path& path,
                                    std::string& error) {
@@ -107,7 +366,11 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
   std::ifstream input(manifest, std::ios::binary);
   if (!input) { error = "could not read package manifest '" + manifest.string() + "'"; return {}; }
 
-  Package package{manifest.parent_path(), {}, "0.1.0", "src/main.rocket", "tests"};
+  Package package;
+  package.root = manifest.parent_path();
+  package.version = "0.1.0";
+  package.entry = "src/main.rocket";
+  package.tests = "tests";
   std::string section;
   std::unordered_set<std::string> seen;
   std::string line;
@@ -119,7 +382,7 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     if (clean.front() == '[' && clean.back() == ']') {
       section = trim(clean.substr(1, clean.size() - 2));
       if (section != "package" && section != "test" && section != "build" &&
-          section != "native.windows-x64") {
+          section != "native.windows-x64" && section != "dependencies") {
         error = manifest.string() + ":" + std::to_string(lineNumber) +
                 ": unsupported manifest section '" + section + "'";
         return {};
@@ -147,7 +410,19 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     }
     if (qualified == "package.name") package.name = value;
     else if (qualified == "package.version") package.version = value;
+    else if (qualified == "package.license") package.license = value;
+    else if (qualified == "package.registry") package.registry = value;
     else if (qualified == "package.entry") package.entry = value;
+    else if (section == "dependencies") {
+      PackageDependency dependency;
+      std::string dependencyError;
+      if (!parseDependencySpec(key, value, dependency, dependencyError)) {
+        error = manifest.string() + ":" + std::to_string(lineNumber) +
+                ": " + dependencyError;
+        return {};
+      }
+      package.dependencies.push_back(std::move(dependency));
+    }
     else if (qualified == "test.directory") package.tests = value;
     else if (qualified == "build.kind") {
       if (value == "executable") package.outputKind = PackageOutputKind::Executable;
@@ -179,6 +454,14 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     error = manifest.string() + ": package.name must be a valid Rocket package name";
     return {};
   }
+  if (!isValidSemanticVersion(package.version)) {
+    error = manifest.string() + ": package.version must be semantic MAJOR.MINOR.PATCH";
+    return {};
+  }
+  std::sort(package.dependencies.begin(), package.dependencies.end(),
+            [](const PackageDependency& left, const PackageDependency& right) {
+              return left.name < right.name;
+            });
   if (package.outputName.empty())
     package.outputName = package.outputKind == PackageOutputKind::Executable
                              ? "main"
@@ -283,6 +566,717 @@ std::vector<std::filesystem::path> rocketSources(const std::filesystem::path& pa
   }
   std::sort(result.begin(), result.end());
   return result;
+}
+
+namespace {
+
+std::vector<std::filesystem::path> packageContentFiles(
+    const std::filesystem::path& root, std::string& error) {
+  std::vector<std::filesystem::path> files;
+  std::error_code filesystemError;
+  std::filesystem::recursive_directory_iterator iterator(
+      root, std::filesystem::directory_options::skip_permission_denied,
+      filesystemError);
+  const std::filesystem::recursive_directory_iterator end;
+  while (iterator != end) {
+    if (filesystemError) {
+      error = "could not inspect package source: " + filesystemError.message();
+      return {};
+    }
+    const auto status = iterator->symlink_status(filesystemError);
+    if (filesystemError) {
+      error = "could not inspect package source entry: " +
+              filesystemError.message();
+      return {};
+    }
+    if (std::filesystem::is_symlink(status)) {
+      error = "package sources cannot contain symbolic links: '" +
+              iterator->path().string() + "'";
+      return {};
+    }
+    if (std::filesystem::is_directory(status) &&
+        ignoredDirectory(iterator->path())) {
+      iterator.disable_recursion_pending();
+    } else if (std::filesystem::is_regular_file(status)) {
+      files.push_back(iterator->path().lexically_normal());
+    }
+    iterator.increment(filesystemError);
+  }
+  std::sort(files.begin(), files.end(), [&](const auto& left, const auto& right) {
+    return left.lexically_relative(root).generic_string() <
+           right.lexically_relative(root).generic_string();
+  });
+  return files;
+}
+
+#ifdef _WIN32
+class Sha256 {
+public:
+  Sha256() {
+    if (BCryptOpenAlgorithmProvider(&algorithm_, BCRYPT_SHA256_ALGORITHM,
+                                    nullptr, 0) != 0) return;
+    DWORD objectLength = 0;
+    DWORD received = 0;
+    if (BCryptGetProperty(algorithm_, BCRYPT_OBJECT_LENGTH,
+                          reinterpret_cast<PUCHAR>(&objectLength),
+                          sizeof(objectLength), &received, 0) != 0) return;
+    object_.resize(objectLength);
+    if (BCryptCreateHash(algorithm_, &hash_, object_.data(), objectLength,
+                         nullptr, 0, 0) != 0) return;
+    valid_ = true;
+  }
+
+  ~Sha256() {
+    if (hash_ != nullptr) BCryptDestroyHash(hash_);
+    if (algorithm_ != nullptr) BCryptCloseAlgorithmProvider(algorithm_, 0);
+  }
+
+  bool update(const void* data, std::size_t size) {
+    if (!valid_ || size > ULONG_MAX) return false;
+    return BCryptHashData(hash_,
+                          reinterpret_cast<PUCHAR>(const_cast<void*>(data)),
+                          static_cast<ULONG>(size), 0) == 0;
+  }
+
+  bool finish(std::string& result) {
+    std::array<unsigned char, 32> bytes{};
+    if (!valid_ || BCryptFinishHash(hash_, bytes.data(),
+                                    static_cast<ULONG>(bytes.size()), 0) != 0)
+      return false;
+    static constexpr char hexadecimal[] = "0123456789abcdef";
+    result.clear();
+    result.reserve(bytes.size() * 2);
+    for (const unsigned char byte : bytes) {
+      result.push_back(hexadecimal[byte >> 4]);
+      result.push_back(hexadecimal[byte & 15]);
+    }
+    return true;
+  }
+
+private:
+  BCRYPT_ALG_HANDLE algorithm_ = nullptr;
+  BCRYPT_HASH_HANDLE hash_ = nullptr;
+  std::vector<unsigned char> object_;
+  bool valid_ = false;
+};
+#endif
+
+bool sha256Package(const std::filesystem::path& root, std::string& checksum,
+                   std::string& error) {
+#ifndef _WIN32
+  error = "secure package hashing is currently supported on Windows x64 only";
+  return false;
+#else
+  const auto files = packageContentFiles(root, error);
+  if (!error.empty()) return false;
+  Sha256 hash;
+  std::array<char, 64 * 1024> buffer{};
+  const char separator = '\0';
+  for (const auto& path : files) {
+    const std::string relative = path.lexically_relative(root).generic_string();
+    if (!hash.update(relative.data(), relative.size()) ||
+        !hash.update(&separator, 1)) {
+      error = "could not hash package source path";
+      return false;
+    }
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+      error = "could not read package source '" + path.string() + "'";
+      return false;
+    }
+    while (input) {
+      input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+      const std::streamsize count = input.gcount();
+      if (count > 0 &&
+          !hash.update(buffer.data(), static_cast<std::size_t>(count))) {
+        error = "could not hash package source contents";
+        return false;
+      }
+    }
+    if (!input.eof() || !hash.update(&separator, 1)) {
+      error = "could not read package source while hashing";
+      return false;
+    }
+  }
+  if (!hash.finish(checksum)) {
+    error = "Windows SHA-256 provider failed";
+    return false;
+  }
+  return true;
+#endif
+}
+
+bool copyPackageContent(const std::filesystem::path& source,
+                        const std::filesystem::path& destination,
+                        std::string& error) {
+  const auto files = packageContentFiles(source, error);
+  if (!error.empty()) return false;
+  std::error_code filesystemError;
+  std::filesystem::create_directories(destination, filesystemError);
+  if (filesystemError) {
+    error = "could not create package cache: " + filesystemError.message();
+    return false;
+  }
+  for (const auto& path : files) {
+    const auto target = destination / path.lexically_relative(source);
+    std::filesystem::create_directories(target.parent_path(), filesystemError);
+    if (filesystemError) {
+      error = "could not create package cache directory: " +
+              filesystemError.message();
+      return false;
+    }
+    std::filesystem::copy_file(path, target,
+                               std::filesystem::copy_options::none,
+                               filesystemError);
+    if (filesystemError) {
+      error = "could not cache package source: " + filesystemError.message();
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ensureCached(const std::filesystem::path& cacheRoot,
+                  const std::filesystem::path& source,
+                  const std::string& checksum, std::string& error) {
+  const auto destination = cacheRoot / checksum;
+  if (std::filesystem::exists(destination)) {
+    std::string actual;
+    if (!sha256Package(destination, actual, error)) return false;
+    if (actual != checksum) {
+      error = "cached package checksum mismatch for sha256:" + checksum;
+      return false;
+    }
+    return true;
+  }
+  std::error_code filesystemError;
+  std::filesystem::create_directories(cacheRoot, filesystemError);
+  if (filesystemError) {
+    error = "could not create content-addressed cache: " +
+            filesystemError.message();
+    return false;
+  }
+#ifdef _WIN32
+  const auto processIdentifier = static_cast<unsigned long>(GetCurrentProcessId());
+#else
+  const auto processIdentifier = 0UL;
+#endif
+  const std::string suffix = ".partial-" + std::to_string(processIdentifier);
+  const auto temporary = cacheRoot / (checksum + suffix);
+  if (std::filesystem::exists(temporary)) {
+    error = "incomplete cache transaction already exists: '" +
+            temporary.string() + "'";
+    return false;
+  }
+  auto discardTemporary = [&]() {
+    std::error_code ignored;
+    std::filesystem::remove_all(temporary, ignored);
+  };
+  if (!copyPackageContent(source, temporary, error)) {
+    discardTemporary();
+    return false;
+  }
+  std::string copiedChecksum;
+  if (!sha256Package(temporary, copiedChecksum, error)) {
+    discardTemporary();
+    return false;
+  }
+  if (copiedChecksum != checksum) {
+    discardTemporary();
+    error = "package source changed while it was being cached";
+    return false;
+  }
+  std::filesystem::rename(temporary, destination, filesystemError);
+  if (filesystemError) {
+    discardTemporary();
+    error = "could not commit package cache transaction: " +
+            filesystemError.message();
+    return false;
+  }
+  return true;
+}
+
+std::string joinList(const std::vector<std::string>& values) {
+  std::string result;
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    if (index != 0) result += ';';
+    result += values[index];
+  }
+  return result;
+}
+
+std::string quoteLock(const std::string& value) {
+  std::string result = "\"";
+  for (const char character : value) {
+    if (character == '\n') result += "\\n";
+    else if (character == '\t') result += "\\t";
+    else {
+      if (character == '\\' || character == '"') result.push_back('\\');
+      result.push_back(character);
+    }
+  }
+  result.push_back('"');
+  return result;
+}
+
+std::string renderPackageLock(PackageLock lock) {
+  std::sort(lock.rootDependencies.begin(), lock.rootDependencies.end());
+  std::sort(lock.packages.begin(), lock.packages.end(),
+            [](const LockedPackage& left, const LockedPackage& right) {
+              if (left.name != right.name) return left.name < right.name;
+              return left.version < right.version;
+            });
+  std::ostringstream output;
+  output << "# Generated by rocketc. Commit this file.\n"
+         << "lock-version = \"1\"\n"
+         << "root = " << quoteLock(lock.rootName) << "\n"
+         << "root-version = " << quoteLock(lock.rootVersion) << "\n"
+         << "root-dependencies = " << quoteLock(joinList(lock.rootDependencies))
+         << "\n";
+  for (auto& package : lock.packages) {
+    std::sort(package.dependencies.begin(), package.dependencies.end());
+    output << "\n[[package]]\n"
+           << "name = " << quoteLock(package.name) << "\n"
+           << "version = " << quoteLock(package.version) << "\n"
+           << "source = " << quoteLock(package.source) << "\n"
+           << "checksum = " << quoteLock("sha256:" + package.checksum) << "\n"
+           << "license = " << quoteLock(package.license) << "\n"
+           << "dependencies = " << quoteLock(joinList(package.dependencies))
+           << "\n";
+  }
+  return output.str();
+}
+
+bool validChecksum(const std::string& value) {
+  return value.size() == 64 &&
+         std::all_of(value.begin(), value.end(), [](const char character) {
+           return std::isdigit(static_cast<unsigned char>(character)) ||
+                  (character >= 'a' && character <= 'f');
+         });
+}
+
+std::filesystem::path localSourcePath(const std::filesystem::path& parent,
+                                      const std::string& location,
+                                      std::string& error) {
+  if (location.find("://") != std::string::npos &&
+      !location.starts_with("file://")) {
+    error = "network source requires a populated lockfile cache; direct network "
+            "transport is not enabled in this Phase 16 foundation";
+    return {};
+  }
+  std::string local = location.starts_with("file://") ? location.substr(7)
+                                                       : location;
+#ifdef _WIN32
+  if (local.size() >= 3 && local.front() == '/' &&
+      std::isalpha(static_cast<unsigned char>(local[1])) && local[2] == ':')
+    local.erase(local.begin());
+#endif
+  std::filesystem::path path(local);
+  if (path.is_relative()) path = parent / path;
+  return std::filesystem::absolute(path).lexically_normal();
+}
+
+std::string registryFromEnvironment() {
+#ifdef _WIN32
+  char* value = nullptr;
+  std::size_t size = 0;
+  if (_dupenv_s(&value, &size, "ROCKET_REGISTRY") != 0 || value == nullptr)
+    return {};
+  const std::string result(value);
+  std::free(value);
+  return result;
+#else
+  const char* value = std::getenv("ROCKET_REGISTRY");
+  return value == nullptr ? std::string{} : std::string(value);
+#endif
+}
+
+struct ResolverContext {
+  std::filesystem::path cacheRoot;
+  std::map<std::string, std::size_t> selected;
+  std::set<std::string> resolving;
+};
+
+bool resolveDependency(const PackageDependency& dependency,
+                       const Package& parent, const std::string& inheritedRegistry,
+                       const std::string& inheritedRegistryIdentity,
+                       ResolverContext& context, PackageLock& lock,
+                       std::string& identifier, std::string& error) {
+  std::filesystem::path sourceRoot;
+  std::string sourceIdentity;
+  std::string registry = parent.registry.empty() ? inheritedRegistry
+                                                  : parent.registry;
+  std::string registryIdentity = parent.registry.empty()
+                                     ? inheritedRegistryIdentity
+                                     : parent.registry;
+  if (dependency.source == DependencySourceKind::Path) {
+    sourceRoot = localSourcePath(parent.root, dependency.location, error);
+    sourceIdentity = "path:" + dependency.location;
+  } else if (dependency.source == DependencySourceKind::Git) {
+    sourceRoot = localSourcePath(parent.root, dependency.location, error);
+    sourceIdentity = "git:" + dependency.location + "#" + dependency.revision;
+    if (error.empty() && !sourceRoot.empty()) {
+      std::ifstream revisionInput(sourceRoot / ".rocket-revision", std::ios::binary);
+      std::ostringstream revisionBuffer;
+      if (revisionInput) revisionBuffer << revisionInput.rdbuf();
+      const std::string revision = revisionBuffer.str();
+      if (!revisionInput.is_open()) {
+        error = "local Git export for '" + dependency.name +
+                "' must contain .rocket-revision";
+      } else if (trim(revision) != dependency.revision) {
+        error = "Git revision mismatch for dependency '" + dependency.name + "'";
+      }
+    }
+  } else {
+    if (registry.empty()) {
+      const std::string configured = registryFromEnvironment();
+      if (!configured.empty()) {
+        registry = configured;
+        registryIdentity = configured;
+      }
+    }
+    if (registry.empty()) {
+      error = "registry dependency '" + dependency.name +
+              "' requires package.registry or ROCKET_REGISTRY";
+      return false;
+    }
+    const auto registryRoot = localSourcePath(parent.root, registry, error);
+    if (!error.empty()) return false;
+    registry = registryRoot.string();
+    const auto packageRoot = registryRoot / dependency.name;
+    std::vector<std::pair<SemanticVersion, std::filesystem::path>> candidates;
+    std::error_code filesystemError;
+    if (std::filesystem::is_directory(packageRoot)) {
+      for (const auto& entry : std::filesystem::directory_iterator(
+               packageRoot, std::filesystem::directory_options::skip_permission_denied,
+               filesystemError)) {
+        SemanticVersion parsed;
+        const std::string candidate = entry.path().filename().string();
+        if (!filesystemError && entry.is_directory() &&
+            parseSemanticVersion(candidate, parsed) &&
+            semanticRequirementMatches(candidate, dependency.requirement))
+          candidates.push_back({parsed, entry.path()});
+      }
+    }
+    if (filesystemError) {
+      error = "could not inspect registry package '" + dependency.name + "': " +
+              filesystemError.message();
+      return false;
+    }
+    if (candidates.empty()) {
+      error = "no registry version of '" + dependency.name + "' satisfies '" +
+              dependency.requirement + "'";
+      return false;
+    }
+    std::sort(candidates.begin(), candidates.end(), [](const auto& left,
+                                                        const auto& right) {
+      return compareSemanticVersions(left.first, right.first) > 0;
+    });
+    sourceRoot = candidates.front().second;
+    sourceIdentity = "registry:" + registryIdentity + "/" + dependency.name;
+  }
+  if (!error.empty()) return false;
+  if (!std::filesystem::is_directory(sourceRoot)) {
+    error = "dependency source does not exist for '" + dependency.name + "': '" +
+            sourceRoot.string() + "'";
+    return false;
+  }
+  std::error_code sourceStatusError;
+  if (std::filesystem::is_symlink(
+          std::filesystem::symlink_status(sourceRoot, sourceStatusError))) {
+    error = "dependency source roots cannot be symbolic links: '" +
+            sourceRoot.string() + "'";
+    return false;
+  }
+  if (sourceStatusError) {
+    error = "could not inspect dependency source root: " +
+            sourceStatusError.message();
+    return false;
+  }
+  auto resolved = loadPackage(sourceRoot, error);
+  if (!resolved) return false;
+  if (resolved->name != dependency.name) {
+    error = "dependency key '" + dependency.name + "' resolved package '" +
+            resolved->name + "'";
+    return false;
+  }
+  if (dependency.source == DependencySourceKind::Registry &&
+      sourceRoot.filename().string() != resolved->version) {
+    error = "registry directory version does not match manifest for '" +
+            dependency.name + "'";
+    return false;
+  }
+  if (dependency.source == DependencySourceKind::Registry &&
+      !semanticRequirementMatches(resolved->version, dependency.requirement)) {
+    error = "resolved version " + resolved->version + " of '" + dependency.name +
+            "' does not satisfy '" + dependency.requirement + "'";
+    return false;
+  }
+  std::string checksum;
+  if (!sha256Package(sourceRoot, checksum, error)) return false;
+  identifier = resolved->name + "@" + resolved->version;
+  if (context.resolving.contains(resolved->name)) {
+    error = "dependency cycle includes package '" + resolved->name + "'";
+    return false;
+  }
+  const auto existing = context.selected.find(resolved->name);
+  if (existing != context.selected.end()) {
+    const auto& selected = lock.packages[existing->second];
+    if (selected.version != resolved->version || selected.checksum != checksum) {
+      error = "duplicate-version conflict for package '" + resolved->name +
+              "': selected " + selected.version + " but also resolved " +
+              resolved->version;
+      return false;
+    }
+    return true;
+  }
+  if (!context.resolving.insert(resolved->name).second) {
+    error = "dependency cycle includes package '" + resolved->name + "'";
+    return false;
+  }
+  if (!ensureCached(context.cacheRoot, sourceRoot, checksum, error)) return false;
+  LockedPackage locked{resolved->name, resolved->version, sourceIdentity, checksum,
+                       resolved->license, {}};
+  const std::size_t index = lock.packages.size();
+  lock.packages.push_back(std::move(locked));
+  context.selected[resolved->name] = index;
+  const std::string nextRegistry = resolved->registry.empty() ? registry
+                                                              : resolved->registry;
+  const std::string nextRegistryIdentity = resolved->registry.empty()
+                                               ? registryIdentity
+                                               : resolved->registry;
+  for (const auto& child : resolved->dependencies) {
+    std::string childIdentifier;
+    if (!resolveDependency(child, *resolved, nextRegistry,
+                           nextRegistryIdentity, context, lock,
+                           childIdentifier, error)) return false;
+    lock.packages[index].dependencies.push_back(childIdentifier);
+  }
+  std::sort(lock.packages[index].dependencies.begin(),
+            lock.packages[index].dependencies.end());
+  context.resolving.erase(resolved->name);
+  return true;
+}
+
+bool verifyOfflineCache(const Package& package, const PackageLock& lock,
+                        std::string& error) {
+  const auto cacheRoot = package.root / ".rocketc/cache/sha256";
+  for (const auto& locked : lock.packages) {
+    if (!validChecksum(locked.checksum)) {
+      error = "lockfile contains an invalid checksum for '" + locked.name + "'";
+      return false;
+    }
+    const auto cached = cacheRoot / locked.checksum;
+    if (!std::filesystem::is_directory(cached)) {
+      error = "offline cache is missing " + locked.name + "@" + locked.version +
+              " (sha256:" + locked.checksum + ")";
+      return false;
+    }
+    std::string actual;
+    if (!sha256Package(cached, actual, error)) return false;
+    if (actual != locked.checksum) {
+      error = "cached package checksum mismatch for " + locked.name + "@" +
+              locked.version;
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<std::string> splitList(const std::string& value) {
+  return listValue(value);
+}
+
+} // namespace
+
+bool writePackageLock(const std::filesystem::path& path, const PackageLock& lock,
+                      std::string& error) {
+  return write(path, renderPackageLock(lock), error);
+}
+
+bool readPackageLock(const std::filesystem::path& path, PackageLock& lock,
+                     std::string& error) {
+  std::ifstream input(path, std::ios::binary);
+  if (!input) {
+    error = "could not read package lockfile '" + path.string() + "'";
+    return false;
+  }
+  lock = {};
+  LockedPackage* current = nullptr;
+  bool sawLockVersion = false;
+  std::string line;
+  int lineNumber = 0;
+  while (std::getline(input, line)) {
+    ++lineNumber;
+    const std::string clean = trim(withoutComment(line));
+    if (clean.empty()) continue;
+    if (clean == "[[package]]") {
+      lock.packages.push_back({});
+      current = &lock.packages.back();
+      continue;
+    }
+    const std::size_t equal = clean.find('=');
+    std::string value;
+    if (equal == std::string::npos ||
+        !quotedValue(clean.substr(equal + 1), value)) {
+      error = path.string() + ":" + std::to_string(lineNumber) +
+              ": invalid lockfile entry";
+      return false;
+    }
+    const std::string key = trim(clean.substr(0, equal));
+    if (current == nullptr) {
+      if (key == "lock-version" && value != "1") {
+        error = "unsupported package lockfile version '" + value + "'";
+        return false;
+      }
+      if (key == "lock-version") sawLockVersion = true;
+      if (key == "root") lock.rootName = value;
+      else if (key == "root-version") lock.rootVersion = value;
+      else if (key == "root-dependencies") lock.rootDependencies = splitList(value);
+      else if (key != "lock-version") {
+        error = "unsupported lockfile key '" + key + "'";
+        return false;
+      }
+    } else if (key == "name") current->name = value;
+    else if (key == "version") current->version = value;
+    else if (key == "source") current->source = value;
+    else if (key == "checksum") {
+      if (!value.starts_with("sha256:")) {
+        error = "lockfile checksums must use sha256";
+        return false;
+      }
+      current->checksum = value.substr(7);
+    } else if (key == "license") current->license = value;
+    else if (key == "dependencies") current->dependencies = splitList(value);
+    else {
+      error = "unsupported locked package key '" + key + "'";
+      return false;
+    }
+  }
+  if (!sawLockVersion || lock.rootName.empty() ||
+      !isValidSemanticVersion(lock.rootVersion)) {
+    error = "lockfile is missing valid root package metadata";
+    return false;
+  }
+  std::set<std::string> identities;
+  for (const auto& package : lock.packages) {
+    if (package.name.empty() || !isValidSemanticVersion(package.version) ||
+        package.source.empty() || !validChecksum(package.checksum) ||
+        !identities.insert(package.name + "@" + package.version).second) {
+      error = "lockfile contains an incomplete or duplicate package entry";
+      return false;
+    }
+  }
+  return true;
+}
+
+bool resolvePackageDependencies(const Package& package,
+                                const ResolveOptions& options,
+                                PackageLock& lock, std::string& error) {
+  const auto lockPath = package.root / "rocket.lock";
+  if (options.offline) {
+    if (!readPackageLock(lockPath, lock, error)) return false;
+    if (lock.rootName != package.name || lock.rootVersion != package.version) {
+      error = "lockfile root does not match package manifest";
+      return false;
+    }
+    return verifyOfflineCache(package, lock, error);
+  }
+  PackageLock resolved;
+  resolved.rootName = package.name;
+  resolved.rootVersion = package.version;
+  ResolverContext context{package.root / ".rocketc/cache/sha256", {}, {}};
+  for (const auto& dependency : package.dependencies) {
+    std::string identifier;
+    if (!resolveDependency(dependency, package, package.registry,
+                           package.registry, context, resolved, identifier,
+                           error)) return false;
+    resolved.rootDependencies.push_back(identifier);
+  }
+  std::sort(resolved.rootDependencies.begin(), resolved.rootDependencies.end());
+  if (options.locked) {
+    PackageLock existing;
+    if (!readPackageLock(lockPath, existing, error)) return false;
+    if (renderPackageLock(existing) != renderPackageLock(resolved)) {
+      error = "rocket.lock is stale; run 'rocketc resolve' and commit the result";
+      return false;
+    }
+    lock = std::move(existing);
+    return true;
+  }
+  if (!writePackageLock(lockPath, resolved, error)) return false;
+  lock = std::move(resolved);
+  return true;
+}
+
+std::string packageDependencyTree(const PackageLock& lock) {
+  std::map<std::string, const LockedPackage*> packages;
+  for (const auto& package : lock.packages)
+    packages[package.name + "@" + package.version] = &package;
+  std::ostringstream output;
+  output << lock.rootName << '@' << lock.rootVersion << '\n';
+  std::set<std::string> active;
+  auto render = [&](auto&& self, const std::string& identity,
+                    const std::string& prefix, bool last) -> void {
+    output << prefix << (last ? "`-- " : "|-- ") << identity << '\n';
+    const auto found = packages.find(identity);
+    if (found == packages.end() || !active.insert(identity).second) return;
+    const auto& dependencies = found->second->dependencies;
+    for (std::size_t index = 0; index < dependencies.size(); ++index)
+      self(self, dependencies[index], prefix + (last ? "    " : "|   "),
+           index + 1 == dependencies.size());
+    active.erase(identity);
+  };
+  for (std::size_t index = 0; index < lock.rootDependencies.size(); ++index)
+    render(render, lock.rootDependencies[index], "",
+           index + 1 == lock.rootDependencies.size());
+  return output.str();
+}
+
+bool auditPackageDependencies(const Package& package, const PackageLock& lock,
+                              std::string& report, std::string& error) {
+  if (lock.rootName != package.name || lock.rootVersion != package.version) {
+    error = "lockfile root does not match package manifest";
+    return false;
+  }
+  if (!verifyOfflineCache(package, lock, error)) return false;
+  std::set<std::string> identities;
+  std::set<std::string> names;
+  int warnings = 0;
+  for (const auto& locked : lock.packages) {
+    const std::string identity = locked.name + "@" + locked.version;
+    if (!identities.insert(identity).second || !names.insert(locked.name).second) {
+      error = "audit found duplicate package versions for '" + locked.name + "'";
+      return false;
+    }
+    if (locked.source.starts_with("registry:") && locked.license.empty()) {
+      error = "registry package " + identity + " has no license metadata";
+      return false;
+    }
+    if (locked.license.empty()) ++warnings;
+  }
+  for (const auto& locked : lock.packages) {
+    for (const auto& dependency : locked.dependencies) {
+      if (!identities.contains(dependency)) {
+        error = "lockfile dependency '" + dependency + "' is not present";
+        return false;
+      }
+    }
+  }
+  for (const auto& dependency : lock.rootDependencies) {
+    if (!identities.contains(dependency)) {
+      error = "root lockfile dependency '" + dependency + "' is not present";
+      return false;
+    }
+  }
+  std::ostringstream output;
+  output << "audit passed: " << lock.packages.size()
+         << " locked package(s), SHA-256 cache verified";
+  if (warnings != 0)
+    output << "; " << warnings << " local package(s) have no license metadata";
+  output << '\n';
+  report = output.str();
+  return true;
 }
 
 std::vector<std::filesystem::path> packageTests(const Package& package,

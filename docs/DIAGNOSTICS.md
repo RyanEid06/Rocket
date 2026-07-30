@@ -26,7 +26,7 @@ Manifest and tooling errors without a source position use
 | `R4003` | Control flow | Invalid loop control, entry point, or return path |
 | `R4004` | Pattern match | Invalid, duplicate, or non-exhaustive cases |
 | `R4005` | Arity | Wrong number of call or constructor arguments |
-| `R5001` | Manifest | Invalid `rocket.toml` metadata, output kind, native input, or contained path |
+| `R5001` | Manifest/package | Invalid `rocket.toml`, semantic version, dependency source, resolver conflict, lockfile, or package checksum |
 | `R5002` | Tooling | Formatter, test-runner, binding/header generation, linker, or artifact workflow failure |
 | `R9001` | Internal compiler | Verified compiler invariant failed |
 

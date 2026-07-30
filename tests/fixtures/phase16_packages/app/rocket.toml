@@ -1,0 +1,10 @@
+[package]
+name = "phase16_app"
+version = "1.6.0"
+license = "MIT"
+entry = "src/main.rocket"
+registry = "../registry"
+
+[dependencies]
+local_text = "path:../local_text"
+math = "^1.0.0"

@@ -310,3 +310,20 @@ ordinary `Result` values for host failures and document blocking behavior.
 Stage0 and self-hosted compilers expose the same standard signatures and runtime
 entry points. Stateful buffered streams may build on persistent cursor values in
 a later slice without changing this representation or weakening error handling.
+
+## D022 - Single-version resolution and content-addressed package sources
+
+**Accepted for the Rocket 1.6 foundation.** Exact package versions use Semantic
+Versioning 2.0.0, registry constraints select the highest stable match, and one
+graph may contain only one version and checksum for a package name. Conflicts
+are explicit diagnostics rather than resolver-order choices. Path dependencies
+remain development inputs; Git dependencies require immutable revision pins.
+
+`rocket.lock` is committed generated data with lexical ordering, exact graph
+edges, sources, licenses, and SHA-256 checksums. The package-local cache is
+content-addressed and reverified before use; symbolic links and implicit code
+execution are rejected. Offline mode trusts neither filenames nor prior cache
+state and succeeds only when every locked digest is present and valid. The first
+implementation uses reviewed local/file registries in stage0 so network archive
+and authentication policy cannot emerge accidentally. Production self-hosted
+integration and authenticated transports are required follow-up milestones.
