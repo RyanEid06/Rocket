@@ -1,0 +1,47 @@
+import generated.rocket_raylib_adapter
+
+# Test-only deterministic backend controls. Production application code imports
+# src.rocket_raylib instead; these functions never expose a native pointer.
+
+fn checked(status: Int) -> Bool:
+    return status == rocket_raylib_adapter.RLV_OK
+
+pub fn enable() -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_enable_test_mode(true))
+
+pub fn reset() -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_reset())
+
+pub fn set_key(key: Int, pressed: Bool, down: Bool) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_key(key, pressed, down))
+
+pub fn set_mouse(x: Int, y: Int, pressed: Bool) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_mouse(x, y, pressed))
+
+pub fn request_close(value: Bool) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_request_close(value))
+
+pub fn draw_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_draw_count()
+
+pub fn buffer_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_buffer_live_count()
+
+pub fn texture_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_texture_live_count()
+
+pub fn font_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_font_live_count()
+
+pub fn sound_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_sound_live_count()

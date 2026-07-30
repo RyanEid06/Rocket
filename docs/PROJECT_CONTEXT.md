@@ -28,7 +28,7 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.3 is self-hosted. The production `rocketc` is written in Rocket,
+Rocket 1.4 is self-hosted. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -98,13 +98,18 @@ Implemented:
   linker inputs, static/dynamic library products, deterministic C headers and
   Rocket bindings, safe-wrapper conventions, and matching stage0/self-hosted
   behavior.
+- Rocket 1.4 pinned raylib 6.0 integration, generated primitive-only adapter
+  bindings, safe window/drawing/input/texture/font/audio/callback wrappers,
+  validated opaque resource tokens, deterministic cleanup, a reusable app
+  scaffold and bundle workflow, and the non-casino Orbital Workshop reference
+  application with matching stage0/self-hosted behavior.
 
 Not implemented yet:
 
-- Graphics bindings, a production-scale standard library, third-party dependency
-  management and registry, semantic language-server/debugger features, robust
-  concurrency/async support, broader native calling conventions, dynamic native
-  loading, and non-Windows targets.
+- A production-scale standard library, third-party dependency management and
+  registry, semantic language-server/debugger features, robust concurrency/async
+  support, broader native calling conventions, dynamic native loading, the full
+  raylib surface, and non-Windows targets.
   No casino implementation has begun.
 
 ## Canonical build commands
@@ -476,14 +481,47 @@ Known limitations remain those in the implementation-state list above; no langua
   stage3 LLVM IR are byte-identical at SHA-256
   `e30135a93fca7c049bf201d7cb6ca714c466dbe9fb6d2812e2038a8f32326560`.
 
+**Phase 14 - Rocket 1.4 graphics, audio, and real application validation
+(completed)**
+
+- Pinned raylib 6.0 to tag commit
+  `dbc56a87da87d973a9c5baa4e7438a9d20121d28` with an exact archive size and
+  SHA-256 manifest. Downloaded source, generated bindings, native libraries,
+  executables, build trees, and bundles remain ignored.
+- Added a reviewed primitive-only C adapter over raylib and generated its
+  low-level Rocket module through the Phase 13 `bind` pipeline. Native structs,
+  pointers, and strings never cross the application boundary.
+- Added safe Rocket window, frame, drawing, texture, font, input, timing, audio,
+  sound, procedural tone, synchronous callback, buffer, and error APIs. Opaque
+  positive tokens validate ownership, parent lifetimes, use-after-release,
+  double release, cleanup order, and one-window/one-device constraints.
+- Added the non-casino Orbital Workshop application with rendering, keyboard and
+  mouse input, collections and state, file and texture asset loading,
+  callback-driven animation, procedural audio with silent fallback, and
+  deterministic cleanup. No C++ application logic was added.
+- Added ABI, positive, negative, missing-asset, repeated startup/shutdown,
+  callback, buffer, texture/font, input, audio stress, native-linking,
+  binding-generation, scaffold, and reference-package tests across stage0 and
+  the self-hosted compiler.
+- Added Debug/Release validation and bundle scripts, a clean app scaffold,
+  tutorial, architecture/ABI documentation, decision D020, Rocket 1.4 syntax
+  and release references, third-party notices, and static Windows packaging.
+- Verified pinned LLVM Debug and Release matrices (111/111 tests each) and
+  LLVM-disabled stage0 Debug and Release matrices (71/71 tests each). The
+  dedicated raylib validation passes 10/10 in both configurations.
+- Verified 63 Rocket 1.4 conformance cases and all eight performance gates. A
+  fresh scaffold built successfully and the Release showcase bundle contains
+  only the executable, authored assets/docs, upstream license, and checksums.
+- Verified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap with
+  byte-identical stage2/stage3 LLVM IR and generated raylib bindings. The LLVM
+  IR SHA-256 is
+  `5e5a33f1a38ac2192ee71b972e79bfc67f1e5e85ba6e0fbe19ffe63fdfe7e407`.
+
 ## Current next task
 
-**Phase 14 - Rocket 1.4 graphics, audio, and real application validation.**
+**Phase 15 - Rocket 1.5 production standard library.**
 
-Use the completed Phase 13 binding pipeline to generate low-level raylib
-bindings, then design safe Rocket resource wrappers and validate them in a
-non-casino reference application. Do not begin this phase until Phase 13 is
-accepted and explicitly requested.
+Do not begin Phase 15 until Phase 14 is reviewed and explicitly accepted.
 
 ## New-chat prompt
 

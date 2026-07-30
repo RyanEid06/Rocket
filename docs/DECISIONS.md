@@ -277,3 +277,22 @@ Rocket exports use unmangled C wrappers, while internal Rocket/runtime ABI v1 is
 not exposed or changed. Broader calling conventions, direct strings, stored or
 capturing callbacks, unions, variadics, and by-value native aggregates require a
 future recorded ABI decision.
+
+## D020 - Primitive raylib adapter and explicit resource tokens
+
+**Accepted for Rocket 1.4.** raylib 6.0 is pinned as the first substantial FFI
+validation target, but its by-value structures and C strings do not widen the
+Rocket 1.3 ABI. A narrow adapter owns every raylib structure and represents
+windows, frames, textures, fonts, audio devices, sounds, and temporary UTF-8
+buffers with validated positive `Int` tokens. Safe Rocket code receives
+`Result` values; stale, double-released, out-of-order, missing-asset, and
+unavailable-device operations fail without foreign memory access.
+
+Window resources must be released before the window, sounds before the audio
+device, and frames exactly once before resource teardown. Strings are copied to
+short-lived adapter buffers and callbacks are synchronous top-level functions
+that are never stored. A deterministic test mode implements the same ABI and
+state machine without platform devices. This preserves the general C ABI,
+keeps all handwritten C++ application logic out of the reference program, and
+defers automatic destructors or linear resource types to a future language
+decision.

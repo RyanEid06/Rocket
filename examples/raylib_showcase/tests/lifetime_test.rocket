@@ -1,0 +1,40 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn one_cycle(index: Int) -> Int:
+    match rocket_raylib.open_window(320, 200, "lifetime"):
+        case Ok(window):
+            match rocket_raylib.load_texture(window, "cycle-texture"):
+                case Ok(texture):
+                    match rocket_raylib.close_window(window):
+                        case Ok(value):
+                            return 1
+                        case Err(error):
+                            let unloaded = rocket_raylib.unload_texture(texture)
+                            match rocket_raylib.unload_texture(texture):
+                                case Ok(value):
+                                    return 2
+                                case Err(stale):
+                                    let closed = rocket_raylib.close_window(window)
+                                    match rocket_raylib.close_window(window):
+                                        case Ok(value):
+                                            return 3
+                                        case Err(already_closed):
+                                            return 0
+                case Err(error):
+                    return 4
+        case Err(error):
+            return 5
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 10
+    var index = 0
+    while index < 64:
+        let status = one_cycle(index)
+        if status != 0:
+            return 20 + status
+        index = index + 1
+    if rocket_raylib_testing.texture_live_count() != 0 or rocket_raylib_testing.buffer_live_count() != 0:
+        return 30
+    return 0

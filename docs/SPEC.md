@@ -348,6 +348,36 @@ wrapper and is restricted to the same non-managed ABI values. Native imports,
 exports, types, and callbacks cannot be generic. A library module may omit
 `main`; executable modules retain the required `fn main() -> Int` entry point.
 
+## Validated raylib boundary (Rocket 1.4)
+
+Rocket 1.4 adds no calling convention and does not expose raylib's by-value C
+structures. The supported raylib 6.0 integration is an ordinary native package
+built on the Rocket 1.3 ABI. A reviewed C adapter converts windows, frames,
+textures, fonts, audio devices, sounds, and temporary UTF-8 buffers into positive
+64-bit resource tokens. Coordinates, sizes, colors, input codes, time, status
+values, and callback arguments cross only as frozen primitive values.
+
+The safe Rocket module is the only production module that calls the generated
+low-level bindings. It translates every nonzero adapter status to `Result`,
+copies a Rocket string into a temporary native byte buffer, calls the native API
+synchronously, and releases that buffer before returning. Embedded NUL is
+rejected by the adapter. No raylib pointer, structure, callback pointer, or
+borrowed C string becomes a Rocket value.
+
+One `Window` may be live. `begin_frame` creates a single-use `Frame` token;
+drawing requires that token and `end_frame` consumes it. Textures and fonts are
+owned by the window context and must be unloaded before `close_window` succeeds.
+One `AudioDevice` may be live, and every owned `Sound` must be unloaded before
+`close_audio`. Reusing or forging a released token returns a stable error and
+never dereferences foreign state. Rocket 1.4 does not add linear types or
+destructors, so application code still performs explicit cleanup.
+
+Callbacks remain top-level, noncapturing, synchronous, and non-storing. The
+safe raylib module exposes reviewed callback-backed operations rather than a
+general storable callback. The deterministic test mode implements the same C ABI
+without opening a real window or audio device; it is test-only and must be
+enabled before resources are created.
+
 ## Enums and pattern matching
 
 Enums are tagged alternatives. A variant may carry zero or more positional

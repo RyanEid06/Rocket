@@ -1,0 +1,4 @@
+extern fn phase14_native_probe() -> Int
+
+fn main() -> Int:
+    return phase14_native_probe()

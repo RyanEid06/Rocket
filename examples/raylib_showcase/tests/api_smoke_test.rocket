@@ -1,0 +1,60 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    if rocket_raylib.version_major() != 6 or rocket_raylib.version_minor() != 0:
+        return 2
+    match rocket_raylib.open_window(800, 450, "headless smoke"):
+        case Ok(window):
+            if not rocket_raylib.window_ready(window):
+                return 3
+            let target = rocket_raylib.set_target_fps(window, 60)
+            match rocket_raylib.load_texture(window, "assets/orbit.ppm"):
+                case Ok(texture):
+                    if texture.width != 64 or texture.height != 64:
+                        return 4
+                    if not rocket_raylib_testing.set_key(rocket_raylib.key_space(), true, true):
+                        return 5
+                    if not rocket_raylib.is_key_pressed(window, rocket_raylib.key_space()):
+                        return 6
+                    if not rocket_raylib.is_key_down(window, rocket_raylib.key_space()):
+                        return 7
+                    if not rocket_raylib_testing.set_mouse(41, 52, true):
+                        return 8
+                    if rocket_raylib.mouse_x(window) != 41 or rocket_raylib.mouse_y(window) != 52:
+                        return 9
+                    if not rocket_raylib.is_mouse_pressed(window, rocket_raylib.mouse_left()):
+                        return 10
+                    var font_id = 0
+                    match rocket_raylib.load_font(window, "assets/test-font.ttf"):
+                        case Ok(font):
+                            font_id = font.id
+                        case Err(error):
+                            return 17
+                    match rocket_raylib.begin_frame(window):
+                        case Ok(frame):
+                            let clear = rocket_raylib.clear(frame, rocket_raylib.black())
+                            let rectangle = rocket_raylib.draw_rectangle(frame, 1, 2, 30, 40, rocket_raylib.sky())
+                            let circle = rocket_raylib.draw_circle(frame, 10, 20, 5.0, rocket_raylib.accent())
+                            let text = rocket_raylib.draw_text(frame, "Rocket", 4, 5, 16, rocket_raylib.white())
+                            let image = rocket_raylib.draw_texture_scaled(frame, texture, 30, 40, 2.0, rocket_raylib.white())
+                            let custom_text = rocket_raylib.draw_font_text(frame, rocket_raylib.Font(font_id), "Font", 8, 9, 18.0, 1.0, rocket_raylib.white())
+                            let ended = rocket_raylib.end_frame(frame)
+                        case Err(error):
+                            return 11
+                    if rocket_raylib_testing.draw_count() != 6:
+                        return 12
+                    if rocket_raylib.apply_pulse(5) != 32:
+                        return 13
+                    let font_unloaded = rocket_raylib.unload_font(rocket_raylib.Font(font_id))
+                    let unloaded = rocket_raylib.unload_texture(texture)
+                    let closed = rocket_raylib.close_window(window)
+                    if rocket_raylib_testing.texture_live_count() != 0 or rocket_raylib_testing.font_live_count() != 0 or rocket_raylib_testing.buffer_live_count() != 0:
+                        return 14
+                    return 0
+                case Err(error):
+                    return 15
+        case Err(error):
+            return 16

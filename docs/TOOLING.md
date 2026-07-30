@@ -1,4 +1,4 @@
-# Rocket Tooling and Packages 1.3
+# Rocket Tooling and Packages 1.4
 
 ## Create and use a package
 
@@ -206,3 +206,14 @@ directly executes a native Rocket program.
 
 The preserved C++ bootstrap compiler is distributed separately as
 `stage0/rocketc-stage0.exe`; it is not the production `rocketc` command.
+
+## raylib application workflow
+
+Rocket 1.4 pins raylib 6.0 in `dependencies/manifest.json`. CMake builds raylib
+and the primitive adapter statically, then runs `rocketc bind` into an ignored
+`generated/` module before checking or building `examples/raylib_showcase`.
+Use `scripts/run-raylib-validation.ps1` for the labeled native suite,
+`scripts/new-raylib-app.ps1` for a scaffold, and
+`scripts/package-raylib-showcase.ps1` for a checksummed Windows bundle. The
+interactive executable must run with its packaged `assets` directory as the
+working directory.

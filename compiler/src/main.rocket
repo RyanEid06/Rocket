@@ -2514,6 +2514,8 @@ fn map_module_expression(module: AstModule, prefix_name: String, expression: Ast
             let mapped_constant = mapped_local_callable(module, prefix_name, raw_constant)
             let callee = AstExpr(expr_name(), mapped_constant, [], expression.line, expression.column)
             return AstExpr(expr_call(), "", [callee], expression.line, expression.column)
+        if module_qualified_callable(module, raw_constant):
+            return AstExpr(expr_name(), raw_constant, [], expression.line, expression.column)
     if expression.kind == expr_call() and collections.length(expression.children) > 0:
         let raw_name = callable_name(expression.children[0])
         let mapped_name = mapped_local_callable(module, prefix_name, raw_name)
@@ -5656,12 +5658,15 @@ fn locate_toolchain() -> ToolchainInfo:
     var install_root = compiler_directory
     if std.path.basename(compiler_directory) == "bin":
         install_root = source_parent(compiler_directory)
+    var development_root = ""
+    if std.path.basename(compiler_directory) == ".rocketc":
+        development_root = source_parent(source_parent(compiler_directory))
     var clang_path = environment_or_empty("ROCKET_CLANG")
     var runtime_path = environment_or_empty("ROCKET_RUNTIME")
     if clang_path == "":
-        clang_path = first_existing([std.path.join(compiler_directory, "clang.exe"), std.path.join(install_root, "bin/clang.exe"), "bin/clang.exe", "dependencies/installed/llvm-22.1.6/bin/clang.exe"])
+        clang_path = first_existing([std.path.join(compiler_directory, "clang.exe"), std.path.join(install_root, "bin/clang.exe"), std.path.join(development_root, "dependencies/installed/llvm-22.1.6/bin/clang.exe"), "bin/clang.exe", "dependencies/installed/llvm-22.1.6/bin/clang.exe"])
     if runtime_path == "":
-        runtime_path = first_existing([std.path.join(install_root, "lib/rocket_runtime.lib"), std.path.join(compiler_directory, "rocket_runtime.lib"), "lib/rocket_runtime.lib", "out/build/windows-debug/rocket_runtime.lib", "out/build/windows-release/rocket_runtime.lib"])
+        runtime_path = first_existing([std.path.join(install_root, "lib/rocket_runtime.lib"), std.path.join(compiler_directory, "rocket_runtime.lib"), std.path.join(development_root, "out/build/windows-debug/rocket_runtime.lib"), std.path.join(development_root, "out/build/windows-release/rocket_runtime.lib"), "lib/rocket_runtime.lib", "out/build/windows-debug/rocket_runtime.lib", "out/build/windows-release/rocket_runtime.lib"])
     let library_directories = existing_directories([std.path.join(install_root, "lib/msvc"), std.path.join(install_root, "lib/ucrt"), std.path.join(install_root, "lib/um")])
     if clang_path == "":
         return ToolchainInfo(false, "", runtime_path, "", library_directories, "could not locate the pinned clang.exe; set ROCKET_CLANG")
@@ -6056,7 +6061,10 @@ fn native_library_arguments(package: PackageInfo) -> Array[String]:
                 if file.exists(candidate):
                     resolved = std.path.normalize(candidate)
         if resolved == "":
-            result = append(result, library)
+            if std.path.extension(library) == ".lib":
+                result = append(result, string.concat("-l", string.slice(library, 0, string.byte_length(library) - 4)))
+            else:
+                result = append(result, library)
         else:
             result = append(result, resolved)
     return result
@@ -6414,7 +6422,7 @@ fn new_command(directory: String) -> Int:
     if ensure_directory(std.path.join(root, "src")) != 0 or ensure_directory(std.path.join(root, "tests")) != 0:
         return 1
     let name = std.path.basename(root)
-    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.3.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
+    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.4.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
     let main_source = "fn main() -> Int:\n    print(\"Hello from Rocket\")\n    return 0\n"
     let test_source = "fn main() -> Int:\n    return 0\n"
     let manifest_written = file.write_text(std.path.join(root, "rocket.toml"), manifest)
@@ -6453,7 +6461,7 @@ fn emit_assembly_command(input: String, output: String) -> Int:
     return direct_process(toolchain.clang, ["-S", "-O2", "-Wno-override-module", temporary_ir, "-o", output])
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.3.0")
+    print("Rocket compiler 1.4.0")
     print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm|emit-header|bind> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
@@ -6504,7 +6512,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.3.0")
+        print("rocketc 1.4.0")
         return 0
     if collections.length(arguments) == 2 and arguments[0] == "check":
         return check_command(arguments[1])

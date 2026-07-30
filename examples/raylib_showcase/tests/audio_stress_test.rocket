@@ -1,0 +1,31 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    match rocket_raylib.open_audio():
+        case Ok(audio):
+            if not rocket_raylib.audio_ready(audio):
+                return 2
+            var index = 0
+            while index < 128:
+                match rocket_raylib.create_tone(audio, 220.0, 0.02):
+                    case Ok(sound):
+                        let volume = rocket_raylib.set_sound_volume(sound, 0.5)
+                        let played = rocket_raylib.play_sound(sound)
+                        let stopped = rocket_raylib.stop_sound(sound)
+                        let unloaded = rocket_raylib.unload_sound(sound)
+                    case Err(error):
+                        return 3
+                index = index + 1
+            if rocket_raylib_testing.sound_live_count() != 0:
+                return 4
+            let closed = rocket_raylib.close_audio(audio)
+            match rocket_raylib.close_audio(audio):
+                case Ok(value):
+                    return 5
+                case Err(error):
+                    return 0
+        case Err(error):
+            return 6

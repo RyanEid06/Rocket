@@ -1,2 +1,3 @@
 *.rocket text eol=lf
 *.expected text eol=lf
+*.ppm binary

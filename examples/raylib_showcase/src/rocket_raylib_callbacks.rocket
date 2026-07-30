@@ -1,0 +1,6 @@
+# Native callbacks must be top-level, noncapturing, synchronous, and non-stored.
+# Keeping them in a dedicated internal module lets the safe wrapper pass their
+# fully qualified identity through the Phase 13 callback checker.
+
+pub fn pulse(value: Int) -> Int:
+    return value * 3 + 17

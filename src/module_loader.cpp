@@ -319,9 +319,20 @@ private:
       rewriteExpression(module, slice.end, typeParameters);
       break;
     }
-    case ExprKind::Field:
+    case ExprKind::Field: {
+      if (auto name = flattenedName(*expression)) {
+        if (auto rewritten = externalMember(module, *name, expression->location,
+                                            "function")) {
+          expression = std::make_unique<LiteralExpr>(ExprKind::Name,
+                                                      expression->location,
+                                                      *rewritten);
+          break;
+        }
+      }
       rewriteExpression(module, static_cast<FieldExpr&>(*expression).value,
-                        typeParameters); break;
+                        typeParameters);
+      break;
+    }
     case ExprKind::Propagate:
       rewriteExpression(module, static_cast<PropagateExpr&>(*expression).value,
                         typeParameters); break;

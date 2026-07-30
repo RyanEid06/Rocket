@@ -140,6 +140,20 @@ foreach ($source in $conformanceSources) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
+$raylibReference = Join-Path $projectRoot 'examples\raylib_showcase'
+foreach ($compiler in $stage1, $stage2, $stage3) {
+    & $compiler check $raylibReference
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+& $stage3 build $raylibReference
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$raylibTestOutput = & $stage3 test $raylibReference 2>&1
+$raylibTestStatus = $LASTEXITCODE
+if ($raylibTestOutput) { Write-Host ($raylibTestOutput -join [Environment]::NewLine) }
+if ($raylibTestStatus -ne 0 -or ($raylibTestOutput -join "`n") -notmatch '4 passed; 0 failed') {
+    throw 'The Phase 14 raylib reference validation failed during bootstrap.'
+}
+
 & $stage3 build (Join-Path $fixtures 'phase13_static_library')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $stage3 build (Join-Path $fixtures 'phase13_dynamic_library')
@@ -164,6 +178,23 @@ if ((Get-FileHash -LiteralPath $header1 -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $bindings1 -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $bindings2 -Algorithm SHA256).Hash) {
     throw 'Phase 13 native header or binding generation is not deterministic.'
+}
+
+$raylibBindings1 = Join-Path $generationDirectory 'raylib-bindings-stage2.rocket'
+$raylibBindings2 = Join-Path $generationDirectory 'raylib-bindings-stage3.rocket'
+$raylibBindings3 = Join-Path $generationDirectory 'raylib-bindings-stage3-repeat.rocket'
+$raylibHeader = Join-Path $raylibReference 'native\rocket_raylib_adapter.h'
+& $stage2 bind $raylibHeader --output $raylibBindings1
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $stage3 bind $raylibHeader --output $raylibBindings2
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $stage3 bind $raylibHeader --output $raylibBindings3
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ((Get-FileHash -LiteralPath $raylibBindings1 -Algorithm SHA256).Hash -ne
+    (Get-FileHash -LiteralPath $raylibBindings2 -Algorithm SHA256).Hash -or
+    (Get-FileHash -LiteralPath $raylibBindings2 -Algorithm SHA256).Hash -ne
+    (Get-FileHash -LiteralPath $raylibBindings3 -Algorithm SHA256).Hash) {
+    throw 'Phase 14 raylib bindings differ across stage2/stage3 or repeat generation.'
 }
 
 $packageFixture = Join-Path $fixtures 'phase8_package'

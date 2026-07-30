@@ -60,4 +60,20 @@ if (-not (Test-Path -LiteralPath (Join-Path $llvmTarget 'bin\llvm-config.exe')))
     Remove-Item -LiteralPath $extractRoot -Recurse -Force
 }
 
-Write-Host 'Pinned LLVM and Ninja toolchain installed successfully.'
+$raylib = $manifest.portable.raylib
+$raylibTarget = Join-Path $installedRoot $raylib.installDirectory
+if (-not (Test-Path -LiteralPath (Join-Path $raylibTarget 'src\raylib.h'))) {
+    $archive = Get-VerifiedArchive $raylib
+    $extractRoot = Join-Path $installedRoot '.extracting-raylib-6.0'
+    if (Test-Path -LiteralPath $extractRoot) { Remove-Item -LiteralPath $extractRoot -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
+    & tar.exe -xzf $archive -C $extractRoot
+    if ($LASTEXITCODE -ne 0) { throw 'raylib extraction failed' }
+    $extracted = Get-ChildItem -LiteralPath $extractRoot -Directory | Select-Object -First 1
+    if (-not $extracted) { throw 'raylib archive did not contain a source directory' }
+    if (Test-Path -LiteralPath $raylibTarget) { Remove-Item -LiteralPath $raylibTarget -Recurse -Force }
+    Move-Item -LiteralPath $extracted.FullName -Destination $raylibTarget
+    Remove-Item -LiteralPath $extractRoot -Recurse -Force
+}
+
+Write-Host 'Pinned LLVM, Ninja, and raylib dependencies installed successfully.'

@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
 $fixtures = Join-Path $projectRoot 'tests\fixtures'
 $reportDirectory = Join-Path $projectRoot 'out\conformance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.3-development-$configurationName.txt"
+$reportPath = Join-Path $reportDirectory "rocket-1.4-development-$configurationName.txt"
 $results = [System.Collections.Generic.List[string]]::new()
 
 function Invoke-ConformanceCase {
@@ -45,7 +45,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.3\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.4\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -64,6 +64,7 @@ Invoke-ConformanceCase 'iterators-check' @('check', (Join-Path $fixtures 'phase1
 Invoke-ConformanceCase 'associated-constants-check' @('check', (Join-Path $fixtures 'phase12_associated_constants.rocket'))
 Invoke-ConformanceCase 'generic-lambdas-check' @('check', (Join-Path $fixtures 'phase12_generic_lambdas.rocket'))
 Invoke-ConformanceCase 'native-interop-check' @('check', (Join-Path $fixtures 'phase13_native_package'))
+Invoke-ConformanceCase 'raylib-reference-check' @('check', (Join-Path $projectRoot 'examples\raylib_showcase'))
 Invoke-ConformanceCase 'hello-run' @('run', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'Hello from Rocket'
 Invoke-ConformanceCase 'operators-run' @('run', (Join-Path $fixtures 'llvm_operators.rocket'))
 Invoke-ConformanceCase 'collections-run' @('run', (Join-Path $fixtures 'runtime_collections.rocket'))
@@ -83,6 +84,8 @@ Invoke-ConformanceCase 'generic-lambdas-run' @('run', (Join-Path $fixtures 'phas
 Invoke-ConformanceCase 'native-interop-run' @('run', (Join-Path $fixtures 'phase13_native_package')) 0 'native-interop-ok'
 Invoke-ConformanceCase 'native-static-library-build' @('build', (Join-Path $fixtures 'phase13_static_library')) 0 'phase13_math.lib'
 Invoke-ConformanceCase 'native-dynamic-library-build' @('build', (Join-Path $fixtures 'phase13_dynamic_library')) 0 'phase13_math_dynamic.dll'
+Invoke-ConformanceCase 'raylib-reference-build' @('build', (Join-Path $projectRoot 'examples\raylib_showcase')) 0 'rocket-raylib-showcase.exe'
+Invoke-ConformanceCase 'raylib-reference-test' @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) 0 '4 passed; 0 failed'
 $nativeHeader1 = Join-Path $reportDirectory 'phase13-header-1.h'
 $nativeHeader2 = Join-Path $reportDirectory 'phase13-header-2.h'
 $nativeBindings1 = Join-Path $reportDirectory 'phase13-bindings-1.rocket'
@@ -97,6 +100,14 @@ if ((Get-FileHash -LiteralPath $nativeHeader1 -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $nativeBindings2 -Algorithm SHA256).Hash) {
     throw 'Phase 13 generated native artifacts are not deterministic.'
 }
+$raylibBindings1 = Join-Path $reportDirectory 'phase14-raylib-bindings-1.rocket'
+$raylibBindings2 = Join-Path $reportDirectory 'phase14-raylib-bindings-2.rocket'
+Invoke-ConformanceCase 'raylib-bindings-generate' @('bind', (Join-Path $projectRoot 'examples\raylib_showcase\native\rocket_raylib_adapter.h'), '--output', $raylibBindings1)
+Invoke-ConformanceCase 'raylib-bindings-repeat' @('bind', (Join-Path $projectRoot 'examples\raylib_showcase\native\rocket_raylib_adapter.h'), '--output', $raylibBindings2)
+if ((Get-FileHash -LiteralPath $raylibBindings1 -Algorithm SHA256).Hash -ne
+    (Get-FileHash -LiteralPath $raylibBindings2 -Algorithm SHA256).Hash) {
+    throw 'Phase 14 raylib bindings are not deterministic.'
+}
 Invoke-ConformanceCase 'package-check' @('check', (Join-Path $fixtures 'phase8_package')) 0 'check succeeded'
 Invoke-ConformanceCase 'package-format' @('fmt', (Join-Path $fixtures 'phase8_package'), '--check') 0 'format check succeeded'
 Invoke-ConformanceCase 'package-run' @('run', (Join-Path $fixtures 'phase8_package')) 0 '(?m)^42$'
@@ -108,13 +119,14 @@ Invoke-ConformanceCase 'invalid-method-receiver' @('check', (Join-Path $fixtures
 Invoke-ConformanceCase 'generic-lambda-result-diagnostic' @('check', (Join-Path $fixtures 'phase12_generic_lambda_failure.rocket')) 1 'String, expected Int'
 Invoke-ConformanceCase 'immediate-lambda-argument-diagnostic' @('check', (Join-Path $fixtures 'phase12_immediate_lambda_failure.rocket')) 1 'String, expected Int'
 Invoke-ConformanceCase 'unsafe-boundary-diagnostic' @('check', (Join-Path $fixtures 'phase13_unsafe_failure.rocket')) 1 'requires an explicit unsafe block'
+Invoke-ConformanceCase 'raylib-unsafe-boundary-diagnostic' @('check', (Join-Path $fixtures 'phase14_unsafe_failure.rocket')) 1 'requires an explicit unsafe block'
 Invoke-ConformanceCase 'negative-reserve' @('run', (Join-Path $fixtures 'phase11_negative_reserve.rocket')) 101 'Array reserve capacity cannot be negative'
 Invoke-ConformanceCase 'insert-bounds' @('run', (Join-Path $fixtures 'phase11_insert_bounds.rocket')) 101 'index 2 out of bounds for length 1'
 Invoke-ConformanceCase 'remove-bounds' @('run', (Join-Path $fixtures 'phase11_remove_bounds.rocket')) 101 'index 1 out of bounds for length 1'
 Invoke-ConformanceCase 'checked-overflow' @('run', (Join-Path $fixtures 'int_overflow.rocket')) 101 'Int arithmetic overflow'
 
 $header = @(
-    'Rocket 1.3 development conformance report'
+    'Rocket 1.4 development conformance report'
     "compiler  $Compiler"
     "sha256  $((Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant())"
     "configuration  $Configuration"
@@ -122,4 +134,4 @@ $header = @(
     ''
 )
 Set-Content -LiteralPath $reportPath -Value ($header + $results) -Encoding utf8
-Write-Output "Rocket 1.3 development conformance passed: $($results.Count) cases ($reportPath)"
+Write-Output "Rocket 1.4 development conformance passed: $($results.Count) cases ($reportPath)"

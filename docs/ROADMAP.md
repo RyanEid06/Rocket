@@ -199,7 +199,7 @@ languages consume Rocket libraries.
 - FFI misuse is confined to explicit unsafe code and cannot silently violate
   managed Rocket invariants.
 
-### Phase 14 - Rocket 1.4: graphics, audio, and real application validation
+### Phase 14 - Rocket 1.4: graphics, audio, and real application validation - Completed
 
 **Purpose:** Prove the FFI, runtime, package layout, and developer experience in
 a substantial event-driven native application.

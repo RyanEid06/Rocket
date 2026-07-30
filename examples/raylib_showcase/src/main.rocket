@@ -1,0 +1,4 @@
+import src.showcase
+
+fn main() -> Int:
+    return showcase.run()

@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$version = '1.3.0'
+$version = '1.4.0'
 $configurationName = $Configuration.ToLowerInvariant()
 $buildDirectory = Join-Path $projectRoot "out\build\windows-$configurationName"
 $bootstrapDirectory = Join-Path $projectRoot "out\bootstrap\windows-$configurationName"
@@ -101,7 +101,7 @@ Copy-Item -LiteralPath (Join-Path $bootstrapDirectory 'SHA256SUMS.txt') `
     -Destination (Join-Path $packageRoot 'BOOTSTRAP_SHA256SUMS.txt')
 
 $packageNote = @"
-# Rocket 1.3.0 for Windows x64
+# Rocket 1.4.0 for Windows x64
 
 ``bin\rocketc.exe`` is the production self-hosted Rocket compiler. It discovers
 the bundled runtime, Clang/LLD, compiler-rt resources, and native link libraries

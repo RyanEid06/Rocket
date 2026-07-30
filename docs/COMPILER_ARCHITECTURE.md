@@ -283,3 +283,30 @@ Header and binding generation walk source declarations in canonical module
 order and do not include timestamps, paths, hashes, or unordered-container
 iteration. Stage0 and the Rocket compiler therefore produce byte-identical
 native interface artifacts.
+
+## Rocket 1.4 raylib validation architecture
+
+Phase 14 validates the Phase 13 pipeline instead of adding a raylib-specific
+compiler intrinsic. The pinned raylib 6.0 C target is statically linked behind
+`rocket_raylib_adapter.lib`. That adapter owns all raylib by-value structures
+and exposes a generated-header subset containing only `int64_t`, `double`,
+`rocket_bool`, `uint8_t`, `void`, and one synchronous callback type. The package
+manifest supplies the adapter, raylib, and Windows system libraries in
+deterministic link order. Unresolved Windows `.lib` names are normalized to
+Clang/LLD `-l` arguments by the production path while the LLVM-disabled stage0
+path preserves MSVC library spelling.
+
+The adapter registry gives each native object a positive token. Window and
+audio devices are process singletons; frames are single-use; texture, font, and
+sound maps own their corresponding raylib values. Every operation validates
+state and token identity before reaching raylib. Registry counts, scripted
+input, deterministic timing, and simulated devices are available only after
+test mode is enabled, allowing lifecycle and stress tests on headless builders
+while the same binary remains linked to the real raylib implementation.
+
+`rocketc bind` generates the ignored low-level module before package analysis.
+The handwritten Rocket wrapper is the safety boundary and contains every
+`unsafe:` block. Stage0 and the self-hosted compiler resolve public generated
+constants used as imported values and both test runners preserve package-native
+link inputs. Bootstrap compares stage2/stage3 raylib binding output and builds
+and tests the reference package without launching its interactive window.

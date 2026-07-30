@@ -161,7 +161,8 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
                      const std::vector<std::string>& libraries = {}) {
   std::vector<std::string> arguments;
 #ifdef _MSC_VER
-  arguments = {"/nologo", "/std:c++20", "/O2", "/EHsc", "/utf-8",
+  arguments = {"/nologo", "/std:c++20", "/EHsc", "/utf-8",
+               "/O2", "/MT",
                "/I" + fs::path(ROCKETC_SOURCE_INCLUDE_PATH).string()};
   if (assembly || outputKind == rocket::PackageOutputKind::StaticLibrary) {
     fs::path objectPath = output;
@@ -364,7 +365,12 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
           }
         }
       }
-      if (!resolved) linkArguments.push_back(library);
+      if (!resolved) {
+        if (!libraryPath.has_parent_path() && libraryPath.extension() == ".lib")
+          linkArguments.push_back("-l" + libraryPath.stem().string());
+        else
+          linkArguments.push_back(library);
+      }
     }
     linkArguments.push_back("-o");
     linkArguments.push_back(executablePath.string());
@@ -467,6 +473,8 @@ int testCommand(const fs::path& path) {
   std::vector<fs::path> tests;
   fs::path packageRoot;
   fs::path artifactRoot;
+  std::vector<std::string> nativeLibraries;
+  std::vector<fs::path> nativeLibrarySearch;
   const fs::path absolute = fs::absolute(path).lexically_normal();
   if (fs::is_regular_file(absolute) && absolute.extension() == ".rocket") {
     tests.push_back(absolute);
@@ -479,6 +487,8 @@ int testCommand(const fs::path& path) {
     if (!error.empty()) { cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 2; }
     packageRoot = package->root;
     artifactRoot = package->root;
+    nativeLibraries = package->nativeLibraries;
+    nativeLibrarySearch = package->nativeLibrarySearch;
   }
 
   int passed = 0;
@@ -491,7 +501,7 @@ int testCommand(const fs::path& path) {
     const int status = executeCompiler(
         "run", {test, packageRoot, artifactRoot,
                 rocket::PackageOutputKind::Executable, test.stem().string(),
-                test.stem().string(), {}, {}}, {}, false);
+                test.stem().string(), nativeLibraries, nativeLibrarySearch}, {}, false);
     if (status == 0) { ++passed; std::cout << "PASS " << display.generic_string() << '\n'; }
     else { ++failed; std::cout << "FAIL " << display.generic_string() << " (exit " << status << ")\n"; }
   }

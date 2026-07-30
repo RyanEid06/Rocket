@@ -34,6 +34,13 @@ lower the same narrow C ABI, build native library products, consume target-aware
 linker configuration, and generate byte-identical C headers and Rocket bindings.
 These features participate in the normal stage2/stage3 determinism proof.
 
+Rocket 1.4 adds no compiler-only graphics syntax. Stage0 and the self-hosted
+compiler both resolve generated public native constants across modules,
+preserve native manifest inputs when compiling package tests, normalize Windows
+system-library inputs for Clang/LLD, and generate byte-identical raylib adapter
+bindings. Bootstrap checks and builds the reference application and runs its
+headless native suite without launching the interactive window.
+
 No compiler-only syntax, source preprocessor, C++ callback, or runtime compile
 function is permitted. Stage0 and the production runtime implement the same
 public calls, and both backends run the same bootstrap primitive fixture.

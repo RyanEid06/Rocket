@@ -2,6 +2,7 @@
 /.vs/
 .langc/
 **/.rocketc/
+/examples/*/generated/
 /dependencies/cache/
 /dependencies/installed/
 /out/

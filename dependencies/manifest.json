@@ -17,10 +17,19 @@
       "size": 289808,
       "sha256": "26a40fa8595694dec2fad4911e62d29e10525d2133c9a4230b66397774ae25bf",
       "installDirectory": "ninja-1.13.1"
+    },
+    "raylib": {
+      "version": "6.0",
+      "tagCommit": "dbc56a87da87d973a9c5baa4e7438a9d20121d28",
+      "archive": "raylib-6.0.tar.gz",
+      "url": "https://github.com/raysan5/raylib/archive/refs/tags/6.0.tar.gz",
+      "size": 52545040,
+      "sha256": "2b3ee1e2120c7a0796b33062c7e9a694dd8a8caa56a96319ac8c8ecf54a90d0b",
+      "installDirectory": "raylib-6.0"
     }
   },
   "systemRequirements": {
-    "cmake": ">=3.20",
+    "cmake": ">=3.25",
     "git": ">=2.40",
     "msvc": ">=14.50",
     "windowsSdk": ">=10.0.26100",

@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.20)
-project(Rocket VERSION 1.3.0 LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.25)
+project(Rocket VERSION 1.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,6 +20,61 @@ if(MSVC)
   target_compile_options(rocket_runtime PRIVATE /W4 /permissive-)
 else()
   target_compile_options(rocket_runtime PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+set(ROCKET_RAYLIB_SOURCE "${CMAKE_SOURCE_DIR}/dependencies/installed/raylib-6.0")
+if(NOT EXISTS "${ROCKET_RAYLIB_SOURCE}/src/raylib.h")
+  message(FATAL_ERROR
+    "Pinned raylib 6.0 is missing. Run dependencies/bootstrap.ps1 before configuring.")
+endif()
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build raylib examples" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build raylib as a shared library" FORCE)
+set(CUSTOMIZE_BUILD ON CACHE BOOL "Use Rocket's reviewed raylib feature set" FORCE)
+foreach(ROCKET_RAYLIB_DISABLED_FEATURE IN ITEMS
+    SUPPORT_MODULE_RMODELS SUPPORT_SCREEN_CAPTURE SUPPORT_COMPRESSION_API
+    SUPPORT_AUTOMATION_EVENTS SUPPORT_CLIPBOARD_IMAGE SUPPORT_FILEFORMAT_TGA
+    SUPPORT_FILEFORMAT_GIF SUPPORT_FILEFORMAT_QOI SUPPORT_FILEFORMAT_PSD
+    SUPPORT_FILEFORMAT_DDS SUPPORT_FILEFORMAT_HDR SUPPORT_FILEFORMAT_PIC
+    SUPPORT_FILEFORMAT_KTX SUPPORT_FILEFORMAT_ASTC SUPPORT_FILEFORMAT_PKM
+    SUPPORT_FILEFORMAT_PVR SUPPORT_IMAGE_EXPORT SUPPORT_IMAGE_GENERATION
+    SUPPORT_FILEFORMAT_BDF SUPPORT_FILEFORMAT_OBJ SUPPORT_FILEFORMAT_MTL
+    SUPPORT_FILEFORMAT_IQM SUPPORT_FILEFORMAT_GLTF SUPPORT_FILEFORMAT_VOX
+    SUPPORT_FILEFORMAT_M3D SUPPORT_MESH_GENERATION SUPPORT_GPU_SKINNING
+    SUPPORT_FILEFORMAT_FLAC SUPPORT_FILEFORMAT_XM SUPPORT_FILEFORMAT_MOD)
+  set(${ROCKET_RAYLIB_DISABLED_FEATURE} OFF CACHE BOOL "Rocket raylib profile" FORCE)
+endforeach()
+foreach(ROCKET_RAYLIB_ENABLED_FEATURE IN ITEMS
+    SUPPORT_MODULE_RSHAPES SUPPORT_MODULE_RTEXTURES SUPPORT_MODULE_RTEXT
+    SUPPORT_MODULE_RAUDIO SUPPORT_FILEFORMAT_PNG SUPPORT_FILEFORMAT_BMP
+    SUPPORT_FILEFORMAT_JPG SUPPORT_FILEFORMAT_PNM SUPPORT_FILEFORMAT_TTF
+    SUPPORT_FILEFORMAT_FNT SUPPORT_FILEFORMAT_WAV SUPPORT_FILEFORMAT_OGG
+    SUPPORT_FILEFORMAT_MP3 SUPPORT_FILEFORMAT_QOA)
+  set(${ROCKET_RAYLIB_ENABLED_FEATURE} ON CACHE BOOL "Rocket raylib profile" FORCE)
+endforeach()
+set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
+add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
+
+set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
+set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_RAYLIB_PACKAGE}/.rocketc/native")
+set_target_properties(raylib PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_RAYLIB_NATIVE_OUTPUT}"
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+if(TARGET glfw)
+  set_target_properties(glfw PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
+endif()
+
+add_library(rocket_raylib_adapter STATIC
+  examples/raylib_showcase/native/rocket_raylib_adapter.cpp)
+target_include_directories(rocket_raylib_adapter PUBLIC
+  examples/raylib_showcase/native)
+target_link_libraries(rocket_raylib_adapter PUBLIC raylib)
+set_target_properties(rocket_raylib_adapter PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_RAYLIB_NATIVE_OUTPUT}"
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+if(MSVC)
+  target_compile_options(rocket_raylib_adapter PRIVATE /W4 /permissive-)
+else()
+  target_compile_options(rocket_raylib_adapter PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 add_library(rocket_phase13_native STATIC tests/native/phase13_native.cpp)
@@ -105,6 +160,41 @@ if(LLVM_FOUND)
   add_dependencies(rocketc rocket_runtime)
 endif()
 
+set(ROCKET_RAYLIB_HEADER
+  "${ROCKET_RAYLIB_PACKAGE}/native/rocket_raylib_adapter.h")
+set(ROCKET_RAYLIB_BINDINGS
+  "${ROCKET_RAYLIB_PACKAGE}/generated/rocket_raylib_adapter.rocket")
+add_custom_command(
+  OUTPUT "${ROCKET_RAYLIB_BINDINGS}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory
+          "${ROCKET_RAYLIB_PACKAGE}/generated"
+  COMMAND $<TARGET_FILE:rocketc> bind "${ROCKET_RAYLIB_HEADER}"
+          --output "${ROCKET_RAYLIB_BINDINGS}"
+  DEPENDS rocketc "${ROCKET_RAYLIB_HEADER}"
+  VERBATIM
+  COMMENT "Generating deterministic Rocket raylib adapter bindings")
+add_custom_target(rocket_raylib_bindings ALL DEPENDS "${ROCKET_RAYLIB_BINDINGS}")
+add_dependencies(rocket_raylib_bindings rocket_raylib_adapter)
+
+add_custom_target(rocket_raylib_check
+  COMMAND $<TARGET_FILE:rocketc> check "${ROCKET_RAYLIB_PACKAGE}"
+  DEPENDS rocket_raylib_bindings
+  WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}"
+  USES_TERMINAL
+  COMMENT "Checking the Rocket raylib showcase")
+add_custom_target(rocket_raylib_build
+  COMMAND $<TARGET_FILE:rocketc> build "${ROCKET_RAYLIB_PACKAGE}"
+  DEPENDS rocket_raylib_bindings
+  WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}"
+  USES_TERMINAL
+  COMMENT "Building the Rocket raylib showcase")
+add_custom_target(rocket_raylib_test
+  COMMAND $<TARGET_FILE:rocketc> test "${ROCKET_RAYLIB_PACKAGE}"
+  DEPENDS rocket_raylib_bindings
+  WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}"
+  USES_TERMINAL
+  COMMENT "Testing the Rocket raylib showcase with the deterministic backend")
+
 # Visual Studio's CMake Targets View exposes these as explicit Rocket actions.
 # They operate on a real package instead of treating the compiler repository
 # root as if it were a Rocket application package.
@@ -149,6 +239,15 @@ add_rocketc_test(formatter)
 add_rocketc_test(package)
 add_rocketc_test(native)
 
+add_executable(rocket_phase14_raylib_adapter_tests
+  tests/native/phase14_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase14_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase14_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase14_raylib_adapter COMMAND rocket_phase14_raylib_adapter_tests)
+set_tests_properties(phase14_raylib_adapter PROPERTIES LABELS "phase14;raylib;native")
+
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
 add_test(NAME runtime COMMAND rocketc_runtime_tests)
@@ -188,6 +287,30 @@ add_test(NAME cli_check_phase12_generic_lambdas
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
 add_test(NAME cli_check_phase13_native
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
+add_test(NAME cli_check_phase14_raylib_reference
+  COMMAND rocketc check "${ROCKET_RAYLIB_PACKAGE}")
+set_tests_properties(cli_check_phase14_raylib_reference PROPERTIES
+  LABELS "phase14;raylib"
+  WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+add_test(NAME cli_build_phase14_raylib_reference
+  COMMAND rocketc build "${ROCKET_RAYLIB_PACKAGE}")
+set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
+  PASS_REGULAR_EXPRESSION "rocket-raylib-showcase.exe"
+  LABELS "phase14;raylib;native"
+  WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+add_test(NAME cli_test_phase14_raylib_reference
+  COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
+set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
+  PASS_REGULAR_EXPRESSION "4 passed; 0 failed"
+  LABELS "phase14;raylib;native"
+  WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+add_test(NAME cli_phase14_unsafe_failure
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase14_unsafe_failure.rocket"
+    "-DEXPECTED=requires an explicit unsafe block"
+    -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+set_tests_properties(cli_phase14_unsafe_failure PROPERTIES LABELS "phase14;raylib")
 add_test(NAME cli_phase13_unsafe_failure
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -291,7 +414,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.3.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.4.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest
@@ -464,6 +587,42 @@ if(LLVM_FOUND)
       -P "${CMAKE_SOURCE_DIR}/tests/native/phase13_generation_test.cmake")
   set_tests_properties(cli_phase13_generation_parity PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler)
+
+  add_test(NAME cli_self_hosted_check_phase14_raylib_reference
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+      "${ROCKET_RAYLIB_PACKAGE}")
+  set_tests_properties(cli_self_hosted_check_phase14_raylib_reference PROPERTIES
+    FIXTURES_REQUIRED self_hosted_compiler
+    LABELS "phase14;raylib"
+    PASS_REGULAR_EXPRESSION "check succeeded"
+    WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+  add_test(NAME cli_self_hosted_build_phase14_raylib_reference
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" build
+      "${ROCKET_RAYLIB_PACKAGE}")
+  set_tests_properties(cli_self_hosted_build_phase14_raylib_reference PROPERTIES
+    FIXTURES_REQUIRED self_hosted_compiler
+    LABELS "phase14;raylib;native"
+    PASS_REGULAR_EXPRESSION "rocket-raylib-showcase.exe"
+    WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+  add_test(NAME cli_self_hosted_test_phase14_raylib_reference
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" test
+      "${ROCKET_RAYLIB_PACKAGE}")
+  set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
+    FIXTURES_REQUIRED self_hosted_compiler
+    LABELS "phase14;raylib;native"
+    PASS_REGULAR_EXPRESSION "4 passed; 0 failed"
+    WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+  add_test(NAME cli_phase14_raylib_generation_parity
+    COMMAND ${CMAKE_COMMAND}
+      "-DSTAGE0=$<TARGET_FILE:rocketc>"
+      "-DSELFHOST=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+      "-DHEADER=${ROCKET_RAYLIB_HEADER}"
+      "-DGENERATED=${ROCKET_RAYLIB_BINDINGS}"
+      "-DWORK=${CMAKE_BINARY_DIR}/phase14-generation"
+      -P "${CMAKE_SOURCE_DIR}/tests/native/phase14_generation_test.cmake")
+  set_tests_properties(cli_phase14_raylib_generation_parity PROPERTIES
+    FIXTURES_REQUIRED self_hosted_compiler
+    LABELS "phase14;raylib;native")
 
   add_test(NAME cli_self_hosted_run_package
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run

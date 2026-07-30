@@ -1,0 +1,16 @@
+[package]
+name = "raylib_showcase"
+version = "1.4.0"
+entry = "src/main.rocket"
+
+[test]
+directory = "tests"
+
+[build]
+kind = "executable"
+name = "rocket-raylib-showcase"
+
+[native.windows-x64]
+libraries = "rocket_raylib_adapter.lib;raylib.lib;opengl32.lib;winmm.lib;gdi32.lib;user32.lib;shell32.lib;ole32.lib"
+library-search = ".rocketc/native"
+headers = "native/rocket_raylib_adapter.h"

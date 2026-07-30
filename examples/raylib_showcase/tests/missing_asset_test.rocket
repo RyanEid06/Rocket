@@ -1,0 +1,18 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    match rocket_raylib.open_window(320, 200, "missing asset"):
+        case Ok(window):
+            match rocket_raylib.load_texture(window, "assets/missing-image.png"):
+                case Ok(texture):
+                    return 2
+                case Err(error):
+                    let closed = rocket_raylib.close_window(window)
+                    if rocket_raylib_testing.buffer_live_count() != 0:
+                        return 3
+                    return 0
+        case Err(error):
+            return 4
