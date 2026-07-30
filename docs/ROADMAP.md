@@ -223,18 +223,28 @@ a substantial event-driven native application.
 - A clean Windows machine can build and run the packaged application from the
   published instructions.
 
-### Phase 15 - Rocket 1.5: production standard library - In progress
+### Phase 15 - Rocket 1.5: production standard library - Completed
+
+**Delivered:** Buffered binary streams and endian codecs; explicit Unicode
+scalar/normalization/grapheme layers; a bounded Thompson-NFA regex engine;
+Windows-backed cryptography and certificate validation; DNS, TCP, HTTP/HTTPS
+client and bounded server foundations; calendars/time zones; logging, CLI and
+configuration helpers; XPRESS compression and safe deterministic ustar data;
+parameterized SQLite; and an ordinary Rocket testing facade with fixtures,
+XFAIL/filtering, secure temporary roots, and coverage hooks. All public resource
+and failure boundaries use bounded `Option`/`Result` contracts with matching
+stage0 and self-hosted behavior.
 
 **Purpose:** Cover the common facilities required by tools, games, services, and
 desktop applications without forcing every project to reinvent foundations.
 
 **Library work:**
 
-- Foundation delivered: immutable byte buffers, exact binary file I/O,
+- Immutable byte buffers, exact binary file I/O,
   bounds-checked slicing, UTF-8 conversion, and explicit little-endian unsigned
   integer codecs with stage0/self-hosted parity.
 
-- Continue the delivered byte/binary foundation with buffered streams and
+- Continue the byte/binary foundation with buffered streams and
   additional encoding primitives.
 - Add complete Unicode scalar iteration, normalization boundaries, and practical
   grapheme-aware APIs.
@@ -289,7 +299,7 @@ reproducible, secure, and easy to publish.
 **Foundation in progress.** After an explicit user reprioritization, protocol
 0.1 now establishes a standalone, editor-neutral LSP 3.17 process with bounded
 full-document synchronization, coded frontend diagnostics, protocol tests, and
-a dependency-free VS Code client. Earlier Phase 15 and Phase 16 work remains
+a dependency-free VS Code client. Phase 15 is now complete; Phase 16 remains
 open and is not considered complete by this reprioritization.
 
 **Purpose:** Make Rocket efficient to learn, navigate, debug, maintain, and

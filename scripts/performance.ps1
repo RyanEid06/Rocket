@@ -58,9 +58,9 @@ Measure-RocketCommand 'raylib-reference-build' @('build', (Join-Path $projectRoo
 
 $reportDirectory = Join-Path $projectRoot 'out\performance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.4-$configurationName.json"
+$reportPath = Join-Path $reportDirectory "rocket-1.5-$configurationName.json"
 $report = [pscustomobject]@{
-    version = '1.4.0'
+    version = '1.5.0'
     configuration = $Configuration
     compiler = $Compiler
     sha256 = (Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -68,7 +68,7 @@ $report = [pscustomobject]@{
     measurements = $measurements
 }
 $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $reportPath -Encoding utf8
-Write-Output "Rocket 1.4 performance gates passed: $reportPath"
+Write-Output "Rocket 1.5 performance gates passed: $reportPath"
 foreach ($measurement in $measurements) {
     Write-Output ("  {0}: {1}s <= {2}s" -f $measurement.name, $measurement.seconds,
         $measurement.maximum_seconds)

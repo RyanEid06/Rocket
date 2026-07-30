@@ -1,0 +1,51 @@
+import std.archive
+import std.binary
+import std.collections
+import std.compression
+import std.file
+
+fn exercise() -> Result[Bool, String]:
+    let original = binary.from_string("Rocket compression round trip Rocket compression round trip")
+    let compressed = compression.xpress_compress(original)?
+    let restored = compression.xpress_decompress(compressed)?
+    if binary.to_string(restored)? != binary.to_string(original)?:
+        return Err("XPRESS compression round trip failed")
+    match compression.xpress_decompress(binary.from_string("not compressed")):
+        case Ok(value):
+            if binary.length(value) >= 0:
+                return Err("invalid compressed bytes were accepted")
+        case Err(error):
+            if error == "":
+                return Err("invalid compressed bytes returned an empty error")
+
+    let names = ["docs/readme.txt", "data/value.bin"]
+    let contents = [binary.from_string("Rocket"), binary.write_u32_le(305419896)?]
+    archive.tar_create("phase15_temp.tar", names, contents)?
+    let listed = archive.tar_list("phase15_temp.tar")?
+    if collections.length(listed) != 2 or listed[0] != names[0] or listed[1] != names[1]:
+        return Err("TAR listing did not preserve deterministic order")
+    let stored = archive.tar_read("phase15_temp.tar", "data/value.bin")?
+    if binary.read_u32_le(stored, 0)? != 305419896:
+        return Err("TAR binary contents did not round trip")
+    file.remove("phase15_temp.tar")?
+
+    match archive.tar_create("phase15_unsafe.tar", ["../escape"], [original]):
+        case Ok(created):
+            if created:
+                return Err("unsafe TAR entry name was accepted")
+            return Err("unsafe TAR entry returned Ok(false)")
+        case Err(error):
+            if error == "":
+                return Err("unsafe TAR entry error was empty")
+    return Ok(true)
+
+fn main() -> Int:
+    match exercise():
+        case Ok(success):
+            if success:
+                print("phase15-archive-ok")
+                return 0
+            return 1
+        case Err(error):
+            print(error)
+            return 2

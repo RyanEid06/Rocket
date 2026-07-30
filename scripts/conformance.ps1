@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
 $fixtures = Join-Path $projectRoot 'tests\fixtures'
 $reportDirectory = Join-Path $projectRoot 'out\conformance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.4-development-$configurationName.txt"
+$reportPath = Join-Path $reportDirectory "rocket-1.5-$configurationName.txt"
 $results = [System.Collections.Generic.List[string]]::new()
 
 function Invoke-ConformanceCase {
@@ -45,7 +45,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.4\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.5\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -120,13 +120,22 @@ Invoke-ConformanceCase 'generic-lambda-result-diagnostic' @('check', (Join-Path 
 Invoke-ConformanceCase 'immediate-lambda-argument-diagnostic' @('check', (Join-Path $fixtures 'phase12_immediate_lambda_failure.rocket')) 1 'String, expected Int'
 Invoke-ConformanceCase 'unsafe-boundary-diagnostic' @('check', (Join-Path $fixtures 'phase13_unsafe_failure.rocket')) 1 'requires an explicit unsafe block'
 Invoke-ConformanceCase 'raylib-unsafe-boundary-diagnostic' @('check', (Join-Path $fixtures 'phase14_unsafe_failure.rocket')) 1 'requires an explicit unsafe block'
+Invoke-ConformanceCase 'phase15-binary-io' @('run', (Join-Path $fixtures 'phase15_binary_io.rocket')) 0 'phase15-binary-ok'
+Invoke-ConformanceCase 'phase15-text-streams' @('run', (Join-Path $fixtures 'phase15_text_streams.rocket')) 0 'phase15-text-streams-ok'
+Invoke-ConformanceCase 'phase15-crypto' @('run', (Join-Path $fixtures 'phase15_crypto.rocket')) 0 'phase15-crypto-ok'
+Invoke-ConformanceCase 'phase15-network' @('run', (Join-Path $fixtures 'phase15_network.rocket')) 0 'phase15-network-ok'
+Invoke-ConformanceCase 'phase15-platform' @('run', (Join-Path $fixtures 'phase15_platform.rocket')) 0 'phase15-platform-ok'
+Invoke-ConformanceCase 'phase15-archive' @('run', (Join-Path $fixtures 'phase15_archive.rocket')) 0 'phase15-archive-ok'
+Invoke-ConformanceCase 'phase15-sqlite' @('run', (Join-Path $fixtures 'phase15_sqlite.rocket')) 0 'phase15-sqlite-ok'
+Invoke-ConformanceCase 'phase15-testing' @('run', (Join-Path $fixtures 'phase15_testing.rocket')) 0 'phase15-testing-ok'
+Invoke-ConformanceCase 'phase15-test-runner' @('test', (Join-Path $fixtures 'phase15_test_package')) 0 '1 passed; 0 failed; 1 expected failure'
 Invoke-ConformanceCase 'negative-reserve' @('run', (Join-Path $fixtures 'phase11_negative_reserve.rocket')) 101 'Array reserve capacity cannot be negative'
 Invoke-ConformanceCase 'insert-bounds' @('run', (Join-Path $fixtures 'phase11_insert_bounds.rocket')) 101 'index 2 out of bounds for length 1'
 Invoke-ConformanceCase 'remove-bounds' @('run', (Join-Path $fixtures 'phase11_remove_bounds.rocket')) 101 'index 1 out of bounds for length 1'
 Invoke-ConformanceCase 'checked-overflow' @('run', (Join-Path $fixtures 'int_overflow.rocket')) 101 'Int arithmetic overflow'
 
 $header = @(
-    'Rocket 1.4 development conformance report'
+    'Rocket 1.5 conformance report'
     "compiler  $Compiler"
     "sha256  $((Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant())"
     "configuration  $Configuration"
@@ -134,4 +143,4 @@ $header = @(
     ''
 )
 Set-Content -LiteralPath $reportPath -Value ($header + $results) -Encoding utf8
-Write-Output "Rocket 1.4 development conformance passed: $($results.Count) cases ($reportPath)"
+Write-Output "Rocket 1.5 conformance passed: $($results.Count) cases ($reportPath)"

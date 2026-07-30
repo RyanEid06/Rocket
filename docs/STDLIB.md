@@ -1,9 +1,10 @@
-# Rocket Standard Library through the Rocket 1.5 foundation
+# Rocket Standard Library through Rocket 1.5
 
-The stable library is a set of built-in source modules, including the Rocket 1.2
-dot-call additions, the unchanged Rocket 1.3 native boundary, and the first
-Rocket 1.5 production-library APIs. Import a module by its stable name; no
-package file or downloaded dependency is required:
+The stable library combines typed host-backed modules with bundled ordinary
+Rocket source modules, including the Rocket 1.2 dot-call additions, the
+unchanged Rocket 1.3 native boundary, and the completed Rocket 1.5 production
+library. Import a module by its stable name; no downloaded dependency is
+required:
 
 ```rocket
 import std.file
@@ -112,7 +113,7 @@ String construction may use `String.from_int(value)`, while
 `std.string.from_int(value)` remains valid. These aliases resolve to the same
 standard intrinsics and do not add runtime entry points.
 
-## `std.binary` (Rocket 1.5 foundation)
+## `std.binary` (Rocket 1.5)
 
 `std.collections.ByteBuffer` is an immutable wrapper around `Array[Char]` and
 stores arbitrary bytes, including zero and invalid UTF-8. Binary operations
@@ -124,20 +125,225 @@ they return `Result[..., String]`.
 | `from_string(value: String)` | `ByteBuffer` | Copy the complete UTF-8 byte sequence, including embedded zero bytes |
 | `to_string(buffer: ByteBuffer)` | `Result[String, String]` | Validate UTF-8 and copy it into an immutable String |
 | `length(buffer: ByteBuffer)` | `Int` | Return the byte count |
+| `concat(left: ByteBuffer, right: ByteBuffer)` | `ByteBuffer` | Return the bytes from both inputs in order |
 | `slice(buffer: ByteBuffer, offset: Int, length: Int)` | `Result[ByteBuffer, String]` | Copy a checked byte range |
 | `read_u8(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read one unsigned byte |
 | `read_u16_le(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read a little-endian unsigned 16-bit integer |
 | `read_u32_le(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read a little-endian unsigned 32-bit integer |
+| `read_u16_be(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read a big-endian unsigned 16-bit integer |
+| `read_u32_be(buffer: ByteBuffer, offset: Int)` | `Result[Int, String]` | Read a big-endian unsigned 32-bit integer |
 | `write_u8(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 8-bit integer |
 | `write_u16_le(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 16-bit integer |
 | `write_u32_le(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 32-bit integer |
+| `write_u16_be(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 16-bit integer in network byte order |
+| `write_u32_be(value: Int)` | `Result[ByteBuffer, String]` | Encode an unsigned 32-bit integer in network byte order |
 
 Offsets are zero-based. Reads reject negative or truncated ranges. Writes
 reject negative values and values outside the selected unsigned width. The
-little-endian spelling is explicit so serialized data is independent of the
-host CPU. These functions are synchronous CPU operations and do not retain
-hidden mutable cursor state. Buffered stream objects and additional encodings
-remain later Phase 15 work.
+byte-order spelling is explicit so serialized data is independent of the host
+CPU. `concat` and every encoder return new immutable snapshots. These functions
+are synchronous CPU operations and do not retain hidden mutable cursor state.
+
+## `std.stream`
+
+| Function | Result | Meaning |
+| --- | --- | --- |
+| `open_reader(path: String, buffer_size: Int)` | `Result[Int, String]` | Open a buffered binary reader and return an opaque process-local token |
+| `read(handle: Int, maximum: Int)` | `Result[ByteBuffer, String]` | Read up to `maximum` bytes; an empty buffer is end-of-file |
+| `close_reader(handle: Int)` | `Result[Bool, String]` | Close a reader token exactly once |
+| `open_writer(path: String, buffer_size: Int, append: Bool)` | `Result[Int, String]` | Open a buffered binary writer in replace or append mode |
+| `write(handle: Int, buffer: ByteBuffer)` | `Result[Bool, String]` | Write all bytes or return an operating-system error |
+| `flush(handle: Int)` | `Result[Bool, String]` | Flush buffered writer bytes to the host |
+| `close_writer(handle: Int)` | `Result[Bool, String]` | Flush and close a writer token exactly once |
+
+Handles are opaque positive integers scoped to the current process. A token of
+the wrong kind, or any use after close, returns `Err`. Buffer sizes must be from
+256 bytes through 16 MiB, and one `read` request is capped at 64 MiB. Stream
+operations are synchronous and may block the calling thread; they do not claim
+asynchronous I/O or cancellation support.
+
+## `std.unicode`
+
+| Function | Result | Meaning |
+| --- | --- | --- |
+| `scalar_count(value: String)` | `Int` | Count Unicode scalar values in valid UTF-8 text |
+| `scalar_at(value: String, index: Int)` | `Result[Int, String]` | Return a scalar value by scalar index |
+| `from_scalar(value: Int)` | `Result[String, String]` | Encode a Unicode scalar as UTF-8 |
+| `normalize_nfc(value: String)` | `Result[String, String]` | Normalize with the host Unicode NFC tables |
+| `normalize_nfd(value: String)` | `Result[String, String]` | Normalize with the host Unicode NFD tables |
+| `grapheme_count(value: String)` | `Int` | Count practical extended grapheme clusters |
+| `grapheme_at(value: String, index: Int)` | `Result[String, String]` | Copy one practical grapheme cluster |
+
+Strings remain UTF-8 and byte-indexed by default. Scalar APIs reject surrogate
+code points and values above `U+10FFFF`. Normalization is explicit rather than
+silently changing equality, hashing, paths, or identifiers. The practical
+grapheme boundary layer keeps combining marks, variation selectors, emoji skin
+tones, zero-width-joiner sequences, and regional-indicator pairs together. It
+does not promise locale-sensitive segmentation or a permanently frozen Unicode
+version.
+
+## `std.regex`
+
+`is_match(pattern, value)`, `find_all(pattern, value)`, and
+`replace_all(pattern, value, replacement)` use Rocket's bounded Thompson-NFA
+engine. The documented grammar supports literals, `.`, `^`, `$`, grouping,
+alternation, `*`, `+`, `?`, byte classes and ranges, negated classes, and
+`\\d`/`\\w`/`\\s` plus escaped literal bytes. Replacement text is literal and
+does not expand captures. Matching uses a bounded tagged Thompson simulation
+with at most one earliest start per compiled state; it does not use recursive
+backtracking. Group nesting is capped at 256. Patterns are capped at 4096 bytes,
+inputs and replacements at 16 MiB, compiled programs at 16384 states, matches at
+one million, and replacement output at 64 MiB. Every limit returns `Err`.
+
+Matching operates on UTF-8 bytes, so callers should normalize first when
+canonical equivalence is required. Quantifiers return the leftmost-longest
+whole match. Calls are synchronous and safe for untrusted patterns within the
+documented resource bounds.
+
+## `std.crypto`
+
+| Function | Result | Meaning |
+| --- | --- | --- |
+| `secure_bytes(length: Int)` | `Result[ByteBuffer, String]` | Read bytes from the Windows CNG system-preferred cryptographic generator |
+| `secure_int(minimum: Int, maximum: Int)` | `Result[Int, String]` | Uniformly sample the inclusive range with rejection sampling |
+| `sha256(value: ByteBuffer)` | `Result[String, String]` | Return a lowercase 64-digit SHA-256 digest |
+| `hmac_sha256(key: ByteBuffer, value: ByteBuffer)` | `Result[String, String]` | Return a lowercase HMAC-SHA-256 digest |
+| `constant_time_equal(left: ByteBuffer, right: ByteBuffer)` | `Bool` | Compare secret byte strings without data-dependent early exit |
+| `verify_signed_file(path: String)` | `Result[Bool, String]` | Validate a Windows Authenticode signature and cached certificate chain |
+
+Random byte requests and hash inputs are capped at 64 MiB; HMAC keys are capped
+at 1 MiB and must not be empty. These cryptographic APIs use Windows CNG rather
+than the deterministic `std.random` generator. `verify_signed_file` delegates
+signature, certificate-chain, and revocation policy to WinVerifyTrust with no UI
+and cache-only URL retrieval, so the call is deterministic and does not perform
+surprise network access. `Ok(false)` means the file was inspected but is not
+trusted; malformed paths and unavailable platform services are `Err`.
+
+## `std.net` and `std.http`
+
+`net.resolve(host, service)` performs DNS/service resolution and returns unique
+numeric addresses. `tcp_connect(host, port, timeout_ms)` and
+`tcp_listen(address, port, backlog)` return opaque process-local tokens;
+`accept(listener, timeout_ms)` returns a connection token. Port zero requests an
+ephemeral listener, whose assigned port is available through `local_port`.
+`send(handle, bytes, timeout_ms)` writes the whole buffer, while
+`receive(handle, maximum, timeout_ms)` reads up to the requested bound. An empty
+buffer means orderly peer shutdown. `close` and `cancel` both invalidate a token
+exactly once; cancellation is implemented by closing the socket so any host I/O
+waiting on that socket is interrupted.
+
+Every socket timeout is explicit, from zero through one hour. Individual sends
+and receives are capped at 64 MiB; a whole-buffer send shares one deadline
+across its partial writes. Calls are synchronous. DNS may invoke the host
+resolver outside the socket deadline and therefore may use configured network
+services; no name-resolution result is cached by Rocket.
+
+`http.request(method, url, body, timeout_ms)` returns
+`Result[std.http.Response, String]`, where `Response` contains `status: Int` and
+`body: ByteBuffer`. It accepts absolute HTTP and HTTPS URLs, follows WinHTTP
+policy, retains normal Windows certificate validation, and exposes no insecure
+certificate bypass. Both request and response bodies are capped at 64 MiB.
+WinHTTP applies `timeout_ms` separately to resolution, connection, send, and
+receive phases, so the full request can take several timeout intervals.
+
+For servers, `http.read_request(connection, maximum, timeout_ms)` returns a
+bounded `std.http.Request` containing `method`, `path`, and binary `body`.
+`write_response(connection, status, content_type, body, timeout_ms)` writes a
+complete HTTP/1.1 response with `Content-Length` and `Connection: close`.
+The intentionally small server foundation accepts HTTP/1.x requests with a
+single `Content-Length`; it rejects chunked bodies, malformed request lines,
+header injection, and over-limit bodies. Applications close the connection and
+listener explicitly.
+
+## `std.datetime`
+
+`format_utc(unix_ms)` and `parse_utc(text)` round-trip the fixed, locale-neutral
+`YYYY-MM-DDTHH:MM:SS.mmmZ` form. `days_in_month(year, month)` and
+`weekday(year, month, day)` validate Gregorian dates from year 1 through 9999;
+weekday zero is Sunday. `local_offset_minutes(unix_ms)` applies the Windows
+historical daylight/time-zone rules for that instant, and `timezone_name()`
+returns the configured Windows time-zone key. Calendar and time-zone failures
+are `Err`, never silently clamped. These calls do not change process locale or
+time-zone settings.
+
+## `std.log`, `std.cli`, and `std.config`
+
+`log.write(level, message)` writes one timestamped UTC record to standard error;
+`log.append(path, level, message)` appends and flushes one record to a file.
+Levels are `trace`, `debug`, `info`, `warn`, `error`, and `fatal`. Embedded CR/LF
+bytes are escaped to prevent record injection, messages are capped at 1 MiB,
+and same-process writers are serialized. File logging is synchronous and may
+block.
+
+`cli.has_flag(arguments, "--name")` stops at `--`. `cli.option` accepts either
+`--name=value` or `--name value` and returns `Result[Option[String], String]` so
+a missing value differs from an absent option. `cli.positionals` includes
+non-option arguments and every argument following `--`; callers should use the
+separator when positional values begin with `-`.
+
+`config.get(text, dotted_key)` and `config.load(path, dotted_key)` parse a
+bounded deterministic configuration subset: `key = value`, quoted strings with
+basic escapes, `#` comments, and `[section]` names that qualify keys. Values are
+returned as text through `Result[Option[String], String]`; typed interpretation
+is explicit at the call site. Duplicate keys, malformed syntax, lines above 64
+KiB, and documents above 1 MiB are rejected. `load` performs synchronous file
+I/O.
+
+## `std.compression` and `std.archive`
+
+`compression.xpress_compress(bytes)` and `xpress_decompress(bytes)` use the
+Windows Compression API's XPRESS Huffman codec. Both directions return
+`Result[ByteBuffer, String]`, reject invalid streams, and cap uncompressed data
+at 64 MiB. XPRESS bytes are a Windows interoperability format, not ZIP or gzip;
+callers must label stored data accordingly.
+
+`archive.tar_create(path, names, contents)` writes deterministic ustar archives:
+regular files only, mode `0644`, zero owner/time metadata, insertion order, and
+two end blocks. `tar_list` and `tar_read` validate every header and checksum
+before returning data. Archives allow at most 1024 entries and 64 MiB of content
+within a 128 MiB file. Absolute paths, drive names, backslashes, empty segments,
+`.`/`..`, duplicate names, links, devices, and non-ustar input are rejected, so
+the API never extracts host paths as a side effect. All archive I/O is
+synchronous.
+
+## `std.sqlite`
+
+`sqlite.open(path)` opens a Windows system SQLite database in read/write,
+create, full-mutex mode and applies a five-second busy timeout. `:memory:` is
+supported for isolated tests. `execute(handle, sql, parameters)` returns the
+changed-row count; `query` returns rows as `Array[Array[String]]`; `close`
+invalidates the opaque token exactly once.
+
+Every call prepares exactly one statement. All values are bound through `?`
+parameters as copied UTF-8 text; callers must not concatenate untrusted values
+into SQL. SQL text is capped at 1 MiB, parameter count at 1024, individual
+parameters at 16 MiB, results at 256 columns, 100000 rows, and 64 MiB of text.
+SQLite `NULL` is currently returned as an empty String, so schemas that need to
+distinguish the two should encode nullability explicitly. Query values that
+cannot be represented as valid UTF-8 Rocket Strings are rejected. Database
+calls are synchronous, can wait up to the configured busy timeout, and return
+all engine errors through `Result`.
+
+## `std.testing`
+
+`std.testing` is shipped as an ordinary Rocket source module over the private
+`std.testing_core` host boundary. It provides `assert`, `equal_int`, and
+`equal_string`, each returning `Result[Bool, String]` so a test can propagate a
+precise failure. `temp_directory(prefix)` creates an unpredictable directory in
+the host temporary root; `fixture_path(root, relative)` only accepts safe paths
+under a directory created by that process; and `cleanup_temp` recursively
+removes only a registered temporary root exactly once.
+
+`coverage_hit(name)` increments a bounded named hook, and
+`coverage_write(path)` writes deterministic versioned JSON in lexical point
+order. These hooks support libraries and the future automatic instrumentation
+pass without hard-coding a vendor report format into source semantics.
+
+The package test runner accepts `--filter text`. Test files ending
+`.xfail.rocket` are expected failures: a nonzero exit is `XFAIL`, while a zero
+exit is the suite-failing `XPASS`. Every other `.rocket` file must exit zero.
+Temporary resources, filters, assertions, fixtures, expected failures, and
+coverage hooks therefore share the native and self-hosted toolchains.
 
 ## `std.file` and `std.path`
 

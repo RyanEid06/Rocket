@@ -1,5 +1,5 @@
 [package]
-name = "rocket_compiler"
+name = "phase15_test_package"
 version = "1.5.0"
 entry = "src/main.rocket"
 
@@ -8,4 +8,4 @@ directory = "tests"
 
 [build]
 kind = "executable"
-name = "main"
+name = "phase15_test_package"

@@ -1,0 +1,50 @@
+import std.file
+import std.string
+import std.testing
+
+fn exercise() -> Result[Bool, String]:
+    testing.assert(true, "true assertion")?
+    testing.equal_int(42, 42, "integer equality")?
+    testing.equal_string("rocket", "rocket", "string equality")?
+    match testing.assert(false, "expected assertion failure"):
+        case Ok(value):
+            if value:
+                return Err("false assertion returned success")
+        case Err(error):
+            if error != "expected assertion failure":
+                return Err("assertion failure message was not preserved")
+
+    let temporary = testing.temp_directory("rocket-test")?
+    let fixture = testing.fixture_path(temporary, "fixture.txt")?
+    file.write_text(fixture, "fixture-data")?
+    if file.read_text(fixture)? != "fixture-data":
+        return Err("temporary fixture did not round trip")
+    match testing.fixture_path(temporary, "../escape"):
+        case Ok(path):
+            if path != "":
+                return Err("unsafe fixture path was accepted")
+        case Err(error):
+            if error == "":
+                return Err("unsafe fixture error was empty")
+
+    testing.coverage_hit("phase15.branch")?
+    testing.coverage_hit("phase15.branch")?
+    let coverage = testing.fixture_path(temporary, "coverage.json")?
+    testing.coverage_write(coverage)?
+    if not string.contains(file.read_text(coverage)?, "\"hits\":2"):
+        return Err("coverage hook output did not preserve hit count")
+    testing.cleanup_temp(temporary)?
+    if file.exists(temporary):
+        return Err("temporary test directory was not cleaned")
+    return Ok(true)
+
+fn main() -> Int:
+    match exercise():
+        case Ok(success):
+            if success:
+                print("phase15-testing-ok")
+                return 0
+            return 1
+        case Err(error):
+            print(error)
+            return 2

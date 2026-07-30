@@ -1,9 +1,14 @@
 #include "runtime.h"
+#include "platform_net.h"
+#include "safe_archive.h"
+#include "safe_regex.h"
 #include "test_support.h"
 
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <string>
+#include <thread>
 
 namespace {
 
@@ -120,6 +125,45 @@ int main(int argc, char** argv) {
                            firstRandom >= -10 && firstRandom < 10,
                        "seeded random sequences are reproducible and range-bounded", failures);
 
+  const auto alternateMatch = rocket::safe_regex::search("ab|b", "xb");
+  const auto longestMatch = rocket::safe_regex::search("a|aa", "aa");
+  const auto emptyMatches = rocket::safe_regex::findAll("", "ab");
+  std::string nestedPattern(257, '(');
+  nestedPattern += "a";
+  nestedPattern.append(257, ')');
+  const auto nestedResult = rocket::safe_regex::search(nestedPattern, "a");
+  const auto longMiss = rocket::safe_regex::search("a+$", std::string(100000, 'b'));
+  rocket::test::expect(
+      alternateMatch.valid && alternateMatch.matches.size() == 1 &&
+          alternateMatch.matches[0].start == 1 && alternateMatch.matches[0].end == 2 &&
+          longestMatch.valid && longestMatch.matches.size() == 1 &&
+          longestMatch.matches[0].start == 0 && longestMatch.matches[0].end == 2 &&
+          emptyMatches.valid && emptyMatches.matches.size() == 3 &&
+          !nestedResult.valid && longMiss.valid && longMiss.matches.empty(),
+      "safe regex preserves leftmost-longest results, empty matches, nesting bounds, and long misses",
+      failures);
+
+  const std::filesystem::path archiveTemporary =
+      std::filesystem::current_path() / "rocket_stdlib_test_temp.tar";
+  std::string archiveError;
+  const bool archiveCreated = rocket::safe_archive::create(
+      archiveTemporary.string(), {{"safe/value.txt", "value"}}, archiveError);
+  std::vector<std::string> archiveNames;
+  const bool archiveListed = archiveCreated && rocket::safe_archive::list(
+      archiveTemporary.string(), archiveNames, archiveError);
+  std::filesystem::resize_file(archiveTemporary,
+                               std::filesystem::file_size(archiveTemporary) - 512);
+  std::vector<std::string> truncatedNames;
+  std::string truncatedError;
+  const bool acceptedSingleEndBlock = rocket::safe_archive::list(
+      archiveTemporary.string(), truncatedNames, truncatedError);
+  std::filesystem::remove(archiveTemporary);
+  rocket::test::expect(
+      archiveListed && archiveNames == std::vector<std::string>{"safe/value.txt"} &&
+          !acceptedSingleEndBlock && !truncatedError.empty(),
+      "safe archive accepts deterministic ustar and rejects a single-block end marker",
+      failures);
+
   RocketString* binaryText = string(std::string("R\0cket", 6));
   RocketAggregate* binaryBuffer = rocket_std_binary_from_string(binaryText);
   RocketAggregate* decodedBinary = rocket_std_binary_to_string(binaryBuffer);
@@ -222,6 +266,245 @@ int main(int argc, char** argv) {
   rocket_rt_release(encodedU32Buffer);
   rocket_rt_release(encodedU32);
   rocket_rt_release(binaryBuffer);
+
+  RocketString* loopback = string("127.0.0.1");
+  RocketAggregate* listenerResult = rocket_std_net_tcp_listen(loopback, 0, 4);
+  const std::int64_t listenerToken = rocket_rt_aggregate_tag(listenerResult) == 0
+                                         ? rocket_rt_aggregate_get_int(listenerResult, 0)
+                                         : -1;
+  RocketAggregate* portResult = listenerToken >= 0
+                                    ? rocket_std_net_local_port(listenerToken)
+                                    : nullptr;
+  const std::int64_t localPort = portResult && rocket_rt_aggregate_tag(portResult) == 0
+                                     ? rocket_rt_aggregate_get_int(portResult, 0)
+                                     : -1;
+  std::string clientReply;
+  std::string clientFailure;
+  std::thread localClient([&] {
+    rocket::platform_net::Socket socket = rocket::platform_net::invalidSocket;
+    if (!rocket::platform_net::connect("127.0.0.1", localPort, 5000, socket,
+                                       clientFailure))
+      return;
+    const std::string request =
+        "POST /local HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nping";
+    std::size_t sent = 0;
+    if (rocket::platform_net::send(socket, request, 5000, sent, clientFailure))
+      rocket::platform_net::receive(socket, 4096, 5000, clientReply, clientFailure);
+    std::string closeError;
+    rocket::platform_net::close(socket, closeError);
+  });
+  RocketAggregate* acceptedResult = listenerToken >= 0
+                                        ? rocket_std_net_accept(listenerToken, 5000)
+                                        : nullptr;
+  const std::int64_t connectionToken =
+      acceptedResult && rocket_rt_aggregate_tag(acceptedResult) == 0
+          ? rocket_rt_aggregate_get_int(acceptedResult, 0)
+          : -1;
+  RocketAggregate* requestResult = connectionToken >= 0
+                                       ? rocket_std_http_read_request(connectionToken,
+                                                                      16384, 5000)
+                                       : nullptr;
+  RocketAggregate* requestValue =
+      requestResult && rocket_rt_aggregate_tag(requestResult) == 0
+          ? static_cast<RocketAggregate*>(
+                rocket_rt_aggregate_get_managed(requestResult, 0))
+          : nullptr;
+  RocketString* requestMethod = requestValue
+                                    ? static_cast<RocketString*>(
+                                          rocket_rt_aggregate_get_managed(requestValue, 0))
+                                    : nullptr;
+  RocketString* requestPath = requestValue
+                                  ? static_cast<RocketString*>(
+                                        rocket_rt_aggregate_get_managed(requestValue, 1))
+                                  : nullptr;
+  RocketAggregate* requestBody = requestValue
+                                     ? static_cast<RocketAggregate*>(
+                                           rocket_rt_aggregate_get_managed(requestValue, 2))
+                                     : nullptr;
+  RocketAggregate* decodedRequestBody = requestBody
+                                            ? rocket_std_binary_to_string(requestBody)
+                                            : nullptr;
+  RocketString* decodedRequestText =
+      decodedRequestBody && rocket_rt_aggregate_tag(decodedRequestBody) == 0
+          ? static_cast<RocketString*>(
+                rocket_rt_aggregate_get_managed(decodedRequestBody, 0))
+          : nullptr;
+  RocketString* responseType = string("text/plain; charset=utf-8");
+  RocketString* responseText = string("pong");
+  RocketAggregate* responseBody = rocket_std_binary_from_string(responseText);
+  RocketAggregate* wroteResponse = connectionToken >= 0
+                                       ? rocket_std_http_write_response(
+                                             connectionToken, 201, responseType,
+                                             responseBody, 5000)
+                                       : nullptr;
+  RocketAggregate* closedConnection = connectionToken >= 0
+                                          ? rocket_std_net_close(connectionToken)
+                                          : nullptr;
+  RocketAggregate* closedListener = listenerToken >= 0
+                                        ? rocket_std_net_cancel(listenerToken)
+                                        : nullptr;
+  localClient.join();
+  rocket::test::expect(
+      localPort > 0 && requestMethod && value(requestMethod) == "POST" &&
+          requestPath && value(requestPath) == "/local" && decodedRequestText &&
+          value(decodedRequestText) == "ping" && wroteResponse &&
+          rocket_rt_aggregate_tag(wroteResponse) == 0 && clientFailure.empty() &&
+          clientReply.find("HTTP/1.1 201") == 0 &&
+          clientReply.ends_with("pong"),
+      "bounded TCP and HTTP server APIs round-trip on an isolated loopback socket",
+      failures);
+  rocket_rt_release(closedListener);
+  rocket_rt_release(closedConnection);
+  rocket_rt_release(wroteResponse);
+  rocket_rt_release(responseBody);
+  rocket_rt_release(responseText);
+  rocket_rt_release(responseType);
+  rocket_rt_release(decodedRequestText);
+  rocket_rt_release(decodedRequestBody);
+  rocket_rt_release(requestBody);
+  rocket_rt_release(requestPath);
+  rocket_rt_release(requestMethod);
+  rocket_rt_release(requestValue);
+  rocket_rt_release(requestResult);
+  rocket_rt_release(acceptedResult);
+  rocket_rt_release(portResult);
+  rocket_rt_release(listenerResult);
+  rocket_rt_release(loopback);
+
+  rocket::platform_net::Socket httpListener = rocket::platform_net::invalidSocket;
+  std::string httpServerError;
+  std::int64_t httpPort = 0;
+  const bool startedHttpServer =
+      rocket::platform_net::listen("127.0.0.1", 0, 4, httpListener,
+                                    httpServerError) &&
+      rocket::platform_net::localPort(httpListener, httpPort, httpServerError);
+  std::thread httpServer([&] {
+    if (!startedHttpServer) return;
+    rocket::platform_net::Socket client = rocket::platform_net::invalidSocket;
+    if (!rocket::platform_net::accept(httpListener, 5000, client, httpServerError))
+      return;
+    std::string request;
+    if (!rocket::platform_net::receive(client, 16384, 5000, request,
+                                        httpServerError))
+      return;
+    const std::string response =
+        "HTTP/1.1 202 Accepted\r\nContent-Length: 9\r\nConnection: close\r\n\r\nclient-ok";
+    std::size_t sent = 0;
+    rocket::platform_net::send(client, response, 5000, sent, httpServerError);
+    std::string ignored;
+    rocket::platform_net::close(client, ignored);
+  });
+  RocketString* httpMethod = string("GET");
+  RocketString* httpUrl = string("http://127.0.0.1:" +
+                                 std::to_string(httpPort) + "/client");
+  RocketString* emptyText = string("");
+  RocketAggregate* emptyBody = rocket_std_binary_from_string(emptyText);
+  RocketAggregate* httpResult = startedHttpServer
+                                    ? rocket_std_http_request(httpMethod, httpUrl,
+                                                              emptyBody, 5000)
+                                    : nullptr;
+  httpServer.join();
+  if (startedHttpServer) {
+    std::string ignored;
+    rocket::platform_net::close(httpListener, ignored);
+  }
+  RocketAggregate* httpValue = httpResult && rocket_rt_aggregate_tag(httpResult) == 0
+                                   ? static_cast<RocketAggregate*>(
+                                         rocket_rt_aggregate_get_managed(httpResult, 0))
+                                   : nullptr;
+  const std::int64_t httpStatus = httpValue
+                                      ? rocket_rt_aggregate_get_int(httpValue, 0)
+                                      : -1;
+  RocketAggregate* httpBody = httpValue
+                                  ? static_cast<RocketAggregate*>(
+                                        rocket_rt_aggregate_get_managed(httpValue, 1))
+                                  : nullptr;
+  RocketAggregate* decodedHttpBody = httpBody
+                                         ? rocket_std_binary_to_string(httpBody)
+                                         : nullptr;
+  RocketString* decodedHttpText =
+      decodedHttpBody && rocket_rt_aggregate_tag(decodedHttpBody) == 0
+          ? static_cast<RocketString*>(
+                rocket_rt_aggregate_get_managed(decodedHttpBody, 0))
+          : nullptr;
+  rocket::test::expect(startedHttpServer && httpServerError.empty() &&
+                           httpStatus == 202 && decodedHttpText &&
+                           value(decodedHttpText) == "client-ok",
+                       "WinHTTP client preserves status and binary body against an isolated server",
+                       failures);
+  rocket_rt_release(decodedHttpText);
+  rocket_rt_release(decodedHttpBody);
+  rocket_rt_release(httpBody);
+  rocket_rt_release(httpValue);
+  rocket_rt_release(httpResult);
+  rocket_rt_release(emptyBody);
+  rocket_rt_release(emptyText);
+  rocket_rt_release(httpUrl);
+  rocket_rt_release(httpMethod);
+
+  RocketString* assertionMessage = string("expected failure");
+  RocketAggregate* passingAssertion = rocket_std_testing_assert(1, assertionMessage);
+  RocketAggregate* failingAssertion = rocket_std_testing_assert(0, assertionMessage);
+  RocketString* temporaryPrefix = string("rocket-stdlib-test");
+  RocketAggregate* testingTemporary = rocket_std_testing_temp_directory(temporaryPrefix);
+  RocketString* testingRoot =
+      rocket_rt_aggregate_tag(testingTemporary) == 0
+          ? static_cast<RocketString*>(rocket_rt_aggregate_get_managed(testingTemporary, 0))
+          : nullptr;
+  RocketString* fixtureRelative = string("coverage.json");
+  RocketAggregate* fixtureResult = testingRoot
+                                       ? rocket_std_testing_fixture_path(
+                                             testingRoot, fixtureRelative)
+                                       : nullptr;
+  RocketString* fixturePath =
+      fixtureResult && rocket_rt_aggregate_tag(fixtureResult) == 0
+          ? static_cast<RocketString*>(rocket_rt_aggregate_get_managed(fixtureResult, 0))
+          : nullptr;
+  RocketString* coverageName = string("stdlib.branch");
+  RocketAggregate* coverageHitOne = rocket_std_testing_coverage_hit(coverageName);
+  RocketAggregate* coverageHitTwo = rocket_std_testing_coverage_hit(coverageName);
+  RocketAggregate* coverageWritten = fixturePath
+                                         ? rocket_std_testing_coverage_write(fixturePath)
+                                         : nullptr;
+  std::string coverageText;
+  if (fixturePath) {
+    std::ifstream coverageInput(value(fixturePath), std::ios::binary);
+    coverageText.assign(std::istreambuf_iterator<char>(coverageInput),
+                        std::istreambuf_iterator<char>());
+  }
+  RocketAggregate* testingCleaned = testingRoot
+                                        ? rocket_std_testing_cleanup_temp(testingRoot)
+                                        : nullptr;
+  RocketAggregate* testingCleanedAgain = testingRoot
+                                             ? rocket_std_testing_cleanup_temp(testingRoot)
+                                             : nullptr;
+  rocket::test::expect(
+      rocket_rt_aggregate_tag(passingAssertion) == 0 &&
+          rocket_rt_aggregate_tag(failingAssertion) == 1 && testingRoot &&
+          fixturePath && coverageHitOne && coverageHitTwo && coverageWritten &&
+          rocket_rt_aggregate_tag(coverageWritten) == 0 &&
+          coverageText.find("\"name\":\"stdlib.branch\",\"hits\":2") !=
+              std::string::npos &&
+          testingCleaned && rocket_rt_aggregate_tag(testingCleaned) == 0 &&
+          !std::filesystem::exists(value(testingRoot)) && testingCleanedAgain &&
+          rocket_rt_aggregate_tag(testingCleanedAgain) == 1,
+      "testing host boundary handles assertions, fixtures, coverage, and one-shot cleanup",
+      failures);
+  rocket_rt_release(testingCleanedAgain);
+  rocket_rt_release(testingCleaned);
+  rocket_rt_release(coverageWritten);
+  rocket_rt_release(coverageHitTwo);
+  rocket_rt_release(coverageHitOne);
+  rocket_rt_release(coverageName);
+  rocket_rt_release(fixturePath);
+  rocket_rt_release(fixtureResult);
+  rocket_rt_release(fixtureRelative);
+  rocket_rt_release(testingRoot);
+  rocket_rt_release(testingTemporary);
+  rocket_rt_release(temporaryPrefix);
+  rocket_rt_release(failingAssertion);
+  rocket_rt_release(passingAssertion);
+  rocket_rt_release(assertionMessage);
 
   const std::filesystem::path temporaryDirectory =
       std::filesystem::current_path() / "rocket_stdlib_test_directory" / "nested";

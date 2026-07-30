@@ -1026,6 +1026,216 @@ fn intrinsic_binary_write_u16_le() -> Int:
 fn intrinsic_binary_write_u32_le() -> Int:
     return 86
 
+fn intrinsic_binary_concat() -> Int:
+    return 87
+
+fn intrinsic_binary_read_u16_be() -> Int:
+    return 88
+
+fn intrinsic_binary_read_u32_be() -> Int:
+    return 89
+
+fn intrinsic_binary_write_u16_be() -> Int:
+    return 90
+
+fn intrinsic_binary_write_u32_be() -> Int:
+    return 91
+
+fn intrinsic_stream_open_reader() -> Int:
+    return 92
+
+fn intrinsic_stream_read() -> Int:
+    return 93
+
+fn intrinsic_stream_close_reader() -> Int:
+    return 94
+
+fn intrinsic_stream_open_writer() -> Int:
+    return 95
+
+fn intrinsic_stream_write() -> Int:
+    return 96
+
+fn intrinsic_stream_flush() -> Int:
+    return 97
+
+fn intrinsic_stream_close_writer() -> Int:
+    return 98
+
+fn intrinsic_unicode_scalar_count() -> Int:
+    return 99
+
+fn intrinsic_unicode_scalar_at() -> Int:
+    return 100
+
+fn intrinsic_unicode_from_scalar() -> Int:
+    return 101
+
+fn intrinsic_unicode_normalize_nfc() -> Int:
+    return 102
+
+fn intrinsic_unicode_normalize_nfd() -> Int:
+    return 103
+
+fn intrinsic_unicode_grapheme_count() -> Int:
+    return 104
+
+fn intrinsic_unicode_grapheme_at() -> Int:
+    return 105
+
+fn intrinsic_regex_is_match() -> Int:
+    return 106
+
+fn intrinsic_regex_find_all() -> Int:
+    return 107
+
+fn intrinsic_regex_replace_all() -> Int:
+    return 108
+
+fn intrinsic_crypto_secure_bytes() -> Int:
+    return 109
+
+fn intrinsic_crypto_secure_int() -> Int:
+    return 110
+
+fn intrinsic_crypto_sha256() -> Int:
+    return 111
+
+fn intrinsic_crypto_hmac_sha256() -> Int:
+    return 112
+
+fn intrinsic_crypto_constant_time_equal() -> Int:
+    return 113
+
+fn intrinsic_crypto_verify_signed_file() -> Int:
+    return 114
+
+fn intrinsic_net_resolve() -> Int:
+    return 115
+
+fn intrinsic_net_tcp_connect() -> Int:
+    return 116
+
+fn intrinsic_net_tcp_listen() -> Int:
+    return 117
+
+fn intrinsic_net_accept() -> Int:
+    return 118
+
+fn intrinsic_net_send() -> Int:
+    return 119
+
+fn intrinsic_net_receive() -> Int:
+    return 120
+
+fn intrinsic_net_close() -> Int:
+    return 121
+
+fn intrinsic_net_cancel() -> Int:
+    return 122
+
+fn intrinsic_http_request() -> Int:
+    return 123
+
+fn intrinsic_http_read_request() -> Int:
+    return 124
+
+fn intrinsic_http_write_response() -> Int:
+    return 125
+
+fn intrinsic_net_local_port() -> Int:
+    return 126
+
+fn intrinsic_datetime_format_utc() -> Int:
+    return 127
+
+fn intrinsic_datetime_parse_utc() -> Int:
+    return 128
+
+fn intrinsic_datetime_days_in_month() -> Int:
+    return 129
+
+fn intrinsic_datetime_weekday() -> Int:
+    return 130
+
+fn intrinsic_datetime_local_offset_minutes() -> Int:
+    return 131
+
+fn intrinsic_datetime_timezone_name() -> Int:
+    return 132
+
+fn intrinsic_log_write() -> Int:
+    return 133
+
+fn intrinsic_log_append() -> Int:
+    return 134
+
+fn intrinsic_cli_has_flag() -> Int:
+    return 135
+
+fn intrinsic_cli_option() -> Int:
+    return 136
+
+fn intrinsic_cli_positionals() -> Int:
+    return 137
+
+fn intrinsic_config_get() -> Int:
+    return 138
+
+fn intrinsic_config_load() -> Int:
+    return 139
+
+fn intrinsic_compression_xpress_compress() -> Int:
+    return 140
+
+fn intrinsic_compression_xpress_decompress() -> Int:
+    return 141
+
+fn intrinsic_archive_tar_create() -> Int:
+    return 142
+
+fn intrinsic_archive_tar_list() -> Int:
+    return 143
+
+fn intrinsic_archive_tar_read() -> Int:
+    return 144
+
+fn intrinsic_sqlite_open() -> Int:
+    return 145
+
+fn intrinsic_sqlite_execute() -> Int:
+    return 146
+
+fn intrinsic_sqlite_query() -> Int:
+    return 147
+
+fn intrinsic_sqlite_close() -> Int:
+    return 148
+
+fn intrinsic_testing_assert() -> Int:
+    return 149
+
+fn intrinsic_testing_equal_int() -> Int:
+    return 150
+
+fn intrinsic_testing_equal_string() -> Int:
+    return 151
+
+fn intrinsic_testing_temp_directory() -> Int:
+    return 152
+
+fn intrinsic_testing_fixture_path() -> Int:
+    return 153
+
+fn intrinsic_testing_cleanup_temp() -> Int:
+    return 154
+
+fn intrinsic_testing_coverage_hit() -> Int:
+    return 155
+
+fn intrinsic_testing_coverage_write() -> Int:
+    return 156
+
 fn mir_constant() -> Int:
     return 0
 
@@ -2451,6 +2661,35 @@ fn source_parent(path_value: String) -> String:
         return string.slice(path_value, 0, 1)
     return string.slice(path_value, 0, separator)
 
+fn standard_module_path(name: String) -> String:
+    if name != "std.testing":
+        return ""
+    let relative = "stdlib/std/testing.rocket"
+    let working = process.working_directory()
+    match working:
+        case Ok(directory):
+            let candidate = std.path.normalize(std.path.join(directory, relative))
+            if file.exists(candidate):
+                return candidate
+        case Err(error):
+            let ignored = error
+    let executable = process.executable_path()
+    match executable:
+        case Ok(path_value):
+            let directory = source_parent(path_value)
+            let adjacent = std.path.normalize(std.path.join(directory, "../stdlib/std/testing.rocket"))
+            if file.exists(adjacent):
+                return adjacent
+            let repository = std.path.normalize(std.path.join(directory, "../../stdlib/std/testing.rocket"))
+            if file.exists(repository):
+                return repository
+            let stage0_repository = std.path.normalize(std.path.join(directory, "../../../stdlib/std/testing.rocket"))
+            if file.exists(stage0_repository):
+                return stage0_repository
+        case Err(error):
+            let ignored = error
+    return ""
+
 fn module_root_for_source(path_value: String) -> String:
     let normalized = std.path.normalize(path_value)
     let fallback = source_parent(normalized)
@@ -2678,8 +2917,15 @@ fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name
             next = diagnose_import_aliases(next, parsed.module.imports)
             for index in 0..collections.length(parsed.module.imports):
                 let imported = parsed.module.imports[index]
-                if not string.starts_with(imported.name, "std."):
-                    next = load_program_module(next, resolve_import_path(module_root, imported.name), import_alias(imported.name), module_root)
+                if imported.name == "std.testing":
+                    let standard_path = standard_module_path(imported.name)
+                    if standard_path == "":
+                        next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", imported.line, imported.column, "cannot locate bundled standard module 'std.testing'")))
+                    else:
+                        next = load_program_module(next, standard_path, imported.name, module_root)
+                else:
+                    if not string.starts_with(imported.name, "std."):
+                        next = load_program_module(next, resolve_import_path(module_root, imported.name), import_alias(imported.name), module_root)
             next = load_state_module(next, merge_ast_modules(next.module, map_imported_module(parsed.module, prefix_name)))
     return load_state_paths(next, append(next.loaded_paths, normalized), prefix(next.active_paths, collections.length(next.active_paths) - 1))
 
@@ -2951,6 +3197,146 @@ fn standard_signature(name: String) -> StandardSignature:
         return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_write_u16_le())
     if name == "std.binary.write_u32_le":
         return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_write_u32_le())
+    if name == "std.binary.concat":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "std.collections.ByteBuffer"], "std.collections.ByteBuffer", intrinsic_binary_concat())
+    if name == "std.binary.read_u16_be":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "Int"], "Result[Int, String]", intrinsic_binary_read_u16_be())
+    if name == "std.binary.read_u32_be":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "Int"], "Result[Int, String]", intrinsic_binary_read_u32_be())
+    if name == "std.binary.write_u16_be":
+        return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_write_u16_be())
+    if name == "std.binary.write_u32_be":
+        return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_binary_write_u32_be())
+    if name == "std.stream.open_reader":
+        return StandardSignature(true, [], ["String", "Int"], "Result[Int, String]", intrinsic_stream_open_reader())
+    if name == "std.stream.read":
+        return StandardSignature(true, [], ["Int", "Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_stream_read())
+    if name == "std.stream.close_reader":
+        return StandardSignature(true, [], ["Int"], "Result[Bool, String]", intrinsic_stream_close_reader())
+    if name == "std.stream.open_writer":
+        return StandardSignature(true, [], ["String", "Int", "Bool"], "Result[Int, String]", intrinsic_stream_open_writer())
+    if name == "std.stream.write":
+        return StandardSignature(true, [], ["Int", "std.collections.ByteBuffer"], "Result[Bool, String]", intrinsic_stream_write())
+    if name == "std.stream.flush":
+        return StandardSignature(true, [], ["Int"], "Result[Bool, String]", intrinsic_stream_flush())
+    if name == "std.stream.close_writer":
+        return StandardSignature(true, [], ["Int"], "Result[Bool, String]", intrinsic_stream_close_writer())
+    if name == "std.unicode.scalar_count":
+        return StandardSignature(true, [], ["String"], "Int", intrinsic_unicode_scalar_count())
+    if name == "std.unicode.scalar_at":
+        return StandardSignature(true, [], ["String", "Int"], "Result[Int, String]", intrinsic_unicode_scalar_at())
+    if name == "std.unicode.from_scalar":
+        return StandardSignature(true, [], ["Int"], "Result[String, String]", intrinsic_unicode_from_scalar())
+    if name == "std.unicode.normalize_nfc":
+        return StandardSignature(true, [], ["String"], "Result[String, String]", intrinsic_unicode_normalize_nfc())
+    if name == "std.unicode.normalize_nfd":
+        return StandardSignature(true, [], ["String"], "Result[String, String]", intrinsic_unicode_normalize_nfd())
+    if name == "std.unicode.grapheme_count":
+        return StandardSignature(true, [], ["String"], "Int", intrinsic_unicode_grapheme_count())
+    if name == "std.unicode.grapheme_at":
+        return StandardSignature(true, [], ["String", "Int"], "Result[String, String]", intrinsic_unicode_grapheme_at())
+    if name == "std.regex.is_match":
+        return StandardSignature(true, [], ["String", "String"], "Result[Bool, String]", intrinsic_regex_is_match())
+    if name == "std.regex.find_all":
+        return StandardSignature(true, [], ["String", "String"], "Result[Array[String], String]", intrinsic_regex_find_all())
+    if name == "std.regex.replace_all":
+        return StandardSignature(true, [], ["String", "String", "String"], "Result[String, String]", intrinsic_regex_replace_all())
+    if name == "std.crypto.secure_bytes":
+        return StandardSignature(true, [], ["Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_crypto_secure_bytes())
+    if name == "std.crypto.secure_int":
+        return StandardSignature(true, [], ["Int", "Int"], "Result[Int, String]", intrinsic_crypto_secure_int())
+    if name == "std.crypto.sha256":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer"], "Result[String, String]", intrinsic_crypto_sha256())
+    if name == "std.crypto.hmac_sha256":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "std.collections.ByteBuffer"], "Result[String, String]", intrinsic_crypto_hmac_sha256())
+    if name == "std.crypto.constant_time_equal":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer", "std.collections.ByteBuffer"], "Bool", intrinsic_crypto_constant_time_equal())
+    if name == "std.crypto.verify_signed_file":
+        return StandardSignature(true, [], ["String"], "Result[Bool, String]", intrinsic_crypto_verify_signed_file())
+    if name == "std.net.resolve":
+        return StandardSignature(true, [], ["String", "String"], "Result[Array[String], String]", intrinsic_net_resolve())
+    if name == "std.net.tcp_connect":
+        return StandardSignature(true, [], ["String", "Int", "Int"], "Result[Int, String]", intrinsic_net_tcp_connect())
+    if name == "std.net.tcp_listen":
+        return StandardSignature(true, [], ["String", "Int", "Int"], "Result[Int, String]", intrinsic_net_tcp_listen())
+    if name == "std.net.accept":
+        return StandardSignature(true, [], ["Int", "Int"], "Result[Int, String]", intrinsic_net_accept())
+    if name == "std.net.send":
+        return StandardSignature(true, [], ["Int", "std.collections.ByteBuffer", "Int"], "Result[Int, String]", intrinsic_net_send())
+    if name == "std.net.receive":
+        return StandardSignature(true, [], ["Int", "Int", "Int"], "Result[std.collections.ByteBuffer, String]", intrinsic_net_receive())
+    if name == "std.net.close":
+        return StandardSignature(true, [], ["Int"], "Result[Bool, String]", intrinsic_net_close())
+    if name == "std.net.cancel":
+        return StandardSignature(true, [], ["Int"], "Result[Bool, String]", intrinsic_net_cancel())
+    if name == "std.net.local_port":
+        return StandardSignature(true, [], ["Int"], "Result[Int, String]", intrinsic_net_local_port())
+    if name == "std.http.request":
+        return StandardSignature(true, [], ["String", "String", "std.collections.ByteBuffer", "Int"], "Result[std.http.Response, String]", intrinsic_http_request())
+    if name == "std.http.read_request":
+        return StandardSignature(true, [], ["Int", "Int", "Int"], "Result[std.http.Request, String]", intrinsic_http_read_request())
+    if name == "std.http.write_response":
+        return StandardSignature(true, [], ["Int", "Int", "String", "std.collections.ByteBuffer", "Int"], "Result[Bool, String]", intrinsic_http_write_response())
+    if name == "std.datetime.format_utc":
+        return StandardSignature(true, [], ["Int"], "Result[String, String]", intrinsic_datetime_format_utc())
+    if name == "std.datetime.parse_utc":
+        return StandardSignature(true, [], ["String"], "Result[Int, String]", intrinsic_datetime_parse_utc())
+    if name == "std.datetime.days_in_month":
+        return StandardSignature(true, [], ["Int", "Int"], "Result[Int, String]", intrinsic_datetime_days_in_month())
+    if name == "std.datetime.weekday":
+        return StandardSignature(true, [], ["Int", "Int", "Int"], "Result[Int, String]", intrinsic_datetime_weekday())
+    if name == "std.datetime.local_offset_minutes":
+        return StandardSignature(true, [], ["Int"], "Result[Int, String]", intrinsic_datetime_local_offset_minutes())
+    if name == "std.datetime.timezone_name":
+        return StandardSignature(true, [], [], "Result[String, String]", intrinsic_datetime_timezone_name())
+    if name == "std.log.write":
+        return StandardSignature(true, [], ["String", "String"], "Result[Bool, String]", intrinsic_log_write())
+    if name == "std.log.append":
+        return StandardSignature(true, [], ["String", "String", "String"], "Result[Bool, String]", intrinsic_log_append())
+    if name == "std.cli.has_flag":
+        return StandardSignature(true, [], ["Array[String]", "String"], "Bool", intrinsic_cli_has_flag())
+    if name == "std.cli.option":
+        return StandardSignature(true, [], ["Array[String]", "String"], "Result[Option[String], String]", intrinsic_cli_option())
+    if name == "std.cli.positionals":
+        return StandardSignature(true, [], ["Array[String]"], "Array[String]", intrinsic_cli_positionals())
+    if name == "std.config.get":
+        return StandardSignature(true, [], ["String", "String"], "Result[Option[String], String]", intrinsic_config_get())
+    if name == "std.config.load":
+        return StandardSignature(true, [], ["String", "String"], "Result[Option[String], String]", intrinsic_config_load())
+    if name == "std.compression.xpress_compress":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer"], "Result[std.collections.ByteBuffer, String]", intrinsic_compression_xpress_compress())
+    if name == "std.compression.xpress_decompress":
+        return StandardSignature(true, [], ["std.collections.ByteBuffer"], "Result[std.collections.ByteBuffer, String]", intrinsic_compression_xpress_decompress())
+    if name == "std.archive.tar_create":
+        return StandardSignature(true, [], ["String", "Array[String]", "Array[std.collections.ByteBuffer]"], "Result[Bool, String]", intrinsic_archive_tar_create())
+    if name == "std.archive.tar_list":
+        return StandardSignature(true, [], ["String"], "Result[Array[String], String]", intrinsic_archive_tar_list())
+    if name == "std.archive.tar_read":
+        return StandardSignature(true, [], ["String", "String"], "Result[std.collections.ByteBuffer, String]", intrinsic_archive_tar_read())
+    if name == "std.sqlite.open":
+        return StandardSignature(true, [], ["String"], "Result[Int, String]", intrinsic_sqlite_open())
+    if name == "std.sqlite.execute":
+        return StandardSignature(true, [], ["Int", "String", "Array[String]"], "Result[Int, String]", intrinsic_sqlite_execute())
+    if name == "std.sqlite.query":
+        return StandardSignature(true, [], ["Int", "String", "Array[String]"], "Result[Array[Array[String]], String]", intrinsic_sqlite_query())
+    if name == "std.sqlite.close":
+        return StandardSignature(true, [], ["Int"], "Result[Bool, String]", intrinsic_sqlite_close())
+    if name == "std.testing_core.assert":
+        return StandardSignature(true, [], ["Bool", "String"], "Result[Bool, String]", intrinsic_testing_assert())
+    if name == "std.testing_core.equal_int":
+        return StandardSignature(true, [], ["Int", "Int", "String"], "Result[Bool, String]", intrinsic_testing_equal_int())
+    if name == "std.testing_core.equal_string":
+        return StandardSignature(true, [], ["String", "String", "String"], "Result[Bool, String]", intrinsic_testing_equal_string())
+    if name == "std.testing_core.temp_directory":
+        return StandardSignature(true, [], ["String"], "Result[String, String]", intrinsic_testing_temp_directory())
+    if name == "std.testing_core.fixture_path":
+        return StandardSignature(true, [], ["String", "String"], "Result[String, String]", intrinsic_testing_fixture_path())
+    if name == "std.testing_core.cleanup_temp":
+        return StandardSignature(true, [], ["String"], "Result[Bool, String]", intrinsic_testing_cleanup_temp())
+    if name == "std.testing_core.coverage_hit":
+        return StandardSignature(true, [], ["String"], "Result[Bool, String]", intrinsic_testing_coverage_hit())
+    if name == "std.testing_core.coverage_write":
+        return StandardSignature(true, [], ["String"], "Result[Bool, String]", intrinsic_testing_coverage_write())
     if name == "std.path.join":
         return StandardSignature(true, [], ["String", "String"], "String", intrinsic_path_join())
     if name == "std.path.basename":
@@ -3914,7 +4300,9 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], librar
     let queue_type = AstStructDecl("std.collections.Queue", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], representation_rocket(), [], "", "std.collections.Queue", 1, 1)
     let stack_type = AstStructDecl("std.collections.Stack", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1)], representation_rocket(), [], "", "std.collections.Stack", 1, 1)
     let buffer_type = AstStructDecl("std.collections.ByteBuffer", true, [], [AstTypeField("bytes", "Array[Char]", 1, 1)], representation_rocket(), [], "", "std.collections.ByteBuffer", 1, 1)
-    let builtins = [pop_type, removal_type, tuple2_type, tuple3_type, map_type, set_type, queue_type, stack_type, buffer_type]
+    let http_response_type = AstStructDecl("std.http.Response", true, [], [AstTypeField("status", "Int", 1, 1), AstTypeField("body", "std.collections.ByteBuffer", 1, 1)], representation_rocket(), [], "", "std.http.Response", 1, 1)
+    let http_request_type = AstStructDecl("std.http.Request", true, [], [AstTypeField("method", "String", 1, 1), AstTypeField("path", "String", 1, 1), AstTypeField("body", "std.collections.ByteBuffer", 1, 1)], representation_rocket(), [], "", "std.http.Request", 1, 1)
+    let builtins = [pop_type, removal_type, tuple2_type, tuple3_type, map_type, set_type, queue_type, stack_type, buffer_type, http_response_type, http_request_type]
     let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.traits, module.functions)
     var state = LowerState(complete_module, [], [], [], 0, "", 0, 0, Substitutions([], []), [], [], parser_diagnostics)
     let print_symbol = add_hir_symbol(state, symbol_builtin(), "print", "Unit", false, [], intrinsic_print())
@@ -4870,6 +5258,146 @@ fn intrinsic_runtime_name(intrinsic: Int) -> String:
         return "@rocket_std_binary_write_u16_le"
     if intrinsic == intrinsic_binary_write_u32_le():
         return "@rocket_std_binary_write_u32_le"
+    if intrinsic == intrinsic_binary_concat():
+        return "@rocket_std_binary_concat"
+    if intrinsic == intrinsic_binary_read_u16_be():
+        return "@rocket_std_binary_read_u16_be"
+    if intrinsic == intrinsic_binary_read_u32_be():
+        return "@rocket_std_binary_read_u32_be"
+    if intrinsic == intrinsic_binary_write_u16_be():
+        return "@rocket_std_binary_write_u16_be"
+    if intrinsic == intrinsic_binary_write_u32_be():
+        return "@rocket_std_binary_write_u32_be"
+    if intrinsic == intrinsic_stream_open_reader():
+        return "@rocket_std_stream_open_reader"
+    if intrinsic == intrinsic_stream_read():
+        return "@rocket_std_stream_read"
+    if intrinsic == intrinsic_stream_close_reader():
+        return "@rocket_std_stream_close_reader"
+    if intrinsic == intrinsic_stream_open_writer():
+        return "@rocket_std_stream_open_writer"
+    if intrinsic == intrinsic_stream_write():
+        return "@rocket_std_stream_write"
+    if intrinsic == intrinsic_stream_flush():
+        return "@rocket_std_stream_flush"
+    if intrinsic == intrinsic_stream_close_writer():
+        return "@rocket_std_stream_close_writer"
+    if intrinsic == intrinsic_unicode_scalar_count():
+        return "@rocket_std_unicode_scalar_count"
+    if intrinsic == intrinsic_unicode_scalar_at():
+        return "@rocket_std_unicode_scalar_at"
+    if intrinsic == intrinsic_unicode_from_scalar():
+        return "@rocket_std_unicode_from_scalar"
+    if intrinsic == intrinsic_unicode_normalize_nfc():
+        return "@rocket_std_unicode_normalize_nfc"
+    if intrinsic == intrinsic_unicode_normalize_nfd():
+        return "@rocket_std_unicode_normalize_nfd"
+    if intrinsic == intrinsic_unicode_grapheme_count():
+        return "@rocket_std_unicode_grapheme_count"
+    if intrinsic == intrinsic_unicode_grapheme_at():
+        return "@rocket_std_unicode_grapheme_at"
+    if intrinsic == intrinsic_regex_is_match():
+        return "@rocket_std_regex_is_match"
+    if intrinsic == intrinsic_regex_find_all():
+        return "@rocket_std_regex_find_all"
+    if intrinsic == intrinsic_regex_replace_all():
+        return "@rocket_std_regex_replace_all"
+    if intrinsic == intrinsic_crypto_secure_bytes():
+        return "@rocket_std_crypto_secure_bytes"
+    if intrinsic == intrinsic_crypto_secure_int():
+        return "@rocket_std_crypto_secure_int"
+    if intrinsic == intrinsic_crypto_sha256():
+        return "@rocket_std_crypto_sha256"
+    if intrinsic == intrinsic_crypto_hmac_sha256():
+        return "@rocket_std_crypto_hmac_sha256"
+    if intrinsic == intrinsic_crypto_constant_time_equal():
+        return "@rocket_std_crypto_constant_time_equal"
+    if intrinsic == intrinsic_crypto_verify_signed_file():
+        return "@rocket_std_crypto_verify_signed_file"
+    if intrinsic == intrinsic_net_resolve():
+        return "@rocket_std_net_resolve"
+    if intrinsic == intrinsic_net_tcp_connect():
+        return "@rocket_std_net_tcp_connect"
+    if intrinsic == intrinsic_net_tcp_listen():
+        return "@rocket_std_net_tcp_listen"
+    if intrinsic == intrinsic_net_accept():
+        return "@rocket_std_net_accept"
+    if intrinsic == intrinsic_net_send():
+        return "@rocket_std_net_send"
+    if intrinsic == intrinsic_net_receive():
+        return "@rocket_std_net_receive"
+    if intrinsic == intrinsic_net_close():
+        return "@rocket_std_net_close"
+    if intrinsic == intrinsic_net_cancel():
+        return "@rocket_std_net_cancel"
+    if intrinsic == intrinsic_net_local_port():
+        return "@rocket_std_net_local_port"
+    if intrinsic == intrinsic_http_request():
+        return "@rocket_std_http_request"
+    if intrinsic == intrinsic_http_read_request():
+        return "@rocket_std_http_read_request"
+    if intrinsic == intrinsic_http_write_response():
+        return "@rocket_std_http_write_response"
+    if intrinsic == intrinsic_datetime_format_utc():
+        return "@rocket_std_datetime_format_utc"
+    if intrinsic == intrinsic_datetime_parse_utc():
+        return "@rocket_std_datetime_parse_utc"
+    if intrinsic == intrinsic_datetime_days_in_month():
+        return "@rocket_std_datetime_days_in_month"
+    if intrinsic == intrinsic_datetime_weekday():
+        return "@rocket_std_datetime_weekday"
+    if intrinsic == intrinsic_datetime_local_offset_minutes():
+        return "@rocket_std_datetime_local_offset_minutes"
+    if intrinsic == intrinsic_datetime_timezone_name():
+        return "@rocket_std_datetime_timezone_name"
+    if intrinsic == intrinsic_log_write():
+        return "@rocket_std_log_write"
+    if intrinsic == intrinsic_log_append():
+        return "@rocket_std_log_append"
+    if intrinsic == intrinsic_cli_has_flag():
+        return "@rocket_std_cli_has_flag"
+    if intrinsic == intrinsic_cli_option():
+        return "@rocket_std_cli_option"
+    if intrinsic == intrinsic_cli_positionals():
+        return "@rocket_std_cli_positionals"
+    if intrinsic == intrinsic_config_get():
+        return "@rocket_std_config_get"
+    if intrinsic == intrinsic_config_load():
+        return "@rocket_std_config_load"
+    if intrinsic == intrinsic_compression_xpress_compress():
+        return "@rocket_std_compression_xpress_compress"
+    if intrinsic == intrinsic_compression_xpress_decompress():
+        return "@rocket_std_compression_xpress_decompress"
+    if intrinsic == intrinsic_archive_tar_create():
+        return "@rocket_std_archive_tar_create"
+    if intrinsic == intrinsic_archive_tar_list():
+        return "@rocket_std_archive_tar_list"
+    if intrinsic == intrinsic_archive_tar_read():
+        return "@rocket_std_archive_tar_read"
+    if intrinsic == intrinsic_sqlite_open():
+        return "@rocket_std_sqlite_open"
+    if intrinsic == intrinsic_sqlite_execute():
+        return "@rocket_std_sqlite_execute"
+    if intrinsic == intrinsic_sqlite_query():
+        return "@rocket_std_sqlite_query"
+    if intrinsic == intrinsic_sqlite_close():
+        return "@rocket_std_sqlite_close"
+    if intrinsic == intrinsic_testing_assert():
+        return "@rocket_std_testing_assert"
+    if intrinsic == intrinsic_testing_equal_int():
+        return "@rocket_std_testing_equal_int"
+    if intrinsic == intrinsic_testing_equal_string():
+        return "@rocket_std_testing_equal_string"
+    if intrinsic == intrinsic_testing_temp_directory():
+        return "@rocket_std_testing_temp_directory"
+    if intrinsic == intrinsic_testing_fixture_path():
+        return "@rocket_std_testing_fixture_path"
+    if intrinsic == intrinsic_testing_cleanup_temp():
+        return "@rocket_std_testing_cleanup_temp"
+    if intrinsic == intrinsic_testing_coverage_hit():
+        return "@rocket_std_testing_coverage_hit"
+    if intrinsic == intrinsic_testing_coverage_write():
+        return "@rocket_std_testing_coverage_write"
     if intrinsic == intrinsic_path_join():
         return "@rocket_std_path_join"
     if intrinsic == intrinsic_path_basename():
@@ -5061,6 +5589,76 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u8(i64)")
     emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u16_le(i64)")
     emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u32_le(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_concat(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_read_u16_be(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_read_u32_be(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u16_be(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_binary_write_u32_be(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_stream_open_reader(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_stream_read(i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_stream_close_reader(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_stream_open_writer(ptr, i64, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_stream_write(i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_stream_flush(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_stream_close_writer(i64)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_unicode_scalar_count(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_unicode_scalar_at(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_unicode_from_scalar(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_unicode_normalize_nfc(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_unicode_normalize_nfd(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_unicode_grapheme_count(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_unicode_grapheme_at(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_regex_is_match(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_regex_find_all(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_regex_replace_all(ptr, ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_crypto_secure_bytes(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_crypto_secure_int(i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_crypto_sha256(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_crypto_hmac_sha256(ptr, ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_crypto_constant_time_equal(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_crypto_verify_signed_file(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_resolve(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_tcp_connect(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_tcp_listen(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_accept(i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_send(i64, ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_receive(i64, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_close(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_cancel(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_net_local_port(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_http_request(ptr, ptr, ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_http_read_request(i64, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_http_write_response(i64, i64, ptr, ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_datetime_format_utc(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_datetime_parse_utc(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_datetime_days_in_month(i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_datetime_weekday(i64, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_datetime_local_offset_minutes(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_datetime_timezone_name()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_log_write(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_log_append(ptr, ptr, ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_cli_has_flag(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_cli_option(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_cli_positionals(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_config_get(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_config_load(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_compression_xpress_compress(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_compression_xpress_decompress(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_archive_tar_create(ptr, ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_archive_tar_list(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_archive_tar_read(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sqlite_open(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sqlite_execute(i64, ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sqlite_query(i64, ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sqlite_close(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_assert(i8, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_equal_int(i64, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_equal_string(ptr, ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_temp_directory(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_fixture_path(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_cleanup_temp(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_coverage_hit(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_testing_coverage_write(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_path_join(ptr, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_path_basename(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_path_extension(ptr)")
@@ -6488,7 +7086,7 @@ fn format_command(input: String, check_only: Bool) -> Int:
         return 0
     return 1
 
-fn test_command(input: String) -> Int:
+fn test_command(input: String, filter: String) -> Int:
     let package = resolve_package(input)
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
@@ -6504,16 +7102,33 @@ fn test_command(input: String) -> Int:
         case Ok(entries):
             var passed = 0
             var failed = 0
+            var expected_failures = 0
+            var selected = 0
             let artifact_directory = std.path.join(package.root, ".rocketc/tests")
             for index in 0..collections.length(entries):
-                if std.path.extension(entries[index]) == ".rocket":
+                if std.path.extension(entries[index]) == ".rocket" and(filter == "" or string.contains(entries[index], filter)):
+                    selected = selected + 1
                     let source = std.path.join(package.test_directory, entries[index])
                     let built = build_native_source_with_package(package, source, artifact_directory, string.concat("test-", string.from_int(index)), output_executable())
-                    if built.status == 0 and direct_process(built.executable, []) == 0:
-                        passed = passed + 1
-                    else:
+                    let expected_failure = string.ends_with(entries[index], ".xfail.rocket")
+                    if built.status != 0:
                         failed = failed + 1
-            print(string.concat(string.from_int(passed), string.concat(" passed; ", string.concat(string.from_int(failed), " failed"))))
+                    else:
+                        let status = direct_process(built.executable, [])
+                        if expected_failure and status != 0:
+                            expected_failures = expected_failures + 1
+                        else:
+                            if expected_failure:
+                                failed = failed + 1
+                            else:
+                                if status == 0:
+                                    passed = passed + 1
+                                else:
+                                    failed = failed + 1
+            if selected == 0:
+                print("rocketc: error[R5002]: test filter selected no .rocket files")
+                return 2
+            print(string.concat(string.from_int(passed), string.concat(" passed; ", string.concat(string.from_int(failed), string.concat(" failed; ", string.concat(string.from_int(expected_failures), " expected failure(s)"))))))
             if failed == 0:
                 return 0
             return 1
@@ -6526,7 +7141,7 @@ fn new_command(directory: String) -> Int:
     if ensure_directory(std.path.join(root, "src")) != 0 or ensure_directory(std.path.join(root, "tests")) != 0:
         return 1
     let name = std.path.basename(root)
-    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.4.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
+    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.5.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
     let main_source = "fn main() -> Int:\n    print(\"Hello from Rocket\")\n    return 0\n"
     let test_source = "fn main() -> Int:\n    return 0\n"
     let manifest_written = file.write_text(std.path.join(root, "rocket.toml"), manifest)
@@ -6565,12 +7180,12 @@ fn emit_assembly_command(input: String, output: String) -> Int:
     return direct_process(toolchain.clang, ["-S", "-O2", "-Wno-override-module", temporary_ir, "-o", output])
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.4.0")
+    print("Rocket compiler 1.5.0")
     print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm|emit-header|bind> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
     print("  run <path> -- ...   build and run with optional arguments")
-    print("  test <package>      build and run package tests")
+    print("  test <package> [--filter text] build and run package tests")
     print("  fmt <path> [--check] format or verify source formatting")
     print("  emit-header <package> [--output output.h] generate a deterministic C header")
     print("  bind <header.h> [--output bindings.rocket] generate deterministic Rocket bindings")
@@ -6616,7 +7231,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.4.0")
+        print("rocketc 1.5.0")
         return 0
     if collections.length(arguments) == 2 and arguments[0] == "check":
         return check_command(arguments[1])
@@ -6625,7 +7240,9 @@ fn main() -> Int:
     if collections.length(arguments) >= 2 and arguments[0] == "run":
         return run_command(arguments)
     if collections.length(arguments) == 2 and arguments[0] == "test":
-        return test_command(arguments[1])
+        return test_command(arguments[1], "")
+    if collections.length(arguments) == 4 and arguments[0] == "test" and arguments[2] == "--filter":
+        return test_command(arguments[1], arguments[3])
     if collections.length(arguments) >= 2 and collections.length(arguments) <= 3 and arguments[0] == "fmt":
         var check_only = false
         if collections.length(arguments) == 3 and arguments[2] == "--check":

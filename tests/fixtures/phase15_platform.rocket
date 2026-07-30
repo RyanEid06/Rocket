@@ -1,0 +1,70 @@
+import std.cli
+import std.collections
+import std.config
+import std.datetime
+import std.file
+import std.log
+import std.string
+
+fn exercise() -> Result[Bool, String]:
+    let epoch = datetime.format_utc(0)?
+    if epoch != "1970-01-01T00:00:00.000Z":
+        return Err("UTC formatting failed")
+    if datetime.parse_utc(epoch)? != 0:
+        return Err("UTC parsing failed")
+    if datetime.days_in_month(2024, 2)? != 29:
+        return Err("leap-year calendar failed")
+    if datetime.weekday(1970, 1, 1)? != 4:
+        return Err("calendar weekday failed")
+    let offset = datetime.local_offset_minutes(0)?
+    if offset < -1440 or offset > 1440:
+        return Err("time-zone offset is outside one day")
+    if datetime.timezone_name()? == "":
+        return Err("time-zone name is empty")
+
+    let arguments = ["--verbose", "--mode=fast", "input", "--", "-literal"]
+    if not cli.has_flag(arguments, "--verbose"):
+        return Err("CLI flag parsing failed")
+    match cli.option(arguments, "--mode")?:
+        case Some(value):
+            if value != "fast":
+                return Err("CLI option value failed")
+        case None:
+            return Err("CLI option was not found")
+    let positionals = cli.positionals(arguments)
+    if collections.length(positionals) != 2 or positionals[0] != "input" or positionals[1] != "-literal":
+        return Err("CLI positional parsing failed")
+
+    let source = "title = \"Rocket\"\n[server]\nport = 8080\n"
+    match config.get(source, "server.port")?:
+        case Some(value):
+            if value != "8080":
+                return Err("configuration section lookup failed")
+        case None:
+            return Err("configuration key was not found")
+    file.write_text("phase15_config_temp.toml", source)?
+    match config.load("phase15_config_temp.toml", "title")?:
+        case Some(value):
+            if value != "Rocket":
+                return Err("configuration file lookup failed")
+        case None:
+            return Err("configuration file key was not found")
+
+    log.append("phase15_log_temp.txt", "info", "one\ntwo")?
+    let logged = file.read_text("phase15_log_temp.txt")?
+    if not string.contains(logged, "[info] one\\ntwo"):
+        return Err("structured log append failed")
+    file.remove("phase15_config_temp.toml")?
+    file.remove("phase15_log_temp.txt")?
+    return Ok(true)
+
+fn main() -> Int:
+    match exercise():
+        case Ok(success):
+            if success:
+                print("phase15-platform-ok")
+                return 0
+            return 1
+        case Err(error):
+            print(error)
+            return 2

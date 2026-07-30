@@ -1,8 +1,16 @@
 #include "runtime.h"
+#include "platform_net.h"
+#include "platform_crypto.h"
+#include "platform_datetime.h"
+#include "platform_compression.h"
+#include "platform_sqlite.h"
+#include "safe_regex.h"
+#include "safe_archive.h"
 
 #include <algorithm>
 #include <charconv>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -11,10 +19,14 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #ifdef _WIN32
@@ -777,6 +789,474 @@ RocketAggregate* binaryWrite(std::int64_t value, std::uint64_t width) {
   return result;
 }
 
+RocketAggregate* binaryReadBigEndian(RocketAggregate* buffer,
+                                     std::int64_t offset,
+                                     std::uint64_t width) {
+  RocketArray* bytes = byteBufferBytes(buffer);
+  const std::uint64_t length = rocket_rt_collection_length(bytes);
+  if (offset < 0 || static_cast<std::uint64_t>(offset) > length ||
+      width > length - static_cast<std::uint64_t>(offset)) {
+    rocket_rt_release(bytes);
+    return errorResult("binary read is outside the buffer");
+  }
+  std::uint64_t value = 0;
+  for (std::uint64_t index = 0; index < width; ++index)
+    value = (value << 8) | rocket_rt_index_char(
+                               bytes, offset + static_cast<std::int64_t>(index));
+  rocket_rt_release(bytes);
+  return okInt(static_cast<std::int64_t>(value));
+}
+
+RocketAggregate* binaryWriteBigEndian(std::int64_t value,
+                                      std::uint64_t width) {
+  const std::uint64_t maximum = width == 2 ? 0xffffULL : 0xffffffffULL;
+  if (value < 0 || static_cast<std::uint64_t>(value) > maximum)
+    return errorResult("binary integer is outside the unsigned encoding range");
+  RocketArray* bytes = rocket_rt_array_new(ROCKET_ELEMENT_CHAR, width);
+  for (std::uint64_t index = 0; index < width; ++index) {
+    const std::uint64_t shift = (width - index - 1) * 8;
+    rocket_rt_array_set_char(bytes, static_cast<std::int64_t>(index),
+                             static_cast<std::uint8_t>(
+                                 static_cast<std::uint64_t>(value) >> shift));
+  }
+  RocketAggregate* buffer = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
+struct Utf8Scalar {
+  std::uint32_t value = 0;
+  std::size_t start = 0;
+  std::size_t end = 0;
+};
+
+std::vector<Utf8Scalar> utf8Scalars(std::string_view input) {
+  std::vector<Utf8Scalar> result;
+  for (std::size_t index = 0; index < input.size();) {
+    const std::size_t start = index;
+    const auto first = static_cast<std::uint8_t>(input[index++]);
+    std::uint32_t scalar = first;
+    std::size_t width = 1;
+    if (first >= 0xc2 && first <= 0xdf) {
+      scalar = first & 0x1f;
+      width = 2;
+    } else if (first >= 0xe0 && first <= 0xef) {
+      scalar = first & 0x0f;
+      width = 3;
+    } else if (first >= 0xf0 && first <= 0xf4) {
+      scalar = first & 0x07;
+      width = 4;
+    }
+    for (std::size_t continuation = 1; continuation < width; ++continuation)
+      scalar = (scalar << 6) |
+               (static_cast<std::uint8_t>(input[index++]) & 0x3f);
+    result.push_back({scalar, start, index});
+  }
+  return result;
+}
+
+void appendUtf8Scalar(std::string& output, std::uint32_t scalar) {
+  if (scalar <= 0x7f) {
+    output.push_back(static_cast<char>(scalar));
+  } else if (scalar <= 0x7ff) {
+    output.push_back(static_cast<char>(0xc0 | (scalar >> 6)));
+    output.push_back(static_cast<char>(0x80 | (scalar & 0x3f)));
+  } else if (scalar <= 0xffff) {
+    output.push_back(static_cast<char>(0xe0 | (scalar >> 12)));
+    output.push_back(static_cast<char>(0x80 | ((scalar >> 6) & 0x3f)));
+    output.push_back(static_cast<char>(0x80 | (scalar & 0x3f)));
+  } else {
+    output.push_back(static_cast<char>(0xf0 | (scalar >> 18)));
+    output.push_back(static_cast<char>(0x80 | ((scalar >> 12) & 0x3f)));
+    output.push_back(static_cast<char>(0x80 | ((scalar >> 6) & 0x3f)));
+    output.push_back(static_cast<char>(0x80 | (scalar & 0x3f)));
+  }
+}
+
+bool graphemeExtension(std::uint32_t scalar) {
+  return (scalar >= 0x0300 && scalar <= 0x036f) ||
+         (scalar >= 0x1ab0 && scalar <= 0x1aff) ||
+         (scalar >= 0x1dc0 && scalar <= 0x1dff) ||
+         (scalar >= 0x20d0 && scalar <= 0x20ff) ||
+         (scalar >= 0xfe00 && scalar <= 0xfe0f) ||
+         (scalar >= 0xfe20 && scalar <= 0xfe2f) ||
+         (scalar >= 0x1f3fb && scalar <= 0x1f3ff) || scalar == 0x200d;
+}
+
+std::vector<std::pair<std::size_t, std::size_t>> graphemeRanges(
+    std::string_view input) {
+  const auto scalars = utf8Scalars(input);
+  std::vector<std::pair<std::size_t, std::size_t>> ranges;
+  std::size_t regionalCount = 0;
+  for (std::size_t index = 0; index < scalars.size(); ++index) {
+    const std::uint32_t scalar = scalars[index].value;
+    const bool regional = scalar >= 0x1f1e6 && scalar <= 0x1f1ff;
+    bool joinsPrevious = index != 0 && graphemeExtension(scalar);
+    if (index != 0 && scalars[index - 1].value == 0x200d) joinsPrevious = true;
+    if (regional) {
+      joinsPrevious = index != 0 && regionalCount % 2 == 1;
+      ++regionalCount;
+    } else {
+      regionalCount = 0;
+    }
+    if (!joinsPrevious)
+      ranges.push_back({scalars[index].start, scalars[index].end});
+    else
+      ranges.back().second = scalars[index].end;
+  }
+  return ranges;
+}
+
+#ifdef _WIN32
+RocketAggregate* normalizeUnicode(RocketString* value, NORM_FORM form) {
+  const std::string input = stringValue(value);
+  const std::wstring wide = utf8ToWide(input);
+  if (!input.empty() && wide.empty()) return errorResult("invalid UTF-8 text");
+  using NormalizeFunction = int(WINAPI*)(NORM_FORM, LPCWSTR, int, LPWSTR, int);
+  const HMODULE library = LoadLibraryW(L"Normaliz.dll");
+  if (!library) return errorResult("Windows Unicode normalization is unavailable");
+  const auto normalize = reinterpret_cast<NormalizeFunction>(
+      GetProcAddress(library, "NormalizeString"));
+  if (!normalize) {
+    FreeLibrary(library);
+    return errorResult("Windows Unicode normalization is unavailable");
+  }
+  const int required = normalize(form, wide.data(), static_cast<int>(wide.size()),
+                                 nullptr, 0);
+  if (required <= 0) {
+    FreeLibrary(library);
+    return errorResult("Unicode normalization failed");
+  }
+  std::wstring normalized(static_cast<std::size_t>(required), L'\0');
+  const int written = normalize(form, wide.data(), static_cast<int>(wide.size()),
+                                normalized.data(), required);
+  FreeLibrary(library);
+  if (written <= 0) return errorResult("Unicode normalization failed");
+  normalized.resize(static_cast<std::size_t>(written));
+  RocketString* text = makeString(wideToUtf8(normalized));
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+#endif
+
+struct BufferedReaderState {
+  std::ifstream stream;
+  std::vector<char> buffer;
+};
+
+struct BufferedWriterState {
+  std::ofstream stream;
+  std::vector<char> buffer;
+};
+
+std::unordered_map<std::int64_t, std::unique_ptr<BufferedReaderState>> readers;
+std::unordered_map<std::int64_t, std::unique_ptr<BufferedWriterState>> writers;
+std::int64_t nextStreamHandle = 1;
+
+struct NetworkSocketState {
+  rocket::platform_net::Socket socket = rocket::platform_net::invalidSocket;
+  bool listener = false;
+};
+
+std::unordered_map<std::int64_t, NetworkSocketState> networkSockets;
+std::int64_t nextNetworkHandle = 1;
+std::unordered_map<std::int64_t, sqlite3*> sqliteDatabases;
+std::int64_t nextSqliteHandle = 1;
+std::unordered_set<std::string> testingTemporaryDirectories;
+std::unordered_map<std::string, std::int64_t> testingCoverage;
+std::mutex testingMutex;
+std::mutex logMutex;
+
+bool validStreamBufferSize(std::int64_t size) {
+  return size >= 256 && size <= 16 * 1024 * 1024;
+}
+
+RocketAggregate* httpResponse(std::int64_t status, std::string_view body) {
+  RocketArray* bytes = byteArray(body);
+  RocketAggregate* buffer = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  RocketAggregate* response = rocket_rt_aggregate_new(0, 2, 2);
+  rocket_rt_aggregate_set_int(response, 0, status);
+  rocket_rt_aggregate_set_managed(response, 1, buffer);
+  rocket_rt_release(buffer);
+  return response;
+}
+
+bool parseHttpRequest(rocket::platform_net::Socket socket, std::int64_t maximum,
+                      std::int64_t timeout, std::string& method,
+                      std::string& path, std::string& body, std::string& error) {
+  if (maximum < 1 || maximum > 16 * 1024 * 1024) {
+    error = "HTTP request limit must be between 1 byte and 16 MiB";
+    return false;
+  }
+  std::string input;
+  std::size_t headerEnd = std::string::npos;
+  std::size_t contentLength = 0;
+  while (input.size() < static_cast<std::size_t>(maximum)) {
+    std::string chunk;
+    const std::size_t remaining = static_cast<std::size_t>(maximum) - input.size();
+    if (!rocket::platform_net::receive(socket, (std::min)(remaining, std::size_t{8192}),
+                                        timeout, chunk, error))
+      return false;
+    if (chunk.empty()) { error = "HTTP peer closed before the request completed"; return false; }
+    input += chunk;
+    if (headerEnd == std::string::npos) {
+      headerEnd = input.find("\r\n\r\n");
+      if (headerEnd == std::string::npos) continue;
+      const std::size_t lineEnd = input.find("\r\n");
+      if (lineEnd == std::string::npos || lineEnd > headerEnd) {
+        error = "invalid HTTP request line";
+        return false;
+      }
+      const std::string requestLine = input.substr(0, lineEnd);
+      const std::size_t firstSpace = requestLine.find(' ');
+      const std::size_t secondSpace = requestLine.find(' ', firstSpace + 1);
+      if (firstSpace == std::string::npos || secondSpace == std::string::npos ||
+          !requestLine.substr(secondSpace + 1).starts_with("HTTP/1.")) {
+        error = "invalid HTTP request line";
+        return false;
+      }
+      method = requestLine.substr(0, firstSpace);
+      path = requestLine.substr(firstSpace + 1, secondSpace - firstSpace - 1);
+      std::size_t cursor = lineEnd + 2;
+      while (cursor < headerEnd) {
+        const std::size_t end = input.find("\r\n", cursor);
+        std::string line = input.substr(cursor, end - cursor);
+        std::string lower = line;
+        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char value) {
+          return static_cast<char>(std::tolower(value));
+        });
+        if (lower.starts_with("transfer-encoding:") &&
+            lower.find("chunked") != std::string::npos) {
+          error = "chunked HTTP requests are not supported by the bounded server foundation";
+          return false;
+        }
+        if (lower.starts_with("content-length:")) {
+          const std::string text = line.substr(line.find(':') + 1);
+          const std::size_t first = text.find_first_not_of(" \t");
+          if (first == std::string::npos) { error = "invalid HTTP Content-Length"; return false; }
+          std::uint64_t parsed = 0;
+          const auto converted = std::from_chars(text.data() + first,
+                                                  text.data() + text.size(), parsed);
+          if (converted.ec != std::errc{} ||
+              converted.ptr != text.data() + text.size() ||
+              parsed > static_cast<std::uint64_t>(maximum)) {
+            error = "invalid or excessive HTTP Content-Length";
+            return false;
+          }
+          contentLength = static_cast<std::size_t>(parsed);
+        }
+        cursor = end + 2;
+      }
+    }
+    const std::size_t bodyStart = headerEnd + 4;
+    if (input.size() >= bodyStart + contentLength) {
+      body = input.substr(bodyStart, contentLength);
+      return true;
+    }
+  }
+  error = "HTTP request exceeds its configured byte limit";
+  return false;
+}
+
+std::string trimAscii(std::string_view value) {
+  const std::size_t first = value.find_first_not_of(" \t\r\n");
+  if (first == std::string_view::npos) return {};
+  const std::size_t last = value.find_last_not_of(" \t\r\n");
+  return std::string(value.substr(first, last - first + 1));
+}
+
+RocketAggregate* optionalStringResult(bool found, std::string_view value) {
+  RocketAggregate* option = nullptr;
+  if (found) {
+    RocketString* text = makeString(value);
+    option = managedVariant(0, text);
+    rocket_rt_release(text);
+  } else {
+    option = rocket_rt_aggregate_new(1, 0, 0);
+  }
+  RocketAggregate* result = okManaged(option);
+  rocket_rt_release(option);
+  return result;
+}
+
+bool validLogLevel(std::string_view level) {
+  return level == "trace" || level == "debug" || level == "info" ||
+         level == "warn" || level == "error" || level == "fatal";
+}
+
+std::string logLine(std::string_view level, std::string_view message,
+                    std::string& error) {
+  if (!validLogLevel(level)) {
+    error = "log level must be trace, debug, info, warn, error, or fatal";
+    return {};
+  }
+  if (message.size() > 1024 * 1024) {
+    error = "log message exceeds the 1 MiB limit";
+    return {};
+  }
+  const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::system_clock::now().time_since_epoch())
+                       .count();
+  std::string timestamp;
+  if (!rocket::platform_datetime::formatUtc(now, timestamp, error)) return {};
+  std::string escaped;
+  escaped.reserve(message.size());
+  for (const char character : message) {
+    if (character == '\n') escaped += "\\n";
+    else if (character == '\r') escaped += "\\r";
+    else escaped.push_back(character);
+  }
+  return timestamp + " [" + std::string(level) + "] " + escaped + "\n";
+}
+
+bool configValue(std::string_view source, std::string_view requested,
+                 bool& found, std::string& value, std::string& error) {
+  found = false;
+  value.clear();
+  if (source.size() > 1024 * 1024) {
+    error = "configuration text exceeds the 1 MiB limit";
+    return false;
+  }
+  const std::string key = trimAscii(requested);
+  if (key.empty() || key.size() > 256) {
+    error = "configuration key must contain 1 through 256 bytes";
+    return false;
+  }
+  std::unordered_map<std::string, std::string> values;
+  std::string section;
+  std::size_t cursor = 0;
+  std::size_t lineNumber = 0;
+  while (cursor <= source.size()) {
+    const std::size_t end = source.find('\n', cursor);
+    std::string line(source.substr(cursor, end == std::string_view::npos
+                                              ? std::string_view::npos : end - cursor));
+    ++lineNumber;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.size() > 65536) {
+      error = "configuration line exceeds 64 KiB at line " +
+              std::to_string(lineNumber);
+      return false;
+    }
+    bool quoted = false;
+    bool escaped = false;
+    for (std::size_t index = 0; index < line.size(); ++index) {
+      const char character = line[index];
+      if (escaped) { escaped = false; continue; }
+      if (quoted && character == '\\') { escaped = true; continue; }
+      if (character == '"') { quoted = !quoted; continue; }
+      if (!quoted && character == '#') { line.resize(index); break; }
+    }
+    line = trimAscii(line);
+    if (!line.empty()) {
+      if (line.front() == '[') {
+        if (line.size() < 3 || line.back() != ']') {
+          error = "invalid configuration section at line " +
+                  std::to_string(lineNumber);
+          return false;
+        }
+        section = trimAscii(std::string_view(line).substr(1, line.size() - 2));
+        if (section.empty()) {
+          error = "empty configuration section at line " +
+                  std::to_string(lineNumber);
+          return false;
+        }
+      } else {
+        const std::size_t equals = line.find('=');
+        if (equals == std::string::npos) {
+          error = "configuration entry is missing '=' at line " +
+                  std::to_string(lineNumber);
+          return false;
+        }
+        const std::string local = trimAscii(std::string_view(line).substr(0, equals));
+        std::string parsed = trimAscii(std::string_view(line).substr(equals + 1));
+        if (local.empty()) {
+          error = "configuration entry has an empty key at line " +
+                  std::to_string(lineNumber);
+          return false;
+        }
+        if (!parsed.empty() && parsed.front() == '"') {
+          if (parsed.size() < 2 || parsed.back() != '"') {
+            error = "unterminated configuration string at line " +
+                    std::to_string(lineNumber);
+            return false;
+          }
+          std::string decoded;
+          for (std::size_t index = 1; index + 1 < parsed.size(); ++index) {
+            char character = parsed[index];
+            if (character != '\\') { decoded.push_back(character); continue; }
+            if (++index + 1 >= parsed.size()) {
+              error = "unterminated configuration escape at line " +
+                      std::to_string(lineNumber);
+              return false;
+            }
+            character = parsed[index];
+            if (character == 'n') decoded.push_back('\n');
+            else if (character == 'r') decoded.push_back('\r');
+            else if (character == 't') decoded.push_back('\t');
+            else if (character == '"' || character == '\\') decoded.push_back(character);
+            else {
+              error = "unsupported configuration escape at line " +
+                      std::to_string(lineNumber);
+              return false;
+            }
+          }
+          parsed = std::move(decoded);
+        }
+        const std::string qualified = section.empty() ? local : section + "." + local;
+        if (!values.emplace(qualified, parsed).second) {
+          error = "duplicate configuration key '" + qualified + "'";
+          return false;
+        }
+      }
+    }
+    if (end == std::string_view::npos) break;
+    cursor = end + 1;
+  }
+  const auto selected = values.find(key);
+  if (selected != values.end()) { found = true; value = selected->second; }
+  return true;
+}
+
+std::vector<std::string> stringValues(RocketArray* values) {
+  const std::uint64_t count = rocket_rt_collection_length(values);
+  std::vector<std::string> result;
+  result.reserve(static_cast<std::size_t>(count));
+  for (std::uint64_t index = 0; index < count; ++index) {
+    RocketString* value = rocket_rt_index_string(values,
+                                                  static_cast<std::int64_t>(index));
+    result.push_back(stringValue(value));
+    rocket_rt_release(value);
+  }
+  return result;
+}
+
+bool safeTestingRelative(std::string_view value) {
+  if (value.empty() || value.size() > 1024 || value.front() == '/' ||
+      value.front() == '\\' || value.find(':') != std::string_view::npos ||
+      value.find('\\') != std::string_view::npos) return false;
+  std::size_t start = 0;
+  while (start <= value.size()) {
+    const std::size_t end = value.find('/', start);
+    const std::string_view part = value.substr(
+        start, end == std::string_view::npos ? std::string_view::npos : end - start);
+    if (part.empty() || part == "." || part == "..") return false;
+    if (end == std::string_view::npos) break;
+    start = end + 1;
+  }
+  return true;
+}
+
+RocketAggregate* okString(std::string_view value) {
+  RocketString* text = makeString(value);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+
 } // namespace
 
 extern "C" {
@@ -1422,6 +1902,887 @@ RocketAggregate* rocket_std_binary_write_u16_le(std::int64_t value) {
 
 RocketAggregate* rocket_std_binary_write_u32_le(std::int64_t value) {
   return binaryWrite(value, 4);
+}
+
+RocketAggregate* rocket_std_binary_concat(RocketAggregate* left,
+                                           RocketAggregate* right) {
+  const std::string joined = byteBufferValue(left) + byteBufferValue(right);
+  RocketArray* bytes = byteArray(joined);
+  RocketAggregate* result = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  return result;
+}
+
+RocketAggregate* rocket_std_binary_read_u16_be(RocketAggregate* buffer,
+                                                std::int64_t offset) {
+  return binaryReadBigEndian(buffer, offset, 2);
+}
+
+RocketAggregate* rocket_std_binary_read_u32_be(RocketAggregate* buffer,
+                                                std::int64_t offset) {
+  return binaryReadBigEndian(buffer, offset, 4);
+}
+
+RocketAggregate* rocket_std_binary_write_u16_be(std::int64_t value) {
+  return binaryWriteBigEndian(value, 2);
+}
+
+RocketAggregate* rocket_std_binary_write_u32_be(std::int64_t value) {
+  return binaryWriteBigEndian(value, 4);
+}
+
+RocketAggregate* rocket_std_stream_open_reader(RocketString* path,
+                                                std::int64_t bufferSize) {
+  if (!validStreamBufferSize(bufferSize))
+    return errorResult("stream buffer size must be between 256 bytes and 16 MiB");
+  auto state = std::make_unique<BufferedReaderState>();
+  state->buffer.resize(static_cast<std::size_t>(bufferSize));
+  state->stream.rdbuf()->pubsetbuf(state->buffer.data(),
+                                   static_cast<std::streamsize>(state->buffer.size()));
+  state->stream.open(pathValue(path), std::ios::binary);
+  if (!state->stream) return errorResult("could not open buffered reader");
+  const std::int64_t handle = nextStreamHandle++;
+  readers.emplace(handle, std::move(state));
+  return okInt(handle);
+}
+
+RocketAggregate* rocket_std_stream_read(std::int64_t handle,
+                                        std::int64_t maximumBytes) {
+  const auto found = readers.find(handle);
+  if (found == readers.end()) return errorResult("invalid or closed reader handle");
+  if (maximumBytes < 0 || maximumBytes > 64 * 1024 * 1024)
+    return errorResult("stream read size must be between 0 bytes and 64 MiB");
+  std::string bytes(static_cast<std::size_t>(maximumBytes), '\0');
+  found->second->stream.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  const std::streamsize count = found->second->stream.gcount();
+  if (found->second->stream.bad()) return errorResult("buffered reader failed");
+  bytes.resize(static_cast<std::size_t>(count));
+  RocketArray* array = byteArray(bytes);
+  RocketAggregate* buffer = byteBuffer(array);
+  rocket_rt_release(array);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
+RocketAggregate* rocket_std_stream_close_reader(std::int64_t handle) {
+  const auto found = readers.find(handle);
+  if (found == readers.end()) return errorResult("invalid or closed reader handle");
+  readers.erase(found);
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_stream_open_writer(RocketString* path,
+                                                std::int64_t bufferSize,
+                                                std::uint8_t append) {
+  if (!validStreamBufferSize(bufferSize))
+    return errorResult("stream buffer size must be between 256 bytes and 16 MiB");
+  auto state = std::make_unique<BufferedWriterState>();
+  state->buffer.resize(static_cast<std::size_t>(bufferSize));
+  state->stream.rdbuf()->pubsetbuf(state->buffer.data(),
+                                   static_cast<std::streamsize>(state->buffer.size()));
+  const auto mode = std::ios::binary | (append ? std::ios::app : std::ios::trunc);
+  state->stream.open(pathValue(path), mode);
+  if (!state->stream) return errorResult("could not open buffered writer");
+  const std::int64_t handle = nextStreamHandle++;
+  writers.emplace(handle, std::move(state));
+  return okInt(handle);
+}
+
+RocketAggregate* rocket_std_stream_write(std::int64_t handle,
+                                         RocketAggregate* buffer) {
+  const auto found = writers.find(handle);
+  if (found == writers.end()) return errorResult("invalid or closed writer handle");
+  const std::string bytes = byteBufferValue(buffer);
+  found->second->stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  if (!found->second->stream) return errorResult("buffered writer failed");
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_stream_flush(std::int64_t handle) {
+  const auto found = writers.find(handle);
+  if (found == writers.end()) return errorResult("invalid or closed writer handle");
+  found->second->stream.flush();
+  if (!found->second->stream) return errorResult("buffered writer flush failed");
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_stream_close_writer(std::int64_t handle) {
+  const auto found = writers.find(handle);
+  if (found == writers.end()) return errorResult("invalid or closed writer handle");
+  found->second->stream.flush();
+  const bool succeeded = static_cast<bool>(found->second->stream);
+  writers.erase(found);
+  if (!succeeded) return errorResult("buffered writer close failed");
+  return okBool(true);
+}
+
+std::int64_t rocket_std_unicode_scalar_count(RocketString* value) {
+  return static_cast<std::int64_t>(utf8Scalars(stringValue(value)).size());
+}
+
+RocketAggregate* rocket_std_unicode_scalar_at(RocketString* value,
+                                               std::int64_t index) {
+  const auto scalars = utf8Scalars(stringValue(value));
+  if (index < 0 || static_cast<std::size_t>(index) >= scalars.size())
+    return errorResult("Unicode scalar index is outside the string");
+  return okInt(static_cast<std::int64_t>(scalars[static_cast<std::size_t>(index)].value));
+}
+
+RocketAggregate* rocket_std_unicode_from_scalar(std::int64_t scalar) {
+  if (scalar < 0 || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff))
+    return errorResult("value is not a Unicode scalar");
+  std::string result;
+  appendUtf8Scalar(result, static_cast<std::uint32_t>(scalar));
+  RocketString* text = makeString(result);
+  RocketAggregate* wrapped = okManaged(text);
+  rocket_rt_release(text);
+  return wrapped;
+}
+
+RocketAggregate* rocket_std_unicode_normalize_nfc(RocketString* value) {
+#ifdef _WIN32
+  return normalizeUnicode(value, NormalizationC);
+#else
+  (void)value;
+  return errorResult("Unicode normalization is currently supported on Windows x64 only");
+#endif
+}
+
+RocketAggregate* rocket_std_unicode_normalize_nfd(RocketString* value) {
+#ifdef _WIN32
+  return normalizeUnicode(value, NormalizationD);
+#else
+  (void)value;
+  return errorResult("Unicode normalization is currently supported on Windows x64 only");
+#endif
+}
+
+std::int64_t rocket_std_unicode_grapheme_count(RocketString* value) {
+  return static_cast<std::int64_t>(graphemeRanges(stringValue(value)).size());
+}
+
+RocketAggregate* rocket_std_unicode_grapheme_at(RocketString* value,
+                                                 std::int64_t index) {
+  const std::string input = stringValue(value);
+  const auto ranges = graphemeRanges(input);
+  if (index < 0 || static_cast<std::size_t>(index) >= ranges.size())
+    return errorResult("Unicode grapheme index is outside the string");
+  const auto [start, end] = ranges[static_cast<std::size_t>(index)];
+  RocketString* text = makeString(std::string_view(input).substr(start, end - start));
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+
+RocketAggregate* rocket_std_regex_is_match(RocketString* pattern,
+                                            RocketString* value) {
+  const auto found = rocket::safe_regex::search(stringValue(pattern), stringValue(value));
+  if (!found.valid) return errorResult(found.error);
+  return okBool(!found.matches.empty());
+}
+
+RocketAggregate* rocket_std_regex_find_all(RocketString* pattern,
+                                            RocketString* value) {
+  const std::string input = stringValue(value);
+  const auto found = rocket::safe_regex::findAll(stringValue(pattern), input);
+  if (!found.valid) return errorResult(found.error);
+  std::vector<std::string> matches;
+  matches.reserve(found.matches.size());
+  for (const auto match : found.matches)
+    matches.push_back(input.substr(match.start, match.end - match.start));
+  RocketArray* array = stringArray(matches);
+  RocketAggregate* result = okManaged(array);
+  rocket_rt_release(array);
+  return result;
+}
+
+RocketAggregate* rocket_std_regex_replace_all(RocketString* pattern,
+                                               RocketString* value,
+                                               RocketString* replacement) {
+  std::string output;
+  std::string error;
+  if (!rocket::safe_regex::replaceAll(stringValue(pattern), stringValue(value),
+                                      stringValue(replacement), output, error))
+    return errorResult(error);
+  RocketString* text = makeString(output);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+
+RocketAggregate* rocket_std_crypto_secure_bytes(std::int64_t length) {
+  if (length < 0) return errorResult("secure random length must not be negative");
+  std::vector<std::uint8_t> random;
+  std::string error;
+  if (!rocket::platform_crypto::secureRandom(static_cast<std::size_t>(length), random,
+                                              error))
+    return errorResult(error);
+  RocketArray* bytes = rocket_rt_array_new(ROCKET_ELEMENT_CHAR, random.size());
+  for (std::size_t index = 0; index < random.size(); ++index)
+    rocket_rt_array_set_char(bytes, static_cast<std::int64_t>(index), random[index]);
+  RocketAggregate* buffer = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
+RocketAggregate* rocket_std_crypto_secure_int(std::int64_t minimum,
+                                               std::int64_t maximum) {
+  std::int64_t value = 0;
+  std::string error;
+  if (!rocket::platform_crypto::secureInt(minimum, maximum, value, error))
+    return errorResult(error);
+  return okInt(value);
+}
+
+RocketAggregate* rocket_std_crypto_sha256(RocketAggregate* value) {
+  std::string digest;
+  std::string error;
+  if (!rocket::platform_crypto::sha256(byteBufferValue(value), digest, error))
+    return errorResult(error);
+  RocketString* text = makeString(digest);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+
+RocketAggregate* rocket_std_crypto_hmac_sha256(RocketAggregate* key,
+                                                RocketAggregate* value) {
+  std::string digest;
+  std::string error;
+  if (!rocket::platform_crypto::hmacSha256(byteBufferValue(key),
+                                           byteBufferValue(value), digest, error))
+    return errorResult(error);
+  RocketString* text = makeString(digest);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+
+std::uint8_t rocket_std_crypto_constant_time_equal(RocketAggregate* left,
+                                                    RocketAggregate* right) {
+  return rocket::platform_crypto::constantTimeEqual(byteBufferValue(left),
+                                                     byteBufferValue(right));
+}
+
+RocketAggregate* rocket_std_crypto_verify_signed_file(RocketString* path) {
+  const std::string utf8 = stringValue(path);
+  const std::wstring wide = utf8ToWide(utf8);
+  if (!utf8.empty() && wide.empty()) return errorResult("signed-file path is not valid UTF-8");
+  bool trusted = false;
+  std::string error;
+  if (!rocket::platform_crypto::verifySignedFile(wide, trusted, error))
+    return errorResult(error);
+  return okBool(trusted);
+}
+
+RocketAggregate* rocket_std_net_resolve(RocketString* host, RocketString* service) {
+  std::vector<std::string> addresses;
+  std::string error;
+  if (!rocket::platform_net::resolve(stringValue(host), stringValue(service),
+                                      addresses, error))
+    return errorResult(error);
+  RocketArray* values = stringArray(addresses);
+  RocketAggregate* result = okManaged(values);
+  rocket_rt_release(values);
+  return result;
+}
+
+RocketAggregate* rocket_std_net_tcp_connect(RocketString* host, std::int64_t port,
+                                             std::int64_t timeoutMilliseconds) {
+  rocket::platform_net::Socket socket = rocket::platform_net::invalidSocket;
+  std::string error;
+  if (!rocket::platform_net::connect(stringValue(host), port, timeoutMilliseconds,
+                                      socket, error))
+    return errorResult(error);
+  const std::int64_t token = nextNetworkHandle++;
+  networkSockets.emplace(token, NetworkSocketState{socket, false});
+  return okInt(token);
+}
+
+RocketAggregate* rocket_std_net_tcp_listen(RocketString* address, std::int64_t port,
+                                            std::int64_t backlog) {
+  rocket::platform_net::Socket socket = rocket::platform_net::invalidSocket;
+  std::string error;
+  if (!rocket::platform_net::listen(stringValue(address), port, backlog, socket, error))
+    return errorResult(error);
+  const std::int64_t token = nextNetworkHandle++;
+  networkSockets.emplace(token, NetworkSocketState{socket, true});
+  return okInt(token);
+}
+
+RocketAggregate* rocket_std_net_accept(std::int64_t listener,
+                                        std::int64_t timeoutMilliseconds) {
+  const auto found = networkSockets.find(listener);
+  if (found == networkSockets.end() || !found->second.listener)
+    return errorResult("network token is not an open TCP listener");
+  rocket::platform_net::Socket client = rocket::platform_net::invalidSocket;
+  std::string error;
+  if (!rocket::platform_net::accept(found->second.socket, timeoutMilliseconds,
+                                     client, error))
+    return errorResult(error);
+  const std::int64_t token = nextNetworkHandle++;
+  networkSockets.emplace(token, NetworkSocketState{client, false});
+  return okInt(token);
+}
+
+RocketAggregate* rocket_std_net_send(std::int64_t handle, RocketAggregate* buffer,
+                                      std::int64_t timeoutMilliseconds) {
+  const auto found = networkSockets.find(handle);
+  if (found == networkSockets.end() || found->second.listener)
+    return errorResult("network token is not an open TCP connection");
+  const std::string bytes = byteBufferValue(buffer);
+  std::size_t sent = 0;
+  std::string error;
+  if (!rocket::platform_net::send(found->second.socket, bytes, timeoutMilliseconds,
+                                   sent, error))
+    return errorResult(error);
+  return okInt(static_cast<std::int64_t>(sent));
+}
+
+RocketAggregate* rocket_std_net_receive(std::int64_t handle,
+                                         std::int64_t maximumBytes,
+                                         std::int64_t timeoutMilliseconds) {
+  const auto found = networkSockets.find(handle);
+  if (found == networkSockets.end() || found->second.listener)
+    return errorResult("network token is not an open TCP connection");
+  if (maximumBytes < 0)
+    return errorResult("TCP receive maximum must not be negative");
+  std::string bytes;
+  std::string error;
+  if (!rocket::platform_net::receive(found->second.socket,
+                                      static_cast<std::size_t>(maximumBytes),
+                                      timeoutMilliseconds, bytes, error))
+    return errorResult(error);
+  RocketArray* values = byteArray(bytes);
+  RocketAggregate* buffer = byteBuffer(values);
+  rocket_rt_release(values);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
+RocketAggregate* rocket_std_net_close(std::int64_t handle) {
+  const auto found = networkSockets.find(handle);
+  if (found == networkSockets.end()) return errorResult("network token is not open");
+  std::string error;
+  const bool closed = rocket::platform_net::close(found->second.socket, error);
+  networkSockets.erase(found);
+  if (!closed) return errorResult(error);
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_net_cancel(std::int64_t handle) {
+  return rocket_std_net_close(handle);
+}
+
+RocketAggregate* rocket_std_net_local_port(std::int64_t handle) {
+  const auto found = networkSockets.find(handle);
+  if (found == networkSockets.end()) return errorResult("network token is not open");
+  std::int64_t port = 0;
+  std::string error;
+  if (!rocket::platform_net::localPort(found->second.socket, port, error))
+    return errorResult(error);
+  return okInt(port);
+}
+
+RocketAggregate* rocket_std_http_request(RocketString* method, RocketString* url,
+                                          RocketAggregate* body,
+                                          std::int64_t timeoutMilliseconds) {
+  rocket::platform_net::HttpResponse response;
+  std::string error;
+  if (!rocket::platform_net::httpRequest(stringValue(method), stringValue(url),
+                                          byteBufferValue(body), timeoutMilliseconds,
+                                          response, error))
+    return errorResult(error);
+  RocketAggregate* value = httpResponse(response.status, response.body);
+  RocketAggregate* result = okManaged(value);
+  rocket_rt_release(value);
+  return result;
+}
+
+RocketAggregate* rocket_std_http_read_request(std::int64_t handle,
+                                               std::int64_t maximumBytes,
+                                               std::int64_t timeoutMilliseconds) {
+  const auto found = networkSockets.find(handle);
+  if (found == networkSockets.end() || found->second.listener)
+    return errorResult("network token is not an open TCP connection");
+  std::string method;
+  std::string path;
+  std::string body;
+  std::string error;
+  if (!parseHttpRequest(found->second.socket, maximumBytes, timeoutMilliseconds,
+                        method, path, body, error))
+    return errorResult(error);
+  RocketString* methodValue = makeString(method);
+  RocketString* pathValue = makeString(path);
+  RocketArray* bodyBytes = byteArray(body);
+  RocketAggregate* bodyBuffer = byteBuffer(bodyBytes);
+  rocket_rt_release(bodyBytes);
+  RocketAggregate* request = rocket_rt_aggregate_new(0, 3, 7);
+  rocket_rt_aggregate_set_managed(request, 0, methodValue);
+  rocket_rt_aggregate_set_managed(request, 1, pathValue);
+  rocket_rt_aggregate_set_managed(request, 2, bodyBuffer);
+  rocket_rt_release(methodValue);
+  rocket_rt_release(pathValue);
+  rocket_rt_release(bodyBuffer);
+  RocketAggregate* result = okManaged(request);
+  rocket_rt_release(request);
+  return result;
+}
+
+RocketAggregate* rocket_std_http_write_response(std::int64_t handle,
+                                                 std::int64_t status,
+                                                 RocketString* contentType,
+                                                 RocketAggregate* body,
+                                                 std::int64_t timeoutMilliseconds) {
+  const auto found = networkSockets.find(handle);
+  if (found == networkSockets.end() || found->second.listener)
+    return errorResult("network token is not an open TCP connection");
+  const std::string type = stringValue(contentType);
+  const std::string bytes = byteBufferValue(body);
+  if (status < 100 || status > 599)
+    return errorResult("HTTP response status must be from 100 through 599");
+  if (type.empty() || type.find('\r') != std::string::npos ||
+      type.find('\n') != std::string::npos)
+    return errorResult("HTTP content type must be a non-empty single-line value");
+  const std::string response = "HTTP/1.1 " + std::to_string(status) +
+      " Rocket\r\nContent-Type: " + type + "\r\nContent-Length: " +
+      std::to_string(bytes.size()) + "\r\nConnection: close\r\n\r\n" + bytes;
+  std::size_t sent = 0;
+  std::string error;
+  if (!rocket::platform_net::send(found->second.socket, response,
+                                   timeoutMilliseconds, sent, error))
+    return errorResult(error);
+  return okBool(sent == response.size());
+}
+
+RocketAggregate* rocket_std_datetime_format_utc(std::int64_t unixMilliseconds) {
+  std::string value;
+  std::string error;
+  if (!rocket::platform_datetime::formatUtc(unixMilliseconds, value, error))
+    return errorResult(error);
+  RocketString* text = makeString(value);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+
+RocketAggregate* rocket_std_datetime_parse_utc(RocketString* value) {
+  std::int64_t milliseconds = 0;
+  std::string error;
+  if (!rocket::platform_datetime::parseUtc(stringValue(value), milliseconds, error))
+    return errorResult(error);
+  return okInt(milliseconds);
+}
+
+RocketAggregate* rocket_std_datetime_days_in_month(std::int64_t year,
+                                                    std::int64_t month) {
+  std::int64_t days = 0;
+  std::string error;
+  if (!rocket::platform_datetime::daysInMonth(year, month, days, error))
+    return errorResult(error);
+  return okInt(days);
+}
+
+RocketAggregate* rocket_std_datetime_weekday(std::int64_t year,
+                                              std::int64_t month,
+                                              std::int64_t day) {
+  std::int64_t weekday = 0;
+  std::string error;
+  if (!rocket::platform_datetime::weekday(year, month, day, weekday, error))
+    return errorResult(error);
+  return okInt(weekday);
+}
+
+RocketAggregate* rocket_std_datetime_local_offset_minutes(
+    std::int64_t unixMilliseconds) {
+  std::int64_t offset = 0;
+  std::string error;
+  if (!rocket::platform_datetime::localOffsetMinutes(unixMilliseconds, offset, error))
+    return errorResult(error);
+  return okInt(offset);
+}
+
+RocketAggregate* rocket_std_datetime_timezone_name() {
+  std::string value;
+  std::string error;
+  if (!rocket::platform_datetime::timezoneName(value, error))
+    return errorResult(error);
+  RocketString* text = makeString(value);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
+}
+
+RocketAggregate* rocket_std_log_write(RocketString* level, RocketString* message) {
+  std::string error;
+  const std::string line = logLine(stringValue(level), stringValue(message), error);
+  if (!error.empty()) return errorResult(error);
+  std::lock_guard<std::mutex> lock(logMutex);
+  if (std::fwrite(line.data(), 1, line.size(), stderr) != line.size() ||
+      std::fflush(stderr) != 0)
+    return errorResult("could not write the log message to standard error");
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_log_append(RocketString* path, RocketString* level,
+                                        RocketString* message) {
+  std::string error;
+  const std::string line = logLine(stringValue(level), stringValue(message), error);
+  if (!error.empty()) return errorResult(error);
+  std::lock_guard<std::mutex> lock(logMutex);
+  std::ofstream output(pathValue(path), std::ios::binary | std::ios::app);
+  if (!output) return errorResult("could not open the log file for append");
+  output.write(line.data(), static_cast<std::streamsize>(line.size()));
+  output.flush();
+  if (!output) return errorResult("could not append and flush the log message");
+  return okBool(true);
+}
+
+std::uint8_t rocket_std_cli_has_flag(RocketArray* arguments, RocketString* name) {
+  const std::string requested = stringValue(name);
+  const std::uint64_t length = rocket_rt_collection_length(arguments);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    RocketString* argument = rocket_rt_index_string(arguments,
+                                                     static_cast<std::int64_t>(index));
+    const std::string value = stringValue(argument);
+    rocket_rt_release(argument);
+    if (value == "--") break;
+    if (value == requested) return 1;
+  }
+  return 0;
+}
+
+RocketAggregate* rocket_std_cli_option(RocketArray* arguments, RocketString* name) {
+  const std::string requested = stringValue(name);
+  if (!requested.starts_with("--") || requested.size() < 3 ||
+      requested.find('=') != std::string::npos)
+    return errorResult("CLI option name must use --name without '='");
+  const std::string prefix = requested + "=";
+  const std::uint64_t length = rocket_rt_collection_length(arguments);
+  for (std::uint64_t index = 0; index < length; ++index) {
+    RocketString* argument = rocket_rt_index_string(arguments,
+                                                     static_cast<std::int64_t>(index));
+    const std::string value = stringValue(argument);
+    rocket_rt_release(argument);
+    if (value == "--") break;
+    if (value.starts_with(prefix)) return optionalStringResult(true, value.substr(prefix.size()));
+    if (value == requested) {
+      if (index + 1 >= length) return errorResult("CLI option is missing its value");
+      RocketString* following = rocket_rt_index_string(
+          arguments, static_cast<std::int64_t>(index + 1));
+      const std::string selected = stringValue(following);
+      rocket_rt_release(following);
+      if (selected == "--") return errorResult("CLI option is missing its value");
+      return optionalStringResult(true, selected);
+    }
+  }
+  return optionalStringResult(false, {});
+}
+
+RocketArray* rocket_std_cli_positionals(RocketArray* arguments) {
+  const std::uint64_t length = rocket_rt_collection_length(arguments);
+  std::vector<std::string> values;
+  bool afterSeparator = false;
+  for (std::uint64_t index = 0; index < length; ++index) {
+    RocketString* argument = rocket_rt_index_string(arguments,
+                                                     static_cast<std::int64_t>(index));
+    std::string value = stringValue(argument);
+    rocket_rt_release(argument);
+    if (!afterSeparator && value == "--") { afterSeparator = true; continue; }
+    if (afterSeparator || value.empty() || value.front() != '-')
+      values.push_back(std::move(value));
+  }
+  return stringArray(values);
+}
+
+RocketAggregate* rocket_std_config_get(RocketString* text, RocketString* key) {
+  bool found = false;
+  std::string value;
+  std::string error;
+  if (!configValue(stringValue(text), stringValue(key), found, value, error))
+    return errorResult(error);
+  return optionalStringResult(found, value);
+}
+
+RocketAggregate* rocket_std_config_load(RocketString* path, RocketString* key) {
+  try {
+    std::ifstream input(pathValue(path), std::ios::binary);
+    if (!input) return errorResult("could not open configuration file");
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    if (!input.good() && !input.eof()) return errorResult("could not read configuration file");
+    bool found = false;
+    std::string value;
+    std::string error;
+    if (!configValue(contents.str(), stringValue(key), found, value, error))
+      return errorResult(error);
+    return optionalStringResult(found, value);
+  } catch (const std::exception& error) {
+    return errorResult(error.what());
+  }
+}
+
+RocketAggregate* rocket_std_compression_xpress_compress(RocketAggregate* value) {
+  std::string output;
+  std::string error;
+  if (!rocket::platform_compression::compressXpress(byteBufferValue(value), output,
+                                                     error))
+    return errorResult(error);
+  RocketArray* bytes = byteArray(output);
+  RocketAggregate* buffer = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
+RocketAggregate* rocket_std_compression_xpress_decompress(RocketAggregate* value) {
+  std::string output;
+  std::string error;
+  if (!rocket::platform_compression::decompressXpress(byteBufferValue(value), output,
+                                                       error))
+    return errorResult(error);
+  RocketArray* bytes = byteArray(output);
+  RocketAggregate* buffer = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
+RocketAggregate* rocket_std_archive_tar_create(RocketString* path,
+                                                RocketArray* names,
+                                                RocketArray* contents) {
+  const std::uint64_t count = rocket_rt_collection_length(names);
+  if (count != rocket_rt_collection_length(contents))
+    return errorResult("TAR entry names and contents must have equal lengths");
+  std::vector<rocket::safe_archive::Entry> entries;
+  entries.reserve(static_cast<std::size_t>(count));
+  for (std::uint64_t index = 0; index < count; ++index) {
+    RocketString* name = rocket_rt_index_string(names, static_cast<std::int64_t>(index));
+    auto* content = static_cast<RocketAggregate*>(
+        rocket_rt_index_managed(contents, static_cast<std::int64_t>(index)));
+    entries.push_back({stringValue(name), byteBufferValue(content)});
+    rocket_rt_release(content);
+    rocket_rt_release(name);
+  }
+  std::string error;
+  if (!rocket::safe_archive::create(stringValue(path), entries, error))
+    return errorResult(error);
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_archive_tar_list(RocketString* path) {
+  std::vector<std::string> names;
+  std::string error;
+  if (!rocket::safe_archive::list(stringValue(path), names, error))
+    return errorResult(error);
+  RocketArray* values = stringArray(names);
+  RocketAggregate* result = okManaged(values);
+  rocket_rt_release(values);
+  return result;
+}
+
+RocketAggregate* rocket_std_archive_tar_read(RocketString* path,
+                                              RocketString* name) {
+  std::string contents;
+  std::string error;
+  if (!rocket::safe_archive::read(stringValue(path), stringValue(name), contents,
+                                   error))
+    return errorResult(error);
+  RocketArray* bytes = byteArray(contents);
+  RocketAggregate* buffer = byteBuffer(bytes);
+  rocket_rt_release(bytes);
+  RocketAggregate* result = okManaged(buffer);
+  rocket_rt_release(buffer);
+  return result;
+}
+
+RocketAggregate* rocket_std_sqlite_open(RocketString* path) {
+  sqlite3* database = nullptr;
+  std::string error;
+  if (!rocket::platform_sqlite::open(stringValue(path), database, error))
+    return errorResult(error);
+  const std::int64_t token = nextSqliteHandle++;
+  sqliteDatabases.emplace(token, database);
+  return okInt(token);
+}
+
+RocketAggregate* rocket_std_sqlite_execute(std::int64_t handle, RocketString* sql,
+                                            RocketArray* parameters) {
+  const auto found = sqliteDatabases.find(handle);
+  if (found == sqliteDatabases.end()) return errorResult("SQLite token is not open");
+  std::int64_t changes = 0;
+  std::string error;
+  if (!rocket::platform_sqlite::execute(found->second, stringValue(sql),
+                                         stringValues(parameters), changes, error))
+    return errorResult(error);
+  return okInt(changes);
+}
+
+RocketAggregate* rocket_std_sqlite_query(std::int64_t handle, RocketString* sql,
+                                          RocketArray* parameters) {
+  const auto found = sqliteDatabases.find(handle);
+  if (found == sqliteDatabases.end()) return errorResult("SQLite token is not open");
+  std::vector<std::vector<std::string>> rows;
+  std::string error;
+  if (!rocket::platform_sqlite::query(found->second, stringValue(sql),
+                                       stringValues(parameters), rows, error))
+    return errorResult(error);
+  RocketArray* outer = rocket_rt_array_new(ROCKET_ELEMENT_MANAGED, rows.size());
+  for (std::size_t index = 0; index < rows.size(); ++index) {
+    RocketArray* fields = stringArray(rows[index]);
+    rocket_rt_array_set_managed(outer, static_cast<std::int64_t>(index), fields);
+    rocket_rt_release(fields);
+  }
+  RocketAggregate* result = okManaged(outer);
+  rocket_rt_release(outer);
+  return result;
+}
+
+RocketAggregate* rocket_std_sqlite_close(std::int64_t handle) {
+  const auto found = sqliteDatabases.find(handle);
+  if (found == sqliteDatabases.end()) return errorResult("SQLite token is not open");
+  std::string error;
+  if (!rocket::platform_sqlite::close(found->second, error)) return errorResult(error);
+  sqliteDatabases.erase(found);
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_testing_assert(std::uint8_t condition,
+                                            RocketString* message) {
+  if (condition) return okBool(true);
+  const std::string text = stringValue(message);
+  return errorResult(text.empty() ? "assertion failed" : text);
+}
+
+RocketAggregate* rocket_std_testing_equal_int(std::int64_t expected,
+                                               std::int64_t actual,
+                                               RocketString* message) {
+  if (expected == actual) return okBool(true);
+  const std::string prefix = stringValue(message);
+  return errorResult((prefix.empty() ? "integer assertion failed" : prefix) +
+                     ": expected " + std::to_string(expected) + ", actual " +
+                     std::to_string(actual));
+}
+
+RocketAggregate* rocket_std_testing_equal_string(RocketString* expected,
+                                                  RocketString* actual,
+                                                  RocketString* message) {
+  const std::string expectedValue = stringValue(expected);
+  const std::string actualValue = stringValue(actual);
+  if (expectedValue == actualValue) return okBool(true);
+  const std::string prefix = stringValue(message);
+  return errorResult((prefix.empty() ? "string assertion failed" : prefix) +
+                     ": expected '" + expectedValue + "', actual '" + actualValue + "'");
+}
+
+RocketAggregate* rocket_std_testing_temp_directory(RocketString* prefix) {
+  const std::string requested = stringValue(prefix);
+  if (requested.empty() || requested.size() > 32 ||
+      !std::all_of(requested.begin(), requested.end(), [](unsigned char character) {
+        return std::isalnum(character) || character == '-' || character == '_';
+      }))
+    return errorResult("test temporary prefix must use 1 through 32 letters, digits, '-' or '_'");
+  std::error_code filesystemError;
+  const std::filesystem::path temporary = std::filesystem::temp_directory_path(filesystemError);
+  if (filesystemError) return errorResult("could not locate the host temporary directory");
+  for (int attempt = 0; attempt < 64; ++attempt) {
+    std::vector<std::uint8_t> random;
+    std::string error;
+    if (!rocket::platform_crypto::secureRandom(8, random, error)) return errorResult(error);
+    constexpr char digits[] = "0123456789abcdef";
+    std::string suffix;
+    suffix.reserve(16);
+    for (const std::uint8_t byte : random) {
+      suffix.push_back(digits[byte >> 4]);
+      suffix.push_back(digits[byte & 15]);
+    }
+    const std::filesystem::path candidate = temporary / (requested + "-" + suffix);
+    if (!std::filesystem::create_directory(candidate, filesystemError)) {
+      if (!filesystemError) continue;
+      return errorResult("could not create a test temporary directory");
+    }
+    const std::string normalized = pathString(candidate.lexically_normal());
+    {
+      std::lock_guard<std::mutex> lock(testingMutex);
+      testingTemporaryDirectories.insert(normalized);
+    }
+    return okString(normalized);
+  }
+  return errorResult("could not allocate a unique test temporary directory");
+}
+
+RocketAggregate* rocket_std_testing_fixture_path(RocketString* root,
+                                                  RocketString* relative) {
+  const std::string rootValue = pathString(pathValue(root).lexically_normal());
+  const std::string relativeValue = stringValue(relative);
+  {
+    std::lock_guard<std::mutex> lock(testingMutex);
+    if (!testingTemporaryDirectories.contains(rootValue))
+      return errorResult("test fixture root was not created by testing.temp_directory");
+  }
+  if (!safeTestingRelative(relativeValue))
+    return errorResult("test fixture path must be a safe relative path");
+  return okString(pathString((pathValue(root) / pathValue(relative)).lexically_normal()));
+}
+
+RocketAggregate* rocket_std_testing_cleanup_temp(RocketString* path) {
+  const std::string normalized = pathString(pathValue(path).lexically_normal());
+  {
+    std::lock_guard<std::mutex> lock(testingMutex);
+    if (!testingTemporaryDirectories.contains(normalized))
+      return errorResult("test temporary path is unknown or already cleaned");
+  }
+  std::error_code error;
+  std::filesystem::remove_all(pathValue(path), error);
+  if (error) return errorResult("could not clean the test temporary directory");
+  {
+    std::lock_guard<std::mutex> lock(testingMutex);
+    testingTemporaryDirectories.erase(normalized);
+  }
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_testing_coverage_hit(RocketString* name) {
+  const std::string value = stringValue(name);
+  if (value.empty() || value.size() > 256 ||
+      !std::all_of(value.begin(), value.end(), [](unsigned char character) {
+        return std::isalnum(character) || character == '_' || character == '-' ||
+               character == '.' || character == ':';
+      }))
+    return errorResult("coverage point name contains unsupported bytes");
+  std::lock_guard<std::mutex> lock(testingMutex);
+  auto& count = testingCoverage[value];
+  if (count == (std::numeric_limits<std::int64_t>::max)())
+    return errorResult("coverage point counter overflowed");
+  ++count;
+  return okBool(true);
+}
+
+RocketAggregate* rocket_std_testing_coverage_write(RocketString* path) {
+  std::vector<std::pair<std::string, std::int64_t>> points;
+  {
+    std::lock_guard<std::mutex> lock(testingMutex);
+    points.assign(testingCoverage.begin(), testingCoverage.end());
+  }
+  std::sort(points.begin(), points.end());
+  std::ofstream output(pathValue(path), std::ios::binary | std::ios::trunc);
+  if (!output) return errorResult("could not create coverage output file");
+  output << "{\"version\":1,\"points\":[";
+  for (std::size_t index = 0; index < points.size(); ++index) {
+    if (index) output << ',';
+    output << "{\"name\":\"" << points[index].first << "\",\"hits\":"
+           << points[index].second << '}';
+  }
+  output << "]}\n";
+  output.flush();
+  if (!output) return errorResult("could not write coverage output file");
+  return okBool(true);
 }
 
 RocketAggregate* rocket_std_file_read_text(RocketString* path) {

@@ -1,0 +1,47 @@
+import std.binary
+import std.collections
+import std.crypto
+
+fn exercise() -> Result[Bool, String]:
+    let abc = binary.from_string("abc")
+    let digest = crypto.sha256(abc)?
+    if digest != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad":
+        return Err("SHA-256 known-answer test failed")
+
+    let key = binary.from_string("key")
+    let message = binary.from_string("The quick brown fox jumps over the lazy dog")
+    let hmac = crypto.hmac_sha256(key, message)?
+    if hmac != "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8":
+        return Err("HMAC-SHA-256 known-answer test failed")
+
+    let random = crypto.secure_bytes(32)?
+    if binary.length(random) != 32:
+        return Err("secure random byte count failed")
+    let number = crypto.secure_int(-5, 5)?
+    if number < -5 or number > 5:
+        return Err("secure random integer range failed")
+    if not crypto.constant_time_equal(abc, binary.from_string("abc")):
+        return Err("constant-time equality failed")
+    if crypto.constant_time_equal(abc, binary.from_string("abd")):
+        return Err("constant-time inequality failed")
+
+    match crypto.verify_signed_file("phase15-missing-signed-file.exe"):
+        case Ok(trusted):
+            if trusted:
+                return Err("missing signed file was trusted")
+            return Err("missing signed file did not report an error")
+        case Err(error):
+            if error == "":
+                return Err("certificate failure did not explain itself")
+    return Ok(true)
+
+fn main() -> Int:
+    match exercise():
+        case Ok(success):
+            if success:
+                print("phase15-crypto-ok")
+                return 0
+            return 1
+        case Err(error):
+            print(error)
+            return 2

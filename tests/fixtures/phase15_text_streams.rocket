@@ -1,0 +1,67 @@
+import std.binary
+import std.collections
+import std.file
+import std.regex
+import std.stream
+import std.unicode
+
+fn exercise() -> Result[Bool, String]:
+    let high = binary.write_u32_be(305419896)?
+    let decoded = binary.read_u32_be(high, 0)?
+    if decoded != 305419896:
+        return Err("big-endian round trip failed")
+    let low = binary.write_u16_be(43981)?
+    let payload = binary.concat(high, low)
+
+    let writer = stream.open_writer("phase15_stream_temp.bin", 4096, false)?
+    stream.write(writer, payload)?
+    stream.flush(writer)?
+    stream.close_writer(writer)?
+
+    let reader = stream.open_reader("phase15_stream_temp.bin", 4096)?
+    let stored = stream.read(reader, 64)?
+    let eof = stream.read(reader, 64)?
+    stream.close_reader(reader)?
+    if binary.length(stored) != 6 or binary.length(eof) != 0:
+        return Err("buffered stream length mismatch")
+    if binary.read_u16_be(stored, 4)? != 43981:
+        return Err("buffered stream contents mismatch")
+
+    let sample = "é🇱🇧"
+    if unicode.scalar_count(sample) != 4:
+        return Err("Unicode scalar iteration failed")
+    if unicode.scalar_at(sample, 1)? != 769:
+        return Err("Unicode scalar value mismatch")
+    if unicode.from_scalar(128640)? != "🚀":
+        return Err("Unicode scalar encoding failed")
+    if unicode.grapheme_count(sample) != 2:
+        return Err("Unicode grapheme segmentation failed")
+    if unicode.grapheme_at(sample, 0)? != "é":
+        return Err("Unicode grapheme extraction failed")
+    if unicode.normalize_nfc("é")? != "é":
+        return Err("Unicode NFC normalization failed")
+    if unicode.normalize_nfd("é")? != "é":
+        return Err("Unicode NFD normalization failed")
+
+    if not regex.is_match("[0-9]+", "rocket 15")?:
+        return Err("regular-expression match failed")
+    let matches = regex.find_all("[a-z]+", "one 2 three")?
+    if collections.length(matches) != 2 or matches[0] != "one" or matches[1] != "three":
+        return Err("regular-expression capture failed")
+    if regex.replace_all("[0-9]+", "phase 15", "XV")? != "phase XV":
+        return Err("regular-expression replacement failed")
+
+    file.remove("phase15_stream_temp.bin")?
+    return Ok(true)
+
+fn main() -> Int:
+    let result = exercise()
+    match result:
+        case Ok(success):
+            if success:
+                print("phase15-text-streams-ok")
+                return 0
+            return 1
+        case Err(error):
+            print(error)
+            return 2

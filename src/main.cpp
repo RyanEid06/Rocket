@@ -189,6 +189,8 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
   arguments.push_back(source.string());
   if (!assembly && outputKind != rocket::PackageOutputKind::StaticLibrary) {
     arguments.push_back("/link");
+    if (outputKind == rocket::PackageOutputKind::Executable)
+      arguments.push_back("/STACK:8388608");
     for (const auto& search : librarySearch)
       arguments.push_back("/LIBPATH:" + search.string());
     for (const auto& library : libraries) arguments.push_back(library);
@@ -468,7 +470,7 @@ int formatCommand(const fs::path& path, bool checkOnly) {
   return 0;
 }
 
-int testCommand(const fs::path& path) {
+int testCommand(const fs::path& path, const std::string& filter) {
   std::string error;
   std::vector<fs::path> tests;
   fs::path packageRoot;
@@ -493,19 +495,51 @@ int testCommand(const fs::path& path) {
 
   int passed = 0;
   int failed = 0;
+  int expectedFailures = 0;
+  int selected = 0;
   for (const auto& test : tests) {
     std::error_code relativeError;
     fs::path display = fs::relative(test, packageRoot, relativeError);
     if (relativeError) display = test.filename();
+    if (!filter.empty() && display.generic_string().find(filter) == std::string::npos)
+      continue;
+    ++selected;
+    const bool expectedFailure = test.stem().string().ends_with(".xfail");
     std::cout << "test " << display.generic_string() << '\n';
-    const int status = executeCompiler(
-        "run", {test, packageRoot, artifactRoot,
-                rocket::PackageOutputKind::Executable, test.stem().string(),
-                test.stem().string(), nativeLibraries, nativeLibrarySearch}, {}, false);
-    if (status == 0) { ++passed; std::cout << "PASS " << display.generic_string() << '\n'; }
-    else { ++failed; std::cout << "FAIL " << display.generic_string() << " (exit " << status << ")\n"; }
+    const CommandTarget target{test, packageRoot, artifactRoot,
+                               rocket::PackageOutputKind::Executable,
+                               test.stem().string(), test.stem().string(),
+                               nativeLibraries, nativeLibrarySearch};
+    const int buildStatus = executeCompiler("build", target, {}, false);
+    if (buildStatus != 0) {
+      ++failed;
+      std::cout << "FAIL " << display.generic_string()
+                << " (build failed with exit " << buildStatus << ")\n";
+      continue;
+    }
+    const int status = invokeExecutable(
+        artifactRoot / ".rocketc" / (test.stem().string() + ".exe"), {});
+    if (expectedFailure && status != 0) {
+      ++expectedFailures;
+      std::cout << "XFAIL " << display.generic_string() << " (exit " << status << ")\n";
+    } else if (expectedFailure) {
+      ++failed;
+      std::cout << "XPASS " << display.generic_string() << '\n';
+    } else if (status == 0) {
+      ++passed;
+      std::cout << "PASS " << display.generic_string() << '\n';
+    } else {
+      ++failed;
+      std::cout << "FAIL " << display.generic_string() << " (exit " << status << ")\n";
+    }
   }
-  std::cout << passed << " passed; " << failed << " failed\n";
+  if (selected == 0) {
+    cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                  "test filter selected no .rocket files");
+    return 2;
+  }
+  std::cout << passed << " passed; " << failed << " failed; "
+            << expectedFailures << " expected failure(s)\n";
   return failed == 0 ? 0 : 1;
 }
 
@@ -558,7 +592,7 @@ void usage() {
          "  rocketc <check|build|run|emit-ir|emit-asm|emit-header> [file.rocket|package] [-- arguments]\n"
          "  rocketc bind <header.h> [--output bindings.rocket]\n"
          "  rocketc fmt [file.rocket|directory] [--check]\n"
-         "  rocketc test [file.rocket|package]\n"
+         "  rocketc test [file.rocket|package] [--filter text]\n"
          "  rocketc resolve [package] [--locked|--offline]\n"
          "  rocketc tree [package]\n"
          "  rocketc audit [package]\n"
@@ -570,6 +604,10 @@ void usage() {
 
 int main(int argc, char** argv) {
   compilerDirectory = fs::absolute(argv[0]).parent_path().lexically_normal();
+  const fs::path installedStandardLibrary =
+      (compilerDirectory.parent_path() / "stdlib").lexically_normal();
+  if (fs::is_directory(installedStandardLibrary))
+    rocket::setStandardLibraryRoot(installedStandardLibrary);
   if (argc < 2) { usage(); return 2; }
   const std::string command = argv[1];
   if (command == "--help" || command == "-h" || command == "help") {
@@ -613,12 +651,20 @@ int main(int argc, char** argv) {
     return formatCommand(path, checkOnly);
   }
   if (command == "test") {
-    if (argc > 3) {
-      cliDiagnostic(rocket::DiagnosticCode::Tooling,
-                    "test accepts only one file or package path");
-      return 2;
+    fs::path path = ".";
+    bool pathSet = false;
+    std::string filter;
+    for (int index = 2; index < argc; ++index) {
+      const std::string argument = argv[index];
+      if (argument == "--filter" && index + 1 < argc) filter = argv[++index];
+      else if (!pathSet) { path = argument; pathSet = true; }
+      else {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "unexpected test argument '" + argument + "'");
+        return 2;
+      }
     }
-    return testCommand(argc >= 3 ? fs::path(argv[2]) : fs::path("."));
+    return testCommand(path, filter);
   }
   if (command == "resolve") {
     fs::path path = ".";

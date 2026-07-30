@@ -246,6 +246,130 @@ RocketAggregate* rocket_std_binary_read_u32_le(RocketAggregate* buffer,
 RocketAggregate* rocket_std_binary_write_u8(std::int64_t value);
 RocketAggregate* rocket_std_binary_write_u16_le(std::int64_t value);
 RocketAggregate* rocket_std_binary_write_u32_le(std::int64_t value);
+RocketAggregate* rocket_std_binary_concat(RocketAggregate* left,
+                                           RocketAggregate* right);
+RocketAggregate* rocket_std_binary_read_u16_be(RocketAggregate* buffer,
+                                                std::int64_t offset);
+RocketAggregate* rocket_std_binary_read_u32_be(RocketAggregate* buffer,
+                                                std::int64_t offset);
+RocketAggregate* rocket_std_binary_write_u16_be(std::int64_t value);
+RocketAggregate* rocket_std_binary_write_u32_be(std::int64_t value);
+
+RocketAggregate* rocket_std_stream_open_reader(RocketString* path,
+                                                std::int64_t bufferSize);
+RocketAggregate* rocket_std_stream_read(std::int64_t handle,
+                                        std::int64_t maximumBytes);
+RocketAggregate* rocket_std_stream_close_reader(std::int64_t handle);
+RocketAggregate* rocket_std_stream_open_writer(RocketString* path,
+                                                std::int64_t bufferSize,
+                                                std::uint8_t append);
+RocketAggregate* rocket_std_stream_write(std::int64_t handle,
+                                         RocketAggregate* buffer);
+RocketAggregate* rocket_std_stream_flush(std::int64_t handle);
+RocketAggregate* rocket_std_stream_close_writer(std::int64_t handle);
+
+std::int64_t rocket_std_unicode_scalar_count(RocketString* value);
+RocketAggregate* rocket_std_unicode_scalar_at(RocketString* value,
+                                               std::int64_t index);
+RocketAggregate* rocket_std_unicode_from_scalar(std::int64_t scalar);
+RocketAggregate* rocket_std_unicode_normalize_nfc(RocketString* value);
+RocketAggregate* rocket_std_unicode_normalize_nfd(RocketString* value);
+std::int64_t rocket_std_unicode_grapheme_count(RocketString* value);
+RocketAggregate* rocket_std_unicode_grapheme_at(RocketString* value,
+                                                 std::int64_t index);
+
+RocketAggregate* rocket_std_regex_is_match(RocketString* pattern,
+                                            RocketString* value);
+RocketAggregate* rocket_std_regex_find_all(RocketString* pattern,
+                                            RocketString* value);
+RocketAggregate* rocket_std_regex_replace_all(RocketString* pattern,
+                                               RocketString* value,
+                                               RocketString* replacement);
+
+RocketAggregate* rocket_std_crypto_secure_bytes(std::int64_t length);
+RocketAggregate* rocket_std_crypto_secure_int(std::int64_t minimum,
+                                               std::int64_t maximum);
+RocketAggregate* rocket_std_crypto_sha256(RocketAggregate* value);
+RocketAggregate* rocket_std_crypto_hmac_sha256(RocketAggregate* key,
+                                                RocketAggregate* value);
+std::uint8_t rocket_std_crypto_constant_time_equal(RocketAggregate* left,
+                                                    RocketAggregate* right);
+RocketAggregate* rocket_std_crypto_verify_signed_file(RocketString* path);
+
+RocketAggregate* rocket_std_net_resolve(RocketString* host, RocketString* service);
+RocketAggregate* rocket_std_net_tcp_connect(RocketString* host, std::int64_t port,
+                                             std::int64_t timeoutMilliseconds);
+RocketAggregate* rocket_std_net_tcp_listen(RocketString* address, std::int64_t port,
+                                            std::int64_t backlog);
+RocketAggregate* rocket_std_net_accept(std::int64_t listener,
+                                        std::int64_t timeoutMilliseconds);
+RocketAggregate* rocket_std_net_send(std::int64_t handle, RocketAggregate* buffer,
+                                      std::int64_t timeoutMilliseconds);
+RocketAggregate* rocket_std_net_receive(std::int64_t handle,
+                                         std::int64_t maximumBytes,
+                                         std::int64_t timeoutMilliseconds);
+RocketAggregate* rocket_std_net_close(std::int64_t handle);
+RocketAggregate* rocket_std_net_cancel(std::int64_t handle);
+RocketAggregate* rocket_std_net_local_port(std::int64_t handle);
+
+RocketAggregate* rocket_std_http_request(RocketString* method, RocketString* url,
+                                          RocketAggregate* body,
+                                          std::int64_t timeoutMilliseconds);
+RocketAggregate* rocket_std_http_read_request(std::int64_t handle,
+                                               std::int64_t maximumBytes,
+                                               std::int64_t timeoutMilliseconds);
+RocketAggregate* rocket_std_http_write_response(std::int64_t handle,
+                                                 std::int64_t status,
+                                                 RocketString* contentType,
+                                                 RocketAggregate* body,
+                                                 std::int64_t timeoutMilliseconds);
+
+RocketAggregate* rocket_std_datetime_format_utc(std::int64_t unixMilliseconds);
+RocketAggregate* rocket_std_datetime_parse_utc(RocketString* value);
+RocketAggregate* rocket_std_datetime_days_in_month(std::int64_t year,
+                                                    std::int64_t month);
+RocketAggregate* rocket_std_datetime_weekday(std::int64_t year,
+                                              std::int64_t month,
+                                              std::int64_t day);
+RocketAggregate* rocket_std_datetime_local_offset_minutes(
+    std::int64_t unixMilliseconds);
+RocketAggregate* rocket_std_datetime_timezone_name();
+RocketAggregate* rocket_std_log_write(RocketString* level, RocketString* message);
+RocketAggregate* rocket_std_log_append(RocketString* path, RocketString* level,
+                                        RocketString* message);
+std::uint8_t rocket_std_cli_has_flag(RocketArray* arguments, RocketString* name);
+RocketAggregate* rocket_std_cli_option(RocketArray* arguments, RocketString* name);
+RocketArray* rocket_std_cli_positionals(RocketArray* arguments);
+RocketAggregate* rocket_std_config_get(RocketString* text, RocketString* key);
+RocketAggregate* rocket_std_config_load(RocketString* path, RocketString* key);
+RocketAggregate* rocket_std_compression_xpress_compress(RocketAggregate* value);
+RocketAggregate* rocket_std_compression_xpress_decompress(RocketAggregate* value);
+RocketAggregate* rocket_std_archive_tar_create(RocketString* path,
+                                                RocketArray* names,
+                                                RocketArray* contents);
+RocketAggregate* rocket_std_archive_tar_list(RocketString* path);
+RocketAggregate* rocket_std_archive_tar_read(RocketString* path,
+                                              RocketString* name);
+RocketAggregate* rocket_std_sqlite_open(RocketString* path);
+RocketAggregate* rocket_std_sqlite_execute(std::int64_t handle, RocketString* sql,
+                                            RocketArray* parameters);
+RocketAggregate* rocket_std_sqlite_query(std::int64_t handle, RocketString* sql,
+                                          RocketArray* parameters);
+RocketAggregate* rocket_std_sqlite_close(std::int64_t handle);
+RocketAggregate* rocket_std_testing_assert(std::uint8_t condition,
+                                            RocketString* message);
+RocketAggregate* rocket_std_testing_equal_int(std::int64_t expected,
+                                               std::int64_t actual,
+                                               RocketString* message);
+RocketAggregate* rocket_std_testing_equal_string(RocketString* expected,
+                                                  RocketString* actual,
+                                                  RocketString* message);
+RocketAggregate* rocket_std_testing_temp_directory(RocketString* prefix);
+RocketAggregate* rocket_std_testing_fixture_path(RocketString* root,
+                                                  RocketString* relative);
+RocketAggregate* rocket_std_testing_cleanup_temp(RocketString* path);
+RocketAggregate* rocket_std_testing_coverage_hit(RocketString* name);
+RocketAggregate* rocket_std_testing_coverage_write(RocketString* path);
 
 RocketString* rocket_std_path_join(RocketString* left, RocketString* right);
 RocketString* rocket_std_path_basename(RocketString* path);

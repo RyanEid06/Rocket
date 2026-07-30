@@ -1,4 +1,4 @@
-# Rocket 1.5 development
+# Rocket 1.5
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
@@ -24,8 +24,10 @@ available only as the reproducible stage0 fallback when LLVM is explicitly disab
 - `Option[T]`, `Result[T, E]`, and exception-free postfix `?` propagation
 - Package-relative `import` modules with explicit `pub` visibility
 - Editor-neutral `rocket-lsp` live diagnostics with a dependency-free VS Code client
-- Typed `std` modules for strings, collections, binary buffers and I/O, files,
-  paths, JSON, CSV, randomness, processes, and time
+- Typed `std` modules for strings, collections, binary buffers and buffered I/O,
+  Unicode, safe regular expressions, cryptography, networking and HTTP,
+  calendars, logging, CLI/config parsing, compression, safe archives, SQLite,
+  testing, files, paths, JSON, CSV, randomness, processes, and time
 - Arithmetic, comparisons, `and`/`or`/`not`, and function calls
 - Assignment, `if`/`else`, `while`, integer `for` ranges, `break`, `continue`, and `return`
 - Built-in `print`
@@ -81,14 +83,15 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [Rocket 1.2 syntax](docs/ROCKET_1_2_SYNTAX_DICTIONARY.md),
 [Rocket 1.3 native syntax](docs/ROCKET_1_3_SYNTAX_DICTIONARY.md),
 [Rocket 1.4 syntax](docs/ROCKET_1_4_SYNTAX_DICTIONARY.md),
+[Rocket 1.5 library dictionary](docs/ROCKET_1_5_SYNTAX_DICTIONARY.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
-Rocket 1.5 development currently adds immutable byte buffers, exact binary file
-I/O, checked binary slicing, UTF-8 conversion, and explicit little-endian
-integer codecs without changing runtime ABI v1. The broader Phase 15 production
-standard-library work remains in progress.
+Rocket 1.5 completes the production standard-library milestone without changing
+Rocket grammar or runtime ABI v1. Security-sensitive and blocking APIs are
+bounded, explicit about timeouts, and return `Option`/`Result`; `std.testing` is
+an ordinary bundled Rocket module over a narrow host boundary.
 
-## Rocket 1.3 release
+## Rocket 1.5 release
 
 Build the checksummed, relocation-tested, self-contained Windows x64 archive:
 
@@ -98,5 +101,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compil
 
 The package uses the Rocket-written stage3 compiler and includes the runtime,
 pinned Clang/LLD, compiler-rt resources, and native static link libraries. See
-[the Rocket 1.3 release contract](docs/RELEASE_1_3.md) for compatibility,
+[the Rocket 1.5 release contract](docs/RELEASE_1_5.md) for compatibility,
 limitations, and the complete validation matrix.

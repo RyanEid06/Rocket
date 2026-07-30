@@ -45,6 +45,14 @@ No compiler-only syntax, source preprocessor, C++ callback, or runtime compile
 function is permitted. Stage0 and the production runtime implement the same
 public calls, and both backends run the same bootstrap primitive fixture.
 
+Rocket 1.5 preserves that rule for the expanded production standard library.
+The self-hosted compiler owns matching intrinsic identities, nominal HTTP
+types, declarations, and runtime mappings for every host-backed API. It also
+loads the public `std.testing` facade from bundled Rocket source using the same
+installed-versus-repository search policy as stage0. Bootstrap conformance
+checks all Phase 15 integration fixtures so no API exists only in the C++
+compiler or only in the LLVM runtime.
+
 ## Determinism and acceptance
 
 - Stage2 and stage3 emit byte-identical canonical `.ll` for every compiler

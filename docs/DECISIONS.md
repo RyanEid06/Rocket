@@ -342,3 +342,102 @@ diagnostics first. Multi-file overlays, incremental analysis, navigation,
 refactoring, debugger integration, profiling, benchmarking, and coverage remain
 additive Phase 17 work. The server never executes builds or package code as a
 side effect of editor analysis.
+
+## D024 - Bounded stream tokens and explicit Unicode layers
+
+**Accepted for Rocket 1.5 development.** Buffered file streams use opaque,
+process-local integer tokens rather than exposing host pointers or adding a new
+linear-resource kind. Tokens are kind-checked, become invalid on close, and
+keep all host failures in `Result`. Buffer and per-read sizes are bounded, and
+the API explicitly documents synchronous blocking behavior.
+
+Rocket Strings remain valid UTF-8. Byte indexing stays available for binary
+protocols, while scalar indexing is an explicit `Int`-based layer that excludes
+surrogates. NFC/NFD normalization is opt-in and uses the Windows Unicode tables.
+The first grapheme API implements practical boundaries for combining marks,
+variation selectors, emoji modifiers, joiner sequences, and regional pairs;
+locale-sensitive segmentation and a frozen Unicode-data version are not
+claimed. Regular expressions operate on UTF-8 bytes and likewise require
+explicit normalization when canonical equivalence matters.
+
+## D025 - Platform-backed cryptography and offline certificate verification
+
+**Accepted for Rocket 1.5.** Secure randomness, SHA-256, and HMAC-SHA-256 use
+the reviewed Windows CNG providers loaded from the operating system. The legacy
+seedable `std.random` module remains explicitly deterministic. Secure integer
+sampling is unbiased and inclusive, and secret comparison never exits early on
+the first unequal byte.
+
+Authenticode verification uses WinVerifyTrust with UI disabled, whole-chain
+revocation policy, and cache-only URL retrieval. This avoids hidden network
+access and makes isolated tests reproducible, while documenting that revocation
+freshness is limited by the host cache. Crypto input sizes are bounded and all
+provider, path, and policy failures cross Rocket as `Result` values.
+
+## D026 - Timeout-bounded socket tokens and system HTTPS policy
+
+**Accepted for Rocket 1.5.** TCP connections and listeners use checked opaque
+tokens shared by the native and stage0 standard libraries. DNS and all socket
+failures are recoverable, byte counts are bounded, every blocking operation has
+an explicit timeout, and close/cancel invalidates the token exactly once.
+
+The HTTP client uses WinHTTP and never exposes an option to disable HTTPS
+certificate verification. Its response type preserves status and binary body.
+The first server layer deliberately implements one bounded HTTP/1.x request per
+connection, rejects chunked request bodies, and emits `Connection: close`.
+Asynchronous multiplexing remains Phase 18 work rather than an undocumented
+threading promise in the Phase 15 API.
+
+## D027 - Locale-neutral calendars and bounded operational helpers
+
+**Accepted for Rocket 1.5.** UTC interchange uses one millisecond-precision ISO
+shape independent of locale. Gregorian validation is explicit, while historical
+local offsets and the configured time-zone identity come from Windows rules for
+the requested instant.
+
+Logging emits newline-safe UTC records and serializes same-process writers.
+Command-line parsing distinguishes absent options from malformed missing values.
+Configuration uses a deliberately bounded textual subset with duplicate-key
+rejection rather than silently accepting an underspecified TOML dialect. These
+helpers return `Option`/`Result` at data and host-failure boundaries and document
+which operations can block.
+
+## D028 - Explicit XPRESS streams and data-only ustar archives
+
+**Accepted for Rocket 1.5.** Compression names its Windows XPRESS Huffman wire
+format rather than presenting it as a generic codec. Input and expansion sizes
+are bounded before allocation, and invalid streams are recoverable errors.
+
+The first archive API treats archives as validated data rather than extracting
+paths. Deterministic ustar output contains regular files only. Readers verify
+checksums, type, count, total size, and safe relative names, rejecting traversal,
+links, duplicates, and ambiguous platform paths. Applications explicitly choose
+where any returned bytes are written.
+
+## D029 - Parameterized system SQLite with bounded text results
+
+**Accepted for Rocket 1.5.** Database handles wrap the Windows SQLite service in
+full-mutex mode with an explicit busy timeout. The standard API prepares exactly
+one statement per call and binds a caller-supplied parameter array, making the
+safe path the default and avoiding an interpolation helper that would encourage
+SQL injection.
+
+Handles are invalid after close. Statement, parameter, column, row, and result
+byte counts are bounded before values cross into Rocket. The initial foundation
+returns text cells and documents the temporary empty-String representation of
+SQL `NULL`; typed values, transactions, and migrations can be layered without
+weakening the token or binding contracts.
+
+## D030 - Ordinary Rocket testing facade and explicit XFAIL convention
+
+**Accepted for Rocket 1.5.** Assertion composition lives in the bundled
+`std.testing` Rocket module; compiler privilege is limited to secure temporary
+creation/cleanup and coverage-counter storage. Cleanup accepts only exact roots
+created by the same process, preventing a testing helper from becoming an
+arbitrary recursive-delete API.
+
+Test selection is a deterministic filename substring. The `.xfail.rocket`
+suffix is the sole expected-failure marker: failure becomes `XFAIL`, unexpected
+success becomes `XPASS`, and an empty filter selection is an error. Coverage
+hooks emit versioned lexical JSON so later compiler instrumentation can reuse
+the contract without changing the runtime ABI surface again.

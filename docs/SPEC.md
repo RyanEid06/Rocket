@@ -432,21 +432,36 @@ native artifact; independent binary module artifacts are not part of draft 0.6.
 ## Standard modules
 
 Imports whose complete path starts with `std.` resolve to compiler-provided
-modules rather than package files. Their function signatures are statically
-checked and lower to typed MIR calls. The stable Phase 7 modules are
-`std.string`, `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`,
-`std.random`, `std.process`, `std.time`, and the Rocket 1.5 foundation module
-`std.binary`.
+modules rather than package files, except for explicitly bundled source modules
+such as `std.testing`. Their function signatures are statically checked and
+lower to typed MIR calls. The stable foundational modules are `std.string`,
+`std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
+`std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,
+`std.unicode`, `std.regex`, `std.crypto`, `std.net`, `std.http`, `std.datetime`,
+`std.log`, `std.cli`, `std.config`, `std.compression`, `std.archive`,
+`std.sqlite`, and `std.testing`.
 
 Standard APIs use the same `Option` and `Result` enums as user code. File,
 process, conversion, JSON, and CSV failures are recoverable values. No standard
 function throws a language exception. Process execution receives one program
 and an `Array[String]` of arguments and does not invoke a command shell.
 
-`std.json.Json` and `std.json.JsonField` are nominal built-in declarations and
-may appear in type annotations and exhaustive matches. Other library calls use
-existing scalar, collection, `Option`, or `Result` types. Complete signatures
-and deterministic behavior are specified in `STDLIB.md`.
+`std.json.Json`, `std.json.JsonField`, `std.http.Request`, and
+`std.http.Response` are nominal standard declarations and may appear in type
+annotations and exhaustive matches. Other library calls use existing scalar,
+collection, `Option`, or `Result` types. Streams, sockets, listeners, and
+databases use kind-checked process-local integer tokens. Close or cancellation
+invalidates a token, and later use is a recoverable error. Tokens are not native
+pointers and cannot be dereferenced by Rocket code.
+
+Security-sensitive and blocking functions have normative input, output, and
+timeout bounds in `STDLIB.md`. HTTPS uses platform certificate validation;
+regular expressions use a bounded non-backtracking engine; archives are
+validated data and never implicitly extract files; SQLite inputs use bound
+parameters. `std.testing` resolves from the bundled ordinary Rocket source tree
+and calls a narrow private `std.testing_core` host boundary for temporary roots
+and coverage storage. Complete signatures and deterministic behavior are
+specified in `STDLIB.md` and `RELEASE_1_5.md`.
 
 The self-hosted compiler uses ordinary public APIs rather than privileged
 syntax. `string.byte_at` and `string.slice` traverse immutable UTF-8 source by

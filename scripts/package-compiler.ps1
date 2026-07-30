@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$version = '1.4.0'
+$version = '1.5.0'
 $configurationName = $Configuration.ToLowerInvariant()
 $buildDirectory = Join-Path $projectRoot "out\build\windows-$configurationName"
 $bootstrapDirectory = Join-Path $projectRoot "out\bootstrap\windows-$configurationName"
@@ -102,11 +102,12 @@ foreach ($entry in @(
 Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination $packageRoot
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $packageRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'editors') -Destination $packageRoot -Recurse
+Copy-Item -LiteralPath (Join-Path $projectRoot 'stdlib') -Destination $packageRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $bootstrapDirectory 'SHA256SUMS.txt') `
     -Destination (Join-Path $packageRoot 'BOOTSTRAP_SHA256SUMS.txt')
 
 $packageNote = @"
-# Rocket 1.4.0 for Windows x64
+# Rocket 1.5.0 for Windows x64
 
 ``bin\rocketc.exe`` is the production self-hosted Rocket compiler. It discovers
 the bundled runtime, Clang/LLD, compiler-rt resources, and native link libraries
@@ -121,8 +122,8 @@ frontend diagnostics without executing builds or package code.
 reproduce stage1. ``BOOTSTRAP_SHA256SUMS.txt`` records the deterministic
 stage2/stage3 proof; ``SHA256SUMS.txt`` covers every distributed file.
 
-Supported target: Windows x64. See ``docs\RELEASE_1_3.md`` for the additive
-language surface, compatibility policy, limitations, and validation matrix.
+Supported target: Windows x64. See ``docs\RELEASE_1_5.md`` for the standard
+library surface, compatibility policy, limitations, and validation matrix.
 "@
 Set-Content -LiteralPath (Join-Path $packageRoot 'PACKAGE.md') `
     -Value $packageNote -Encoding utf8

@@ -1,0 +1,44 @@
+import std.binary
+import std.collections
+import std.http
+import std.net
+
+fn exercise() -> Result[Bool, String]:
+    let addresses = net.resolve("localhost", "80")?
+    if collections.length(addresses) == 0:
+        return Err("localhost DNS resolution returned no addresses")
+
+    let listener = net.tcp_listen("127.0.0.1", 0, 4)?
+    let port = net.local_port(listener)?
+    if port < 1 or port > 65535:
+        return Err("ephemeral TCP listener did not receive a port")
+    net.cancel(listener)?
+    match net.close(listener):
+        case Ok(closed):
+            if closed:
+                return Err("closed network token was accepted twice")
+            return Err("closed network token returned Ok(false)")
+        case Err(error):
+            if error == "":
+                return Err("closed network token error was empty")
+
+    match http.request("GET", "file:///not-http", binary.from_string(""), 100):
+        case Ok(response):
+            if response.status >= 0:
+                return Err("invalid HTTP URL was accepted")
+            return Err("invalid HTTP URL returned an impossible response")
+        case Err(error):
+            if error == "":
+                return Err("invalid HTTP URL error was empty")
+    return Ok(true)
+
+fn main() -> Int:
+    match exercise():
+        case Ok(success):
+            if success:
+                print("phase15-network-ok")
+                return 0
+            return 1
+        case Err(error):
+            print(error)
+            return 2

@@ -15,6 +15,8 @@
 namespace rocket {
 namespace {
 
+std::filesystem::path standardLibraryRoot = ROCKETC_STDLIB_SOURCE_PATH;
+
 bool readSource(const std::filesystem::path& path, std::string& source) {
   std::ifstream input(path, std::ios::binary);
   if (!input) return false;
@@ -113,6 +115,12 @@ private:
 
     bool valid = true;
     for (const auto& import : module.ast.imports) {
+      if (import.name == "std.testing") {
+        valid = loadOne(import.name,
+                        (standardLibraryRoot / "std/testing.rocket").lexically_normal(),
+                        import.location) && valid;
+        continue;
+      }
       if (import.name.rfind("std.", 0) == 0) continue;
       std::filesystem::path importedPath = packageRoot_;
       std::size_t start = 0;
@@ -506,6 +514,10 @@ private:
 };
 
 } // namespace
+
+void setStandardLibraryRoot(std::filesystem::path root) {
+  standardLibraryRoot = std::filesystem::absolute(std::move(root)).lexically_normal();
+}
 
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       Diagnostics& diagnostics) {

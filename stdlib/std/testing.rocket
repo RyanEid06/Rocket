@@ -1,0 +1,25 @@
+import std.testing_core
+
+pub fn assert(condition: Bool, message: String) -> Result[Bool, String]:
+    return testing_core.assert(condition, message)
+
+pub fn equal_int(expected: Int, actual: Int, message: String) -> Result[Bool, String]:
+    return testing_core.equal_int(expected, actual, message)
+
+pub fn equal_string(expected: String, actual: String, message: String) -> Result[Bool, String]:
+    return testing_core.equal_string(expected, actual, message)
+
+pub fn temp_directory(prefix: String) -> Result[String, String]:
+    return testing_core.temp_directory(prefix)
+
+pub fn fixture_path(root: String, relative: String) -> Result[String, String]:
+    return testing_core.fixture_path(root, relative)
+
+pub fn cleanup_temp(path: String) -> Result[Bool, String]:
+    return testing_core.cleanup_temp(path)
+
+pub fn coverage_hit(name: String) -> Result[Bool, String]:
+    return testing_core.coverage_hit(name)
+
+pub fn coverage_write(path: String) -> Result[Bool, String]:
+    return testing_core.coverage_write(path)

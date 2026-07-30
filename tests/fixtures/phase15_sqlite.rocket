@@ -1,0 +1,50 @@
+import std.collections
+import std.sqlite
+
+fn exercise() -> Result[Bool, String]:
+    let database = sqlite.open(":memory:")?
+    sqlite.execute(database, "CREATE TABLE items (name TEXT NOT NULL, value TEXT NOT NULL)", [])?
+    let hostile = "rocket'); DROP TABLE items; --"
+    if sqlite.execute(database, "INSERT INTO items (name, value) VALUES (?, ?)", [hostile, "first"])? != 1:
+        return Err("SQLite parameterized insert did not report one change")
+    sqlite.execute(database, "INSERT INTO items (name, value) VALUES (?, ?)", ["safe", "second"])?
+    let rows = sqlite.query(database, "SELECT name, value FROM items WHERE name = ?", [hostile])?
+    if collections.length(rows) != 1 or collections.length(rows[0]) != 2:
+        return Err("SQLite parameterized query shape failed")
+    if rows[0][0] != hostile or rows[0][1] != "first":
+        return Err("SQLite text result failed")
+
+    match sqlite.execute(database, "INSERT INTO items (name, value) VALUES (?, ?)", ["missing"]):
+        case Ok(changes):
+            if changes >= 0:
+                return Err("SQLite accepted a parameter-count mismatch")
+        case Err(error):
+            if error == "":
+                return Err("SQLite parameter error was empty")
+    match sqlite.query(database, "SELECT CAST(x'FF' AS TEXT)", []):
+        case Ok(invalid_rows):
+            if collections.length(invalid_rows) >= 0:
+                return Err("SQLite exposed invalid UTF-8 as a Rocket String")
+        case Err(error):
+            if error == "":
+                return Err("SQLite UTF-8 error was empty")
+    sqlite.close(database)?
+    match sqlite.query(database, "SELECT name FROM items", []):
+        case Ok(closed_rows):
+            if collections.length(closed_rows) >= 0:
+                return Err("closed SQLite token was accepted")
+        case Err(error):
+            if error == "":
+                return Err("closed SQLite token error was empty")
+    return Ok(true)
+
+fn main() -> Int:
+    match exercise():
+        case Ok(success):
+            if success:
+                print("phase15-sqlite-ok")
+                return 0
+            return 1
+        case Err(error):
+            print(error)
+            return 2

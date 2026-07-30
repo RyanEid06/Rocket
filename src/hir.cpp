@@ -196,6 +196,17 @@ void HirLowerer::registerBuiltinTypes() {
       "std.collections.ByteBuffer", {},
       {{"bytes", arrayType(Type::Char), collectionLocation}});
 
+  const Type byteBufferType{TypeKind::Struct, "std.collections.ByteBuffer"};
+  addCollectionStruct(
+      "std.http.Response", {},
+      {{"status", Type::Int, collectionLocation},
+       {"body", byteBufferType, collectionLocation}});
+  addCollectionStruct(
+      "std.http.Request", {},
+      {{"method", Type::String, collectionLocation},
+       {"path", Type::String, collectionLocation},
+       {"body", byteBufferType, collectionLocation}});
+
   HirTypeDeclaration jsonField;
   jsonField.kind = HirTypeDeclKind::Struct;
   jsonField.name = "std.json.JsonField";
@@ -239,6 +250,8 @@ void HirLowerer::registerStandardLibrary() {
   const Type optionString{TypeKind::Enum, "Option", {Type::String}};
   const Type json{TypeKind::Enum, "std.json.Json"};
   const Type byteBuffer{TypeKind::Struct, "std.collections.ByteBuffer"};
+  const Type httpResponse{TypeKind::Struct, "std.http.Response"};
+  const Type httpRequest{TypeKind::Struct, "std.http.Request"};
   const Type nestedStrings = arrayType(arrayType(Type::String));
   auto result = [](Type success) {
     return Type{TypeKind::Enum, "Result", {std::move(success), Type::String}};
@@ -387,6 +400,152 @@ void HirLowerer::registerStandardLibrary() {
       Intrinsic::BinaryWriteU16Le);
   add("std.binary.write_u32_le", {Type::Int}, result(byteBuffer),
       Intrinsic::BinaryWriteU32Le);
+  add("std.binary.concat", {byteBuffer, byteBuffer}, byteBuffer,
+      Intrinsic::BinaryConcat);
+  add("std.binary.read_u16_be", {byteBuffer, Type::Int}, result(Type::Int),
+      Intrinsic::BinaryReadU16Be);
+  add("std.binary.read_u32_be", {byteBuffer, Type::Int}, result(Type::Int),
+      Intrinsic::BinaryReadU32Be);
+  add("std.binary.write_u16_be", {Type::Int}, result(byteBuffer),
+      Intrinsic::BinaryWriteU16Be);
+  add("std.binary.write_u32_be", {Type::Int}, result(byteBuffer),
+      Intrinsic::BinaryWriteU32Be);
+
+  add("std.stream.open_reader", {Type::String, Type::Int}, result(Type::Int),
+      Intrinsic::StreamOpenReader);
+  add("std.stream.read", {Type::Int, Type::Int}, result(byteBuffer),
+      Intrinsic::StreamRead);
+  add("std.stream.close_reader", {Type::Int}, result(Type::Bool),
+      Intrinsic::StreamCloseReader);
+  add("std.stream.open_writer", {Type::String, Type::Int, Type::Bool},
+      result(Type::Int), Intrinsic::StreamOpenWriter);
+  add("std.stream.write", {Type::Int, byteBuffer}, result(Type::Bool),
+      Intrinsic::StreamWrite);
+  add("std.stream.flush", {Type::Int}, result(Type::Bool),
+      Intrinsic::StreamFlush);
+  add("std.stream.close_writer", {Type::Int}, result(Type::Bool),
+      Intrinsic::StreamCloseWriter);
+
+  add("std.unicode.scalar_count", {Type::String}, Type::Int,
+      Intrinsic::UnicodeScalarCount);
+  add("std.unicode.scalar_at", {Type::String, Type::Int}, result(Type::Int),
+      Intrinsic::UnicodeScalarAt);
+  add("std.unicode.from_scalar", {Type::Int}, result(Type::String),
+      Intrinsic::UnicodeFromScalar);
+  add("std.unicode.normalize_nfc", {Type::String}, result(Type::String),
+      Intrinsic::UnicodeNormalizeNfc);
+  add("std.unicode.normalize_nfd", {Type::String}, result(Type::String),
+      Intrinsic::UnicodeNormalizeNfd);
+  add("std.unicode.grapheme_count", {Type::String}, Type::Int,
+      Intrinsic::UnicodeGraphemeCount);
+  add("std.unicode.grapheme_at", {Type::String, Type::Int}, result(Type::String),
+      Intrinsic::UnicodeGraphemeAt);
+
+  add("std.regex.is_match", {Type::String, Type::String}, result(Type::Bool),
+      Intrinsic::RegexIsMatch);
+  add("std.regex.find_all", {Type::String, Type::String},
+      result(arrayType(Type::String)), Intrinsic::RegexFindAll);
+  add("std.regex.replace_all", {Type::String, Type::String, Type::String},
+      result(Type::String), Intrinsic::RegexReplaceAll);
+
+  add("std.crypto.secure_bytes", {Type::Int}, result(byteBuffer),
+      Intrinsic::CryptoSecureBytes);
+  add("std.crypto.secure_int", {Type::Int, Type::Int}, result(Type::Int),
+      Intrinsic::CryptoSecureInt);
+  add("std.crypto.sha256", {byteBuffer}, result(Type::String),
+      Intrinsic::CryptoSha256);
+  add("std.crypto.hmac_sha256", {byteBuffer, byteBuffer}, result(Type::String),
+      Intrinsic::CryptoHmacSha256);
+  add("std.crypto.constant_time_equal", {byteBuffer, byteBuffer}, Type::Bool,
+      Intrinsic::CryptoConstantTimeEqual);
+  add("std.crypto.verify_signed_file", {Type::String}, result(Type::Bool),
+      Intrinsic::CryptoVerifySignedFile);
+
+  add("std.net.resolve", {Type::String, Type::String},
+      result(arrayType(Type::String)), Intrinsic::NetResolve);
+  add("std.net.tcp_connect", {Type::String, Type::Int, Type::Int},
+      result(Type::Int), Intrinsic::NetTcpConnect);
+  add("std.net.tcp_listen", {Type::String, Type::Int, Type::Int},
+      result(Type::Int), Intrinsic::NetTcpListen);
+  add("std.net.accept", {Type::Int, Type::Int}, result(Type::Int),
+      Intrinsic::NetAccept);
+  add("std.net.send", {Type::Int, byteBuffer, Type::Int}, result(Type::Int),
+      Intrinsic::NetSend);
+  add("std.net.receive", {Type::Int, Type::Int, Type::Int}, result(byteBuffer),
+      Intrinsic::NetReceive);
+  add("std.net.close", {Type::Int}, result(Type::Bool), Intrinsic::NetClose);
+  add("std.net.cancel", {Type::Int}, result(Type::Bool), Intrinsic::NetCancel);
+  add("std.net.local_port", {Type::Int}, result(Type::Int), Intrinsic::NetLocalPort);
+
+  add("std.http.request", {Type::String, Type::String, byteBuffer, Type::Int},
+      result(httpResponse), Intrinsic::HttpRequest);
+  add("std.http.read_request", {Type::Int, Type::Int, Type::Int},
+      result(httpRequest), Intrinsic::HttpReadRequest);
+  add("std.http.write_response",
+      {Type::Int, Type::Int, Type::String, byteBuffer, Type::Int},
+      result(Type::Bool), Intrinsic::HttpWriteResponse);
+
+  add("std.datetime.format_utc", {Type::Int}, result(Type::String),
+      Intrinsic::DateTimeFormatUtc);
+  add("std.datetime.parse_utc", {Type::String}, result(Type::Int),
+      Intrinsic::DateTimeParseUtc);
+  add("std.datetime.days_in_month", {Type::Int, Type::Int}, result(Type::Int),
+      Intrinsic::DateTimeDaysInMonth);
+  add("std.datetime.weekday", {Type::Int, Type::Int, Type::Int}, result(Type::Int),
+      Intrinsic::DateTimeWeekday);
+  add("std.datetime.local_offset_minutes", {Type::Int}, result(Type::Int),
+      Intrinsic::DateTimeLocalOffsetMinutes);
+  add("std.datetime.timezone_name", {}, result(Type::String),
+      Intrinsic::DateTimeTimezoneName);
+  add("std.log.write", {Type::String, Type::String}, result(Type::Bool),
+      Intrinsic::LogWrite);
+  add("std.log.append", {Type::String, Type::String, Type::String},
+      result(Type::Bool), Intrinsic::LogAppend);
+  add("std.cli.has_flag", {arrayType(Type::String), Type::String}, Type::Bool,
+      Intrinsic::CliHasFlag);
+  add("std.cli.option", {arrayType(Type::String), Type::String},
+      result(optionString), Intrinsic::CliOption);
+  add("std.cli.positionals", {arrayType(Type::String)}, arrayType(Type::String),
+      Intrinsic::CliPositionals);
+  add("std.config.get", {Type::String, Type::String}, result(optionString),
+      Intrinsic::ConfigGet);
+  add("std.config.load", {Type::String, Type::String}, result(optionString),
+      Intrinsic::ConfigLoad);
+  add("std.compression.xpress_compress", {byteBuffer}, result(byteBuffer),
+      Intrinsic::CompressionXpressCompress);
+  add("std.compression.xpress_decompress", {byteBuffer}, result(byteBuffer),
+      Intrinsic::CompressionXpressDecompress);
+  add("std.archive.tar_create",
+      {Type::String, arrayType(Type::String), arrayType(byteBuffer)},
+      result(Type::Bool), Intrinsic::ArchiveTarCreate);
+  add("std.archive.tar_list", {Type::String}, result(arrayType(Type::String)),
+      Intrinsic::ArchiveTarList);
+  add("std.archive.tar_read", {Type::String, Type::String}, result(byteBuffer),
+      Intrinsic::ArchiveTarRead);
+  add("std.sqlite.open", {Type::String}, result(Type::Int), Intrinsic::SqliteOpen);
+  add("std.sqlite.execute",
+      {Type::Int, Type::String, arrayType(Type::String)}, result(Type::Int),
+      Intrinsic::SqliteExecute);
+  add("std.sqlite.query",
+      {Type::Int, Type::String, arrayType(Type::String)}, result(nestedStrings),
+      Intrinsic::SqliteQuery);
+  add("std.sqlite.close", {Type::Int}, result(Type::Bool), Intrinsic::SqliteClose);
+  add("std.testing_core.assert", {Type::Bool, Type::String}, result(Type::Bool),
+      Intrinsic::TestingAssert);
+  add("std.testing_core.equal_int", {Type::Int, Type::Int, Type::String},
+      result(Type::Bool), Intrinsic::TestingEqualInt);
+  add("std.testing_core.equal_string", {Type::String, Type::String, Type::String},
+      result(Type::Bool), Intrinsic::TestingEqualString);
+  add("std.testing_core.temp_directory", {Type::String}, result(Type::String),
+      Intrinsic::TestingTempDirectory);
+  add("std.testing_core.fixture_path", {Type::String, Type::String},
+      result(Type::String), Intrinsic::TestingFixturePath);
+  add("std.testing_core.cleanup_temp", {Type::String}, result(Type::Bool),
+      Intrinsic::TestingCleanupTemp);
+  add("std.testing_core.coverage_hit", {Type::String}, result(Type::Bool),
+      Intrinsic::TestingCoverageHit);
+  add("std.testing_core.coverage_write", {Type::String}, result(Type::Bool),
+      Intrinsic::TestingCoverageWrite);
 
   add("std.path.join", {Type::String, Type::String}, Type::String, Intrinsic::PathJoin);
   add("std.path.basename", {Type::String}, Type::String, Intrinsic::PathBasename);

@@ -8,6 +8,8 @@
 
 namespace rocket {
 
+void setStandardLibraryRoot(std::filesystem::path root);
+
 // Loads the root file and its relative imports, diagnoses cycles and visibility
 // violations, then returns one deterministically namespaced AST for HIR.
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,

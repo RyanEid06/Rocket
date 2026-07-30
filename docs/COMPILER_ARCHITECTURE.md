@@ -311,9 +311,9 @@ constants used as imported values and both test runners preserve package-native
 link inputs. Bootstrap compares stage2/stage3 raylib binding output and builds
 and tests the reference package without launching its interactive window.
 
-## Rocket 1.5 standard-library foundation
+## Rocket 1.5 production standard library
 
-The first Phase 15 slice keeps `ByteBuffer` as the existing transparent,
+Phase 15 keeps `ByteBuffer` as the existing transparent,
 immutable `Array[Char]` wrapper. `std.binary` is typed through ordinary virtual
 standard signatures, lowers to explicit MIR calls, and uses runtime ABI entry
 points that accept or return ARC aggregates. No byte-buffer-specific MIR type,
@@ -327,7 +327,22 @@ invalid continuations, and scalar values above U+10FFFF. File binary APIs move
 the same buffer representation through synchronous byte-preserving streams and
 translate host failures to `Err(String)`.
 
-The C++ stage0 header supplies equivalent RAII implementations, while the
-self-hosted compiler declares the same signatures and ABI names. This preserves
-bootstrap parity and leaves stateful buffered streams, broader Unicode, crypto,
-networking, archives, and databases for additive Phase 15 slices.
+The same typed-intrinsic pattern carries bounded buffered streams, Unicode,
+safe regular expressions, cryptography, networking/HTTP, calendars, operational
+helpers, compression, validated archives, and SQLite. Stateful host resources
+are stored behind kind-checked process-local tokens and cross HIR/MIR only as
+`Int`. The runtime and stage0 use the same public signatures, bounds, close
+rules, and `Result` layout.
+
+`std.testing` demonstrates the ordinary-source path. Its public assertion and
+fixture facade is loaded from `stdlib/std/testing.rocket`; only secure temporary
+root creation/cleanup and coverage-counter storage remain in the private
+`std.testing_core` host boundary. Installed compilers discover the sibling
+`stdlib` tree, while repository builds use the configured source root. The C++
+module loader and self-hosted loader apply identical resolution policy.
+
+LLVM-disabled stage0 executables reserve an 8 MiB Windows stack. The fallback
+backend materializes recursive compiler AST/HIR values as C++ RAII objects, so
+the self-hosted compiler's full-source validation needs more than the PE default
+1 MiB stack after the Rocket 1.5 library surface is registered. This is a link
+property of generated stage0 executables, not a language ABI or heap limit.

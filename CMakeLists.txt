@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Rocket VERSION 1.4.0 LANGUAGES C CXX)
+project(Rocket VERSION 1.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -98,6 +98,9 @@ add_library(rocketc_core
   src/codegen.cpp
 )
 target_include_directories(rocketc_core PUBLIC src)
+file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/stdlib" ROCKETC_STDLIB_SOURCE_PATH)
+target_compile_definitions(rocketc_core PRIVATE
+  ROCKETC_STDLIB_SOURCE_PATH="${ROCKETC_STDLIB_SOURCE_PATH}")
 if(WIN32)
   target_link_libraries(rocketc_core PRIVATE bcrypt)
 endif()
@@ -278,6 +281,38 @@ add_test(NAME cli_check_phase7_stdlib
 add_test(NAME cli_check_phase15_binary_io
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_binary_io.rocket")
 set_tests_properties(cli_check_phase15_binary_io PROPERTIES LABELS "phase15;stdlib")
+add_test(NAME cli_check_phase15_text_streams
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_text_streams.rocket")
+set_tests_properties(cli_check_phase15_text_streams PROPERTIES LABELS "phase15;stdlib")
+add_test(NAME cli_check_phase15_crypto
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_crypto.rocket")
+set_tests_properties(cli_check_phase15_crypto PROPERTIES LABELS "phase15;stdlib;crypto")
+add_test(NAME cli_check_phase15_network
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_network.rocket")
+set_tests_properties(cli_check_phase15_network PROPERTIES LABELS "phase15;stdlib;network")
+add_test(NAME cli_check_phase15_platform
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_platform.rocket")
+set_tests_properties(cli_check_phase15_platform PROPERTIES LABELS "phase15;stdlib;platform")
+add_test(NAME cli_check_phase15_archive
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_archive.rocket")
+set_tests_properties(cli_check_phase15_archive PROPERTIES LABELS "phase15;stdlib;archive")
+add_test(NAME cli_check_phase15_sqlite
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_sqlite.rocket")
+set_tests_properties(cli_check_phase15_sqlite PROPERTIES LABELS "phase15;stdlib;database")
+add_test(NAME cli_check_phase15_testing
+  COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_testing.rocket")
+set_tests_properties(cli_check_phase15_testing PROPERTIES LABELS "phase15;stdlib;testing")
+add_test(NAME cli_test_phase15_expected_failure
+  COMMAND rocketc test "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_test_package")
+set_tests_properties(cli_test_phase15_expected_failure PROPERTIES
+  PASS_REGULAR_EXPRESSION "1 passed; 0 failed; 1 expected failure"
+  LABELS "phase15;testing")
+add_test(NAME cli_test_phase15_filter
+  COMMAND rocketc test "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_test_package"
+    --filter pass)
+set_tests_properties(cli_test_phase15_filter PROPERTIES
+  PASS_REGULAR_EXPRESSION "1 passed; 0 failed; 0 expected failure"
+  LABELS "phase15;testing")
 add_test(NAME cli_check_phase8_package
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
 add_test(NAME cli_check_phase9_bootstrap_primitives
@@ -427,7 +462,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.4.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.5.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest
@@ -508,6 +543,48 @@ if(LLVM_FOUND)
   set_tests_properties(cli_run_phase15_binary_io PROPERTIES
     PASS_REGULAR_EXPRESSION "phase15-binary-ok"
     LABELS "phase15;stdlib")
+
+  add_test(NAME cli_run_phase15_text_streams
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_text_streams.rocket")
+  set_tests_properties(cli_run_phase15_text_streams PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-text-streams-ok"
+    LABELS "phase15;stdlib")
+
+  add_test(NAME cli_run_phase15_crypto
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_crypto.rocket")
+  set_tests_properties(cli_run_phase15_crypto PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-crypto-ok"
+    LABELS "phase15;stdlib;crypto")
+
+  add_test(NAME cli_run_phase15_network
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_network.rocket")
+  set_tests_properties(cli_run_phase15_network PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-network-ok"
+    LABELS "phase15;stdlib;network")
+
+  add_test(NAME cli_run_phase15_platform
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_platform.rocket")
+  set_tests_properties(cli_run_phase15_platform PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-platform-ok"
+    LABELS "phase15;stdlib;platform")
+
+  add_test(NAME cli_run_phase15_archive
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_archive.rocket")
+  set_tests_properties(cli_run_phase15_archive PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-archive-ok"
+    LABELS "phase15;stdlib;archive")
+
+  add_test(NAME cli_run_phase15_sqlite
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_sqlite.rocket")
+  set_tests_properties(cli_run_phase15_sqlite PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-sqlite-ok"
+    LABELS "phase15;stdlib;database")
+
+  add_test(NAME cli_run_phase15_testing
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_testing.rocket")
+  set_tests_properties(cli_run_phase15_testing PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-testing-ok"
+    LABELS "phase15;stdlib;testing")
 
   add_test(NAME cli_run_phase11_array_mutation
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
@@ -795,6 +872,41 @@ else()
   set_tests_properties(cli_run_stage0_phase15_binary_io PROPERTIES
     PASS_REGULAR_EXPRESSION "phase15-binary-ok"
     LABELS "phase15;stdlib;stage0")
+  add_test(NAME cli_run_stage0_phase15_text_streams
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_text_streams.rocket")
+  set_tests_properties(cli_run_stage0_phase15_text_streams PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-text-streams-ok"
+    LABELS "phase15;stdlib;stage0")
+  add_test(NAME cli_run_stage0_phase15_crypto
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_crypto.rocket")
+  set_tests_properties(cli_run_stage0_phase15_crypto PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-crypto-ok"
+    LABELS "phase15;stdlib;crypto;stage0")
+  add_test(NAME cli_run_stage0_phase15_network
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_network.rocket")
+  set_tests_properties(cli_run_stage0_phase15_network PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-network-ok"
+    LABELS "phase15;stdlib;network;stage0")
+  add_test(NAME cli_run_stage0_phase15_platform
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_platform.rocket")
+  set_tests_properties(cli_run_stage0_phase15_platform PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-platform-ok"
+    LABELS "phase15;stdlib;platform;stage0")
+  add_test(NAME cli_run_stage0_phase15_archive
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_archive.rocket")
+  set_tests_properties(cli_run_stage0_phase15_archive PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-archive-ok"
+    LABELS "phase15;stdlib;archive;stage0")
+  add_test(NAME cli_run_stage0_phase15_sqlite
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_sqlite.rocket")
+  set_tests_properties(cli_run_stage0_phase15_sqlite PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-sqlite-ok"
+    LABELS "phase15;stdlib;database;stage0")
+  add_test(NAME cli_run_stage0_phase15_testing
+    COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase15_testing.rocket")
+  set_tests_properties(cli_run_stage0_phase15_testing PROPERTIES
+    PASS_REGULAR_EXPRESSION "phase15-testing-ok"
+    LABELS "phase15;stdlib;testing;stage0")
   add_test(NAME cli_run_stage0_phase11_array_mutation
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
   set_tests_properties(cli_run_stage0_phase11_array_mutation PROPERTIES

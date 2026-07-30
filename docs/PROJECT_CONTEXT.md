@@ -539,25 +539,36 @@ Known limitations remain those in the implementation-state list above; no langua
   IR SHA-256 is
   `5e5a33f1a38ac2192ee71b972e79bfc67f1e5e85ba6e0fbe19ffe63fdfe7e407`.
 
-**Phase 15 - Rocket 1.5 production standard library (in progress)**
+**Phase 15 - Rocket 1.5 production standard library (completed)**
 
-- Accepted Phase 14 and began Phase 15 from the completed `7f1e145` baseline.
-- Kept `std.collections.ByteBuffer` as a transparent immutable Array-backed
-  product and added `std.binary` UTF-8 conversion, checked slicing, byte counts,
-  unsigned 8/16/32-bit little-endian reads, and matching writes.
-- Added synchronous exact-byte `file.read_binary`, `write_binary`, and
-  `append_binary` APIs. Data, bounds, encoding, numeric-range, and host failures
-  use ordinary `Result[..., String]` values.
-- Added runtime ABI functions, preserved stage0 RAII implementations,
-  self-hosted compiler signatures/runtime declarations, direct lifetime tests,
-  and LLVM/stage0 Rocket integration coverage.
-- Recorded architecture and standard-library contracts plus decision D021.
-- Verified pinned LLVM Debug and Release matrices (113/113 tests each) and
-  LLVM-disabled stage0 Debug and Release matrices (73/73 tests each).
+- Completed byte/binary support with big-endian codecs and checked buffered
+  reader/writer tokens while preserving immutable `ByteBuffer` and runtime ABI
+  v1.
+- Added explicit Unicode scalar iteration, NFC/NFD normalization, practical
+  grapheme APIs, and a bounded tagged Thompson-NFA regular-expression engine
+  without recursive backtracking.
+- Added Windows CNG secure randomness, SHA-256, HMAC-SHA-256, constant-time
+  comparison, offline Authenticode validation, DNS/TCP, WinHTTP HTTP/HTTPS, and
+  bounded HTTP/1.x server request/response foundations with explicit timeouts
+  and checked cancellation/close behavior.
+- Added locale-neutral UTC/calendar/time-zone helpers, injection-safe logging,
+  deterministic CLI/config parsing, XPRESS Huffman compression, validated
+  data-only deterministic ustar archives, and parameterized/bounded SQLite.
+- Added the ordinary bundled `std.testing` Rocket facade over a narrow private
+  host boundary, with assertions, fixture containment, unpredictable temporary
+  roots, one-shot cleanup, test filtering, explicit `.xfail.rocket` handling,
+  and deterministic coverage hooks. Build failures cannot be masked as XFAIL.
+- Hardened regex long-miss behavior, TAR end-marker/prefix/checksum parsing,
+  SQLite UTF-8/NUL handling, socket send deadlines, and the stage0 generated
+  compiler's Windows stack reserve. Recorded decisions D024-D030 and the Rocket
+  1.5 release/library/specification contracts.
+- Verified pinned LLVM Debug and Release matrices (131/131 each), LLVM-disabled
+  stage0 Debug and Release matrices (91/91 each), focused Phase 15 suites
+  (18/18 per backend), 72 conformance cases, and all eight performance gates.
 - Verified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap with
-  the Phase 15 binary fixture checked by all stages and run by stage3. Stage2
-  and stage3 LLVM IR are byte-identical at SHA-256
-  `290261b620449944f5d8b6f8fe8843b70e511662a9f2f48edd01c4f3668c1a7f`.
+  every Phase 15 fixture checked by all stages and run by stage3. Stage2 and
+  stage3 LLVM IR are byte-identical at SHA-256
+  `7e0d139180b692ccaf265768154bd210a4c4da4b00b08db737e7f9aacce67418`.
 
 **Phase 16 - Rocket 1.6 dependency management (foundation in progress)**
 
@@ -590,8 +601,9 @@ Known limitations remain those in the implementation-state list above; no langua
 **Phase 17 - Rocket 1.7 professional developer experience (foundation in progress)**
 
 - Began Phase 17 from the committed Phase 16 foundation at `763698c` after the
-  user explicitly reprioritized professional tooling. Phase 15 and Phase 16
-  remain incomplete and are not implicitly accepted by this reprioritization.
+  user explicitly reprioritized professional tooling. Phase 15 has since been
+  completed; Phase 16 remains incomplete and is not implicitly accepted by this
+  reprioritization.
 - Added the standalone `rocket-lsp` process with Language Server Protocol 3.17
   `Content-Length` framing, JSON-RPC lifecycle/error handling, bounded messages,
   full-document synchronization, stale-version rejection, and clean shutdown.
@@ -614,12 +626,12 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Continue Phase 17 with an in-memory multi-file overlay and incremental package
-graph, then add hover, completion, definition/reference navigation, rename,
-signature help, semantic tokens, and code actions against that shared semantic
-snapshot. Phase 15 buffered streams/Unicode and Phase 16 production resolver,
-transport, publishing, and registry work remain intentionally incomplete and
-must be resumed before their respective release lines freeze.**
+**Complete Phase 16 in roadmap order: integrate resolved dependencies into
+production imports and self-hosted CLI parity; add authenticated HTTPS/Git
+transports, publishing/authentication/documentation/licensing/audit workflows,
+safe native/build policy, and malicious/conflict/checksum/namespace/compromise
+acceptance scenarios with several independently consumed packages. Only after
+the Rocket 1.6 gate passes, resume the Phase 17 semantic tooling roadmap.**
 
 ## New-chat prompt
 
