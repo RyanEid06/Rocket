@@ -1,13 +1,15 @@
 {
   "name": "rocket-language",
   "displayName": "Rocket Language",
-  "description": "Syntax, snippets, diagnostics, and language configuration for Rocket.",
-  "version": "1.0.0",
+  "description": "Syntax, snippets, live diagnostics, and language configuration for Rocket.",
+  "version": "1.7.0",
   "publisher": "rocket-lang",
   "license": "UNLICENSED",
   "engines": {
     "vscode": "^1.85.0"
   },
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:rocket"],
   "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
@@ -45,6 +47,21 @@
           "message": 5
         }
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Rocket Language Server",
+      "properties": {
+        "rocket.languageServer.path": {
+          "type": "string",
+          "default": "rocket-lsp",
+          "description": "Path to the rocket-lsp executable."
+        },
+        "rocket.languageServer.trace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log language-server protocol method names to the Rocket output channel."
+        }
+      }
+    }
   }
 }

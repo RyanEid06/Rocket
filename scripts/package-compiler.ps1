@@ -44,8 +44,10 @@ $umLibraryDirectory = Join-Path $env:WindowsSdkDir `
 $requiredFiles = @(
     (Join-Path $bootstrapDirectory 'stage3.exe')
     (Join-Path $buildDirectory 'rocketc.exe')
+    (Join-Path $buildDirectory 'rocket-lsp.exe')
     (Join-Path $buildDirectory 'rocket_runtime.lib')
     (Join-Path $llvmRoot 'bin\clang.exe')
+    (Join-Path $llvmRoot 'bin\llvm-lib.exe')
     (Join-Path $llvmRoot 'bin\lld-link.exe')
 )
 foreach ($required in $requiredFiles) {
@@ -72,11 +74,14 @@ $stage0Directory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 's
 
 Copy-Item -LiteralPath (Join-Path $bootstrapDirectory 'stage3.exe') `
     -Destination (Join-Path $binDirectory 'rocketc.exe')
+Copy-Item -LiteralPath (Join-Path $buildDirectory 'rocket-lsp.exe') `
+    -Destination (Join-Path $binDirectory 'rocket-lsp.exe')
 Copy-Item -LiteralPath (Join-Path $buildDirectory 'rocketc.exe') `
     -Destination (Join-Path $stage0Directory 'rocketc-stage0.exe')
 Copy-Item -LiteralPath (Join-Path $buildDirectory 'rocket_runtime.lib') `
     -Destination (Join-Path $libDirectory 'rocket_runtime.lib')
 Copy-Item -LiteralPath (Join-Path $llvmRoot 'bin\clang.exe') -Destination $binDirectory
+Copy-Item -LiteralPath (Join-Path $llvmRoot 'bin\llvm-lib.exe') -Destination $binDirectory
 Copy-Item -LiteralPath (Join-Path $llvmRoot 'bin\lld-link.exe') -Destination $binDirectory
 
 # Clang locates its compiler-rt builtins relative to bin/../lib/clang.
@@ -107,6 +112,10 @@ $packageNote = @"
 the bundled runtime, Clang/LLD, compiler-rt resources, and native link libraries
 relative to its own executable, so no Visual Studio, Windows SDK, LLVM, or
 activated developer shell is required to compile Rocket programs.
+
+``bin\rocket-lsp.exe`` is the editor-neutral Phase 17 language-server
+foundation. It uses LSP 3.17 over standard input/output and supplies live coded
+frontend diagnostics without executing builds or package code.
 
 ``stage0\rocketc-stage0.exe`` preserves the C++ bootstrap compiler used to
 reproduce stage1. ``BOOTSTRAP_SHA256SUMS.txt`` records the deterministic

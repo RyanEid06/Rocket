@@ -28,9 +28,10 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.5 standard-library development and the explicitly reprioritized first
-Rocket 1.6 package-management milestone are in progress on the self-hosted
-Rocket 1.4 foundation. The production `rocketc` is written in Rocket,
+Rocket 1.5 standard-library development, the first Rocket 1.6 package-management
+milestone, and the explicitly reprioritized Rocket 1.7 professional-tooling
+foundation are in progress on the self-hosted Rocket 1.4 foundation. The
+production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -114,6 +115,10 @@ Implemented:
   single-version conflict diagnostics, SHA-256 content-addressed caching,
   locked/offline verification, dependency trees, integrity/license auditing,
   hostile-cache tests, and a governed-registry security contract.
+- Rocket 1.7 language-server protocol 0.1 with an editor-neutral `rocket-lsp`
+  process, bounded LSP 3.17 framing, full-document synchronization, stable coded
+  live frontend diagnostics, a dependency-free VS Code client, and relocatable
+  distribution wiring.
 
 Not implemented yet:
 
@@ -122,7 +127,8 @@ Not implemented yet:
   zones, logging/configuration, archives, databases, and application testing),
   production dependency imports, self-hosted resolver parity, authenticated
   registry/Git transport, publishing, signed registry metadata, advisory feeds,
-  package documentation generation, semantic language-server/debugger features,
+  package documentation generation, multi-file incremental semantic analysis,
+  language-server completion/navigation/refactoring, debugger features,
   robust concurrency/async
   support, broader native calling conventions, dynamic native loading, the full
   raylib surface, and non-Windows targets.
@@ -581,14 +587,39 @@ Known limitations remain those in the implementation-state list above; no langua
   LLVM IR remain byte-identical at SHA-256
   `290261b620449944f5d8b6f8fe8843b70e511662a9f2f48edd01c4f3668c1a7f`.
 
+**Phase 17 - Rocket 1.7 professional developer experience (foundation in progress)**
+
+- Began Phase 17 from the committed Phase 16 foundation at `763698c` after the
+  user explicitly reprioritized professional tooling. Phase 15 and Phase 16
+  remain incomplete and are not implicitly accepted by this reprioritization.
+- Added the standalone `rocket-lsp` process with Language Server Protocol 3.17
+  `Content-Length` framing, JSON-RPC lifecycle/error handling, bounded messages,
+  full-document synchronization, stale-version rejection, and clean shutdown.
+- Reused the ordinary lexer, parser, semantic analyzer, and stable `Rdddd`
+  diagnostics for live editor feedback. Protocol 0.1 analyzes self-contained
+  modules semantically and avoids false cross-module claims until in-memory
+  overlays and an incremental project graph exist.
+- Added UTF-16 LSP range conversion, deterministic diagnostic publication and
+  clearing, malformed-protocol coverage, and a dependency-free VS Code client.
+- Added the versioned protocol/security contract in `LANGUAGE_SERVER.md`,
+  decision D023, build/test targets, and developer-package/relocation wiring.
+- Fixed the Phase 16 self-contained distribution by including `llvm-lib.exe`,
+  which the production compiler requires for relocated static-library builds.
+- Verified pinned LLVM Debug and Release matrices (115/115 tests each),
+  LLVM-disabled stage0 Debug and Release matrices (75/75 tests each), the
+  dependency-free VS Code client syntax, and both packaging scripts' PowerShell
+  syntax. The complete Release package, sanitized relocation test, deterministic
+  bootstrap, checksums, and archive workflow also pass with both `rocketc.exe`
+  and `rocket-lsp.exe` in the bundle.
+
 ## Current next task
 
-**Continue Phase 16 by wiring locked cached packages into deterministic module
-loading and implementing matching resolver commands in the Rocket-written
-production compiler. Then add authenticated HTTPS/Git transport, safe archive
-validation, signed registry metadata, advisory ingestion, publishing, and
-package documentation generation. Phase 15's buffered stream and Unicode work
-remains intentionally incomplete and must be resumed before Rocket 1.5 freezes.**
+**Continue Phase 17 with an in-memory multi-file overlay and incremental package
+graph, then add hover, completion, definition/reference navigation, rename,
+signature help, semantic tokens, and code actions against that shared semantic
+snapshot. Phase 15 buffered streams/Unicode and Phase 16 production resolver,
+transport, publishing, and registry work remain intentionally incomplete and
+must be resumed before their respective release lines freeze.**
 
 ## New-chat prompt
 

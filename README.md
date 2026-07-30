@@ -23,6 +23,7 @@ available only as the reproducible stage0 fallback when LLVM is explicitly disab
   pointer-only native layouts, and synchronous callbacks
 - `Option[T]`, `Result[T, E]`, and exception-free postfix `?` propagation
 - Package-relative `import` modules with explicit `pub` visibility
+- Editor-neutral `rocket-lsp` live diagnostics with a dependency-free VS Code client
 - Typed `std` modules for strings, collections, binary buffers and I/O, files,
   paths, JSON, CSV, randomness, processes, and time
 - Arithmetic, comparisons, `and`/`or`/`not`, and function calls
@@ -74,6 +75,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.p
 
 See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md),
+[language-server protocol](docs/LANGUAGE_SERVER.md),
 [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md),
 [Rocket 1.1 syntax additions](docs/ROCKET_1_1_SYNTAX_DICTIONARY.md),
 [Rocket 1.2 syntax](docs/ROCKET_1_2_SYNTAX_DICTIONARY.md),

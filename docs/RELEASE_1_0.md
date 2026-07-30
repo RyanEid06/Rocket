@@ -29,6 +29,7 @@ link-compatible throughout 1.x. Incompatible changes require Rocket 2.0.
 rocket-1.0.0-windows-x64/
   bin/rocketc.exe             # Rocket-written stage3 compiler
   bin/clang.exe
+  bin/llvm-lib.exe
   bin/lld-link.exe
   lib/rocket_runtime.lib
   lib/clang/                  # compiler-rt resources

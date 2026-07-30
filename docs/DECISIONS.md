@@ -327,3 +327,18 @@ state and succeeds only when every locked digest is present and valid. The first
 implementation uses reviewed local/file registries in stage0 so network archive
 and authentication policy cannot emerge accidentally. Production self-hosted
 integration and authenticated transports are required follow-up milestones.
+
+## D023 - Standalone, editor-neutral language-server process
+
+**Accepted for the Rocket 1.7 tooling foundation.** The semantic tooling entry
+point is a standalone `rocket-lsp` executable using versioned Language Server
+Protocol 3.17 JSON-RPC over standard streams. It reuses Rocket frontend
+diagnostics and stable `Rdddd` codes without changing the compiler CLI or
+runtime ABI.
+
+Protocol 0.1 uses full-document synchronization and bounded in-memory document
+state. It provides live lexical, parser, and self-contained-module semantic
+diagnostics first. Multi-file overlays, incremental analysis, navigation,
+refactoring, debugger integration, profiling, benchmarking, and coverage remain
+additive Phase 17 work. The server never executes builds or package code as a
+side effect of editor analysis.

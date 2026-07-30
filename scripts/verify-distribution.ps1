@@ -8,11 +8,19 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $package = [System.IO.Path]::GetFullPath($PackageRoot)
 $compiler = Join-Path $package 'bin\rocketc.exe'
+$languageServer = Join-Path $package 'bin\rocket-lsp.exe'
+$librarian = Join-Path $package 'bin\llvm-lib.exe'
 $workParent = Join-Path $projectRoot 'out\distribution-test'
 $work = Join-Path $workParent 'relocated-working-directory'
 
 if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
     throw "Distribution compiler does not exist: $compiler"
+}
+if (-not (Test-Path -LiteralPath $languageServer -PathType Leaf)) {
+    throw "Distribution language server does not exist: $languageServer"
+}
+if (-not (Test-Path -LiteralPath $librarian -PathType Leaf)) {
+    throw "Distribution librarian does not exist: $librarian"
 }
 $resolvedOut = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'out'))
 $resolvedWork = [System.IO.Path]::GetFullPath($work)
@@ -53,6 +61,11 @@ try {
         $version = & $compiler --version
         if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.4.0') {
             throw "Relocated compiler version check failed: $($version -join ' ')"
+        }
+        $languageServerVersion = & $languageServer --version
+        if ($LASTEXITCODE -ne 0 -or
+            ($languageServerVersion -join "`n") -ne 'rocket-lsp 0.1.0') {
+            throw "Relocated language-server version check failed: $($languageServerVersion -join ' ')"
         }
         & $compiler check $source
         if ($LASTEXITCODE -ne 0) { throw 'Relocated compiler check failed.' }

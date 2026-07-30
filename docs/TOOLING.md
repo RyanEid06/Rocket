@@ -175,11 +175,24 @@ installation.
 ## VS Code
 
 `editors/vscode` contains the Rocket TextMate grammar, language configuration,
-snippets, and `$rocket` diagnostic matcher. Copy or link it into the VS Code
-extensions directory as `rocket-lang.rocket-language-1.0.0`, reload the editor,
-and use the tasks in `.vscode/tasks.json` for check, run, test, and format check.
-This is honest syntax/editor support; semantic language-server features remain
-future work.
+snippets, `$rocket` diagnostic matcher, and a dependency-free client for the
+Phase 17 `rocket-lsp` process. Copy or link it into the VS Code extensions
+directory as `rocket-lang.rocket-language-1.7.0`, reload the editor, and set
+`rocket.languageServer.path` when `rocket-lsp.exe` is not on `PATH`. The tasks
+in `.vscode/tasks.json` remain available for check, run, test, and format check.
+
+`rocket-lsp` protocol 0.1 uses standard LSP 3.17 framing and full-document
+synchronization. It publishes stable lexical, parser, and self-contained-module
+semantic diagnostics. Run it directly for any editor-neutral LSP client:
+
+```powershell
+.\out\build\windows-debug\rocket-lsp.exe
+```
+
+The precise transport, lifecycle, diagnostic, and security contract is in
+`LANGUAGE_SERVER.md`. Incremental multi-file analysis, hover, completion,
+navigation, rename, semantic tokens, and code actions remain later Phase 17
+work.
 
 ## Visual Studio 2026
 
@@ -205,9 +218,9 @@ project; its CMake Targets View exposes `rocket_demo_check`,
 `rocket_demo_run`, and `rocket_demo_test`. These run the actual compiler against
 `examples/visualstudio_demo`.
 
-Semantic IntelliSense, go-to-definition, rename, references, live Rocket
-diagnostics, and Rocket-aware debugging require the language-server and debugger
-work planned for Phase 17.
+Visual Studio semantic IntelliSense, go-to-definition, rename, references, live
+Rocket diagnostics, and Rocket-aware debugging still require a Visual Studio
+language-client and debugger integration in later Phase 17 work.
 
 ## Compiler packaging
 
@@ -220,7 +233,8 @@ The script runs the Release test matrix and deterministic bootstrap, packages
 the Rocket-written stage3 compiler, and creates a checksummed archive under
 `out/package`. `bin/rocketc.exe` locates the bundled runtime, Clang/LLD,
 compiler-rt resources, and static MSVC/UCRT/Windows SDK libraries relative to
-its executable. The verification step clears development toolchain variables,
+its executable; `bin/rocket-lsp.exe` provides the standalone language server.
+The verification step clears development toolchain variables,
 changes to an isolated working directory, then checks, builds, runs, and
 directly executes a native Rocket program.
 

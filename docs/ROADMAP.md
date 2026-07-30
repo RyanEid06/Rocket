@@ -286,6 +286,12 @@ reproducible, secure, and easy to publish.
 
 ### Phase 17 - Rocket 1.7: professional developer experience
 
+**Foundation in progress.** After an explicit user reprioritization, protocol
+0.1 now establishes a standalone, editor-neutral LSP 3.17 process with bounded
+full-document synchronization, coded frontend diagnostics, protocol tests, and
+a dependency-free VS Code client. Earlier Phase 15 and Phase 16 work remains
+open and is not considered complete by this reprioritization.
+
 **Purpose:** Make Rocket efficient to learn, navigate, debug, maintain, and
 operate in substantial codebases.
 

@@ -87,6 +87,7 @@ add_library(rocketc_core
   src/lexer.cpp
   src/parser.cpp
   src/module_loader.cpp
+  src/language_server.cpp
   src/formatter.cpp
   src/package.cpp
   src/native.cpp
@@ -147,6 +148,11 @@ endif()
 
 add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
+
+add_executable(rocket_lsp src/language_server_main.cpp)
+set_target_properties(rocket_lsp PROPERTIES OUTPUT_NAME "rocket-lsp")
+target_link_libraries(rocket_lsp PRIVATE rocketc_core)
+target_compile_definitions(rocket_lsp PRIVATE ROCKET_LSP_VERSION="0.1.0")
 file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/src" ROCKETC_SOURCE_INCLUDE_PATH)
 file(TO_CMAKE_PATH "${CMAKE_CXX_COMPILER}" ROCKETC_STAGE0_CXX_PATH)
 file(TO_CMAKE_PATH "${CMAKE_AR}" ROCKETC_STAGE0_AR_PATH)
@@ -238,6 +244,7 @@ if(LLVM_FOUND)
   add_rocketc_test(llvm_codegen)
 endif()
 add_rocketc_test(diagnostics)
+add_rocketc_test(language_server)
 add_rocketc_test(formatter)
 add_rocketc_test(package)
 add_rocketc_test(native)
