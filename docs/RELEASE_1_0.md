@@ -1,5 +1,10 @@
 # Rocket 1.0 Release Contract
 
+> Historical compatibility baseline: this document intentionally describes the
+> frozen Rocket 1.0 release. The latest completed release is Rocket 1.5; see
+> [RELEASE_1_5.md](RELEASE_1_5.md) and the [roadmap](ROADMAP.md) for current
+> status. Later additions do not rewrite the 1.0 contract.
+
 Rocket 1.0 is the first frozen, self-hosted release of the language. The
 production compiler is written in Rocket; the permanently preserved C++20
 compiler is the reproducible stage0 bootstrap implementation.

@@ -1,8 +1,11 @@
-# Rocket Language Specification 1.3
+# Rocket Language Specification through Rocket 1.7
 
 This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
-incompatible language changes require a recorded decision and a new major version.
+incompatible language changes require a recorded decision and a new major
+version. It records additive language contracts through Rocket 1.7, including
+the Rocket 1.6 package metadata and source-selection contract. Rocket 1.4 and
+1.5 add validated native/library surfaces without introducing new grammar.
 
 ## Layout and comments
 

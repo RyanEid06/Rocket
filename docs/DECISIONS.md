@@ -354,7 +354,7 @@ the self-hosted backend.
 
 ## D024 - Bounded stream tokens and explicit Unicode layers
 
-**Accepted for Rocket 1.5 development.** Buffered file streams use opaque,
+**Accepted for Rocket 1.5.** Buffered file streams use opaque,
 process-local integer tokens rather than exposing host pointers or adding a new
 linear-resource kind. Tokens are kind-checked, become invalid on close, and
 keep all host failures in `Result`. Buffer and per-read sizes are bounded, and

@@ -105,15 +105,17 @@ Implemented:
   validated opaque resource tokens, deterministic cleanup, a reusable app
   scaffold and bundle workflow, and the non-casino Orbital Workshop reference
   application with matching stage0/self-hosted behavior.
-- Rocket 1.5 binary-data foundation with immutable ByteBuffer values, exact
-  binary file I/O, checked slicing, UTF-8 validation, explicit little-endian
-  unsigned integer codecs, ordinary Result failures, and matching stage0 and
+- Rocket 1.5 production standard library with binary and buffered I/O, explicit
+  endian codecs, Unicode layers, safe regular expressions, platform
+  cryptography, DNS/TCP/HTTP(S), calendar/time-zone helpers, logging and CLI/
+  configuration parsing, compression, safe data-only archives, parameterized
+  SQLite, and an ordinary Rocket testing facade, with matching stage0 and
   self-hosted compiler signatures.
-- Rocket 1.6 stage0 dependency-resolution foundation with Semantic Versioning,
-  registry/path/revision-pinned Git manifest sources, deterministic lockfiles,
-  single-version conflict diagnostics, SHA-256 content-addressed caching,
-  locked/offline verification, dependency trees, integrity/license auditing,
-  hostile-cache tests, and a governed-registry security contract.
+- Rocket 1.6 dependency ecosystem with Semantic Versioning, registry/path/
+  revision-pinned Git manifest sources, deterministic lockfiles, signed
+  registries, secure caching and transport, publishing, documentation,
+  credential and namespace governance, advisory and license auditing, and
+  matching stage0/self-hosted workflows.
 - Rocket 1.7 language-server protocol 1.0 with compiler-backed incremental
   multi-package graphs, unsaved overlays, completion/imports, hover/signatures,
   definition/references/rename, semantic token deltas, code actions,
@@ -126,13 +128,10 @@ Implemented:
 
 Not implemented yet:
 
-- The remaining production-scale standard library (buffered streams, complete
-  Unicode, regex, secure randomness/crypto, networking/HTTP, calendars/time
-  zones, logging/configuration, archives, databases, and application testing),
-  robust concurrency/async
-  support, broader native calling conventions, dynamic native loading, the full
-  raylib surface, and non-Windows targets.
-  No casino implementation has begun.
+- Robust ownership and concurrency, broader native calling conventions,
+  dynamic native loading, the full raylib surface, non-Windows targets, and the
+  Rocket 2.0 security/performance/compatibility release gates. No casino
+  implementation has begun.
 
 ## Canonical build commands
 
@@ -692,6 +691,22 @@ Known limitations remain those in the implementation-state list above; no langua
   inactive-source syntax; and the AOT REPL replays accumulated expressions, so
   it does not promise durable mutable state, declaration redefinition, resource
   lifetime preservation, or JIT latency.
+
+**Documentation and frozen-contract reconciliation**
+
+- Reconciled the README, charter, project summary, language specification,
+  diagnostic catalog, tooling guide, self-hosting contract, standard-library
+  wording, and completed syntax-dictionary headings with Rocket 1.5 as the
+  then-current completed release and Rocket 1.6/1.7 as incomplete foundations.
+- Marked the Rocket 1.0 release contract and syntax dictionary as intentional
+  historical compatibility references without changing their frozen behavior.
+- Restored stage0/self-hosted parity for `rocketc new`: both implementations now
+  scaffold independent user packages at the frozen `0.1.0` starting version,
+  with a focused CTest regression.
+- Verified the pinned LLVM Debug and Release matrices at 132/132 tests each.
+  The deterministic Release bootstrap passes with byte-identical stage2/stage3
+  LLVM IR at SHA-256
+  `d02a1473d0fc67d0af8e3678c7aada751d76c0052121166080dcbc43e97548e8`.
 
 ## Current next task
 

@@ -1,7 +1,8 @@
-# Rocket Self-Hosting Contract - Phase 9
+# Rocket Self-Hosting Contract
 
-Phase 9 is complete only when the compiler implementation under `compiler/` is
-Rocket source and the following chain succeeds on Windows x64:
+Phase 9 established the permanent self-hosting gate: the compiler implementation
+under `compiler/` is Rocket source and the following chain succeeds on Windows
+x64. Every later completed 1.x milestone must continue to pass the same gate:
 
 ```text
 C++ stage0 -> Rocket stage1 -> Rocket stage2 -> Rocket stage3

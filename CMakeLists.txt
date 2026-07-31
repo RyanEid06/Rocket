@@ -459,6 +459,14 @@ set_tests_properties(cli_self_hosted_formatter_canonical PROPERTIES
   PASS_REGULAR_EXPRESSION "format check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_self_hosted_new_package
+  COMMAND ${CMAKE_COMMAND}
+    "-DCOMPILER=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+    "-DWORK=${CMAKE_BINARY_DIR}/self-hosted-new-package"
+    -P "${CMAKE_SOURCE_DIR}/tests/self_hosted_new_package_test.cmake")
+set_tests_properties(cli_self_hosted_new_package PROPERTIES
+  PASS_REGULAR_EXPRESSION "self-hosted package scaffold preserves version 0.1.0"
+  FIXTURES_REQUIRED self_hosted_compiler)
 add_test(NAME cli_fmt_phase8_package
   COMMAND rocketc fmt "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package" --check)
 add_test(NAME cli_test_phase8_package

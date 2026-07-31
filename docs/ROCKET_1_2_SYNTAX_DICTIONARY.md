@@ -1,7 +1,7 @@
-# Rocket 1.2 Development Syntax Dictionary
+# Rocket 1.2 Syntax Dictionary
 
-This dictionary records additive syntax implemented during Rocket 1.2
-development. Rocket 1.0 and 1.1 programs keep their existing meaning.
+This dictionary records the additive syntax implemented in Rocket 1.2. Rocket
+1.0 and 1.1 programs keep their existing meaning.
 
 ## Impl blocks
 

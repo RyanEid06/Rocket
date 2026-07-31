@@ -1,4 +1,8 @@
-# Rocket Tooling and Packages 1.4
+# Rocket Tooling and Packages through Rocket 1.7
+
+Rocket 1.7 is the latest completed release. This guide documents the completed
+Rocket 1.6 package ecosystem and Rocket 1.7 language-server and developer-tooling
+contracts.
 
 ## Create and use a package
 
@@ -45,7 +49,7 @@ test may use `import src.math` even though its file lives under `tests/`.
 Standalone `.rocket` files remain supported. When no input is supplied,
 package-aware commands use the current directory.
 
-## Phase 16 dependency foundation
+## Phase 16 dependency ecosystem
 
 The stage0 package workflow accepts `[package].license`, `[package].registry`,
 and a `[dependencies]` table. Registry constraints and pinned `path:`/`git:`
