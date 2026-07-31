@@ -366,15 +366,16 @@ reproducible, secure, and easy to publish.
 HTTPS service contract, not a public hosted registry. Credential storage is
 Windows-only. Dependency build scripts remain unsupported and dependency native
 inputs remain deny-by-default unless the root manifest approves an exact locked
-identity. Phase 17 editor and language-server completion is separate work.
+identity. Phase 17 editor and language-server work was completed separately below.
 
-### Phase 17 - Rocket 1.7: professional developer experience
+### Phase 17 - Rocket 1.7: professional developer experience - Completed
 
-**Foundation in progress.** After an explicit user reprioritization, protocol
-0.1 now establishes a standalone, editor-neutral LSP 3.17 process with bounded
-full-document synchronization, coded frontend diagnostics, protocol tests, and
-a dependency-free VS Code client. Phase 15 is now complete; Phase 16 remains
-open and is not considered complete by this reprioritization.
+**Completed from Phase 16 tip `5ec449c`.** Protocol 1.0 is a standalone,
+editor-neutral LSP 3.17 process backed by the compiler's bounded multi-package
+semantic graph and unsaved overlays. Rocket 1.7 also ships versioned docs,
+native debugging, coverage/profile/benchmark/CI schemas, and an evaluated AOT
+REPL prototype. Exact final validation evidence is recorded below and in
+`PROJECT_CONTEXT.md`.
 
 **Purpose:** Make Rocket efficient to learn, navigate, debug, maintain, and
 operate in substantial codebases.
@@ -393,51 +394,51 @@ operate in substantial codebases.
   and test output.
 - Evaluate a REPL based on incremental AOT compilation; a JIT remains optional.
 
-**Unfinished handoff checklist:**
+**Completed handoff checklist:**
 
-- Replace protocol 0.1's self-contained-document analysis with an incremental,
+- [x] Replace protocol 0.1's self-contained-document analysis with an incremental,
   dependency-aware project graph spanning package manifests, locked
   dependencies, standard modules, open unsaved overlays, and multi-file imports.
   Support bounded invalidation, cancellation, stale-result suppression, and
   measured latency/memory limits on large workspaces.
-- Add semantic completion and automatic imports with deterministic ranking,
+- [x] Add semantic completion and automatic imports with deterministic ranking,
   visibility checks, incomplete-code recovery, dependency awareness, and edits
   that preserve valid Rocket source.
-- Add hover types and documentation plus signature help, including generics,
+- [x] Add hover types and documentation plus signature help, including generics,
   traits, overload/specialization information, parameter position, and links to
   versioned generated package documentation.
-- Add go-to-definition, find references, and workspace rename across modules and
+- [x] Add go-to-definition, find references, and workspace rename across modules and
   packages. Distinguish definitions from textual matches and reject unsafe or
   conflicting renames before producing edits.
-- Add versioned semantic-token support for declarations, references, types,
+- [x] Add versioned semantic-token support for declarations, references, types,
   fields, parameters, traits, native symbols, and inactive/error regions, with
   deterministic full and incremental responses.
-- Add code actions for stable compiler diagnostics and safe source
+- [x] Add code actions for stable compiler diagnostics and safe source
   transformations, including missing imports where unambiguous; actions must be
   tested for idempotence and must not silently change program meaning.
-- Support negotiated incremental document synchronization in addition to the
+- [x] Support negotiated incremental document synchronization in addition to the
   bounded full-sync baseline, robust workspace/configuration changes, request
   cancellation, concurrent clients' request ordering, and protocol-level
   performance telemetry that does not leak source text.
-- Complete the language-level documentation generator with symbol cross-links,
+- [x] Complete the language-level documentation generator with symbol cross-links,
   examples, search metadata, source locations, package/version awareness,
   deterministic output, and malformed/incomplete-source diagnostics.
-- Emit native debug information and integrate a documented editor-neutral debug
+- [x] Emit native debug information and integrate a documented editor-neutral debug
   adapter or equivalent workflow for breakpoints, source mapping, stack traces,
   variable inspection, and precise panic/runtime-failure locations in both
   Debug and optimized builds.
-- Finish code-coverage collection and reports, benchmark harnesses, profiler
+- [x] Finish code-coverage collection and reports, benchmark harnesses, profiler
   hooks/symbolization, and stable machine-readable compiler/test/build output
   suitable for CI and editor integrations.
-- Evaluate and document an incremental-AOT REPL prototype, including state
+- [x] Evaluate and document an incremental-AOT REPL prototype, including state
   lifetime, redefinition, diagnostics, dependency loading, startup latency, and
   platform limitations; keep JIT support optional unless the evidence justifies
   it.
-- Add editor-neutral conformance tests for every request and capability,
+- [x] Add editor-neutral conformance tests for every request and capability,
   multi-package and incomplete-code fixtures, UTF-16/ranged-edit edge cases,
   cancellation/staleness races, malformed and oversized messages, deterministic
   output, and bounded latency regression gates.
-- Validate debugging against optimized and unoptimized executables and prove the
+- [x] Validate debugging against optimized and unoptimized executables and prove the
   versioned protocol and tooling can be used by at least one client other than
   the existing dependency-free VS Code extension.
 
@@ -447,6 +448,20 @@ operate in substantial codebases.
 - Debug information accurately maps optimized and unoptimized executables back to
   Rocket source.
 - Tooling protocols remain versioned, documented, and usable outside VS Code.
+
+**Acceptance evidence:**
+
+- Pinned LLVM Debug and Release passed 138/138 tests; LLVM-disabled stage0 Debug
+  and Release passed 95/95. Conformance passed 78/78 in each configuration and
+  all eight Debug and Release latency gates passed.
+- Debug and Release stage2/stage3 LLVM IR are identical at SHA-256
+  `bc4be23c7e06024ba9337bcfcdd1ffca470735dd8f542c09b0ea9720812a82ed`.
+- The editor-neutral Node.js client analyzed a locked four-file project plus an
+  unsaved overlay and returned dependency completion in 7 ms. Debug and optimized
+  PDB/source-map validation, panic locations, compiler/build/test JSON Lines,
+  coverage, profiling, benchmarking, packaging, and sanitized relocation passed.
+- Exact report and distribution hashes, timings, and deliberate limitations are
+  recorded in `PROJECT_CONTEXT.md`.
 
 ### Phase 18 - Rocket 1.8: robust ownership, concurrency, and asynchronous I/O
 

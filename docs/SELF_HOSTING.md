@@ -99,3 +99,13 @@ compiler executable and the equal stage2/stage3 IR hashes. The script also runs
 successful and failing language fixtures, native package and library builds,
 deterministic header/binding generation, and package check, format, run, and
 test workflows through the generated compiler.
+
+Rocket 1.7 does not move or replace this bootstrap boundary. The standalone
+LSP reuses C++ stage0 frontend libraries as a developer tool and never
+participates in stage1/stage2/stage3 reproduction. Native CodeView generation,
+coverage/profile hooks, benchmark orchestration, `--debug`, and JSON host output
+remain audited stage0 services; the Rocket-written CLI forwards only those
+explicit commands to its colocated `stage0/rocketc-stage0.exe`. Ordinary
+self-hosted check/build/run, exact package graph loading, and deterministic
+bootstrap stay Rocket-written. The full bootstrap gate must still prove
+byte-identical stage2/stage3 IR before Phase 17 can ship.

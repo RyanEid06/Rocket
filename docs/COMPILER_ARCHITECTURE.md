@@ -371,3 +371,28 @@ host selected by `ROCKET_STAGE0` or the installed relative layout. The host is
 not invoked while stage1/stage2/stage3 compile the compiler itself. `/Brepro`
 is passed to LLD by both compiler implementations so repeated locked builds do
 not embed a varying PE timestamp.
+
+## Rocket 1.7 tooling architecture
+
+The language server is another consumer of the compiler pipeline, not a fork.
+`ModuleLoader` accepts a normalized `SourceOverlays` map; package/lock roots and
+standard declarations flow through the ordinary lexer, parser, semantic
+analyzer, HIR symbols/types, and diagnostics. A bounded semantic snapshot adds
+editor indexes (definitions, resolved occurrences, documentation, tokens) and a
+small AST fallback only for declarations in incomplete code. Document versions
+and graph generations control invalidation and stale-result suppression.
+
+MIR instructions and terminators retain their originating `Location`. The LLVM
+backend lowers those locations into CodeView line tables, functions and locals
+into PDB records, and the driver writes `rocket-source-map-1`. Synthetic
+`rocket:\source` directories prevent checkout paths entering native debug
+records. Coverage and profile hooks are optional lowering flags calling the
+runtime's bounded, process-local counters; normal MIR and binaries contain no
+measurement hooks.
+
+The compiler driver owns the versioned JSON reporting schemas, benchmark
+orchestration, and source-map sidecars. The Rocket-written production compiler
+forwards explicitly host-dependent Phase 17 commands (`coverage`, `profile`,
+`benchmark`, `--debug`, and machine output) to its colocated reproducible stage0
+host. This boundary is visible and tested; the self-hosted frontend/bootstrap
+pipeline and ordinary optimized compilation remain unchanged.

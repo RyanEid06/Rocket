@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Rocket VERSION 1.6.0 LANGUAGES C CXX)
+project(Rocket VERSION 1.7.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -159,7 +159,7 @@ target_link_libraries(rocketc PRIVATE rocketc_core)
 add_executable(rocket_lsp src/language_server_main.cpp)
 set_target_properties(rocket_lsp PROPERTIES OUTPUT_NAME "rocket-lsp")
 target_link_libraries(rocket_lsp PRIVATE rocketc_core)
-target_compile_definitions(rocket_lsp PRIVATE ROCKET_LSP_VERSION="0.1.0")
+target_compile_definitions(rocket_lsp PRIVATE ROCKET_LSP_VERSION="1.0.0")
 file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/src" ROCKETC_SOURCE_INCLUDE_PATH)
 file(TO_CMAKE_PATH "${CMAKE_CXX_COMPILER}" ROCKETC_STAGE0_CXX_PATH)
 file(TO_CMAKE_PATH "${CMAKE_AR}" ROCKETC_STAGE0_AR_PATH)
@@ -466,7 +466,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.6.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.7.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest
@@ -959,6 +959,39 @@ else()
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
   set_tests_properties(cli_run_stage0_phase12_generic_lambdas PROPERTIES
     PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture[\r\n]+9[\r\n]+immediate[\r\n]+8[\r\n]+nested[\r\n]+10[\r\n]+deep")
+endif()
+
+if(LLVM_FOUND)
+  add_test(NAME phase17_tooling
+    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+      "${CMAKE_SOURCE_DIR}/scripts/tooling.ps1"
+      -Compiler $<TARGET_FILE:rocketc>)
+  set_tests_properties(phase17_tooling PROPERTIES LABELS "phase17;tooling")
+  add_test(NAME phase17_debugging
+    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+      "${CMAKE_SOURCE_DIR}/scripts/debugging.ps1"
+      -Compiler $<TARGET_FILE:rocketc>)
+  set_tests_properties(phase17_debugging PROPERTIES LABELS "phase17;debugging")
+  add_test(NAME phase17_repl_prototype
+    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+      "${CMAKE_SOURCE_DIR}/scripts/repl-prototype.ps1"
+      -Compiler $<TARGET_FILE:rocketc> -Expression "1 + 1" -Measure)
+  set_tests_properties(phase17_repl_prototype PROPERTIES LABELS "phase17;repl"
+    PASS_REGULAR_EXPRESSION "rocket-repl-evaluation-1")
+endif()
+
+find_program(ROCKET_NODE_EXECUTABLE node)
+if(ROCKET_NODE_EXECUTABLE)
+  add_test(NAME phase17_vscode_client
+    COMMAND "${ROCKET_NODE_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/editors/vscode/test/client.test.js")
+  set_tests_properties(phase17_vscode_client PROPERTIES LABELS "phase17;editor")
+  add_test(NAME phase17_editor_neutral_lsp
+    COMMAND "${ROCKET_NODE_EXECUTABLE}"
+      "${CMAKE_SOURCE_DIR}/editors/vscode/test/lsp-conformance.js"
+      $<TARGET_FILE:rocketc> $<TARGET_FILE:rocket_lsp>)
+  set_tests_properties(phase17_editor_neutral_lsp PROPERTIES
+    LABELS "phase17;lsp;editor-neutral")
 endif()
 
 # Every test that starts the Rocket-written compiler must bind package-security

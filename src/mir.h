@@ -64,6 +64,7 @@ struct MirInstruction {
   MirLocalId destination = InvalidMirLocal;
   MirRvalue value;
   MirOperand arcOperand;
+  Location location;
 
   static MirInstruction assign(MirLocalId destination, MirRvalue value);
   static MirInstruction retain(MirOperand operand);
@@ -79,6 +80,7 @@ struct MirTerminator {
   MirBlockId thenTarget = InvalidMirBlock;
   MirBlockId elseTarget = InvalidMirBlock;
   std::optional<MirOperand> returned;
+  Location location;
 
   static MirTerminator goTo(MirBlockId target);
   static MirTerminator branch(MirOperand condition, MirBlockId thenTarget,
@@ -141,6 +143,7 @@ private:
   MirFunction* function_ = nullptr;
   std::vector<MirLocalId> symbolLocals_;
   std::vector<LoopTargets> loops_;
+  Location currentLocation_;
 };
 
 bool verifyMir(const MirModule& module, std::string& error);

@@ -216,6 +216,7 @@ std::optional<MirBlockId> MirLowerer::lowerBlock(const HirBlock& body, MirBlockI
 
 std::optional<MirBlockId> MirLowerer::lowerStatement(const HirStmt& statement,
                                                      MirBlockId current) {
+  currentLocation_ = statement.location;
   switch (statement.kind) {
   case HirStmtKind::Binding: {
     const auto& binding = static_cast<const HirBindingStmt&>(statement);
@@ -410,6 +411,7 @@ std::optional<MirBlockId> MirLowerer::lowerStatement(const HirStmt& statement,
 }
 
 MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& current) {
+  currentLocation_ = expression.location;
   switch (expression.kind) {
   case HirExprKind::Literal: {
     const auto& literal = static_cast<const HirLiteralExpr&>(expression);
@@ -585,17 +587,22 @@ MirLocalId MirLowerer::addInstruction(MirBlockId block, MirRvalue value,
       addRetain(block, value.left);
     addRelease(block, MirOperand::localValue(value.type, destination));
   }
-  function_->blocks[block].instructions.push_back(
-      MirInstruction::assign(destination, std::move(value)));
+  MirInstruction instruction = MirInstruction::assign(destination, std::move(value));
+  instruction.location = currentLocation_;
+  function_->blocks[block].instructions.push_back(std::move(instruction));
   return destination;
 }
 
 void MirLowerer::addRetain(MirBlockId block, MirOperand operand) {
-  function_->blocks[block].instructions.push_back(MirInstruction::retain(std::move(operand)));
+  MirInstruction instruction = MirInstruction::retain(std::move(operand));
+  instruction.location = currentLocation_;
+  function_->blocks[block].instructions.push_back(std::move(instruction));
 }
 
 void MirLowerer::addRelease(MirBlockId block, MirOperand operand) {
-  function_->blocks[block].instructions.push_back(MirInstruction::release(std::move(operand)));
+  MirInstruction instruction = MirInstruction::release(std::move(operand));
+  instruction.location = currentLocation_;
+  function_->blocks[block].instructions.push_back(std::move(instruction));
 }
 
 void MirLowerer::releaseOwnedLocals(MirBlockId block) {
@@ -619,6 +626,7 @@ MirBlockId MirLowerer::addBlock() {
 }
 
 void MirLowerer::terminate(MirBlockId block, MirTerminator terminator) {
+  terminator.location = currentLocation_;
   function_->blocks[block].terminator = std::move(terminator);
 }
 

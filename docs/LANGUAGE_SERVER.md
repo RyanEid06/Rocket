@@ -1,67 +1,90 @@
-# Rocket Language Server Protocol 0.1
+# Rocket Language Server Protocol 1.0
 
-This document specifies the first Rocket 1.7 professional-tooling milestone.
-It is a tooling contract and does not change Rocket source syntax, type
-semantics, generated code, or runtime ABI v1.
+`rocket-lsp` is Rocket 1.7's standalone, editor-neutral LSP 3.17 server. It
+uses `Content-Length` framing over standard input/output; logs go only to
+standard error. `rocket-lsp --version` prints `rocket-lsp 1.0.0`.
 
-## Process and transport
+## Safety and bounds
 
-`rocket-lsp` is a standalone Windows x64 executable distributed beside
-`rocketc`. It communicates over standard input and standard output using the
-Language Server Protocol 3.17 base protocol and `Content-Length` framing.
-Protocol logs and human-readable diagnostics must never be written to standard
-output because that stream is reserved for framed protocol messages.
+Opening a source file performs lexical, parser, semantic, and project-graph
+analysis only. It never runs a build, package script, native program, registry
+request, or other source-controlled command. Locked dependencies are opened as
+inert source in offline mode.
 
-The initial server has protocol version `0.1` and supports:
+- protocol message: 16 MiB; header: 16 KiB;
+- open document: 4 MiB;
+- project defaults: 4,096 files and 64 MiB of source;
+- one workspace edit: 1,024 edits;
+- malformed frames, invalid JSON-RPC, stale versions, invalid UTF-16 ranges,
+  oversized content, and requests before `initialize` receive bounded errors.
 
-- `initialize`, `initialized`, `shutdown`, and `exit`;
-- `textDocument/didOpen`, `textDocument/didChange`,
-  `textDocument/didSave`, and `textDocument/didClose`;
-- full-document synchronization (`TextDocumentSyncKind.Full`);
-- deterministic `textDocument/publishDiagnostics` notifications containing
-  stable `Rdddd` codes from the ordinary Rocket frontend.
+Each client runs an independent process. Requests within a process are handled
+in arrival order. `$/cancelRequest` suppresses queued work and returns LSP
+`RequestCancelled` (`-32800`); analysis generations suppress results computed
+for stale document versions. The server reports elapsed milliseconds, analyzed
+bytes/files, generation, and invalidation counts without source text through
+`rocket/analysisStatus`. `rocket/projectStatus` returns the current bounds and
+index size on request.
 
-Unknown requests receive JSON-RPC `-32601`. Malformed envelopes and parameters
-receive the applicable JSON-RPC error without terminating the server. A clean
-`exit` after `shutdown` returns zero; an `exit` without `shutdown` returns one.
-Input messages larger than 16 MiB are rejected before allocation.
+## Project model
 
-## Document and diagnostic model
+Protocol 1.0 reuses `ModuleLoader`, the package manifest/lock resolver, the
+compiler lexer/parser, HIR symbols, and Rocket types. It does not maintain a
+second type system. A workspace graph contains the root package, exact locked
+dependencies, standard modules, and rootless open files. Open documents are
+path-keyed in-memory overlays and therefore win over disk without being saved.
+Changes invalidate the affected graph generation; only bounded workspace roots
+are scanned. Incomplete files retain recoverable lexical/AST symbols so editor
+features remain available without manufacturing successful type results.
 
-Open documents are keyed by their URI and retain the newest integer version.
-Stale `didChange` notifications are ignored. A change must contain exactly one
-full-document replacement; ranged incremental edits are not accepted in
-protocol 0.1.
+## Lifecycle and synchronization
 
-Each accepted open, change, or save runs Rocket lexing, parsing, and, when the
-document is a self-contained module, semantic analysis. The analyzer treats an
-editor document as a library unit so a partial module is not required to define
-`main`. Diagnostics use one-based Rocket source locations internally and are
-converted to zero-based LSP ranges. Columns and range lengths are measured in
-UTF-16 code units as required by LSP. Until the compiler records precise end
-locations, a diagnostic range covers the token at its start location or one
-code unit when no token is available.
+The lifecycle is `initialize`, optional `initialized`, ordinary requests and
+notifications, `shutdown`, then `exit`. The server negotiates UTF-16 positions
+and incremental synchronization (`textDocumentSync.change = 2`). Full-content
+changes remain accepted as the bounded compatibility baseline. Versions must
+increase. `workspace/didChangeConfiguration` accepts:
 
-Protocol 0.1 deliberately limits live semantic analysis to self-contained
-documents. Documents containing imports still receive lexical and parser
-diagnostics, but multi-file semantic analysis waits for the incremental project
-graph and in-memory overlay work. Closing a document publishes an empty
-diagnostic set so clients remove stale problems.
+- `rocket.maximumProjectFiles` (1..4096),
+- `rocket.maximumProjectBytes` (1 MiB..64 MiB),
+- `rocket.telemetry` (boolean).
 
-## Compatibility and security
+Workspace-folder changes rebuild the bounded graph. Closing a document removes
+its overlay and publishes an empty diagnostics array.
 
-The server accepts only JSON-RPC 2.0 messages and bounded headers. URIs and
-source text are treated as data; the language server does not execute builds,
-programs, package scripts, or shell commands. The initial server never writes
-source files and does not fetch dependencies or use the network.
+## Capabilities
 
-The protocol is editor-neutral. VS Code integration may launch the same
-executable, but no editor-specific extension API is part of this contract.
+- deterministic semantic completion, qualified completion, and automatic
+  import edits for a unique visible public declaration;
+- Markdown hover with Rocket type/signature, documentation, and a
+  `rocket-doc://` versioned-documentation link;
+- signature help with active parameter and available compiler signatures;
+- resolved definition, references, prepare-rename, and conflict-checked
+  workspace rename;
+- semantic token full/delta responses for keywords, values, declarations,
+  parameters, properties, types, traits/interfaces, functions/methods, native
+  declarations, strings, and numbers;
+- stable quick fixes for `R4002` missing names plus whole-document formatter
+  actions. Imports are emitted only when resolution is unique, and repeated
+  action requests are byte-stable; once applied, the import action disappears;
+- workspace symbols and compiler diagnostics retaining their stable `Rdddd`
+  codes.
 
-## Deferred Phase 17 work
+Rename refuses keywords, standard/native declarations, locked dependency
+sources, invalid identifiers, and conflicts. Edits are limited to writable
+workspace/open files. Textual matches that did not resolve to the selected HIR
+symbol are not edited.
 
-Later compatible protocol versions will add incremental multi-package analysis,
-hover and signature information, completion, definition/reference navigation,
-rename, semantic tokens, code actions and imports, documentation generation,
-native debugging, machine-readable test/build output, benchmarking, profiling,
-coverage, and evaluation of an incremental-AOT REPL.
+## Client neutrality and validation
+
+`tests/language_server_tests.cpp` is an editor-independent in-process LSP
+client. It covers lifecycle, framing, malformed/oversized messages, UTF-16,
+incremental and stale changes, overlays, incomplete code, navigation, rename,
+completion, imports, hover, signatures, tokens, actions, cancellation, telemetry,
+and latency. This is the required non-VS-Code client. The dependency-free VS
+Code extension is a separate consumer and its transport/provider tests live in
+`editors/vscode/test/client.test.js`.
+
+Protocol 1.0 deliberately remains LSP rather than a Rocket-specific editor
+protocol. New fields and custom `rocket/*` methods must be additive and bounded;
+breaking behavior requires a new protocol version.

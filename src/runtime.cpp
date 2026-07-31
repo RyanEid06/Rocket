@@ -7,6 +7,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <fstream>
+#include <map>
+#include <mutex>
+#include <string>
 
 namespace {
 
@@ -61,6 +65,53 @@ struct RuntimeStringBuilder {
   std::uint64_t capacity;
   std::uint8_t* bytes;
 };
+
+std::mutex toolingMutex;
+std::map<std::pair<std::string, std::int64_t>, std::uint64_t> coverageHits;
+std::map<std::string, std::uint64_t> profileHits;
+std::once_flag toolingExitRegistration;
+
+std::string toolingJson(const std::string& value) {
+  std::string result;
+  for (const unsigned char character : value) {
+    if (character == '"' || character == '\\') {
+      result.push_back('\\');
+      result.push_back(static_cast<char>(character));
+    } else if (character == '\n') result += "\\n";
+    else if (character == '\r') result += "\\r";
+    else if (character == '\t') result += "\\t";
+    else if (character >= 0x20) result.push_back(static_cast<char>(character));
+  }
+  return result;
+}
+
+void toolingWriteReports() {
+  std::lock_guard lock(toolingMutex);
+  if (const char* path = std::getenv("ROCKET_COVERAGE_FILE")) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    output << "{\n  \"schema\": \"rocket-coverage-1\",\n  \"points\": [";
+    bool first = true;
+    for (const auto& [point, hits] : coverageHits) {
+      if (!first) output << ',';
+      first = false;
+      output << "\n    {\"source\":\"" << toolingJson(point.first)
+             << "\",\"line\":" << point.second << ",\"hits\":" << hits << '}';
+    }
+    output << "\n  ]\n}\n";
+  }
+  if (const char* path = std::getenv("ROCKET_PROFILE_FILE")) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    output << "{\n  \"schema\": \"rocket-profile-1\",\n  \"symbols\": [";
+    bool first = true;
+    for (const auto& [symbol, hits] : profileHits) {
+      if (!first) output << ',';
+      first = false;
+      output << "\n    {\"symbol\":\"" << toolingJson(symbol)
+             << "\",\"samples\":" << hits << '}';
+    }
+    output << "\n  ]\n}\n";
+  }
+}
 
 struct CollectionView {
   const RuntimeArray* owner;
@@ -895,6 +946,16 @@ void rocket_rt_print_string(const RocketString* value) {
 }
 
 void rocket_rt_print_unit() { std::fputs("()\n", stdout); }
+
+void rocket_rt_tooling_hit(const char* source, std::int64_t line,
+                           const char* symbol, std::uint32_t kind) {
+  std::call_once(toolingExitRegistration, [] { std::atexit(toolingWriteReports); });
+  std::lock_guard lock(toolingMutex);
+  if (kind == 1 && source != nullptr && line > 0)
+    ++coverageHits[{source, line}];
+  else if (kind == 2 && symbol != nullptr)
+    ++profileHits[symbol];
+}
 
 std::uint64_t rocket_rt_debug_live_allocations() {
   return liveAllocations.load(std::memory_order_relaxed);

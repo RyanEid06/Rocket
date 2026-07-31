@@ -17,7 +17,7 @@ namespace {
 
 std::filesystem::path standardLibraryRoot = ROCKETC_STDLIB_SOURCE_PATH;
 
-bool readSource(const std::filesystem::path& path, std::string& source) {
+bool readSourceFile(const std::filesystem::path& path, std::string& source) {
   std::ifstream input(path, std::ios::binary);
   if (!input) return false;
   std::ostringstream buffer;
@@ -59,10 +59,10 @@ class Loader {
 public:
   Loader(std::filesystem::path root, std::filesystem::path packageRoot,
          std::vector<PackageDependencyRoot> dependencyRoots,
-         Diagnostics& diagnostics)
+         Diagnostics& diagnostics, const SourceOverlays* overlays = nullptr)
       : rootPath_(std::filesystem::absolute(std::move(root)).lexically_normal()),
         packageRoot_(std::filesystem::absolute(std::move(packageRoot)).lexically_normal()),
-        diagnostics_(diagnostics) {
+        diagnostics_(diagnostics), overlays_(overlays) {
     for (auto& dependency : dependencyRoots) {
       if (dependency.direct) rootDependencies_.insert(dependency.name);
       dependencyRoots_.emplace(dependency.name, std::move(dependency));
@@ -94,6 +94,18 @@ public:
   }
 
 private:
+  bool readSource(const std::filesystem::path& path, std::string& source) const {
+    const auto normalized = std::filesystem::absolute(path).lexically_normal();
+    if (overlays_ != nullptr) {
+      const auto found = overlays_->find(normalized);
+      if (found != overlays_->end()) {
+        source = found->second;
+        return true;
+      }
+    }
+    return readSourceFile(normalized, source);
+  }
+
   bool loadOne(const std::string& name, const std::filesystem::path& path,
                const Location& importLocation,
                const std::filesystem::path& ownerRoot,
@@ -576,6 +588,7 @@ private:
   std::filesystem::path rootPath_;
   std::filesystem::path packageRoot_;
   Diagnostics& diagnostics_;
+  const SourceOverlays* overlays_ = nullptr;
   std::map<std::string, PackageDependencyRoot> dependencyRoots_;
   std::unordered_set<std::string> rootDependencies_;
   std::map<std::string, LoadedModule> modules_;
@@ -607,6 +620,15 @@ std::optional<Module> loadModuleGraph(
     const std::vector<PackageDependencyRoot>& dependencyRoots,
     Diagnostics& diagnostics) {
   return Loader(rootPath, packageRoot, dependencyRoots, diagnostics).load();
+}
+
+std::optional<Module> loadModuleGraph(
+    const std::filesystem::path& rootPath,
+    const std::filesystem::path& packageRoot,
+    const std::vector<PackageDependencyRoot>& dependencyRoots,
+    const SourceOverlays& overlays, Diagnostics& diagnostics) {
+  return Loader(rootPath, packageRoot, dependencyRoots, diagnostics,
+                &overlays).load();
 }
 
 } // namespace rocket

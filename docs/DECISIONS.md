@@ -330,18 +330,27 @@ integration and authenticated transports are required follow-up milestones.
 
 ## D023 - Standalone, editor-neutral language-server process
 
-**Accepted for the Rocket 1.7 tooling foundation.** The semantic tooling entry
+**Accepted and completed for Rocket 1.7.** The semantic tooling entry
 point is a standalone `rocket-lsp` executable using versioned Language Server
 Protocol 3.17 JSON-RPC over standard streams. It reuses Rocket frontend
 diagnostics and stable `Rdddd` codes without changing the compiler CLI or
 runtime ABI.
 
-Protocol 0.1 uses full-document synchronization and bounded in-memory document
-state. It provides live lexical, parser, and self-contained-module semantic
-diagnostics first. Multi-file overlays, incremental analysis, navigation,
-refactoring, debugger integration, profiling, benchmarking, and coverage remain
-additive Phase 17 work. The server never executes builds or package code as a
-side effect of editor analysis.
+Protocol 1.0 negotiates incremental synchronization and builds a bounded graph
+from manifests, exact locks, compiler modules/HIR/types, standard modules, and
+unsaved overlays. It provides semantic completion/imports, hover/signatures,
+navigation/references/rename, semantic token deltas, stable code actions,
+cancellation, stale-generation suppression, configuration, and source-free
+latency telemetry. Independent clients use independent processes and requests
+within one process retain arrival order. The server never executes builds or
+package code as a side effect of editor analysis.
+
+Native debugging deliberately uses the platform's CodeView/PDB contract plus a
+versioned Rocket source-map sidecar instead of an editor-owned protocol.
+Coverage, profiling, benchmarks, and CI output likewise use versioned JSON
+schemas and are opt-in compiler commands. This keeps tooling editor neutral and
+preserves the C++ stage0 as the audited host for features not yet expressed by
+the self-hosted backend.
 
 ## D024 - Bounded stream tokens and explicit Unicode layers
 

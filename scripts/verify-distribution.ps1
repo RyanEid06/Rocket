@@ -22,6 +22,11 @@ if (-not (Test-Path -LiteralPath $languageServer -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $librarian -PathType Leaf)) {
     throw "Distribution librarian does not exist: $librarian"
 }
+foreach ($tool in 'debugging.ps1', 'tooling.ps1', 'repl-prototype.ps1') {
+    if (-not (Test-Path -LiteralPath (Join-Path $package "tools\$tool") -PathType Leaf)) {
+        throw "Distribution Phase 17 tool is missing: $tool"
+    }
+}
 $resolvedOut = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'out'))
 $resolvedWork = [System.IO.Path]::GetFullPath($work)
 if (-not $resolvedWork.StartsWith(
@@ -61,16 +66,33 @@ try {
     Push-Location $work
     try {
         $version = & $compiler --version
-        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.6.0') {
+        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.7.0') {
             throw "Relocated compiler version check failed: $($version -join ' ')"
         }
         $languageServerVersion = & $languageServer --version
         if ($LASTEXITCODE -ne 0 -or
-            ($languageServerVersion -join "`n") -ne 'rocket-lsp 0.1.0') {
+            ($languageServerVersion -join "`n") -ne 'rocket-lsp 1.0.0') {
             throw "Relocated language-server version check failed: $($languageServerVersion -join ' ')"
         }
         & $compiler check $source
         if ($LASTEXITCODE -ne 0) { throw 'Relocated compiler check failed.' }
+        $machineOutput = (& $compiler check $source --message-format=json 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or
+            ($machineOutput | ConvertFrom-Json).schema -ne 'rocket-message-1') {
+            throw 'Relocated machine-readable compiler output failed.'
+        }
+        & $compiler build $source --debug
+        if ($LASTEXITCODE -ne 0 -or
+            -not (Test-Path -LiteralPath (Join-Path $work '.rocketc\hello.pdb')) -or
+            -not (Test-Path -LiteralPath (Join-Path $work '.rocketc\hello.rocket.map.json'))) {
+            throw 'Relocated unoptimized debug build failed.'
+        }
+        $coverage = Join-Path $work 'coverage.json'
+        & $compiler coverage $source --output $coverage
+        if ($LASTEXITCODE -ne 0 -or
+            (Get-Content $coverage -Raw | ConvertFrom-Json).schema -ne 'rocket-coverage-1') {
+            throw 'Relocated coverage workflow failed.'
+        }
         & $compiler build $source
         if ($LASTEXITCODE -ne 0) { throw 'Relocated compiler build failed.' }
         & $compiler run $source
@@ -115,4 +137,4 @@ try {
     $env:PATH = $savedEnvironment.PATH
 }
 
-Write-Output "Rocket 1.6 distribution relocation and package test passed: $package"
+Write-Output "Rocket 1.7 distribution relocation and package test passed: $package"

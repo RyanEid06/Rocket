@@ -17,6 +17,8 @@ bool generateLlvmIr(const MirModule& module, bool optimize, std::string& output,
 // Lowers and emits a host object or assembly file through LLVM's target
 // machine. The output is suitable for the pinned Windows x64 linker toolchain.
 bool emitLlvmFile(const MirModule& module, bool optimize, LlvmFileType fileType,
-                  const std::filesystem::path& outputPath, std::string& error);
+                  const std::filesystem::path& outputPath, std::string& error,
+                  bool debugInfo = false, bool coverage = false,
+                  bool profiling = false);
 
 } // namespace rocket

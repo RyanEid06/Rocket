@@ -10,6 +10,8 @@ directory as `rocket-lang.rocket-language-1.7.0`, then reload VS Code. Set
 `PATH`. The
 repository tasks in `.vscode/tasks.json` use the Debug compiler build.
 
-Protocol 0.1 provides live lexical, syntax, and self-contained-file semantic
-diagnostics. Completion, hover, rename, cross-file navigation, and incremental
-multi-package analysis remain later Phase 17 work.
+Protocol 1.0 provides incremental multi-package analysis with unsaved overlays,
+stable coded diagnostics, completion and automatic imports, hover and signature
+help, cross-file definition/references/rename, semantic tokens, and safe code
+actions. The extension is only a client: the same server works with any LSP
+3.17 editor, and opening source never runs builds or package code.

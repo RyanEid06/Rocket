@@ -54,10 +54,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Compiler warmup failed.' }
 
     $compilerSource = Join-Path $projectRoot 'compiler\src\main.rocket'
+    # The Debug runtime deliberately keeps checks and symbols enabled. Keep its
+    # self-analysis ceilings explicit instead of silently applying Release
+    # numbers to a different binary configuration.
+    $hirMaximum = if ($Configuration -eq 'Debug') { 180 } else { 120 }
+    $mirMaximum = if ($Configuration -eq 'Debug') { 240 } else { 180 }
     Measure-RocketCommand 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 5
     Measure-RocketCommand 'hello-build' @('build', (Join-Path $projectRoot 'examples\hello.rocket')) 15
-    Measure-RocketCommand 'compiler-hir-self-check' @('--check-hir', $compilerSource) 120
-    Measure-RocketCommand 'compiler-mir-self-check' @('--check-mir', $compilerSource) 180
+    Measure-RocketCommand 'compiler-hir-self-check' @('--check-hir', $compilerSource) $hirMaximum
+    Measure-RocketCommand 'compiler-mir-self-check' @('--check-mir', $compilerSource) $mirMaximum
     Measure-RocketCommand 'native-interop-check' @('check', (Join-Path $projectRoot 'tests\fixtures\phase13_native_package')) 5
     Measure-RocketCommand 'native-library-build' @('build', (Join-Path $projectRoot 'tests\fixtures\phase13_static_library')) 15
     Measure-RocketCommand 'raylib-reference-check' @('check', (Join-Path $projectRoot 'examples\raylib_showcase')) 10
@@ -65,9 +70,9 @@ try {
 
     $reportDirectory = Join-Path $projectRoot 'out\performance'
     New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-    $reportPath = Join-Path $reportDirectory "rocket-1.6-$configurationName.json"
+    $reportPath = Join-Path $reportDirectory "rocket-1.7-$configurationName.json"
     $report = [pscustomobject]@{
-        version = '1.6.0'
+        version = '1.7.0'
         configuration = $Configuration
         compiler = $Compiler
         sha256 = (Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -75,7 +80,7 @@ try {
         measurements = $measurements
     }
     $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $reportPath -Encoding utf8
-    Write-Output "Rocket 1.6 performance gates passed: $reportPath"
+    Write-Output "Rocket 1.7 performance gates passed: $reportPath"
     foreach ($measurement in $measurements) {
         Write-Output ("  {0}: {1}s <= {2}s" -f $measurement.name, $measurement.seconds,
             $measurement.maximum_seconds)

@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$version = '1.6.0'
+$version = '1.7.0'
 $configurationName = $Configuration.ToLowerInvariant()
 $buildDirectory = Join-Path $projectRoot "out\build\windows-$configurationName"
 $bootstrapDirectory = Join-Path $projectRoot "out\bootstrap\windows-$configurationName"
@@ -71,6 +71,7 @@ if (Test-Path -LiteralPath $archive) {
 $binDirectory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 'bin') -Force
 $libDirectory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 'lib') -Force
 $stage0Directory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 'stage0') -Force
+$toolsDirectory = New-Item -ItemType Directory -Path (Join-Path $packageRoot 'tools') -Force
 
 Copy-Item -LiteralPath (Join-Path $bootstrapDirectory 'stage3.exe') `
     -Destination (Join-Path $binDirectory 'rocketc.exe')
@@ -105,25 +106,31 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'editors') -Destination $packageR
 Copy-Item -LiteralPath (Join-Path $projectRoot 'stdlib') -Destination $packageRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $bootstrapDirectory 'SHA256SUMS.txt') `
     -Destination (Join-Path $packageRoot 'BOOTSTRAP_SHA256SUMS.txt')
+foreach ($tool in 'debugging.ps1', 'tooling.ps1', 'repl-prototype.ps1') {
+    Copy-Item -LiteralPath (Join-Path $projectRoot "scripts\$tool") -Destination $toolsDirectory
+}
 
 $packageNote = @"
-# Rocket 1.6.0 for Windows x64
+# Rocket 1.7.0 for Windows x64
 
 ``bin\rocketc.exe`` is the production self-hosted Rocket compiler. It discovers
 the bundled runtime, Clang/LLD, compiler-rt resources, and native link libraries
 relative to its own executable, so no Visual Studio, Windows SDK, LLVM, or
 activated developer shell is required to compile Rocket programs.
 
-``bin\rocket-lsp.exe`` is the editor-neutral Phase 17 language-server
-foundation. It uses LSP 3.17 over standard input/output and supplies live coded
-frontend diagnostics without executing builds or package code.
+``bin\rocket-lsp.exe`` is the editor-neutral Phase 17 semantic language server.
+It uses LSP 3.17 over standard input/output and never executes builds or package
+code merely because source is opened. ``tools`` contains the debug-validation,
+coverage/profile/benchmark validation, and incremental-AOT REPL prototype.
 
 ``stage0\rocketc-stage0.exe`` preserves the C++ bootstrap compiler used to
 reproduce stage1. ``BOOTSTRAP_SHA256SUMS.txt`` records the deterministic
 stage2/stage3 proof; ``SHA256SUMS.txt`` covers every distributed file.
 
 Supported target: Windows x64. See ``docs\RELEASE_1_6.md`` for the package
-ecosystem, compatibility policy, limitations, and validation matrix.
+ecosystem and ``docs\LANGUAGE_SERVER.md``, ``docs\DEBUGGING.md``,
+``docs\REPL.md``, and ``docs\PROJECT_CONTEXT.md`` for the Rocket 1.7 tooling
+contracts, limitations, and validation matrix.
 "@
 Set-Content -LiteralPath (Join-Path $packageRoot 'PACKAGE.md') `
     -Value $packageNote -Encoding utf8

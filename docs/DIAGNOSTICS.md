@@ -45,3 +45,17 @@ The compiler test suite fixes golden output for representative errors and
 asserts catalog identities across lexical, syntax, name, control-flow, match,
 arity, manifest, and internal categories. The VS Code extension's `$rocket`
 problem matcher consumes this format.
+
+## Tooling transports
+
+LSP 1.0 publishes the same codes in `PublishDiagnosticsParams` with UTF-16
+ranges. Unsaved overlays and incomplete parses do not invent alternate code
+names, and closing a document clears its diagnostics.
+
+`--message-format=json` emits newline-delimited `rocket-message-1` objects.
+Diagnostic events contain `reason: "diagnostic"`, `level`, the stable `code`,
+message, and a one-based `{file,line,column}` span. Build/test events use the
+same schema version, so CI parsers can reject unknown major schemas rather than
+scraping human prose. Source text is never included in telemetry or machine
+messages. Native runtime text remains deliberately small; PDB line tables and
+`rocket-source-map-1` provide the panic call-site location to debuggers.

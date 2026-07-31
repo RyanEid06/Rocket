@@ -187,10 +187,14 @@ and namespace rules as HTTPS service implementations.
 
 `rocketc doc <package> [--output <directory>]` emits deterministic UTF-8 HTML
 and JSON search metadata for public functions, types, traits, constants, and
-modules. Output includes package namespace/name/version, source locations,
-dependency-version links, declaration anchors, and fenced examples as text.
-Documentation never compiles or executes an example. `publish` includes the
-same bytes under the immutable version's documentation record.
+modules. Rocket 1.7 builds this index through the real lexer/parser instead of
+regular-expression declaration guessing. Output includes package
+namespace/name/version, stable per-kind symbol anchors, source links and lines,
+cross-links for related types, searchable declarations/documentation, and
+fenced examples as text. Malformed or incomplete source fails with the original
+stable Rocket diagnostic code and location. Documentation never compiles or
+executes an example. `publish` includes the same deterministic bytes under the
+immutable version's documentation record.
 
 `rocketc tree` shows exact identities, sources, and provenance. `rocketc audit`
 verifies the lock graph, cache trees, signatures, SPDX expressions, root license

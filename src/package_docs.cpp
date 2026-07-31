@@ -1,8 +1,14 @@
 #include "package_docs.h"
 
+#include "diagnostic.h"
+#include "lexer.h"
+#include "parser.h"
+
 #include <algorithm>
+#include <cctype>
 #include <fstream>
-#include <regex>
+#include <map>
+#include <set>
 #include <sstream>
 #include <vector>
 
@@ -15,6 +21,8 @@ struct ApiItem {
   std::string name;
   std::string declaration;
   std::string documentation;
+  int line = 1;
+  std::vector<std::string> relatedTypes;
 };
 
 std::string trim(std::string value) {
@@ -50,7 +58,52 @@ std::string json(const std::string& text) {
 }
 
 std::string anchor(const ApiItem& item) {
-  return item.kind + "-" + item.name;
+  std::string result = item.module + "-" + item.kind + "-" + item.name;
+  for (char& character : result)
+    if (!std::isalnum(static_cast<unsigned char>(character))) character = '-';
+  return result;
+}
+
+std::string documentationBefore(const std::vector<std::string>& lines,
+                                int oneBasedLine) {
+  std::vector<std::string> comments;
+  int index = std::min<int>(oneBasedLine - 2, static_cast<int>(lines.size()) - 1);
+  while (index >= 0) {
+    const std::string clean = trim(lines[static_cast<std::size_t>(index)]);
+    if (clean.empty()) {
+      if (comments.empty()) { --index; continue; }
+      break;
+    }
+    if (!clean.starts_with("#")) break;
+    comments.push_back(trim(clean.substr(1)));
+    --index;
+  }
+  std::reverse(comments.begin(), comments.end());
+  std::ostringstream result;
+  for (std::size_t item = 0; item < comments.size(); ++item) {
+    if (item) result << '\n';
+    result << comments[item];
+  }
+  return result.str();
+}
+
+std::string renderDocumentation(const std::string& text) {
+  if (text.empty()) return {};
+  std::ostringstream output;
+  std::istringstream input(text);
+  std::string line;
+  bool code = false;
+  while (std::getline(input, line)) {
+    if (line.starts_with("```")) {
+      output << (code ? "</code></pre>" : "<pre><code>");
+      code = !code;
+      continue;
+    }
+    if (code) output << html(line) << '\n';
+    else if (!line.empty()) output << "<p>" << html(line) << "</p>";
+  }
+  if (code) output << "</code></pre>";
+  return output.str();
 }
 
 bool write(const std::filesystem::path& path, const std::string& bytes,
@@ -78,33 +131,83 @@ bool generatePackageDocumentation(const Package& package,
   std::vector<std::filesystem::path> sources = rocketSources(package.root, error);
   if (!error.empty()) return false;
   std::vector<ApiItem> items;
-  const std::regex declaration(
-      R"(^pub\s+(fn|struct|enum|trait|const|extern\s+(?:fn|struct|opaque|callback|const))\s+([A-Za-z_][A-Za-z0-9_]*))");
   for (const auto& source : sources) {
     std::ifstream input(source, std::ios::binary);
     if (!input) { error = "could not read documentation source"; return false; }
-    std::vector<std::string> comments;
+    std::ostringstream bytes;
+    bytes << input.rdbuf();
+    std::vector<std::string> lines;
+    std::istringstream lineInput(bytes.str());
     std::string line;
-    while (std::getline(input, line)) {
-      const std::string clean = trim(line);
-      if (clean.starts_with("#")) {
-        comments.push_back(trim(clean.substr(1)));
-        continue;
+    while (std::getline(lineInput, line)) lines.push_back(line);
+    Diagnostics diagnostics;
+    auto tokens = Lexer(source.string(), bytes.str(), diagnostics).lex();
+    Module module = Parser(tokens, diagnostics).parseModule();
+    if (diagnostics.hasErrors()) {
+      const auto& first = diagnostics.all().front();
+      error = diagnosticCodeName(first.code) + " at " +
+              source.lexically_relative(package.root).generic_string() + ":" +
+              std::to_string(first.location.line) + ":" +
+              std::to_string(first.location.column) + ": " + first.message;
+      return false;
+    }
+    const std::string modulePath =
+        source.lexically_relative(package.root).generic_string();
+    auto sourceLine = [&](int oneBasedLine) {
+      return oneBasedLine > 0 &&
+                     static_cast<std::size_t>(oneBasedLine) <= lines.size()
+                 ? trim(lines[static_cast<std::size_t>(oneBasedLine - 1)])
+                 : std::string{};
+    };
+    for (const auto& function : module.functions) {
+      if (!function.publicDeclaration) continue;
+      std::string kind = function.associatedConstant || function.nativeConstant
+                             ? "const"
+                             : function.nativeImport ? "extern-fn" : "fn";
+      std::vector<std::string> related{function.returnType};
+      for (const auto& parameter : function.parameters)
+        related.push_back(parameter.typeName);
+      items.push_back({modulePath, kind, function.name,
+                       sourceLine(function.location.line),
+                       documentationBefore(lines, function.location.line),
+                       function.location.line, std::move(related)});
+    }
+    for (const auto& structure : module.structs) {
+      if (!structure.publicDeclaration) continue;
+      std::string kind = "struct";
+      if (structure.representation == StructRepresentation::Opaque) kind = "opaque";
+      else if (structure.representation == StructRepresentation::Callback) kind = "callback";
+      else if (structure.representation == StructRepresentation::Native) kind = "extern-struct";
+      std::vector<std::string> related;
+      for (const auto& field : structure.fields) related.push_back(field.typeName);
+      items.push_back({modulePath, kind, structure.name,
+                       sourceLine(structure.location.line),
+                       documentationBefore(lines, structure.location.line),
+                       structure.location.line, std::move(related)});
+    }
+    for (const auto& enumeration : module.enums) {
+      if (!enumeration.publicDeclaration) continue;
+      std::vector<std::string> related;
+      for (const auto& variant : enumeration.variants)
+        related.insert(related.end(), variant.payloadTypes.begin(),
+                       variant.payloadTypes.end());
+      items.push_back({modulePath, "enum", enumeration.name,
+                       sourceLine(enumeration.location.line),
+                       documentationBefore(lines, enumeration.location.line),
+                       enumeration.location.line, std::move(related)});
+    }
+    for (const auto& trait : module.traits) {
+      if (!trait.publicDeclaration) continue;
+      std::vector<std::string> related;
+      for (const auto& method : trait.methods) {
+        related.push_back(method.returnType);
+        for (const auto& parameter : method.parameters)
+          related.push_back(parameter.typeName);
       }
-      std::smatch match;
-      if (std::regex_search(clean, match, declaration)) {
-        items.push_back({source.lexically_relative(package.root).generic_string(),
-                         match[1].str(), match[2].str(), clean,
-                         comments.empty() ? std::string{} : [&] {
-                           std::ostringstream joined;
-                           for (std::size_t i = 0; i < comments.size(); ++i) {
-                             if (i) joined << '\n';
-                             joined << comments[i];
-                           }
-                           return joined.str();
-                         }()});
-      }
-      if (!clean.empty()) comments.clear();
+      items.push_back({modulePath, "trait", trait.name,
+                       sourceLine(trait.location.line),
+                       documentationBefore(lines, trait.location.line),
+                       trait.location.line, std::move(related)});
     }
   }
   std::sort(items.begin(), items.end(), [](const auto& left, const auto& right) {
@@ -112,6 +215,12 @@ bool generatePackageDocumentation(const Package& package,
     if (left.name != right.name) return left.name < right.name;
     return left.kind < right.kind;
   });
+  std::map<std::string, std::string> typeAnchors;
+  for (const auto& item : items)
+    if (item.kind == "struct" || item.kind == "enum" || item.kind == "trait" ||
+        item.kind == "extern-struct" || item.kind == "opaque" ||
+        item.kind == "callback")
+      typeAnchors.emplace(item.name, anchor(item));
   PackageLock lock;
   std::string lockError;
   const bool hasLock = std::filesystem::is_regular_file(package.root / "rocket.lock") &&
@@ -128,7 +237,7 @@ bool generatePackageDocumentation(const Package& package,
           "pre{background:#f4f6f7;padding:1rem;overflow:auto}.api{border-top:1px solid #ccd1d1;"
           "padding:1rem 0}.muted{color:#566573}</style></head><body>\n<h1>"
        << html(package.namespaceName + "/" + package.name) << "</h1><p>Version <strong>"
-       << html(package.version) << "</strong> · SPDX <strong>" << html(package.license)
+       << html(package.version) << "</strong> &middot; SPDX <strong>" << html(package.license)
        << "</strong></p>\n";
   if (hasLock && !lock.packages.empty()) {
     page << "<h2>Locked dependencies</h2><ul>\n";
@@ -150,9 +259,26 @@ bool generatePackageDocumentation(const Package& package,
   for (const auto& item : items) {
     page << "<section class=\"api\" id=\"" << html(anchor(item)) << "\"><h3><code>"
          << html(item.name) << "</code></h3><p class=\"muted\">" << html(item.module)
-         << "</p><pre><code>" << html(item.declaration) << "</code></pre>";
+         << ":" << item.line << "</p><pre><code>" << html(item.declaration)
+         << "</code></pre><p><a href=\"source://" << html(item.module) << "#L"
+         << item.line << "\">Source</a></p>";
     if (!item.documentation.empty())
-      page << "<p>" << html(item.documentation) << "</p>";
+      page << renderDocumentation(item.documentation);
+    std::set<std::string> related;
+    for (const auto& spelling : item.relatedTypes)
+      for (const auto& [name, target] : typeAnchors)
+        if (spelling.find(name) != std::string::npos && name != item.name)
+          related.insert(name);
+    if (!related.empty()) {
+      page << "<p>Related: ";
+      std::size_t relatedIndex = 0;
+      for (const auto& name : related) {
+        if (relatedIndex++) page << ", ";
+        page << "<a href=\"#" << html(typeAnchors.at(name)) << "\"><code>"
+             << html(name) << "</code></a>";
+      }
+      page << "</p>";
+    }
     page << "</section>\n";
   }
   page << "<footer><p>Generated deterministically by rocketc doc. Examples are displayed, "
@@ -165,8 +291,11 @@ bool generatePackageDocumentation(const Package& package,
     const auto& item = items[index];
     search << (index ? "," : "") << "\n    {\"name\": \"" << json(item.name)
            << "\", \"kind\": \"" << json(item.kind) << "\", \"module\": \""
-           << json(item.module) << "\", \"href\": \"index.html#"
-           << json(anchor(item)) << "\"}";
+           << json(item.module) << "\", \"line\": " << item.line
+           << ", \"declaration\": \"" << json(item.declaration)
+           << "\", \"documentation\": \"" << json(item.documentation)
+           << "\", \"packageVersion\": \"" << json(package.version)
+           << "\", \"href\": \"index.html#" << json(anchor(item)) << "\"}";
   }
   search << (items.empty() ? "" : "\n  ") << "]\n}\n";
 

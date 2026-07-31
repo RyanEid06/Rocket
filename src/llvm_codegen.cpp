@@ -1,8 +1,12 @@
 #include "llvm_codegen.h"
 
 #include <llvm/ADT/StringRef.h>
+#include <llvm/BinaryFormat/Dwarf.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/DIBuilder.h>
+#include <llvm/IR/DebugInfo.h>
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Intrinsics.h>
@@ -22,6 +26,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,15 +36,27 @@
 namespace rocket {
 namespace {
 
+std::string shortSymbolName(const std::string& name) {
+  const std::size_t dot = name.rfind('.');
+  return dot == std::string::npos ? name : name.substr(dot + 1);
+}
+
 class ModuleLowerer {
 public:
-  explicit ModuleLowerer(const MirModule& mir)
+  explicit ModuleLowerer(const MirModule& mir, bool debugInfo = false,
+                         bool coverage = false, bool profiling = false)
       : mir_(mir), module_(std::make_unique<llvm::Module>("rocket", context_)),
         builder_(context_), functions_(mir.symbols.size(), nullptr),
-        callbackWrappers_(mir.symbols.size(), nullptr) {}
+        callbackWrappers_(mir.symbols.size(), nullptr),
+        subprograms_(mir.symbols.size(), nullptr), debugInfo_(debugInfo),
+        coverage_(coverage), profiling_(profiling) {}
 
   bool prepare(bool optimize, std::string& error) {
-    if (!createTargetMachine(error) || !lower(error) || !verify(error)) return false;
+    if (!createTargetMachine(error)) return false;
+    if (debugInfo_) initializeDebug(optimize);
+    if (!lower(error)) return false;
+    if (debugBuilder_) debugBuilder_->finalize();
+    if (!verify(error)) return false;
     if (optimize) {
       optimizeModule();
       if (!verify(error)) return false;
@@ -166,6 +183,113 @@ private:
     return value;
   }
 
+  llvm::DIFile* debugFile(const Location& location) {
+    std::filesystem::path path = location.file.empty()
+                                     ? std::filesystem::path("<generated>")
+                                     : std::filesystem::path(location.file);
+    path = std::filesystem::absolute(path).lexically_normal();
+    const std::string key = path.generic_string();
+    if (const auto found = debugFiles_.find(key); found != debugFiles_.end())
+      return found->second;
+    // Do not embed checkout-specific absolute directories in CodeView/PDB data.
+    // Rocket's versioned sidecar map resolves the stable logical file name back
+    // to a workspace path for debugger clients.
+    auto* file = debugBuilder_->createFile(path.filename().string(),
+                                           "rocket://source");
+    debugFiles_.emplace(key, file);
+    return file;
+  }
+
+  llvm::DIType* debugType(const Type& type) {
+    if (type == Type::Unit) return nullptr;
+    if (type == Type::Int)
+      return debugBuilder_->createBasicType("Int", 64, llvm::dwarf::DW_ATE_signed);
+    if (type == Type::Float)
+      return debugBuilder_->createBasicType("Float", 64, llvm::dwarf::DW_ATE_float);
+    if (type == Type::Bool)
+      return debugBuilder_->createBasicType("Bool", 8, llvm::dwarf::DW_ATE_boolean);
+    if (type == Type::Char)
+      return debugBuilder_->createBasicType("Char", 8, llvm::dwarf::DW_ATE_unsigned_char);
+    auto* opaque = debugBuilder_->createUnspecifiedType(typeName(type));
+    return debugBuilder_->createPointerType(opaque, 64);
+  }
+
+  void initializeDebug(bool optimize) {
+    debugOptimized_ = optimize;
+    debugBuilder_ = std::make_unique<llvm::DIBuilder>(*module_);
+    Location first{"<generated>", 1, 1};
+    for (const auto& symbol : mir_.symbols)
+      if (!symbol.location.file.empty()) { first = symbol.location; break; }
+    auto* file = debugFile(first);
+    compileUnit_ = debugBuilder_->createCompileUnit(
+        llvm::dwarf::DW_LANG_C_plus_plus, file, "Rocket compiler 1.7.0",
+        optimize, optimize ? "-O2" : "-O0", 0);
+    module_->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
+                           llvm::DEBUG_METADATA_VERSION);
+#ifdef _WIN32
+    module_->addModuleFlag(llvm::Module::Warning, "CodeView", 1);
+#endif
+  }
+
+  llvm::DISubroutineType* debugFunctionType(const HirSymbol& symbol) {
+    std::vector<llvm::Metadata*> types;
+    types.push_back(debugType(symbol.type));
+    for (const auto& parameter : symbol.parameterTypes)
+      types.push_back(debugType(parameter));
+    return debugBuilder_->createSubroutineType(
+        debugBuilder_->getOrCreateTypeArray(types));
+  }
+
+  void attachDebugFunction(llvm::Function* function, const HirSymbol& symbol) {
+    if (!debugBuilder_ || symbol.location.file.empty()) return;
+    auto* file = debugFile(symbol.location);
+    auto* subprogram = debugBuilder_->createFunction(
+        file, symbol.name, function->getName(), file,
+        static_cast<unsigned>(std::max(1, symbol.location.line)),
+        debugFunctionType(symbol),
+        static_cast<unsigned>(std::max(1, symbol.location.line)),
+        llvm::DINode::FlagPrototyped,
+        llvm::DISubprogram::SPFlagDefinition |
+            (debugOptimized_ ? llvm::DISubprogram::SPFlagOptimized
+                             : llvm::DISubprogram::SPFlagZero));
+    function->setSubprogram(subprogram);
+    if (symbol.id < subprograms_.size()) subprograms_[symbol.id] = subprogram;
+  }
+
+  void setDebugLocation(const Location& location, llvm::DIScope* scope) {
+    if (!debugBuilder_ || scope == nullptr || location.file.empty()) {
+      builder_.SetCurrentDebugLocation(llvm::DebugLoc());
+      return;
+    }
+    builder_.SetCurrentDebugLocation(llvm::DILocation::get(
+        context_, std::max(1, location.line), std::max(1, location.column), scope));
+  }
+
+  void emitToolingHit(const Location& location, const std::string& symbol,
+                      std::uint32_t kind) {
+    if (location.file.empty()) return;
+    llvm::FunctionCallee hook = module_->getOrInsertFunction(
+        "rocket_rt_tooling_hit",
+        llvm::FunctionType::get(
+            llvm::Type::getVoidTy(context_),
+            {llvm::PointerType::getUnqual(context_),
+             llvm::Type::getInt64Ty(context_),
+             llvm::PointerType::getUnqual(context_),
+             llvm::Type::getInt32Ty(context_)}, false));
+    llvm::Value* source = builder_.CreateGlobalString(
+        std::filesystem::path(location.file).filename().string(), "rocket.source",
+        0, module_.get());
+    llvm::Value* name = builder_.CreateGlobalString(symbol, "rocket.symbol", 0,
+                                                     module_.get());
+    builder_.CreateCall(
+        hook,
+        {source,
+         llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_),
+                                std::max(1, location.line)),
+         name,
+         llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), kind)});
+  }
+
   bool createTargetMachine(std::string& error) {
     static const bool initialized = [] {
       return llvm::InitializeNativeTarget() == 0 &&
@@ -207,6 +331,7 @@ private:
       auto* lowered = llvm::Function::Create(
           signature, llvm::Function::ExternalLinkage, functionName(function.symbol), *module_);
       functions_[function.symbol] = lowered;
+      attachDebugFunction(lowered, mir_.symbols[function.symbol]);
     }
 
     for (const auto& symbol : mir_.symbols) {
@@ -293,15 +418,38 @@ private:
 
   bool lowerFunction(const MirFunction& function, std::string& error) {
     llvm::Function* lowered = functions_[function.symbol];
+    llvm::DISubprogram* debugScope = function.symbol < subprograms_.size()
+                                          ? subprograms_[function.symbol]
+                                          : nullptr;
     llvm::BasicBlock* prologue = llvm::BasicBlock::Create(context_, "entry", lowered);
     std::vector<llvm::AllocaInst*> locals(function.locals.size(), nullptr);
     builder_.SetInsertPoint(prologue);
+    setDebugLocation(mir_.symbols[function.symbol].location, debugScope);
+    if (profiling_)
+      emitToolingHit(mir_.symbols[function.symbol].location,
+                     functions_[function.symbol]->getName().str(), 2);
 
     for (MirLocalId id = 0; id < function.locals.size(); ++id) {
       const Type type = function.locals[id].type;
       if (type == Type::Unit) continue;
-      locals[id] = builder_.CreateAlloca(valueType(type), nullptr, localName(id));
+      std::string name = localName(id);
+      const SymbolId sourceSymbol = function.locals[id].sourceSymbol;
+      if (sourceSymbol != InvalidSymbol && sourceSymbol < mir_.symbols.size())
+        name = mir_.symbols[sourceSymbol].name;
+      locals[id] = builder_.CreateAlloca(valueType(type), nullptr, name);
       builder_.CreateStore(zero(type), locals[id]);
+      if (debugBuilder_ && debugScope != nullptr && sourceSymbol != InvalidSymbol &&
+          sourceSymbol < mir_.symbols.size()) {
+        const auto& symbol = mir_.symbols[sourceSymbol];
+        auto* variable = debugBuilder_->createAutoVariable(
+            debugScope, shortSymbolName(symbol.name), debugFile(symbol.location),
+            std::max(1, symbol.location.line), debugType(type), true);
+        debugBuilder_->insertDeclare(
+            locals[id], variable, debugBuilder_->createExpression(),
+            llvm::DILocation::get(context_, std::max(1, symbol.location.line),
+                                  std::max(1, symbol.location.column), debugScope),
+            prologue);
+      }
     }
 
     std::size_t parameterIndex = 0;
@@ -320,6 +468,10 @@ private:
     for (MirBlockId blockId = 0; blockId < function.blocks.size(); ++blockId) {
       builder_.SetInsertPoint(blocks[blockId]);
       for (const auto& instruction : function.blocks[blockId].instructions) {
+        setDebugLocation(instruction.location, debugScope);
+        if (coverage_)
+          emitToolingHit(instruction.location,
+                         functions_[function.symbol]->getName().str(), 1);
         if (instruction.kind != MirInstructionKind::Assign) {
           llvm::Value* object = lowerOperand(instruction.arcOperand, locals, error);
           if (!object) return false;
@@ -337,10 +489,12 @@ private:
         llvm::AllocaInst* destination = locals[instruction.destination];
         if (destination) builder_.CreateStore(value, destination);
       }
+      setDebugLocation(function.blocks[blockId].terminator->location, debugScope);
       if (!lowerTerminator(*function.blocks[blockId].terminator, function, locals, blocks,
                            error))
         return false;
     }
+    builder_.SetCurrentDebugLocation(llvm::DebugLoc());
     return true;
   }
 
@@ -1211,7 +1365,15 @@ private:
   llvm::IRBuilder<> builder_;
   std::vector<llvm::Function*> functions_;
   std::vector<llvm::Function*> callbackWrappers_;
+  std::vector<llvm::DISubprogram*> subprograms_;
   std::unique_ptr<llvm::TargetMachine> targetMachine_;
+  std::unique_ptr<llvm::DIBuilder> debugBuilder_;
+  llvm::DICompileUnit* compileUnit_ = nullptr;
+  std::map<std::string, llvm::DIFile*> debugFiles_;
+  bool debugInfo_ = false;
+  bool debugOptimized_ = false;
+  bool coverage_ = false;
+  bool profiling_ = false;
 };
 
 } // namespace
@@ -1227,9 +1389,10 @@ bool generateLlvmIr(const MirModule& module, bool optimize, std::string& output,
 }
 
 bool emitLlvmFile(const MirModule& module, bool optimize, LlvmFileType fileType,
-                  const std::filesystem::path& outputPath, std::string& error) {
+                  const std::filesystem::path& outputPath, std::string& error,
+                  bool debugInfo, bool coverage, bool profiling) {
   error.clear();
-  ModuleLowerer lowerer(module);
+  ModuleLowerer lowerer(module, debugInfo, coverage, profiling);
   if (!lowerer.prepare(optimize, error)) return false;
   return lowerer.emit(fileType, outputPath, error);
 }

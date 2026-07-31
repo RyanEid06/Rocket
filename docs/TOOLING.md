@@ -181,18 +181,18 @@ directory as `rocket-lang.rocket-language-1.7.0`, reload the editor, and set
 `rocket.languageServer.path` when `rocket-lsp.exe` is not on `PATH`. The tasks
 in `.vscode/tasks.json` remain available for check, run, test, and format check.
 
-`rocket-lsp` protocol 0.1 uses standard LSP 3.17 framing and full-document
-synchronization. It publishes stable lexical, parser, and self-contained-module
-semantic diagnostics. Run it directly for any editor-neutral LSP client:
+`rocket-lsp` protocol 1.0 uses standard LSP 3.17 framing and negotiated incremental
+synchronization. It publishes stable lexical/parser/semantic diagnostics and
+reuses the bounded multi-package compiler graph. Run it directly for any
+editor-neutral LSP client:
 
 ```powershell
 .\out\build\windows-debug\rocket-lsp.exe
 ```
 
 The precise transport, lifecycle, diagnostic, and security contract is in
-`LANGUAGE_SERVER.md`. Incremental multi-file analysis, hover, completion,
-navigation, rename, semantic tokens, and code actions remain later Phase 17
-work.
+`LANGUAGE_SERVER.md`, including multi-file analysis, hover, completion,
+navigation, rename, semantic tokens, and code actions.
 
 ## Visual Studio 2026
 
@@ -218,9 +218,40 @@ project; its CMake Targets View exposes `rocket_demo_check`,
 `rocket_demo_run`, and `rocket_demo_test`. These run the actual compiler against
 `examples/visualstudio_demo`.
 
-Visual Studio semantic IntelliSense, go-to-definition, rename, references, live
-Rocket diagnostics, and Rocket-aware debugging still require a Visual Studio
-language-client and debugger integration in later Phase 17 work.
+Visual Studio's repository extension remains syntax/task focused. Editors that
+connect to `rocket-lsp` receive semantic completion, navigation, rename,
+references, and live Rocket diagnostics, while native debugging uses the
+editor-neutral CodeView/PDB and `rocket-source-map-1` workflow in
+`docs/DEBUGGING.md`.
+
+## Rocket 1.7 professional tooling
+
+The standalone compiler accepts `--message-format=json` on check/build/test
+paths. Each stdout line is one `rocket-message-1` object (`diagnostic`,
+`build-finished`, `test-started`, `test-finished`, or `test-summary`). Diagnostic
+objects retain stable Rocket codes and one-based source spans. Human output is
+unchanged when the flag is absent. The self-hosted compiler forwards this
+explicit host-tooling mode to the packaged stage0 compiler; ordinary compilation
+and bootstrap behavior remain self-hosted.
+
+Native measurement commands are opt-in and never run on file open:
+
+```powershell
+rocketc coverage examples/hello.rocket --output out/coverage.json
+rocketc profile examples/hello.rocket --output out/profile.json
+rocketc benchmark examples/hello.rocket --iterations 20 --output out/benchmark.json
+```
+
+Coverage instruments MIR source locations and writes deterministic
+`rocket-coverage-1` hit records. Profiling inserts function-entry hooks and emits
+`rocket-profile-1` native symbols, which are resolved through the adjacent
+Rocket source map/PDB. Benchmarks report bounded iteration count (1..1000),
+minimum, median, and maximum wall time in `rocket-benchmark-1`. Instrumentation
+is absent from normal builds.
+
+`scripts/tooling.ps1` validates all three schemas and compiler JSON messages.
+`scripts/debugging.ps1` validates optimized/unoptimized PDB and map records.
+The evaluated AOT prototype and its limits are in `docs/REPL.md`.
 
 ## Compiler packaging
 

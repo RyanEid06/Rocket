@@ -3,6 +3,10 @@
 const childProcess = require('child_process');
 const vscode = require('vscode');
 
+const maximumHeaderBytes = 16 * 1024;
+const maximumMessageBytes = 16 * 1024 * 1024;
+const requestTimeoutMilliseconds = 10_000;
+
 let client;
 
 class RocketLanguageClient {
@@ -45,7 +49,7 @@ class RocketLanguageClient {
     });
 
     const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri.toString() ?? null;
-    await this.request('initialize', {
+    const initialization = await this.request('initialize', {
       processId: process.pid,
       clientInfo: { name: 'rocket-vscode', version: '1.7.0' },
       rootUri,
@@ -54,16 +58,23 @@ class RocketLanguageClient {
         textDocument: { publishDiagnostics: { versionSupport: true } }
       }
     });
+    this.serverCapabilities = initialization.capabilities ?? {};
     this.notify('initialized', {});
+    this.sendConfiguration();
     this.ready = true;
     for (const document of vscode.workspace.textDocuments) this.open(document);
 
     this.context.subscriptions.push(
       vscode.workspace.onDidOpenTextDocument(document => this.open(document)),
-      vscode.workspace.onDidChangeTextDocument(event => this.change(event.document)),
+      vscode.workspace.onDidChangeTextDocument(event => this.change(event)),
       vscode.workspace.onDidSaveTextDocument(document => this.save(document)),
-      vscode.workspace.onDidCloseTextDocument(document => this.close(document))
+      vscode.workspace.onDidCloseTextDocument(document => this.close(document)),
+      vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration('rocket.languageServer')) this.sendConfiguration();
+      })
     );
+    this.registerProviders();
+    this.registerWorkspaceWatcher();
   }
 
   isRocket(document) {
@@ -82,12 +93,207 @@ class RocketLanguageClient {
     });
   }
 
-  change(document) {
+  change(event) {
+    const document = event.document;
     if (!this.ready || !this.isRocket(document)) return;
     this.notify('textDocument/didChange', {
       textDocument: { uri: document.uri.toString(), version: document.version },
-      contentChanges: [{ text: document.getText() }]
+      contentChanges: event.contentChanges.map(change => ({
+        range: {
+          start: { line: change.range.start.line, character: change.range.start.character },
+          end: { line: change.range.end.line, character: change.range.end.character }
+        },
+        rangeLength: change.rangeLength,
+        text: change.text
+      }))
     });
+  }
+
+  sendConfiguration() {
+    const configuration = vscode.workspace.getConfiguration('rocket.languageServer');
+    this.notify('workspace/didChangeConfiguration', {
+      settings: {
+        rocket: {
+          languageServer: {
+            maximumProjectFiles: configuration.get('maximumProjectFiles', 4096),
+            maximumProjectBytes: configuration.get('maximumProjectBytes', 64 * 1024 * 1024),
+            telemetry: configuration.get('telemetry', true)
+          }
+        }
+      }
+    });
+  }
+
+  textDocumentPosition(document, position) {
+    return {
+      textDocument: { uri: document.uri.toString() },
+      position: { line: position.line, character: position.character }
+    };
+  }
+
+  toPosition(position) {
+    return new vscode.Position(position.line, position.character);
+  }
+
+  toRange(range) {
+    return new vscode.Range(this.toPosition(range.start), this.toPosition(range.end));
+  }
+
+  toLocation(location) {
+    return new vscode.Location(vscode.Uri.parse(location.uri), this.toRange(location.range));
+  }
+
+  toWorkspaceEdit(edit) {
+    const result = new vscode.WorkspaceEdit();
+    for (const [uri, edits] of Object.entries(edit?.changes ?? {})) {
+      const target = vscode.Uri.parse(uri);
+      for (const item of edits) result.replace(target, this.toRange(item.range), item.newText);
+    }
+    return result;
+  }
+
+  requestWithCancellation(method, params, token) {
+    const request = this.request(method, params);
+    const id = this.sequence - 1;
+    const subscription = token?.onCancellationRequested(() => {
+      this.notify('$/cancelRequest', { id });
+    });
+    return request.finally(() => subscription?.dispose());
+  }
+
+  registerProviders() {
+    const selector = { language: 'rocket', scheme: 'file' };
+    const semanticLegend = new vscode.SemanticTokensLegend(
+      ['namespace', 'type', 'struct', 'enum', 'interface', 'typeParameter',
+       'parameter', 'variable', 'property', 'function', 'method', 'keyword',
+       'string', 'number', 'comment', 'decorator'],
+      ['declaration', 'definition', 'readonly', 'static', 'deprecated', 'abstract',
+       'async', 'modification', 'documentation', 'defaultLibrary']
+    );
+    this.context.subscriptions.push(
+      vscode.languages.registerCompletionItemProvider(selector, {
+        provideCompletionItems: async (document, position, token, context) => {
+          const result = await this.requestWithCancellation('textDocument/completion', {
+            ...this.textDocumentPosition(document, position), context
+          }, token);
+          const items = (result.items ?? result).map(raw => {
+            const item = new vscode.CompletionItem(raw.label, raw.kind);
+            item.detail = raw.detail;
+            item.sortText = raw.sortText;
+            item.filterText = raw.filterText;
+            if (raw.documentation) item.documentation = new vscode.MarkdownString(raw.documentation.value ?? raw.documentation);
+            if (raw.additionalTextEdits) {
+              item.additionalTextEdits = raw.additionalTextEdits.map(edit =>
+                vscode.TextEdit.replace(this.toRange(edit.range), edit.newText));
+            }
+            return item;
+          });
+          return new vscode.CompletionList(items, Boolean(result.isIncomplete));
+        }
+      }, '.'),
+      vscode.languages.registerHoverProvider(selector, {
+        provideHover: async (document, position, token) => {
+          const raw = await this.requestWithCancellation('textDocument/hover',
+            this.textDocumentPosition(document, position), token);
+          if (!raw) return undefined;
+          return new vscode.Hover(new vscode.MarkdownString(raw.contents.value), this.toRange(raw.range));
+        }
+      }),
+      vscode.languages.registerDefinitionProvider(selector, {
+        provideDefinition: async (document, position, token) => {
+          const raw = await this.requestWithCancellation('textDocument/definition',
+            this.textDocumentPosition(document, position), token);
+          return raw.map(location => this.toLocation(location));
+        }
+      }),
+      vscode.languages.registerReferenceProvider(selector, {
+        provideReferences: async (document, position, context, token) => {
+          const raw = await this.requestWithCancellation('textDocument/references', {
+            ...this.textDocumentPosition(document, position), context
+          }, token);
+          return raw.map(location => this.toLocation(location));
+        }
+      }),
+      vscode.languages.registerRenameProvider(selector, {
+        prepareRename: async (document, position, token) => {
+          const raw = await this.requestWithCancellation('textDocument/prepareRename',
+            this.textDocumentPosition(document, position), token);
+          return { range: this.toRange(raw.range), placeholder: raw.placeholder };
+        },
+        provideRenameEdits: async (document, position, newName, token) => {
+          const raw = await this.requestWithCancellation('textDocument/rename', {
+            ...this.textDocumentPosition(document, position), newName
+          }, token);
+          return this.toWorkspaceEdit(raw);
+        }
+      }),
+      vscode.languages.registerSignatureHelpProvider(selector, {
+        provideSignatureHelp: async (document, position, token, context) => {
+          const raw = await this.requestWithCancellation('textDocument/signatureHelp', {
+            ...this.textDocumentPosition(document, position), context
+          }, token);
+          const help = new vscode.SignatureHelp();
+          help.activeParameter = raw.activeParameter;
+          help.activeSignature = raw.activeSignature;
+          help.signatures = raw.signatures.map(signature => {
+            const item = new vscode.SignatureInformation(signature.label, signature.documentation);
+            item.parameters = signature.parameters.map(parameter =>
+              new vscode.ParameterInformation(parameter.label, parameter.documentation));
+            return item;
+          });
+          return help;
+        }
+      }, '(', ','),
+      vscode.languages.registerDocumentSemanticTokensProvider(selector, {
+        provideDocumentSemanticTokens: async (document, token) => {
+          const raw = await this.requestWithCancellation('textDocument/semanticTokens/full',
+            { textDocument: { uri: document.uri.toString() } }, token);
+          return new vscode.SemanticTokens(new Uint32Array(raw.data), raw.resultId);
+        }
+      }, semanticLegend),
+      vscode.languages.registerCodeActionsProvider(selector, {
+        provideCodeActions: async (document, range, context, token) => {
+          const raw = await this.requestWithCancellation('textDocument/codeAction', {
+            textDocument: { uri: document.uri.toString() },
+            range: {
+              start: { line: range.start.line, character: range.start.character },
+              end: { line: range.end.line, character: range.end.character }
+            },
+            context: {
+              diagnostics: context.diagnostics.map(diagnostic => ({
+                range: {
+                  start: { line: diagnostic.range.start.line, character: diagnostic.range.start.character },
+                  end: { line: diagnostic.range.end.line, character: diagnostic.range.end.character }
+                },
+                code: diagnostic.code,
+                message: diagnostic.message,
+                source: diagnostic.source
+              }))
+            }
+          }, token);
+          return raw.map(action => {
+            const item = new vscode.CodeAction(action.title, action.kind);
+            item.isPreferred = action.isPreferred;
+            item.edit = this.toWorkspaceEdit(action.edit);
+            return item;
+          });
+        }
+      }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix,
+                                     vscode.CodeActionKind.Source] })
+    );
+  }
+
+  registerWorkspaceWatcher() {
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.rocket');
+    const changed = (uri, type) => this.notify('workspace/didChangeWatchedFiles', {
+      changes: [{ uri: uri.toString(), type }]
+    });
+    this.context.subscriptions.push(
+      watcher,
+      watcher.onDidCreate(uri => changed(uri, 1)),
+      watcher.onDidChange(uri => changed(uri, 2)),
+      watcher.onDidDelete(uri => changed(uri, 3))
+    );
   }
 
   save(document) {
@@ -106,11 +312,19 @@ class RocketLanguageClient {
     this.diagnostics.delete(document.uri);
   }
 
-  request(method, params) {
+  request(method, params, timeoutMilliseconds = requestTimeoutMilliseconds) {
     const id = this.sequence++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.send({ jsonrpc: '2.0', id, method, params });
+      const timer = setTimeout(() => {
+        if (!this.pending.delete(id)) return;
+        reject(new Error(`rocket-lsp did not answer ${method} within ${timeoutMilliseconds} ms`));
+      }, timeoutMilliseconds);
+      this.pending.set(id, { resolve, reject, timer });
+      if (!this.send({ jsonrpc: '2.0', id, method, params })) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(new Error(`rocket-lsp is not writable while sending ${method}`));
+      }
     });
   }
 
@@ -119,18 +333,31 @@ class RocketLanguageClient {
   }
 
   send(message) {
-    if (!this.process?.stdin.writable) return;
+    if (!this.process?.stdin.writable) return false;
     const body = Buffer.from(JSON.stringify(message), 'utf8');
     if (this.trace) this.output.appendLine(`--> ${message.method ?? `response ${message.id}`}`);
     this.process.stdin.write(`Content-Length: ${body.length}\r\n\r\n`);
     this.process.stdin.write(body);
+    return true;
   }
 
   receive(data) {
     this.buffer = Buffer.concat([this.buffer, data]);
     while (true) {
       const headerEnd = this.buffer.indexOf('\r\n\r\n');
-      if (headerEnd < 0) return;
+      if (headerEnd < 0) {
+        if (this.buffer.length > maximumHeaderBytes) {
+          this.output.appendLine('rocket-lsp sent an oversized protocol header');
+          this.process.kill();
+        }
+        return;
+      }
+      const bodyStart = headerEnd + 4;
+      if (bodyStart > maximumHeaderBytes) {
+        this.output.appendLine('rocket-lsp sent an oversized protocol header');
+        this.process.kill();
+        return;
+      }
       const header = this.buffer.subarray(0, headerEnd).toString('ascii');
       const match = /(?:^|\r\n)Content-Length:\s*(\d+)(?:\r\n|$)/i.exec(header);
       if (!match) {
@@ -139,8 +366,7 @@ class RocketLanguageClient {
         return;
       }
       const length = Number(match[1]);
-      const bodyStart = headerEnd + 4;
-      if (!Number.isSafeInteger(length) || length > 16 * 1024 * 1024) {
+      if (!Number.isSafeInteger(length) || length > maximumMessageBytes) {
         this.output.appendLine('rocket-lsp sent an oversized protocol message');
         this.process.kill();
         return;
@@ -162,6 +388,7 @@ class RocketLanguageClient {
       const pending = this.pending.get(message.id);
       if (!pending) return;
       this.pending.delete(message.id);
+      clearTimeout(pending.timer);
       if (message.error) pending.reject(new Error(message.error.message));
       else pending.resolve(message.result);
       return;
@@ -182,7 +409,10 @@ class RocketLanguageClient {
   }
 
   failPending(error) {
-    for (const pending of this.pending.values()) pending.reject(error);
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
     this.pending.clear();
   }
 
@@ -190,15 +420,17 @@ class RocketLanguageClient {
     if (!this.process || this.stopping) return;
     this.stopping = true;
     try {
-      if (this.ready) await this.request('shutdown', null);
-      this.notify('exit');
+      if (this.ready) await this.request('shutdown', null, 1000);
     } catch (error) {
       this.output.appendLine(`Language-server shutdown failed: ${error.message}`);
     }
+    this.notify('exit');
     this.process.stdin.end();
     const processHandle = this.process;
     setTimeout(() => {
-      if (!processHandle.killed) processHandle.kill();
+      if (processHandle.exitCode === null && processHandle.signalCode === null) {
+        processHandle.kill();
+      }
     }, 1000).unref();
     this.diagnostics.clear();
   }
@@ -218,4 +450,4 @@ async function deactivate() {
   await client?.stop();
 }
 
-module.exports = { activate, deactivate };
+module.exports = { activate, deactivate, RocketLanguageClient };

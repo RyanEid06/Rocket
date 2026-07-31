@@ -2,9 +2,13 @@
 
 #include <iostream>
 #include <string>
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 #ifndef ROCKET_LSP_VERSION
-#define ROCKET_LSP_VERSION "0.1.0"
+#define ROCKET_LSP_VERSION "1.0.0"
 #endif
 
 int main(int argc, char** argv) {
@@ -25,6 +29,12 @@ int main(int argc, char** argv) {
     std::cerr << "rocket-lsp: unexpected command-line arguments\n";
     return 2;
   }
+#ifdef _WIN32
+  // LSP framing counts bytes and writes explicit CRLF separators. Windows text
+  // mode would rewrite those bytes and corrupt real editor pipes.
+  _setmode(_fileno(stdin), _O_BINARY);
+  _setmode(_fileno(stdout), _O_BINARY);
+#endif
   rocket::LanguageServer server(std::cin, std::cout, std::cerr);
   return server.run();
 }

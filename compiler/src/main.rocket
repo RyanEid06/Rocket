@@ -7259,7 +7259,7 @@ fn new_command(directory: String) -> Int:
     if ensure_directory(std.path.join(root, "src")) != 0 or ensure_directory(std.path.join(root, "tests")) != 0:
         return 1
     let name = std.path.basename(root)
-    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.6.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
+    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.7.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
     let main_source = "fn main() -> Int:\n    print(\"Hello from Rocket\")\n    return 0\n"
     let test_source = "fn main() -> Int:\n    return 0\n"
     let manifest_written = file.write_text(std.path.join(root, "rocket.toml"), manifest)
@@ -7349,8 +7349,8 @@ fn verify_package_graph(input: String) -> Int:
             return 1
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.6.0")
-    print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind> [arguments]")
+    print("Rocket compiler 1.7.0")
+    print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|coverage|profile|benchmark|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
     print("  run <path> -- ...   build and run with optional arguments")
@@ -7403,8 +7403,12 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.6.0")
+        print("rocketc 1.7.0")
         return 0
+    if collections.length(arguments) > 0 and contains_string(["coverage", "profile", "benchmark"], arguments[0]):
+        return forward_package_command(arguments)
+    if contains_string(arguments, "--message-format=json") or contains_string(arguments, "--debug"):
+        return forward_package_command(arguments)
     if collections.length(arguments) > 0 and contains_string(["resolve", "tree", "audit", "doc", "login", "logout", "publish", "registry"], arguments[0]):
         return forward_package_command(arguments)
     if collections.length(arguments) == 2 and arguments[0] == "check":

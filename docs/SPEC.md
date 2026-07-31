@@ -502,3 +502,18 @@ dependency native inputs require an exact root capability allow-list. These
 rules add no language syntax or runtime ABI feature. The complete import,
 transport, credential, publishing, audit, documentation, and governance
 contract is in `PACKAGES.md`.
+
+Rocket 1.7 tooling is also additive and does not change program semantics. An
+open editor document is an in-memory replacement for the same normalized module
+path; it has no authority to execute a build or package hook. Semantic tooling
+must consume the compiler's tokens, AST, HIR symbols, and types, distinguish
+resolved references from text, and preserve stable diagnostic codes. LSP
+positions and edits use UTF-16 code units and increasing document versions.
+
+Native debug locations originate on MIR instructions/terminators and map to
+CodeView/PDB plus `rocket-source-map-1`. Coverage/profiling instrumentation is
+opt-in and cannot affect ordinary builds. Machine compiler/test/build output is
+newline-delimited `rocket-message-1`; coverage, profile, benchmark, debug-map,
+and REPL-evaluation records have independent versioned schemas. None of these
+formats is a language/runtime ABI promise, but incompatible schema changes
+require a new major schema name.

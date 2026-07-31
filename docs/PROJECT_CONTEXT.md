@@ -28,10 +28,9 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.5 standard-library development, the first Rocket 1.6 package-management
-milestone, and the explicitly reprioritized Rocket 1.7 professional-tooling
-foundation are in progress on the self-hosted Rocket 1.4 foundation. The
-production `rocketc` is written in Rocket,
+Rocket 1.5 standard-library, Rocket 1.6 package ecosystem, and Rocket 1.7
+professional developer experience are complete on the self-hosted Rocket 1.4
+foundation. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -115,20 +114,21 @@ Implemented:
   single-version conflict diagnostics, SHA-256 content-addressed caching,
   locked/offline verification, dependency trees, integrity/license auditing,
   hostile-cache tests, and a governed-registry security contract.
-- Rocket 1.7 language-server protocol 0.1 with an editor-neutral `rocket-lsp`
-  process, bounded LSP 3.17 framing, full-document synchronization, stable coded
-  live frontend diagnostics, a dependency-free VS Code client, and relocatable
-  distribution wiring.
+- Rocket 1.7 language-server protocol 1.0 with compiler-backed incremental
+  multi-package graphs, unsaved overlays, completion/imports, hover/signatures,
+  definition/references/rename, semantic token deltas, code actions,
+  configuration/cancellation/stale suppression, bounded source-free telemetry,
+  a dependency-free VS Code client, and an independent non-VS-Code test client.
+- Rocket 1.7 compiler-backed versioned documentation, deterministic native
+  CodeView/PDB and source maps for optimized/unoptimized builds, coverage,
+  profiling and benchmarking reports, machine compiler/test/build messages,
+  and an evaluated incremental-AOT REPL prototype.
 
 Not implemented yet:
 
 - The remaining production-scale standard library (buffered streams, complete
   Unicode, regex, secure randomness/crypto, networking/HTTP, calendars/time
   zones, logging/configuration, archives, databases, and application testing),
-  production dependency imports, self-hosted resolver parity, authenticated
-  registry/Git transport, publishing, signed registry metadata, advisory feeds,
-  package documentation generation, multi-file incremental semantic analysis,
-  language-server completion/navigation/refactoring, debugger features,
   robust concurrency/async
   support, broader native calling conventions, dynamic native loading, the full
   raylib surface, and non-Windows targets.
@@ -629,42 +629,75 @@ Known limitations remain those in the implementation-state list above; no langua
 - Deliberate Rocket 1.6 limits: no public hosted registry is claimed; the file
   registry is the executable reference and `PACKAGES.md` is the HTTPS contract.
   Credential storage is Windows-only. Dependency build scripts remain
-  unsupported, native dependency inputs remain deny-by-default, and Phase 17
-  editor/language-server completion remains separate work.
+  unsupported and native dependency inputs remain deny-by-default. Phase 17 was
+  completed separately from those package-ecosystem guarantees, as recorded below.
 
-**Phase 17 - Rocket 1.7 professional developer experience (foundation in progress)**
+**Phase 17 - Rocket 1.7 professional developer experience (completed)**
 
-- Began Phase 17 from the committed Phase 16 foundation at `763698c` after the
-  user explicitly reprioritized professional tooling. Phase 15 and Phase 16 are
-  now complete; the Phase 17 foundation remains preserved but unfinished.
-- Added the standalone `rocket-lsp` process with Language Server Protocol 3.17
-  `Content-Length` framing, JSON-RPC lifecycle/error handling, bounded messages,
-  full-document synchronization, stale-version rejection, and clean shutdown.
-- Reused the ordinary lexer, parser, semantic analyzer, and stable `Rdddd`
-  diagnostics for live editor feedback. Protocol 0.1 analyzes self-contained
-  modules semantically and avoids false cross-module claims until in-memory
-  overlays and an incremental project graph exist.
-- Added UTF-16 LSP range conversion, deterministic diagnostic publication and
-  clearing, malformed-protocol coverage, and a dependency-free VS Code client.
-- Added the versioned protocol/security contract in `LANGUAGE_SERVER.md`,
-  decision D023, build/test targets, and developer-package/relocation wiring.
-- Fixed the Phase 16 self-contained distribution by including `llvm-lib.exe`,
-  which the production compiler requires for relocated static-library builds.
-- Verified pinned LLVM Debug and Release matrices (115/115 tests each),
-  LLVM-disabled stage0 Debug and Release matrices (75/75 tests each), the
-  dependency-free VS Code client syntax, and both packaging scripts' PowerShell
-  syntax. The complete Release package, sanitized relocation test, deterministic
-  bootstrap, checksums, and archive workflow also pass with both `rocketc.exe`
-  and `rocket-lsp.exe` in the bundle.
+- Phase 17 started from reviewed Phase 16 completion tip
+  `5ec449c0410f3989282f7603f1be6888b8400b82`, not `master` or either old
+  foundation commit.
+- `rocket-lsp` Protocol 1.0 provides bounded incremental UTF-16 synchronization,
+  exact locked multi-package graphs, unsaved overlays, semantic completion and
+  imports, hover/signature help, navigation, references/rename, semantic token
+  deltas, idempotent actions, configuration, cancellation, stale suppression,
+  and source-free telemetry. It reuses the compiler lexer/parser/HIR/type system.
+- Documentation generation, CodeView/PDB plus `rocket-source-map-1` debugging,
+  coverage/profile/benchmark reports, `rocket-message-1` JSON Lines, and the
+  measured incremental-AOT REPL prototype are versioned and documented.
+- Full pinned LLVM matrices passed: Debug 138/138 in 345.29 seconds and Release
+  138/138 in 186.51 seconds. LLVM-disabled stage0 matrices passed Debug 95/95 in
+  473.31 seconds and Release 95/95 in 457.47 seconds.
+- Deterministic bootstrap passed in Debug and Release. Both stage2/stage3 LLVM IR
+  files are identical at SHA-256
+  `bc4be23c7e06024ba9337bcfcdd1ffca470735dd8f542c09b0ea9720812a82ed`.
+  Debug and Release `SHA256SUMS.txt` hashes are respectively
+  `56a786c2a62210c484441ec3d7da56674536e8507577ad20454d22efdf5aab54`
+  and `4f4bd6499e8de4cad81030e289f785ba3de47087a077c09a4b9ea3d47684ac11`.
+- Conformance passed 78/78 in both configurations; report SHA-256 values are
+  `1aaa4e133740fcf0ae473d259fdd7d188f97534a18e22dc0a84c28ac914fc88a`
+  (Debug) and
+  `bd224f96f50f2f8cda38337c4d585cd61869a83460b0452492bc90c0149867d0`
+  (Release).
+- All 8/8 performance gates passed. Debug measured 0.019/0.738/152.756/155.655/
+  0.740/0.430/0.173/0.870 seconds and Release measured
+  0.023/0.229/80.917/87.119/0.123/0.460/0.173/0.800 seconds for hello check/build,
+  compiler HIR/MIR, native check/build, and raylib check/build. Report hashes are
+  `edec538eb57d302df012239f3aaad37d2d6b1d0b2bb9d3a4b240df172c9e3e30`
+  and `869fe034a33478a748b14a6f0d40aaca4818fb3d05a1c50c7f2441ec8a9777ab`.
+- The independent Node.js LSP client passed an actual framed session over a
+  four-file locked dependency graph (226 bytes), an unsaved overlay, and semantic
+  dependency completion in 7 ms. Its report SHA-256 is
+  `c2fb07c5709c59e1bb87b0d9a4473a0e678fb6ffaeb3afdde16564967d2d22fd`.
+- Debug and optimized binaries both passed PDB procedure/local/line-record and
+  source-map validation, including the `int_overflow.rocket` panic location.
+  The validation report SHA-256 is
+  `e17922223817ce53a19c7a3f4a3bc2578090d21907df08588100916624b7b0ca`.
+- Coverage, profiling, three-iteration benchmarking, and strict compiler
+  build/test JSON Lines validation passed. The report hashes are
+  `6b613f7d67ac96acc8dbdfbd5f8f8b02281099f608d4ba5f947cb342a67a7654`,
+  `47254ba7d5b860c0d06ebcc1f66076d28f6ae6328548b3905cc0eb34e765884b`,
+  and `7ec23a1de87d0b2b9a4db47eb082385b91121dbeefc654fd2b76f045500e4e0d`.
+- Release packaging and sanitized relocation passed with the compiler, LSP,
+  stage0, tools, debug artifacts, coverage workflow, locked/offline package use,
+  and editor client. The final ZIP is 251,735,184 bytes at SHA-256
+  `c6dd4de275e45849f43b9305c27676baf69ce7f1e2faee9a4d51086e796c4121`;
+  its `SHA256SUMS.txt` is
+  `33ed9ec16f8c352f6429d69bc6656778d1d13cf299ab527041994f58f3f1ec27`.
+- Deliberate Rocket 1.7 limits: native debugging is Windows x64 CodeView/PDB;
+  coverage reports executed points rather than a zero-hit percentage model;
+  profiling supplies deterministic entry counters rather than a sampling
+  profiler; cancellation prevents queued/stale publication but does not preempt
+  an already-running synchronous frontend pass; Rocket has no conditional
+  inactive-source syntax; and the AOT REPL replays accumulated expressions, so
+  it does not promise durable mutable state, declaration redefinition, resource
+  lifetime preservation, or JIT latency.
 
 ## Current next task
 
-**Resume Phase 17 from its preserved foundation. Complete the professional
-developer-experience roadmap in order: close semantic multi-module LSP gaps,
-add incremental overlay/project behavior and the remaining editor workflows,
-then run the full Rocket 1.7 acceptance gates. Inspect the existing Phase 17
-changes before editing and do not regress the completed Rocket 1.6 package
-security, bootstrap, or distribution contracts.**
+**Begin Phase 18 only from the completed Rocket 1.7 branch after review. Define
+the ownership/concurrency contract first, preserve stage0 and all Phase 17
+editor/debug/tooling guarantees, and do not begin casino implementation.**
 
 ## New-chat prompt
 

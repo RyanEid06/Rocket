@@ -1,7 +1,7 @@
 {
   "name": "rocket-language",
   "displayName": "Rocket Language",
-  "description": "Syntax, snippets, live diagnostics, and language configuration for Rocket.",
+  "description": "Semantic editing, debugging workflow integration, diagnostics, and syntax support for Rocket.",
   "version": "1.7.0",
   "publisher": "rocket-lang",
   "license": "UNLICENSED",
@@ -10,6 +10,9 @@
   },
   "main": "./extension.js",
   "activationEvents": ["onLanguage:rocket"],
+  "scripts": {
+    "test": "node test/client.test.js"
+  },
   "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
@@ -60,6 +63,25 @@
           "type": "boolean",
           "default": false,
           "description": "Log language-server protocol method names to the Rocket output channel."
+        },
+        "rocket.languageServer.maximumProjectFiles": {
+          "type": "integer",
+          "default": 4096,
+          "minimum": 16,
+          "maximum": 16384,
+          "description": "Maximum Rocket source files retained by one bounded project snapshot."
+        },
+        "rocket.languageServer.maximumProjectBytes": {
+          "type": "integer",
+          "default": 67108864,
+          "minimum": 1048576,
+          "maximum": 268435456,
+          "description": "Maximum UTF-8 source bytes retained by one bounded project snapshot."
+        },
+        "rocket.languageServer.telemetry": {
+          "type": "boolean",
+          "default": true,
+          "description": "Publish source-free local analysis timing and project-size status from rocket-lsp."
         }
       }
     }

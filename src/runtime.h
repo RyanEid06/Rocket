@@ -118,6 +118,13 @@ void rocket_rt_print_char(std::uint8_t value);
 void rocket_rt_print_string(const RocketString* value);
 void rocket_rt_print_unit();
 
+// Opt-in compiler instrumentation hook. Kind 1 records a coverage point and
+// kind 2 records a symbol sample. Reports are written at process exit only
+// when the corresponding ROCKET_COVERAGE_FILE/ROCKET_PROFILE_FILE variable is
+// explicitly set by a tooling command.
+void rocket_rt_tooling_hit(const char* source, std::int64_t line,
+                           const char* symbol, std::uint32_t kind);
+
 // Exposed for compiler/runtime lifetime regressions. It is not a language API.
 std::uint64_t rocket_rt_debug_live_allocations();
 

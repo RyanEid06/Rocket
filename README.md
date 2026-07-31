@@ -1,4 +1,4 @@
-# Rocket 1.5
+# Rocket 1.7
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
@@ -23,7 +23,9 @@ available only as the reproducible stage0 fallback when LLVM is explicitly disab
   pointer-only native layouts, and synchronous callbacks
 - `Option[T]`, `Result[T, E]`, and exception-free postfix `?` propagation
 - Package-relative `import` modules with explicit `pub` visibility
-- Editor-neutral `rocket-lsp` live diagnostics with a dependency-free VS Code client
+- Editor-neutral `rocket-lsp` Protocol 1.0 semantic tooling with incremental
+  multi-package analysis, unsaved overlays, navigation, refactoring, semantic
+  tokens, and dependency-free VS Code plus independent Node.js clients
 - Typed `std` modules for strings, collections, binary buffers and buffered I/O,
   Unicode, safe regular expressions, cryptography, networking and HTTP,
   calendars, logging, CLI/config parsing, compression, safe archives, SQLite,
@@ -64,6 +66,11 @@ Then try:
 .\out\build\windows-debug\rocketc.exe new .\out\hello-package
 .\out\build\windows-debug\rocketc.exe test .\out\hello-package
 .\out\build\windows-debug\rocketc.exe fmt .\out\hello-package --check
+.\out\build\windows-debug\rocketc.exe build .\examples\hello.rocket --debug
+.\out\build\windows-debug\rocketc.exe coverage .\examples\hello.rocket
+.\out\build\windows-debug\rocketc.exe profile .\examples\hello.rocket
+.\out\build\windows-debug\rocketc.exe benchmark .\examples\hello.rocket --iterations 10
+.\out\build\windows-debug\rocketc.exe check .\examples\hello.rocket --message-format=json
 ```
 
 `emit-ir` prints verified, unoptimized LLVM IR. `build`, `run`, and `emit-asm`
@@ -78,6 +85,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.p
 See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md),
 [language-server protocol](docs/LANGUAGE_SERVER.md),
+[native debugging guide](docs/DEBUGGING.md),
+[incremental-AOT REPL evaluation](docs/REPL.md),
 [diagnostic catalog](docs/DIAGNOSTICS.md), [standard-library reference](docs/STDLIB.md),
 [Rocket 1.1 syntax additions](docs/ROCKET_1_1_SYNTAX_DICTIONARY.md),
 [Rocket 1.2 syntax](docs/ROCKET_1_2_SYNTAX_DICTIONARY.md),
@@ -86,12 +95,12 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [Rocket 1.5 library dictionary](docs/ROCKET_1_5_SYNTAX_DICTIONARY.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
-Rocket 1.5 completes the production standard-library milestone without changing
-Rocket grammar or runtime ABI v1. Security-sensitive and blocking APIs are
-bounded, explicit about timeouts, and return `Option`/`Result`; `std.testing` is
-an ordinary bundled Rocket module over a narrow host boundary.
+Rocket 1.7 completes the professional developer-experience milestone without
+changing Rocket grammar or runtime ABI v1. Tooling uses the compiler's semantic
+structures, remains bounded and editor-neutral, and never executes project code
+merely because a source file was opened.
 
-## Rocket 1.5 release
+## Rocket 1.7 release
 
 Build the checksummed, relocation-tested, self-contained Windows x64 archive:
 
@@ -101,5 +110,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compil
 
 The package uses the Rocket-written stage3 compiler and includes the runtime,
 pinned Clang/LLD, compiler-rt resources, and native static link libraries. See
-[the Rocket 1.5 release contract](docs/RELEASE_1_5.md) for compatibility,
-limitations, and the complete validation matrix.
+[the tooling guide](docs/TOOLING.md), [language-server contract](docs/LANGUAGE_SERVER.md),
+and [project context](docs/PROJECT_CONTEXT.md) for compatibility, limitations,
+and the complete validation matrix.
