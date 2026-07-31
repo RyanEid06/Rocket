@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace rocket {
@@ -111,5 +112,13 @@ bool prepareLockedPackageDependencies(
     std::string& error);
 bool packageSourceChecksum(const std::filesystem::path& root,
                            std::string& checksum, std::string& error);
+
+namespace package_detail {
+
+bool commitCacheTransaction(const std::filesystem::path& temporary,
+                            const std::filesystem::path& destination,
+                            std::error_code& error);
+
+} // namespace package_detail
 
 } // namespace rocket

@@ -708,6 +708,30 @@ Known limitations remain those in the implementation-state list above; no langua
   LLVM IR at SHA-256
   `d02a1473d0fc67d0af8e3678c7aada751d76c0052121166080dcbc43e97548e8`.
 
+**Phase 16/17 stabilization and branch reconciliation**
+
+- Reconciled the completed Phase 16/17 lineage with the later `master`
+  documentation/scaffold commit. Preserved the frozen `rocketc new` package
+  version of `0.1.0` and its stage0/self-hosted parity regression while keeping
+  the completed Rocket 1.6 and 1.7 contracts and handoff state authoritative.
+- Fixed an intermittent Windows package-cache commit failure caused by virus
+  scanners or other readers briefly opening a newly populated transaction
+  directory without delete sharing. Cache commits now retry only bounded
+  transient access/sharing/lock violations for up to two seconds, retain atomic
+  same-volume rename semantics, and accept a concurrently installed destination
+  only after verifying its exact source checksum.
+- Added a deterministic Windows regression that holds the transaction directory
+  open without delete sharing, releases it after 200 ms, and proves the bounded
+  retry commits the verified cache tree successfully.
+- GitHub review found no open Phase 16/17 bug reports, review comments, or review
+  threads. The obsolete Phase 17 foundation pull request and earlier milestone
+  branches are superseded by the cumulative stabilized history.
+- Full pinned LLVM matrices passed 139/139 tests in Debug and Release. Full
+  LLVM-disabled stage0 matrices passed 96/96 tests in Debug and Release. These
+  include the three Phase 16 package workflows, the Phase 17 tooling suites, the
+  independent editor-neutral LSP client, and the self-hosted package-scaffold
+  parity regression.
+
 ## Current next task
 
 **Begin Phase 18 only from the completed Rocket 1.7 branch after review. Define

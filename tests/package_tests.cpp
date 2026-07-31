@@ -10,6 +10,12 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 namespace {
 
@@ -23,6 +29,41 @@ bool write(const std::filesystem::path& path, const std::string& contents) {
 
 int main() {
   int failures = 0;
+#ifdef _WIN32
+  const auto cacheCommit =
+      std::filesystem::current_path() / "package_test_cache_commit";
+  std::error_code cacheCommitError;
+  std::filesystem::remove_all(cacheCommit, cacheCommitError);
+  const auto cacheTemporary = cacheCommit / "checksum.partial-test";
+  const auto cacheDestination = cacheCommit / "checksum";
+  std::filesystem::create_directories(cacheTemporary / "src", cacheCommitError);
+  write(cacheTemporary / "src/main.rocket", "fn main() -> Int:\n    return 0\n");
+  HANDLE directoryLock = CreateFileW(
+      cacheTemporary.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+      nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  const bool lockedDirectory = directoryLock != INVALID_HANDLE_VALUE;
+  std::thread unlocker;
+  if (lockedDirectory) {
+    unlocker = std::thread([directoryLock]() {
+      Sleep(200);
+      CloseHandle(directoryLock);
+    });
+  }
+  cacheCommitError.clear();
+  const bool committed =
+      lockedDirectory && rocket::package_detail::commitCacheTransaction(
+                             cacheTemporary, cacheDestination, cacheCommitError);
+  if (unlocker.joinable()) unlocker.join();
+  rocket::test::expect(
+      committed && std::filesystem::is_regular_file(
+                       cacheDestination / "src/main.rocket") &&
+          !std::filesystem::exists(cacheTemporary),
+      "cache commits retry transient Windows directory locks: " +
+          cacheCommitError.message(),
+      failures);
+  std::filesystem::remove_all(cacheCommit, cacheCommitError);
+#endif
+
   const auto workspace = std::filesystem::current_path() / "package_test_workspace";
   std::error_code errorCode;
   std::filesystem::remove_all(workspace, errorCode);

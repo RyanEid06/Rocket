@@ -22,6 +22,30 @@
 #endif
 
 namespace rocket {
+
+bool package_detail::commitCacheTransaction(
+    const std::filesystem::path& temporary,
+    const std::filesystem::path& destination, std::error_code& error) {
+#ifdef _WIN32
+  constexpr int maximumAttempts = 80;
+  for (int attempt = 0; attempt < maximumAttempts; ++attempt) {
+    error.clear();
+    std::filesystem::rename(temporary, destination, error);
+    if (!error) return true;
+    const DWORD windowsError = static_cast<DWORD>(error.value());
+    const bool transient = windowsError == ERROR_ACCESS_DENIED ||
+                           windowsError == ERROR_SHARING_VIOLATION ||
+                           windowsError == ERROR_LOCK_VIOLATION;
+    if (!transient || attempt + 1 == maximumAttempts) return false;
+    Sleep(25);
+  }
+  return false;
+#else
+  std::filesystem::rename(temporary, destination, error);
+  return !error;
+#endif
+}
+
 namespace {
 
 std::string trim(std::string value) {
@@ -826,8 +850,17 @@ bool ensureCached(const std::filesystem::path& cacheRoot,
     error = "package source changed while it was being cached";
     return false;
   }
-  std::filesystem::rename(temporary, destination, filesystemError);
-  if (filesystemError) {
+  if (!package_detail::commitCacheTransaction(temporary, destination,
+                                               filesystemError)) {
+    if (std::filesystem::exists(destination)) {
+      std::string installedChecksum;
+      std::string installedError;
+      if (sha256Package(destination, installedChecksum, installedError) &&
+          installedChecksum == checksum) {
+        discardTemporary();
+        return true;
+      }
+    }
     discardTemporary();
     error = "could not commit package cache transaction: " +
             filesystemError.message();
