@@ -20,7 +20,8 @@ if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
 $fixtures = Join-Path $projectRoot 'tests\fixtures'
 $reportDirectory = Join-Path $projectRoot 'out\conformance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.5-$configurationName.txt"
+$reportPath = Join-Path $reportDirectory "rocket-1.6-$configurationName.txt"
+$env:ROCKET_STAGE0 = Join-Path $projectRoot "out\build\windows-$configurationName\rocketc.exe"
 $results = [System.Collections.Generic.List[string]]::new()
 
 function Invoke-ConformanceCase {
@@ -45,7 +46,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.5\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.6\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -129,13 +130,28 @@ Invoke-ConformanceCase 'phase15-archive' @('run', (Join-Path $fixtures 'phase15_
 Invoke-ConformanceCase 'phase15-sqlite' @('run', (Join-Path $fixtures 'phase15_sqlite.rocket')) 0 'phase15-sqlite-ok'
 Invoke-ConformanceCase 'phase15-testing' @('run', (Join-Path $fixtures 'phase15_testing.rocket')) 0 'phase15-testing-ok'
 Invoke-ConformanceCase 'phase15-test-runner' @('test', (Join-Path $fixtures 'phase15_test_package')) 0 '1 passed; 0 failed; 1 expected failure'
+$phase16Work = Join-Path $reportDirectory "phase16-packages-$configurationName"
+if (Test-Path -LiteralPath $phase16Work) {
+    Remove-Item -LiteralPath $phase16Work -Recurse -Force
+}
+Copy-Item -LiteralPath (Join-Path $fixtures 'phase16_packages') `
+    -Destination $phase16Work -Recurse
+$phase16App = Join-Path $phase16Work 'app'
+Invoke-ConformanceCase 'phase16-resolve' @('resolve', $phase16App) 0 'resolved 3 package'
+Invoke-ConformanceCase 'phase16-locked' @('resolve', $phase16App, '--locked') 0 'locked resolution verified'
+Invoke-ConformanceCase 'phase16-tree' @('tree', $phase16App) 0 'math@1\.2\.0'
+Invoke-ConformanceCase 'phase16-audit' @('audit', $phase16App) 0 'SHA-256 cache verified'
+Remove-Item -LiteralPath (Join-Path $phase16Work 'registry') -Recurse -Force
+Remove-Item -LiteralPath (Join-Path $phase16Work 'local_text') -Recurse -Force
+Invoke-ConformanceCase 'phase16-offline' @('resolve', $phase16App, '--offline') 0 'offline resolution verified'
+Invoke-ConformanceCase 'phase16-import-check' @('check', $phase16App) 0 'check succeeded'
 Invoke-ConformanceCase 'negative-reserve' @('run', (Join-Path $fixtures 'phase11_negative_reserve.rocket')) 101 'Array reserve capacity cannot be negative'
 Invoke-ConformanceCase 'insert-bounds' @('run', (Join-Path $fixtures 'phase11_insert_bounds.rocket')) 101 'index 2 out of bounds for length 1'
 Invoke-ConformanceCase 'remove-bounds' @('run', (Join-Path $fixtures 'phase11_remove_bounds.rocket')) 101 'index 1 out of bounds for length 1'
 Invoke-ConformanceCase 'checked-overflow' @('run', (Join-Path $fixtures 'int_overflow.rocket')) 101 'Int arithmetic overflow'
 
 $header = @(
-    'Rocket 1.5 conformance report'
+    'Rocket 1.6 conformance report'
     "compiler  $Compiler"
     "sha256  $((Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant())"
     "configuration  $Configuration"
@@ -143,4 +159,4 @@ $header = @(
     ''
 )
 Set-Content -LiteralPath $reportPath -Value ($header + $results) -Encoding utf8
-Write-Output "Rocket 1.5 conformance passed: $($results.Count) cases ($reportPath)"
+Write-Output "Rocket 1.6 conformance passed: $($results.Count) cases ($reportPath)"

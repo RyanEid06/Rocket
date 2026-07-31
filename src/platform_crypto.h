@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -61,8 +62,9 @@ inline std::string hex(const std::vector<std::uint8_t>& bytes) {
   return result;
 }
 
-inline bool digest(std::string_view data, std::string_view key,
-                   std::string& result, std::string& error) {
+inline bool digestBytes(std::string_view data, std::string_view key,
+                        std::vector<std::uint8_t>& output,
+                        std::string& error) {
   BCryptApi api;
   if (!api.complete()) {
     error = "Windows CNG cryptography is unavailable";
@@ -85,7 +87,7 @@ inline bool digest(std::string_view data, std::string_view key,
                                  reinterpret_cast<PUCHAR>(&hashLength),
                                  sizeof(hashLength), &copied, 0) >= 0;
   std::vector<std::uint8_t> object(objectLength);
-  std::vector<std::uint8_t> output(hashLength);
+  output.assign(hashLength, 0);
   if (success)
     success = api.createHash(
         algorithm, &hash, object.data(), static_cast<ULONG>(object.size()),
@@ -104,7 +106,32 @@ inline bool digest(std::string_view data, std::string_view key,
     error = "Windows SHA-256 operation failed";
     return false;
   }
+  return true;
+}
+
+inline bool digest(std::string_view data, std::string_view key,
+                   std::string& result, std::string& error) {
+  std::vector<std::uint8_t> output;
+  if (!digestBytes(data, key, output, error)) return false;
   result = hex(output);
+  return true;
+}
+
+inline bool unhex(std::string_view text, std::vector<std::uint8_t>& bytes) {
+  if (text.empty() || text.size() % 2 != 0) return false;
+  auto value = [](char character) -> int {
+    if (character >= '0' && character <= '9') return character - '0';
+    if (character >= 'a' && character <= 'f') return character - 'a' + 10;
+    if (character >= 'A' && character <= 'F') return character - 'A' + 10;
+    return -1;
+  };
+  bytes.resize(text.size() / 2);
+  for (std::size_t index = 0; index < bytes.size(); ++index) {
+    const int high = value(text[index * 2]);
+    const int low = value(text[index * 2 + 1]);
+    if (high < 0 || low < 0) { bytes.clear(); return false; }
+    bytes[index] = static_cast<std::uint8_t>((high << 4) | low);
+  }
   return true;
 }
 
@@ -171,6 +198,160 @@ inline bool sha256(std::string_view data, std::string& result, std::string& erro
 #else
   (void)result;
   error = "SHA-256 is currently supported on Windows x64 only";
+  return false;
+#endif
+}
+
+struct SigningKeyPair {
+  std::string publicKey;
+  std::string privateKey;
+};
+
+inline bool generateSigningKeyPair(SigningKeyPair& result,
+                                   std::string& error) {
+#ifdef _WIN32
+  BCRYPT_ALG_HANDLE algorithm = nullptr;
+  BCRYPT_KEY_HANDLE key = nullptr;
+  if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_ECDSA_P256_ALGORITHM,
+                                  nullptr, 0) < 0 ||
+      BCryptGenerateKeyPair(algorithm, &key, 256, 0) < 0 ||
+      BCryptFinalizeKeyPair(key, 0) < 0) {
+    if (key) BCryptDestroyKey(key);
+    if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
+    error = "could not generate an ECDSA P-256 registry signing key";
+    return false;
+  }
+  auto exported = [&](LPCWSTR type, std::string& encoded) -> bool {
+    ULONG size = 0;
+    if (BCryptExportKey(key, nullptr, type, nullptr, 0, &size, 0) < 0)
+      return false;
+    std::vector<std::uint8_t> bytes(size);
+    if (BCryptExportKey(key, nullptr, type, bytes.data(), size, &size, 0) < 0)
+      return false;
+    bytes.resize(size);
+    encoded = detail::hex(bytes);
+    return true;
+  };
+  const bool success = exported(BCRYPT_ECCPUBLIC_BLOB, result.publicKey) &&
+                       exported(BCRYPT_ECCPRIVATE_BLOB, result.privateKey);
+  BCryptDestroyKey(key);
+  BCryptCloseAlgorithmProvider(algorithm, 0);
+  if (!success) {
+    error = "could not export an ECDSA P-256 registry signing key";
+    return false;
+  }
+  return true;
+#else
+  (void)result;
+  error = "registry signing is currently supported on Windows x64 only";
+  return false;
+#endif
+}
+
+inline bool signingKeyFingerprint(std::string_view publicKey,
+                                  std::string& fingerprint,
+                                  std::string& error) {
+#ifdef _WIN32
+  std::vector<std::uint8_t> bytes;
+  if (!detail::unhex(publicKey, bytes)) {
+    error = "registry public signing key is not valid hexadecimal data";
+    return false;
+  }
+  std::vector<std::uint8_t> digest;
+  if (!detail::digestBytes(
+          std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()),
+          {}, digest, error))
+    return false;
+  fingerprint = "sha256:" + detail::hex(digest);
+  return true;
+#else
+  (void)publicKey; (void)fingerprint;
+  error = "registry signing is currently supported on Windows x64 only";
+  return false;
+#endif
+}
+
+inline bool sign(std::string_view privateKey, std::string_view data,
+                 std::string& signature, std::string& error) {
+#ifdef _WIN32
+  std::vector<std::uint8_t> keyBytes;
+  if (!detail::unhex(privateKey, keyBytes)) {
+    error = "registry private signing key is invalid";
+    return false;
+  }
+  std::vector<std::uint8_t> digest;
+  if (!detail::digestBytes(data, {}, digest, error)) return false;
+  BCRYPT_ALG_HANDLE algorithm = nullptr;
+  BCRYPT_KEY_HANDLE key = nullptr;
+  if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_ECDSA_P256_ALGORITHM,
+                                  nullptr, 0) < 0 ||
+      BCryptImportKeyPair(algorithm, nullptr, BCRYPT_ECCPRIVATE_BLOB, &key,
+                          keyBytes.data(), static_cast<ULONG>(keyBytes.size()),
+                          0) < 0) {
+    if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
+    error = "could not import the registry private signing key";
+    return false;
+  }
+  ULONG size = 0;
+  bool success = BCryptSignHash(key, nullptr, digest.data(),
+                                static_cast<ULONG>(digest.size()), nullptr, 0,
+                                &size, 0) >= 0;
+  std::vector<std::uint8_t> bytes(size);
+  if (success)
+    success = BCryptSignHash(key, nullptr, digest.data(),
+                             static_cast<ULONG>(digest.size()), bytes.data(),
+                             size, &size, 0) >= 0;
+  BCryptDestroyKey(key);
+  BCryptCloseAlgorithmProvider(algorithm, 0);
+  if (!success) {
+    error = "could not sign registry metadata";
+    return false;
+  }
+  bytes.resize(size);
+  signature = detail::hex(bytes);
+  return true;
+#else
+  (void)privateKey; (void)data; (void)signature;
+  error = "registry signing is currently supported on Windows x64 only";
+  return false;
+#endif
+}
+
+inline bool verifySignature(std::string_view publicKey, std::string_view data,
+                            std::string_view signature, bool& trusted,
+                            std::string& error) {
+  trusted = false;
+#ifdef _WIN32
+  std::vector<std::uint8_t> keyBytes;
+  std::vector<std::uint8_t> signatureBytes;
+  if (!detail::unhex(publicKey, keyBytes) ||
+      !detail::unhex(signature, signatureBytes)) {
+    error = "registry signature or public key is invalid";
+    return false;
+  }
+  std::vector<std::uint8_t> digest;
+  if (!detail::digestBytes(data, {}, digest, error)) return false;
+  BCRYPT_ALG_HANDLE algorithm = nullptr;
+  BCRYPT_KEY_HANDLE key = nullptr;
+  if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_ECDSA_P256_ALGORITHM,
+                                  nullptr, 0) < 0 ||
+      BCryptImportKeyPair(algorithm, nullptr, BCRYPT_ECCPUBLIC_BLOB, &key,
+                          keyBytes.data(), static_cast<ULONG>(keyBytes.size()),
+                          0) < 0) {
+    if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
+    error = "could not import the registry public signing key";
+    return false;
+  }
+  trusted = BCryptVerifySignature(
+                key, nullptr, digest.data(), static_cast<ULONG>(digest.size()),
+                signatureBytes.data(), static_cast<ULONG>(signatureBytes.size()),
+                0) >= 0;
+  BCryptDestroyKey(key);
+  BCryptCloseAlgorithmProvider(algorithm, 0);
+  return true;
+#else
+  (void)publicKey; (void)data; (void)signature;
+  error = "registry signing is currently supported on Windows x64 only";
   return false;
 #endif
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Rocket VERSION 1.5.0 LANGUAGES C CXX)
+project(Rocket VERSION 1.6.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -90,6 +90,9 @@ add_library(rocketc_core
   src/language_server.cpp
   src/formatter.cpp
   src/package.cpp
+  src/package_docs.cpp
+  src/package_registry.cpp
+  src/package_git.cpp
   src/native.cpp
   src/type.cpp
   src/hir.cpp
@@ -102,8 +105,9 @@ file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}/stdlib" ROCKETC_STDLIB_SOURCE_PATH)
 target_compile_definitions(rocketc_core PRIVATE
   ROCKETC_STDLIB_SOURCE_PATH="${ROCKETC_STDLIB_SOURCE_PATH}")
 if(WIN32)
-  target_link_libraries(rocketc_core PRIVATE bcrypt)
+  target_link_libraries(rocketc_core PRIVATE bcrypt advapi32)
 endif()
+
 if(MSVC)
   target_compile_options(rocketc_core PRIVATE /W4 /permissive-)
 else()
@@ -462,7 +466,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.5.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.6.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest
@@ -479,6 +483,24 @@ add_test(NAME cli_phase16_dependency_workflow
     -P "${CMAKE_SOURCE_DIR}/tests/phase16_dependency_test.cmake")
 set_tests_properties(cli_phase16_dependency_workflow PROPERTIES
   LABELS "phase16;package")
+add_test(NAME cli_phase16_ecosystem_workflow
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DWORK=${CMAKE_BINARY_DIR}/phase16-ecosystem"
+    -P "${CMAKE_SOURCE_DIR}/tests/phase16_ecosystem_test.cmake")
+set_tests_properties(cli_phase16_ecosystem_workflow PROPERTIES
+  LABELS "phase16;package;registry;integration")
+add_test(NAME cli_phase16_self_hosted_package_parity
+  COMMAND ${CMAKE_COMMAND}
+    "-DSTAGE0=$<TARGET_FILE:rocketc>"
+    "-DSELF_HOSTED=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+    "-DFIXTURE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase16_packages"
+    "-DWORK=${CMAKE_BINARY_DIR}/phase16-self-hosted"
+    -P "${CMAKE_SOURCE_DIR}/tests/phase16_self_hosted_test.cmake")
+set_tests_properties(cli_phase16_self_hosted_package_parity PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "phase16;package;self-hosted;integration"
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME cli_phase6_visibility
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -938,3 +960,11 @@ else()
   set_tests_properties(cli_run_stage0_phase12_generic_lambdas PROPERTIES
     PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture[\r\n]+9[\r\n]+immediate[\r\n]+8[\r\n]+nested[\r\n]+10[\r\n]+deep")
 endif()
+
+# Every test that starts the Rocket-written compiler must bind package-security
+# operations to the Stage 0 target from this exact configuration. Applying the
+# inert variable to the complete test set prevents stale sibling build trees
+# from influencing Debug/Release fixture order.
+get_property(ROCKET_CONFIGURED_TESTS DIRECTORY PROPERTY TESTS)
+set_tests_properties(${ROCKET_CONFIGURED_TESTS} PROPERTIES
+  ENVIRONMENT "ROCKET_STAGE0=$<TARGET_FILE:rocketc>")

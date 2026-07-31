@@ -346,3 +346,28 @@ backend materializes recursive compiler AST/HIR values as C++ RAII objects, so
 the self-hosted compiler's full-source validation needs more than the PE default
 1 MiB stack after the Rocket 1.5 library surface is registered. This is a link
 property of generated stage0 executables, not a language ABI or heap limit.
+
+## Rocket 1.6 package architecture
+
+The package subsystem is a Stage 0 library beside the parser and backends, but
+it never enters frontend semantics. It parses canonical manifests/lockfiles,
+resolves a single version per name, verifies signed registry state, acquires
+bounded HTTPS or immutable Git sources, and commits verified trees into
+`<root>/.rocketc/cache/sha256/<digest>`. Registry and Git processes receive
+separated arguments; dependency metadata never becomes a shell command.
+
+Target resolution converts every locked package to a `PackageDependencyRoot`.
+The module loader tracks the owning root of each loaded source and permits only
+the direct edges recorded for that owner. Package names take precedence over
+local paths, transitive modules retain an owner-qualified internal prefix, and
+all source trees are rehashed before compilation. Approved native files are
+resolved to regular files inside the verified tree before entering the existing
+Phase 13 linker pipeline. Build scripts have no execution path.
+
+The Rocket-written compiler implements the same graph boundary in its module
+loader. Package-security CLI commands are forwarded, with inherited standard
+input/output and an unchanged argument vector, to the fixed Stage 0 security
+host selected by `ROCKET_STAGE0` or the installed relative layout. The host is
+not invoked while stage1/stage2/stage3 compile the compiler itself. `/Brepro`
+is passed to LLD by both compiler implementations so repeated locked builds do
+not embed a varying PE timestamp.

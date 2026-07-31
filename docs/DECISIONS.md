@@ -441,3 +441,30 @@ suffix is the sole expected-failure marker: failure becomes `XFAIL`, unexpected
 success becomes `XPASS`, and an empty filter selection is an error. Coverage
 hooks emit versioned lexical JSON so later compiler instrumentation can reuse
 the contract without changing the runtime ABI surface again.
+
+## D031 - Locked package roots, signed registries, and inert dependencies
+
+**Accepted for Rocket 1.6.** A dependency import is resolved only through the
+committed lock graph into a rehashed content-addressed cache tree. Manifest
+dependency keys are source import roots; package-local files cannot shadow them,
+and a transitive import must be an edge declared by the importing locked
+package. This makes normal compilation, not only `resolve`, enforce exact source
+selection.
+
+Registry trust uses an explicitly pinned ECDSA P-256 public-key fingerprint.
+Signed canonical indexes cover immutable versions, namespace ownership and
+transfer history, yanks, publisher provenance, and advisories. HTTPS retains
+Windows certificate validation and a same-origin redirect bound. Archives are
+bounded deterministic regular-file-only ustar data and reach the cache only by
+a verified transactional rename. Remote Git is fetched by direct argument-vector
+process creation with hooks, helpers, submodules, mutable refs, and unsafe
+protocols disabled; the peeled commit must equal the requested object ID.
+
+Authentication tokens are stdin-only and stored in Windows Credential Manager.
+Publishing is preflighted, immutable, idempotent for identical bytes, and
+namespace-authorized. Dependency source is inert: Rocket 1.6 has no build hooks,
+and locked native inputs require an exact root allow-list before the existing
+Phase 13 linker can see them. Documentation renders examples as text and audit
+uses signed advisory and SPDX policy data without executing dependency code.
+These choices keep package operations reproducible without widening runtime ABI
+v1 or smuggling unrestricted execution into manifests.

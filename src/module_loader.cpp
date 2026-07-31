@@ -52,18 +52,27 @@ struct LoadedModule {
   std::unordered_set<std::string> publicVariants;
   std::unordered_set<std::string> publicTraits;
   std::unordered_map<std::string, std::string> aliases;
+  std::unordered_map<std::string, std::string> importTargets;
 };
 
 class Loader {
 public:
   Loader(std::filesystem::path root, std::filesystem::path packageRoot,
+         std::vector<PackageDependencyRoot> dependencyRoots,
          Diagnostics& diagnostics)
       : rootPath_(std::filesystem::absolute(std::move(root)).lexically_normal()),
         packageRoot_(std::filesystem::absolute(std::move(packageRoot)).lexically_normal()),
-        diagnostics_(diagnostics) {}
+        diagnostics_(diagnostics) {
+    for (auto& dependency : dependencyRoots) {
+      if (dependency.direct) rootDependencies_.insert(dependency.name);
+      dependencyRoots_.emplace(dependency.name, std::move(dependency));
+    }
+  }
 
   std::optional<Module> load() {
-    if (!loadOne("", rootPath_, {rootPath_.string(), 1, 1})) return std::nullopt;
+    if (!loadOne("", rootPath_, {rootPath_.string(), 1, 1}, packageRoot_, "",
+                 rootDependencies_))
+      return std::nullopt;
     buildIndexes();
     for (auto& [name, module] : modules_) rewrite(module);
     if (diagnostics_.hasErrors()) return std::nullopt;
@@ -86,7 +95,10 @@ public:
 
 private:
   bool loadOne(const std::string& name, const std::filesystem::path& path,
-               const Location& importLocation) {
+               const Location& importLocation,
+               const std::filesystem::path& ownerRoot,
+               const std::string& ownerPrefix,
+               const std::unordered_set<std::string>& allowedDependencies) {
     const int state = states_[name];
     if (state == 2) return true;
     if (state == 1) {
@@ -116,24 +128,76 @@ private:
     bool valid = true;
     for (const auto& import : module.ast.imports) {
       if (import.name == "std.testing") {
+        module.importTargets[import.name] = import.name;
         valid = loadOne(import.name,
                         (standardLibraryRoot / "std/testing.rocket").lexically_normal(),
-                        import.location) && valid;
+                        import.location, standardLibraryRoot, "std", {}) && valid;
         continue;
       }
       if (import.name.rfind("std.", 0) == 0) continue;
-      std::filesystem::path importedPath = packageRoot_;
-      std::size_t start = 0;
-      while (start < import.name.size()) {
-        const std::size_t dot = import.name.find('.', start);
-        importedPath /= import.name.substr(start, dot == std::string::npos
-                                                      ? std::string::npos
-                                                      : dot - start);
-        if (dot == std::string::npos) break;
-        start = dot + 1;
+      const std::size_t firstDot = import.name.find('.');
+      const std::string first = import.name.substr(0, firstDot);
+      std::filesystem::path importedPath;
+      std::string importedName;
+      std::filesystem::path importedOwnerRoot = ownerRoot;
+      std::string importedOwnerPrefix = ownerPrefix;
+      std::unordered_set<std::string> importedAllowed = allowedDependencies;
+      if (allowedDependencies.contains(first)) {
+        const auto dependency = dependencyRoots_.find(first);
+        if (dependency == dependencyRoots_.end()) {
+          diagnostics_.error(import.location,
+                             "locked dependency root is unavailable for '" + first + "'",
+                             DiagnosticCode::DependencyImport);
+          valid = false;
+          continue;
+        }
+        importedName = import.name;
+        importedOwnerRoot = dependency->second.root;
+        importedOwnerPrefix = dependency->second.name;
+        importedAllowed = std::unordered_set<std::string>(
+            dependency->second.dependencies.begin(),
+            dependency->second.dependencies.end());
+        if (firstDot == std::string::npos) {
+          importedPath = dependency->second.entry;
+        } else {
+          importedPath = dependency->second.root;
+          std::size_t start = firstDot + 1;
+          while (start < import.name.size()) {
+            const std::size_t dot = import.name.find('.', start);
+            importedPath /= import.name.substr(
+                start, dot == std::string::npos ? std::string::npos : dot - start);
+            if (dot == std::string::npos) break;
+            start = dot + 1;
+          }
+          importedPath += ".rocket";
+        }
+      } else if (dependencyRoots_.contains(first)) {
+        diagnostics_.error(
+            import.location,
+            "dependency import '" + import.name +
+                "' is not a declared edge of the current locked package",
+            DiagnosticCode::DependencyImport);
+        valid = false;
+        continue;
+      } else {
+        importedPath = ownerRoot;
+        std::size_t start = 0;
+        while (start < import.name.size()) {
+          const std::size_t dot = import.name.find('.', start);
+          importedPath /= import.name.substr(start, dot == std::string::npos
+                                                        ? std::string::npos
+                                                        : dot - start);
+          if (dot == std::string::npos) break;
+          start = dot + 1;
+        }
+        importedPath += ".rocket";
+        importedName = ownerPrefix.empty() ? import.name
+                                            : ownerPrefix + "." + import.name;
       }
-      importedPath += ".rocket";
-      valid = loadOne(import.name, importedPath.lexically_normal(), import.location) && valid;
+      module.importTargets[import.name] = importedName;
+      valid = loadOne(importedName, importedPath.lexically_normal(), import.location,
+                      importedOwnerRoot, importedOwnerPrefix,
+                      importedAllowed) && valid;
     }
     states_[name] = 2;
     order_.push_back(name);
@@ -165,13 +229,17 @@ private:
       }
       for (const auto& import : module.ast.imports) {
         const std::string alias = lastComponent(import.name);
+        const auto target = module.importTargets.find(import.name);
+        const std::string resolved = target == module.importTargets.end()
+                                         ? import.name
+                                         : target->second;
         if (auto found = module.aliases.find(alias);
-            found != module.aliases.end() && found->second != import.name) {
+            found != module.aliases.end() && found->second != resolved) {
           diagnostics_.error(import.location, "import alias '" + alias + "' is ambiguous",
                              DiagnosticCode::ImportAlias);
         } else {
-          module.aliases.emplace(alias, import.name);
-          module.aliases.emplace(import.name, import.name);
+          module.aliases.emplace(alias, resolved);
+          module.aliases.emplace(import.name, resolved);
         }
       }
     }
@@ -508,6 +576,8 @@ private:
   std::filesystem::path rootPath_;
   std::filesystem::path packageRoot_;
   Diagnostics& diagnostics_;
+  std::map<std::string, PackageDependencyRoot> dependencyRoots_;
+  std::unordered_set<std::string> rootDependencies_;
   std::map<std::string, LoadedModule> modules_;
   std::unordered_map<std::string, int> states_;
   std::vector<std::string> order_;
@@ -521,13 +591,22 @@ void setStandardLibraryRoot(std::filesystem::path root) {
 
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       Diagnostics& diagnostics) {
-  return Loader(rootPath, std::filesystem::absolute(rootPath).parent_path(), diagnostics).load();
+  return Loader(rootPath, std::filesystem::absolute(rootPath).parent_path(), {},
+                diagnostics).load();
 }
 
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       const std::filesystem::path& packageRoot,
                                       Diagnostics& diagnostics) {
-  return Loader(rootPath, packageRoot, diagnostics).load();
+  return Loader(rootPath, packageRoot, {}, diagnostics).load();
+}
+
+std::optional<Module> loadModuleGraph(
+    const std::filesystem::path& rootPath,
+    const std::filesystem::path& packageRoot,
+    const std::vector<PackageDependencyRoot>& dependencyRoots,
+    Diagnostics& diagnostics) {
+  return Loader(rootPath, packageRoot, dependencyRoots, diagnostics).load();
 }
 
 } // namespace rocket

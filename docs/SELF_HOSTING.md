@@ -53,6 +53,16 @@ installed-versus-repository search policy as stage0. Bootstrap conformance
 checks all Phase 15 integration fixtures so no API exists only in the C++
 compiler or only in the LLVM runtime.
 
+Rocket 1.6 adds exact locked dependency imports to both loaders. The
+Rocket-written loader reads `rocket.lock`, maps each import to the selected
+SHA-256 cache root, and rejects edges not declared for the current owning
+package with `R3005`. Its package commands expose byte-for-byte Stage 0 output
+by invoking the fixed, distributed `rocketc-stage0.exe` package security host
+through `process.run` with a separated argument array. This delegation is
+limited to resolver/registry/credential/documentation operations; lexing,
+parsing, semantic analysis, MIR, LLVM generation, and stage-to-stage compiler
+construction remain Rocket-owned and do not invoke Stage 0.
+
 ## Determinism and acceptance
 
 - Stage2 and stage3 emit byte-identical canonical `.ll` for every compiler
@@ -60,6 +70,9 @@ compiler or only in the LLVM runtime.
 - Stage1, stage2, and stage3 report the same version and diagnostic codes.
 - The self-hosted compiler passes compiler conformance fixtures, native runtime
   and standard-library integration fixtures, and all CLI/package workflows.
+- Stage0 and the self-hosted CLI produce identical `resolve`, `tree`, `audit`,
+  locked, and offline output; the self-hosted compiler checks transitive imports
+  after the original registry and path sources are removed.
 - Stage0 and self-hosted `emit-header`/`bind` output is byte-identical, and both
   build and run the same native package and library fixtures.
 - `scripts/bootstrap.ps1` starts from a clean artifact directory, records hashes,

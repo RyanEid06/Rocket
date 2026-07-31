@@ -1,0 +1,84 @@
+if(NOT DEFINED STAGE0 OR NOT DEFINED SELF_HOSTED OR NOT DEFINED FIXTURE OR
+   NOT DEFINED WORK)
+  message(FATAL_ERROR "Phase 16 self-hosted test is missing required arguments")
+endif()
+file(REMOVE_RECURSE "${WORK}")
+file(MAKE_DIRECTORY "${WORK}")
+file(COPY "${FIXTURE}/" DESTINATION "${WORK}")
+set(APP "${WORK}/app")
+set(SELF ${CMAKE_COMMAND} -E env "ROCKET_STAGE0=${STAGE0}" "${SELF_HOSTED}")
+
+execute_process(COMMAND "${STAGE0}" resolve "${APP}"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUTPUT ERROR_VARIABLE ERROR)
+if(NOT STATUS EQUAL 0)
+  message(FATAL_ERROR "stage0 fixture resolve failed: ${OUTPUT}${ERROR}")
+endif()
+execute_process(COMMAND "${STAGE0}" tree "${APP}"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE STAGE0_TREE ERROR_VARIABLE ERROR)
+execute_process(COMMAND ${SELF} tree "${APP}"
+  RESULT_VARIABLE SELF_STATUS OUTPUT_VARIABLE SELF_TREE ERROR_VARIABLE SELF_ERROR)
+if(NOT STATUS EQUAL 0 OR NOT SELF_STATUS EQUAL 0 OR
+   NOT STAGE0_TREE STREQUAL SELF_TREE)
+  message(FATAL_ERROR "self-hosted tree differs from stage0:\n${STAGE0_TREE}\n${SELF_TREE}${ERROR}${SELF_ERROR}")
+endif()
+execute_process(COMMAND "${STAGE0}" audit "${APP}"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE STAGE0_AUDIT ERROR_VARIABLE ERROR)
+execute_process(COMMAND ${SELF} audit "${APP}"
+  RESULT_VARIABLE SELF_STATUS OUTPUT_VARIABLE SELF_AUDIT ERROR_VARIABLE SELF_ERROR)
+if(NOT STATUS EQUAL 0 OR NOT SELF_STATUS EQUAL 0 OR
+   NOT STAGE0_AUDIT STREQUAL SELF_AUDIT)
+  message(FATAL_ERROR "self-hosted audit differs from stage0: ${STAGE0_AUDIT}${SELF_AUDIT}${ERROR}${SELF_ERROR}")
+endif()
+execute_process(COMMAND "${STAGE0}" resolve "${APP}" --locked
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE STAGE0_LOCKED ERROR_VARIABLE ERROR)
+execute_process(COMMAND ${SELF} resolve "${APP}" --locked
+  RESULT_VARIABLE SELF_STATUS OUTPUT_VARIABLE SELF_LOCKED ERROR_VARIABLE SELF_ERROR)
+if(NOT STATUS EQUAL 0 OR NOT SELF_STATUS EQUAL 0 OR
+   NOT STAGE0_LOCKED STREQUAL SELF_LOCKED)
+  message(FATAL_ERROR "self-hosted locked resolve differs from stage0: ${STAGE0_LOCKED}${SELF_LOCKED}${ERROR}${SELF_ERROR}")
+endif()
+
+file(REMOVE_RECURSE "${WORK}/registry")
+file(REMOVE_RECURSE "${WORK}/local_text")
+execute_process(COMMAND "${STAGE0}" resolve "${APP}" --offline
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE STAGE0_OFFLINE ERROR_VARIABLE ERROR)
+execute_process(COMMAND ${SELF} resolve "${APP}" --offline
+  RESULT_VARIABLE SELF_STATUS OUTPUT_VARIABLE SELF_OFFLINE ERROR_VARIABLE SELF_ERROR)
+if(NOT STATUS EQUAL 0 OR NOT SELF_STATUS EQUAL 0 OR
+   NOT STAGE0_OFFLINE STREQUAL SELF_OFFLINE)
+  message(FATAL_ERROR "self-hosted offline resolve differs from stage0: ${STAGE0_OFFLINE}${SELF_OFFLINE}${ERROR}${SELF_ERROR}")
+endif()
+execute_process(COMMAND ${SELF} check "${APP}"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUTPUT ERROR_VARIABLE ERROR)
+if(NOT STATUS EQUAL 0 OR NOT OUTPUT MATCHES "check succeeded")
+  message(FATAL_ERROR "self-hosted exact locked imports failed: ${OUTPUT}${ERROR}")
+endif()
+
+file(GLOB CACHE_ENTRIES LIST_DIRECTORIES true "${APP}/.rocketc/cache/sha256/*")
+list(GET CACHE_ENTRIES 0 POISONED_CACHE)
+file(APPEND "${POISONED_CACHE}/rocket.toml" "# poisoned\n")
+execute_process(COMMAND ${SELF} check "${APP}"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUTPUT ERROR_VARIABLE ERROR)
+if(STATUS EQUAL 0 OR NOT ERROR MATCHES "error\\[R5003\\].*checksum mismatch")
+  message(FATAL_ERROR "self-hosted compiler accepted a poisoned cache: ${OUTPUT}${ERROR}")
+endif()
+
+set(BYPASS "${WORK}-bypass")
+file(REMOVE_RECURSE "${BYPASS}")
+file(MAKE_DIRECTORY "${BYPASS}")
+file(COPY "${FIXTURE}/" DESTINATION "${BYPASS}")
+file(READ "${BYPASS}/registry/math/1.2.0/src/main.rocket" MATH_SOURCE)
+file(WRITE "${BYPASS}/registry/math/1.2.0/src/main.rocket"
+  "import local_text\n${MATH_SOURCE}")
+execute_process(COMMAND "${STAGE0}" resolve "${BYPASS}/app"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUTPUT ERROR_VARIABLE ERROR)
+if(NOT STATUS EQUAL 0)
+  message(FATAL_ERROR "graph bypass setup failed: ${OUTPUT}${ERROR}")
+endif()
+execute_process(COMMAND ${SELF} check "${BYPASS}/app"
+  RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUTPUT ERROR_VARIABLE ERROR)
+set(BYPASS_DIAGNOSTIC "${OUTPUT}${ERROR}")
+if(STATUS EQUAL 0 OR NOT BYPASS_DIAGNOSTIC MATCHES "error\\[R3005\\]")
+  message(FATAL_ERROR "self-hosted import bypassed its locked owner edges: ${OUTPUT}${ERROR}")
+endif()
+message(STATUS "Phase 16 self-hosted package parity passed")

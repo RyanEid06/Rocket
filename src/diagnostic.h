@@ -17,6 +17,7 @@ enum class DiagnosticCode {
   ImportCycle = 3002,
   Visibility = 3003,
   ImportAlias = 3004,
+  DependencyImport = 3005,
   Type = 4001,
   Name = 4002,
   ControlFlow = 4003,
@@ -24,6 +25,11 @@ enum class DiagnosticCode {
   Arity = 4005,
   Manifest = 5001,
   Tooling = 5002,
+  PackageIntegrity = 5003,
+  RegistryAuthorization = 5004,
+  DependencyAudit = 5005,
+  PackageTransport = 5006,
+  PackageCapability = 5007,
   Internal = 9001,
 };
 

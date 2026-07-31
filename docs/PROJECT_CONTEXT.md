@@ -570,40 +570,73 @@ Known limitations remain those in the implementation-state list above; no langua
   stage3 LLVM IR are byte-identical at SHA-256
   `7e0d139180b692ccaf265768154bd210a4c4da4b00b08db737e7f9aacce67418`.
 
-**Phase 16 - Rocket 1.6 dependency management (foundation in progress)**
+**Phase 16 - Rocket 1.6 dependency management and package ecosystem - Completed**
 
-- Began Phase 16 from the committed Phase 15 binary-data foundation at
-  `26bd93e` after the user explicitly reprioritized package work.
-- Extended stage0 `rocket.toml` parsing with exact Semantic Versioning 2.0.0,
-  license/registry metadata, registry constraints, local paths, and Git sources
-  pinned to 40- or 64-digit immutable revisions.
-- Added highest-compatible deterministic graph resolution with lexical output,
-  one-version-per-name conflict detection, cycle rejection, and registry
-  directory/manifest version agreement.
-- Added committed deterministic `rocket.lock` files and `rocketc resolve`
-  locked/offline modes, `tree`, and `audit` commands.
-- Added Windows SHA-256 content-addressed source caching with revalidation,
-  transactional copy/rename, symlink rejection, stale-lock checks, missing-cache
-  diagnostics, registry license enforcement, and poisoned-cache refusal.
-- Specified the package, cache, lockfile, no-implicit-build-script, security
-  reporting, namespace ownership, yanking, authentication, and future public
-  registry governance contracts in `PACKAGES.md` and decision D022.
-- Added focused SemVer, transitive resolution, newest-compatible selection,
-  lock round-trip, offline, audit, tampering, and duplicate-version tests plus a
-  complete CLI fixture workflow.
-- Verified pinned LLVM Debug and Release matrices (114/114 tests each) and
-  LLVM-disabled stage0 Debug and Release matrices (74/74 tests each).
-- Reverified deterministic `stage0 -> stage1 -> stage2 -> stage3` bootstrap and
-  the existing compiler/native/package conformance gates. Stage2 and stage3
-  LLVM IR remain byte-identical at SHA-256
-  `290261b620449944f5d8b6f8fe8843b70e511662a9f2f48edd01c4f3668c1a7f`.
+- Completed Phase 16 on 2026-07-31 from cumulative handoff commit `9575d79`
+  while preserving the existing Phase 17 foundation. The exact SemVer resolver,
+  deterministic lockfile, SHA-256 content cache, locked/offline modes, tree, and
+  audit foundation now drives ordinary compiler import lookup.
+- Enforced the exact selected dependency graph in stage0 and the Rocket-written
+  compiler. `check`, `build`, `run`, and `test` reject stale edges, undeclared
+  cross-package imports, missing cache content, and poisoned sources; transitive
+  imports work in executable and static-library consumers.
+- Added signed ECDSA P-256 registry configuration, indexes, namespace ownership
+  and transfer histories, yanks, revocations, and security advisories. Added
+  immutable version publishing, reserved-name/case/typosquatting rules,
+  transactional recovery, provenance reporting, affected-version evaluation,
+  and stable compromised/yanked diagnostics.
+- Added Windows Credential Manager login/logout with scoped and revocable tokens,
+  deterministic source/document archives, package documentation generation and
+  publication, and an authenticated bounded same-origin HTTPS service protocol.
+  The signed file reference registry is the executable reference deployment.
+- Added secure immutable Git acquisition using a direct argument vector, hardened
+  Git configuration, exact object verification, and submodule/symlink/path
+  rejection. Registry and Git cache installation use verified regular-file
+  archives, size/count/path/case/device-name bounds, and transactional rename.
+- Added SPDX expression and root license-policy enforcement, signed advisory
+  auditing, exact native-dependency allowlisting, and unconditional dependency
+  build-script denial. Resolve, audit, documentation, and publishing never run
+  dependency code implicitly.
+- Added `registry`, `login`, `logout`, `publish`, and `doc` CLI workflows. The
+  Rocket-written production frontend consumes the exact graph itself and invokes
+  the colocated C++ stage0 package-security host for the same credential,
+  signature, HTTPS, Git, archive, and governance behavior.
+- Added adversarial unit/end-to-end coverage for malicious archives, checksum and
+  signature tampering, graph bypass, poisoned caches, namespace takeover and
+  typosquatting, revoked credentials, yanks, compromised advisories, transaction
+  interruption/recovery, native policy, and build-script denial. Independent
+  utility, labels, rogue, and math packages are published and consumed
+  transitively by real executable and library applications online and offline.
+- Dependency verification passed with Git 2.47.1.windows.2, CMake
+  3.31.6-msvc6, Ninja 1.13.1, MSVC 19.44.35228, LLVM 22.1.6, and raylib 6.0.
+  LLVM Debug and Release passed 133/133 tests each; LLVM-disabled stage0 Debug
+  and Release passed 93/93 each. All matrices include three Phase 16 workflows.
+- Deterministic Release bootstrap passed. Stage2 and stage3 LLVM IR are identical
+  at SHA-256
+  `a019dd80b0975efad667588ecab0c886b314d6f77419d9a1342905af38c5202c`.
+  The clean online and relocated locked-offline fixture executable is identical
+  at SHA-256
+  `5c84c5ab076b41df6e2c5aaac128680ece5d7a44db52dadb1203e83d0d0dc182`.
+- Release conformance passed 78/78 cases; report SHA-256 is
+  `cde895b31dfba59e71e5e64e4e7f943f013b7957bc36b74e0a5e641fda06860b`.
+  All eight performance gates passed; report SHA-256 is
+  `563fab122d28c632103dc8ce272ab986933f39bbcfd8b2b9269d976cc3856486`.
+- Release packaging and sanitized relocation passed, including locked/offline
+  Phase 16 use. The final ZIP is 251,357,847 bytes at SHA-256
+  `53a57a13d62e38006946a11ab18b635ee532ec7da9c4d8058d024fc0f6d060dc`;
+  its `SHA256SUMS.txt` is
+  `176b8f1b9e10e1adea8783333f44ed4835898e5b198a437aaeba7088647e1414`.
+- Deliberate Rocket 1.6 limits: no public hosted registry is claimed; the file
+  registry is the executable reference and `PACKAGES.md` is the HTTPS contract.
+  Credential storage is Windows-only. Dependency build scripts remain
+  unsupported, native dependency inputs remain deny-by-default, and Phase 17
+  editor/language-server completion remains separate work.
 
 **Phase 17 - Rocket 1.7 professional developer experience (foundation in progress)**
 
 - Began Phase 17 from the committed Phase 16 foundation at `763698c` after the
-  user explicitly reprioritized professional tooling. Phase 15 has since been
-  completed; Phase 16 remains incomplete and is not implicitly accepted by this
-  reprioritization.
+  user explicitly reprioritized professional tooling. Phase 15 and Phase 16 are
+  now complete; the Phase 17 foundation remains preserved but unfinished.
 - Added the standalone `rocket-lsp` process with Language Server Protocol 3.17
   `Content-Length` framing, JSON-RPC lifecycle/error handling, bounded messages,
   full-document synchronization, stale-version rejection, and clean shutdown.
@@ -626,12 +659,12 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Complete Phase 16 in roadmap order: integrate resolved dependencies into
-production imports and self-hosted CLI parity; add authenticated HTTPS/Git
-transports, publishing/authentication/documentation/licensing/audit workflows,
-safe native/build policy, and malicious/conflict/checksum/namespace/compromise
-acceptance scenarios with several independently consumed packages. Only after
-the Rocket 1.6 gate passes, resume the Phase 17 semantic tooling roadmap.**
+**Resume Phase 17 from its preserved foundation. Complete the professional
+developer-experience roadmap in order: close semantic multi-module LSP gaps,
+add incremental overlay/project behavior and the remaining editor workflows,
+then run the full Rocket 1.7 acceptance gates. Inspect the existing Phase 17
+changes before editing and do not regress the completed Rocket 1.6 package
+security, bootstrap, or distribution contracts.**
 
 ## New-chat prompt
 

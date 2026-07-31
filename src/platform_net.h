@@ -7,6 +7,7 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -169,6 +170,7 @@ struct WinHttpApi {
   decltype(&WinHttpConnect) connect = nullptr;
   decltype(&WinHttpOpenRequest) openRequest = nullptr;
   decltype(&WinHttpSetTimeouts) setTimeouts = nullptr;
+  decltype(&WinHttpSetOption) setOption = nullptr;
   decltype(&WinHttpSendRequest) sendRequest = nullptr;
   decltype(&WinHttpReceiveResponse) receiveResponse = nullptr;
   decltype(&WinHttpQueryHeaders) queryHeaders = nullptr;
@@ -185,6 +187,7 @@ struct WinHttpApi {
     ROCKET_WINHTTP("WinHttpConnect", connect);
     ROCKET_WINHTTP("WinHttpOpenRequest", openRequest);
     ROCKET_WINHTTP("WinHttpSetTimeouts", setTimeouts);
+    ROCKET_WINHTTP("WinHttpSetOption", setOption);
     ROCKET_WINHTTP("WinHttpSendRequest", sendRequest);
     ROCKET_WINHTTP("WinHttpReceiveResponse", receiveResponse);
     ROCKET_WINHTTP("WinHttpQueryHeaders", queryHeaders);
@@ -197,7 +200,7 @@ struct WinHttpApi {
   ~WinHttpApi() { if (library) FreeLibrary(library); }
 
   bool complete() const {
-    return library && open && crackUrl && connect && openRequest && setTimeouts &&
+    return library && open && crackUrl && connect && openRequest && setTimeouts && setOption &&
            sendRequest && receiveResponse && queryHeaders && queryAvailable &&
            readData && closeHandle;
   }
@@ -218,6 +221,7 @@ constexpr Socket invalidSocket = static_cast<Socket>(-1);
 struct HttpResponse {
   std::int64_t status = 0;
   std::string body;
+  std::string location;
 };
 
 inline bool resolve(std::string_view host, std::string_view service,
@@ -521,9 +525,11 @@ inline bool localPort(Socket socket, std::int64_t& port, std::string& error) {
 #endif
 }
 
-inline bool httpRequest(std::string_view method, std::string_view url,
-                        std::string_view body, std::int64_t timeoutMilliseconds,
-                        HttpResponse& response, std::string& error) {
+inline bool httpRequestWithHeaders(
+    std::string_view method, std::string_view url, std::string_view body,
+    const std::vector<std::pair<std::string, std::string>>& headers,
+    std::int64_t timeoutMilliseconds, HttpResponse& response,
+    std::string& error) {
 #ifdef _WIN32
   if (method.empty() || method.size() > 16 || body.size() > 64 * 1024 * 1024) {
     error = "HTTP method or body exceeds its documented limit";
@@ -575,10 +581,37 @@ inline bool httpRequest(std::string_view method, std::string_view url,
     api.closeHandle(connection); api.closeHandle(session);
     return false;
   }
+  DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+  if (!api.setOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy,
+                     sizeof(redirectPolicy))) {
+    error = detail::windowsError("WinHttpSetOption redirect policy");
+    api.closeHandle(request); api.closeHandle(connection); api.closeHandle(session);
+    return false;
+  }
+  std::wstring headerBlock;
+  for (const auto& [name, value] : headers) {
+    if (name.empty() || name.find_first_of("\r\n:") != std::string::npos ||
+        value.find_first_of("\r\n") != std::string::npos) {
+      error = "HTTP header contains an unsafe name or value";
+      api.closeHandle(request); api.closeHandle(connection); api.closeHandle(session);
+      return false;
+    }
+    const std::wstring wideName = detail::utf8ToWide(name);
+    const std::wstring wideValue = detail::utf8ToWide(value);
+    if (wideName.empty()) {
+      error = "HTTP header name or value is not valid UTF-8";
+      api.closeHandle(request); api.closeHandle(connection); api.closeHandle(session);
+      return false;
+    }
+    headerBlock += wideName + L": " + wideValue + L"\r\n";
+  }
   const int timeout = static_cast<int>(timeoutMilliseconds);
   bool success = api.setTimeouts(request, timeout, timeout, timeout, timeout) &&
                  api.sendRequest(
-                     request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                     request,
+                     headerBlock.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS
+                                         : headerBlock.c_str(),
+                     headerBlock.empty() ? 0 : static_cast<DWORD>(headerBlock.size()),
                      body.empty() ? WINHTTP_NO_REQUEST_DATA
                                   : const_cast<char*>(body.data()),
                      static_cast<DWORD>(body.size()),
@@ -591,6 +624,33 @@ inline bool httpRequest(std::string_view method, std::string_view url,
                                WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                                WINHTTP_HEADER_NAME_BY_INDEX, &status, &statusSize,
                                WINHTTP_NO_HEADER_INDEX);
+  response.location.clear();
+  if (success && status >= 300 && status < 400) {
+    DWORD locationBytes = 0;
+    api.queryHeaders(request, WINHTTP_QUERY_LOCATION,
+                     WINHTTP_HEADER_NAME_BY_INDEX, nullptr, &locationBytes,
+                     WINHTTP_NO_HEADER_INDEX);
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && locationBytes >= sizeof(wchar_t)) {
+      std::wstring location(locationBytes / sizeof(wchar_t), L'\0');
+      if (api.queryHeaders(request, WINHTTP_QUERY_LOCATION,
+                           WINHTTP_HEADER_NAME_BY_INDEX, location.data(),
+                           &locationBytes, WINHTTP_NO_HEADER_INDEX)) {
+        while (!location.empty() && location.back() == L'\0') location.pop_back();
+        if (!location.empty()) {
+          const int bytes = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                                location.data(),
+                                                static_cast<int>(location.size()),
+                                                nullptr, 0, nullptr, nullptr);
+          if (bytes > 0) {
+            response.location.resize(static_cast<std::size_t>(bytes));
+            WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, location.data(),
+                                static_cast<int>(location.size()),
+                                response.location.data(), bytes, nullptr, nullptr);
+          }
+        }
+      }
+    }
+  }
   response.body.clear();
   while (success) {
     DWORD available = 0;
@@ -615,10 +675,18 @@ inline bool httpRequest(std::string_view method, std::string_view url,
   api.closeHandle(request); api.closeHandle(connection); api.closeHandle(session);
   return success;
 #else
-  (void)method; (void)url; (void)body; (void)timeoutMilliseconds; (void)response;
+  (void)method; (void)url; (void)body; (void)headers;
+  (void)timeoutMilliseconds; (void)response;
   error = "HTTP is currently supported on Windows x64 only";
   return false;
 #endif
+}
+
+inline bool httpRequest(std::string_view method, std::string_view url,
+                        std::string_view body, std::int64_t timeoutMilliseconds,
+                        HttpResponse& response, std::string& error) {
+  return httpRequestWithHeaders(method, url, body, {}, timeoutMilliseconds,
+                                response, error);
 }
 
 } // namespace rocket::platform_net

@@ -40,6 +40,7 @@ foreach ($required in $stage0, $runtime, $clang, $compilerSource) {
 
 $env:ROCKET_CLANG = $clang
 $env:ROCKET_RUNTIME = $runtime
+$env:ROCKET_STAGE0 = $stage0
 
 if (Test-Path -LiteralPath $bootstrapRoot) {
     Remove-Item -LiteralPath $bootstrapRoot -Recurse -Force
@@ -217,6 +218,32 @@ $testStatus = $LASTEXITCODE
 if ($testOutput) { Write-Host ($testOutput -join [Environment]::NewLine) }
 if ($testStatus -ne 0 -or ($testOutput -join "`n") -notmatch '2 passed; 0 failed') {
     throw 'The self-hosted package test workflow failed.'
+}
+
+$phase16Fixture = Join-Path $bootstrapRoot 'phase16-packages'
+if (Test-Path -LiteralPath $phase16Fixture) {
+    Remove-Item -LiteralPath $phase16Fixture -Recurse -Force
+}
+Copy-Item -LiteralPath (Join-Path $fixtures 'phase16_packages') `
+    -Destination $phase16Fixture -Recurse
+$phase16App = Join-Path $phase16Fixture 'app'
+& $stage0 resolve $phase16App
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+foreach ($compiler in $stage1, $stage2, $stage3) {
+    & $compiler resolve $phase16App --locked
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & $compiler tree $phase16App
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & $compiler audit $phase16App
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+Remove-Item -LiteralPath (Join-Path $phase16Fixture 'registry') -Recurse -Force
+Remove-Item -LiteralPath (Join-Path $phase16Fixture 'local_text') -Recurse -Force
+foreach ($compiler in $stage1, $stage2, $stage3) {
+    & $compiler resolve $phase16App --offline
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & $compiler check $phase16App
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 $savedErrorActionPreference = $ErrorActionPreference

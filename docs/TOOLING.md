@@ -239,7 +239,26 @@ changes to an isolated working directory, then checks, builds, runs, and
 directly executes a native Rocket program.
 
 The preserved C++ bootstrap compiler is distributed separately as
-`stage0/rocketc-stage0.exe`; it is not the production `rocketc` command.
+`stage0/rocketc-stage0.exe`. It remains the reproducible bootstrap compiler and
+the audited package security host used by the Rocket-written CLI for registry,
+credential, signing, HTTPS, and Git operations; it is not the user-facing
+`rocketc` command.
+
+## Rocket 1.6 package tooling
+
+`resolve`, `tree`, `audit`, `doc`, `login`, `logout`, `publish`, and `registry`
+implement the contract in `PACKAGES.md`. Normal `check`, `build`, `run`, and
+`test` require the committed lock when dependencies exist and load modules only
+from verified content-addressed cache roots. The Rocket-written compiler
+forwards package-security commands to its colocated preserved Stage 0 host and
+then independently consumes the resulting exact lock/cache graph. This keeps
+one reviewed implementation of credential, ECDSA, HTTPS, Git, and archive
+boundaries without moving the compiler frontend back into C++.
+
+The Release package includes the host at `stage0/rocketc-stage0.exe`; repository
+bootstrap and conformance set `ROCKET_STAGE0` explicitly. Relocation validation
+clears that variable and proves colocated discovery, online resolve, audit,
+locked-offline resolve, and dependency import checking.
 
 ## raylib application workflow
 

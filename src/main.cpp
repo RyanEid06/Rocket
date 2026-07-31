@@ -5,12 +5,16 @@
 #include "module_loader.h"
 #include "native.h"
 #include "package.h"
+#include "package_docs.h"
+#include "package_registry.h"
+#include "platform_credentials.h"
 #include "parser.h"
 #include "sema.h"
 #ifdef ROCKETC_HAS_LLVM
 #include "llvm_codegen.h"
 #endif
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -54,9 +58,12 @@ struct Compilation {
 };
 
 Compilation compileFrontend(const fs::path& path, const fs::path& packageRoot,
-                            bool library = false) {
+                            bool library = false,
+                            const std::vector<rocket::PackageDependencyRoot>&
+                                dependencyRoots = {}) {
   Compilation result;
-  auto loaded = rocket::loadModuleGraph(path, packageRoot, result.diagnostics);
+  auto loaded = rocket::loadModuleGraph(path, packageRoot, dependencyRoots,
+                                        result.diagnostics);
   if (loaded.has_value()) {
     result.module = std::move(*loaded);
     result.module.library = library;
@@ -162,7 +169,7 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
   std::vector<std::string> arguments;
 #ifdef _MSC_VER
   arguments = {"/nologo", "/std:c++20", "/EHsc", "/utf-8",
-               "/O2", "/MT",
+               "/O2", "/MT", "/Brepro",
                "/I" + fs::path(ROCKETC_SOURCE_INCLUDE_PATH).string()};
   if (assembly || outputKind == rocket::PackageOutputKind::StaticLibrary) {
     fs::path objectPath = output;
@@ -189,6 +196,7 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
   arguments.push_back(source.string());
   if (!assembly && outputKind != rocket::PackageOutputKind::StaticLibrary) {
     arguments.push_back("/link");
+    arguments.push_back("/Brepro");
     if (outputKind == rocket::PackageOutputKind::Executable)
       arguments.push_back("/STACK:8388608");
     for (const auto& search : librarySearch)
@@ -202,7 +210,8 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
   fs::path objectPath = output;
   objectPath.replace_extension(".obj");
   return invokeExecutable(fs::path(ROCKETC_STAGE0_AR_PATH),
-                          {"/nologo", "/OUT:" + output.string(), objectPath.string()});
+                          {"/nologo", "/Brepro", "/OUT:" + output.string(),
+                           objectPath.string()});
 }
 
 #ifdef ROCKETC_HAS_LLVM
@@ -234,6 +243,7 @@ struct CommandTarget {
   std::string packageName;
   std::vector<std::string> nativeLibraries;
   std::vector<fs::path> nativeLibrarySearch;
+  std::vector<rocket::PackageDependencyRoot> dependencyRoots;
 };
 
 bool writeFile(const fs::path& path, const std::string& contents);
@@ -243,9 +253,25 @@ std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string
   if (fs::is_directory(absolute) || absolute.filename() == "rocket.toml") {
     auto package = rocket::loadPackage(absolute, error);
     if (!package) return {};
+    std::vector<rocket::PackageDependencyRoot> dependencyRoots;
+    rocket::PackageLock lock;
+    if (!rocket::prepareLockedPackageDependencies(
+            *package, false, dependencyRoots, lock, error))
+      return {};
+    auto nativeLibraries = package->nativeLibraries;
+    auto nativeSearch = package->nativeLibrarySearch;
+    for (const auto& dependency : dependencyRoots) {
+      nativeLibraries.insert(nativeLibraries.end(),
+                             dependency.nativeLibraries.begin(),
+                             dependency.nativeLibraries.end());
+      nativeSearch.insert(nativeSearch.end(),
+                          dependency.nativeLibrarySearch.begin(),
+                          dependency.nativeLibrarySearch.end());
+    }
     return CommandTarget{package->entry, package->root, package->root,
                          package->outputKind, package->outputName, package->name,
-                         package->nativeLibraries, package->nativeLibrarySearch};
+                         std::move(nativeLibraries), std::move(nativeSearch),
+                         std::move(dependencyRoots)};
   }
   if (!fs::is_regular_file(absolute)) {
     error = "source path does not exist: '" + absolute.string() + "'";
@@ -257,7 +283,7 @@ std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string
   }
   return CommandTarget{absolute, absolute.parent_path(), absolute.parent_path(),
                        rocket::PackageOutputKind::Executable,
-                       absolute.stem().string(), absolute.stem().string(), {}, {}};
+                       absolute.stem().string(), absolute.stem().string(), {}, {}, {}};
 }
 
 int executeCompiler(const std::string& command, const CommandTarget& target,
@@ -265,7 +291,8 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
                     bool announceBuild = true,
                     const fs::path& headerOutput = {}) {
   const bool library = target.outputKind != rocket::PackageOutputKind::Executable;
-  Compilation compilation = compileFrontend(target.source, target.packageRoot, library);
+  Compilation compilation = compileFrontend(target.source, target.packageRoot,
+                                            library, target.dependencyRoots);
   if (compilation.diagnostics.hasErrors()) {
     compilation.diagnostics.print();
     return 1;
@@ -347,7 +374,8 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
   } else {
     std::vector<std::string> linkArguments{objectPath.string(),
                                            runtimeLibraryPath().string(),
-                                           "-fuse-ld=lld"};
+                                           "-fuse-ld=lld",
+                                           "-Wl,/Brepro"};
     if (target.outputKind == rocket::PackageOutputKind::DynamicLibrary)
       linkArguments.push_back("-shared");
     for (const auto& search : target.nativeLibrarySearch) {
@@ -477,6 +505,7 @@ int testCommand(const fs::path& path, const std::string& filter) {
   fs::path artifactRoot;
   std::vector<std::string> nativeLibraries;
   std::vector<fs::path> nativeLibrarySearch;
+  std::vector<rocket::PackageDependencyRoot> dependencyRoots;
   const fs::path absolute = fs::absolute(path).lexically_normal();
   if (fs::is_regular_file(absolute) && absolute.extension() == ".rocket") {
     tests.push_back(absolute);
@@ -491,6 +520,12 @@ int testCommand(const fs::path& path, const std::string& filter) {
     artifactRoot = package->root;
     nativeLibraries = package->nativeLibraries;
     nativeLibrarySearch = package->nativeLibrarySearch;
+    rocket::PackageLock lock;
+    if (!rocket::prepareLockedPackageDependencies(
+            *package, false, dependencyRoots, lock, error)) {
+      cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+      return 2;
+    }
   }
 
   int passed = 0;
@@ -509,7 +544,8 @@ int testCommand(const fs::path& path, const std::string& filter) {
     const CommandTarget target{test, packageRoot, artifactRoot,
                                rocket::PackageOutputKind::Executable,
                                test.stem().string(), test.stem().string(),
-                               nativeLibraries, nativeLibrarySearch};
+                               nativeLibraries, nativeLibrarySearch,
+                               dependencyRoots};
     const int buildStatus = executeCompiler("build", target, {}, false);
     if (buildStatus != 0) {
       ++failed;
@@ -543,6 +579,8 @@ int testCommand(const fs::path& path, const std::string& filter) {
   return failed == 0 ? 0 : 1;
 }
 
+rocket::DiagnosticCode packageFailureCode(const std::string& error);
+
 int dependencyCommand(const std::string& command, const fs::path& path,
                       const rocket::ResolveOptions& options = {}) {
   std::string error;
@@ -554,7 +592,7 @@ int dependencyCommand(const std::string& command, const fs::path& path,
   rocket::PackageLock lock;
   if (command == "resolve") {
     if (!rocket::resolvePackageDependencies(*package, options, lock, error)) {
-      cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+      cliDiagnostic(packageFailureCode(error), error);
       return 1;
     }
     if (options.offline)
@@ -569,7 +607,7 @@ int dependencyCommand(const std::string& command, const fs::path& path,
     return 0;
   }
   if (!rocket::readPackageLock(package->root / "rocket.lock", lock, error)) {
-    cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+    cliDiagnostic(packageFailureCode(error), error);
     return 1;
   }
   if (command == "tree") {
@@ -578,11 +616,100 @@ int dependencyCommand(const std::string& command, const fs::path& path,
   }
   std::string report;
   if (!rocket::auditPackageDependencies(*package, lock, report, error)) {
-    cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
+    cliDiagnostic(packageFailureCode(error), error);
     return 1;
   }
   std::cout << report;
   return 0;
+}
+
+rocket::DiagnosticCode packageFailureCode(const std::string& error) {
+  if (error.find("compromised") != std::string::npos ||
+      error.find("yanked") != std::string::npos ||
+      error.find("license policy") != std::string::npos ||
+      error.find("SPDX") != std::string::npos ||
+      error.find("advisory") != std::string::npos)
+    return rocket::DiagnosticCode::DependencyAudit;
+  if (error.find("signature") != std::string::npos ||
+      error.find("checksum") != std::string::npos ||
+      error.find("archive") != std::string::npos ||
+      error.find("signing-key") != std::string::npos)
+    return rocket::DiagnosticCode::PackageIntegrity;
+  if (error.find("credential") != std::string::npos ||
+      error.find("owner") != std::string::npos ||
+      error.find("namespace") != std::string::npos ||
+      error.find("reserved") != std::string::npos ||
+      error.find("immutable") != std::string::npos ||
+      error.find("typosquatting") != std::string::npos)
+    return rocket::DiagnosticCode::RegistryAuthorization;
+  if (error.find("HTTPS") != std::string::npos ||
+      error.find("Git") != std::string::npos ||
+      error.find("transport") != std::string::npos ||
+      error.find("redirect") != std::string::npos ||
+      error.find("timed out") != std::string::npos)
+    return rocket::DiagnosticCode::PackageTransport;
+  if (error.find("build script") != std::string::npos ||
+      error.find("native inputs") != std::string::npos)
+    return rocket::DiagnosticCode::PackageCapability;
+  return rocket::DiagnosticCode::Manifest;
+}
+
+int registryCommand(int argc, char** argv) {
+  if (argc < 4) return 2;
+  const std::string action = argv[2];
+  std::string error;
+  if (action == "init") {
+    if (argc != 9 || std::string(argv[4]) != "--id" ||
+        std::string(argv[6]) != "--owner" ||
+        std::string(argv[8]) != "--token-stdin")
+      return 2;
+    std::string token;
+    if (!rocket::platform_credentials::readSecretLine(token, error)) {
+      cliDiagnostic(rocket::DiagnosticCode::RegistryAuthorization, error);
+      return 1;
+    }
+    std::string fingerprint;
+    const bool initialized = rocket::initializeReferenceRegistry(
+        argv[3], argv[5], argv[7], token, fingerprint, error);
+    std::fill(token.begin(), token.end(), '\0');
+    if (!initialized) {
+      cliDiagnostic(packageFailureCode(error), error);
+      return 1;
+    }
+    std::cout << "initialized signed Rocket registry "
+              << fs::absolute(argv[3]).lexically_normal().string()
+              << "\nregistry-key = \"" << fingerprint << "\"\n";
+    return 0;
+  }
+  if (action == "transfer" && argc == 6) {
+    if (!rocket::transferRegistryNamespace(argv[3], argv[4], argv[5], error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    std::cout << "transferred namespace " << argv[4] << " to " << argv[5] << '\n';
+    return 0;
+  }
+  if (action == "yank" && argc == 7 && std::string(argv[5]) == "--reason") {
+    if (!rocket::yankRegistryPackage(argv[3], argv[4], argv[6], error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    std::cout << "yanked " << argv[4] << " without deleting its archive\n";
+    return 0;
+  }
+  if (action == "revoke" && argc == 5) {
+    if (!rocket::revokeRegistryCredential(argv[3], argv[4], error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    std::cout << "revoked registry credential " << argv[4] << '\n';
+    return 0;
+  }
+  if (action == "advisory" && argc == 5) {
+    if (!rocket::publishRegistryAdvisory(argv[3], argv[4], error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    std::cout << "published signed registry advisory\n";
+    return 0;
+  }
+  return 2;
 }
 
 void usage() {
@@ -596,6 +723,11 @@ void usage() {
          "  rocketc resolve [package] [--locked|--offline]\n"
          "  rocketc tree [package]\n"
          "  rocketc audit [package]\n"
+         "  rocketc doc [package] [--output directory]\n"
+         "  rocketc login <registry> --token-stdin\n"
+         "  rocketc logout <registry>\n"
+         "  rocketc publish [package]\n"
+         "  rocketc registry <init|transfer|yank|revoke|advisory> ...\n"
          "  rocketc new <directory> [--name package-name]\n"
          "  rocketc --version\n";
 }
@@ -634,6 +766,69 @@ int main(int argc, char** argv) {
     }
     std::cout << "created Rocket package " << fs::absolute(argv[2]).string() << '\n';
     return 0;
+  }
+  if (command == "login") {
+    if (argc != 4 || std::string(argv[3]) != "--token-stdin") {
+      usage(); return 2;
+    }
+    std::string token;
+    std::string error;
+    if (!rocket::platform_credentials::readSecretLine(token, error)) {
+      cliDiagnostic(rocket::DiagnosticCode::RegistryAuthorization, error);
+      return 1;
+    }
+    const bool loggedIn = rocket::loginRegistry(argv[2], token, error);
+    std::fill(token.begin(), token.end(), '\0');
+    if (!loggedIn) {
+      cliDiagnostic(packageFailureCode(error), error);
+      return 1;
+    }
+    std::cout << "stored scoped registry credential in Windows Credential Manager\n";
+    return 0;
+  }
+  if (command == "--verify-package-lock") {
+    if (argc != 3) return 2;
+    std::string error;
+    auto package = rocket::loadPackage(argv[2], error);
+    if (!package) {
+      cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 1;
+    }
+    rocket::PackageLock lock;
+    std::vector<rocket::PackageDependencyRoot> roots;
+    if (!rocket::prepareLockedPackageDependencies(*package, true, roots, lock,
+                                                  error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    return 0;
+  }
+  if (command == "logout") {
+    if (argc != 3) { usage(); return 2; }
+    std::string error;
+    if (!rocket::logoutRegistry(argv[2], error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    std::cout << "removed stored registry credential\n";
+    return 0;
+  }
+  if (command == "publish") {
+    if (argc > 3) { usage(); return 2; }
+    std::string error;
+    auto package = rocket::loadPackage(argc == 3 ? fs::path(argv[2]) : fs::path("."),
+                                       error);
+    if (!package) {
+      cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 1;
+    }
+    std::string report;
+    if (!rocket::publishPackage(*package, report, error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    std::cout << report;
+    return 0;
+  }
+  if (command == "registry") {
+    const int status = registryCommand(argc, argv);
+    if (status == 2) usage();
+    return status;
   }
   if (command == "fmt") {
     fs::path path = ".";
@@ -697,6 +892,31 @@ int main(int argc, char** argv) {
     return dependencyCommand(command, argc == 3 ? fs::path(argv[2])
                                                  : fs::path("."));
   }
+  if (command == "doc") {
+    fs::path packagePath = ".";
+    fs::path outputPath;
+    bool pathSet = false;
+    for (int index = 2; index < argc; ++index) {
+      const std::string argument = argv[index];
+      if (argument == "--output" && index + 1 < argc)
+        outputPath = argv[++index];
+      else if (!pathSet) { packagePath = argument; pathSet = true; }
+      else { usage(); return 2; }
+    }
+    std::string error;
+    auto package = rocket::loadPackage(packagePath, error);
+    if (!package) {
+      cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 1;
+    }
+    if (outputPath.empty()) outputPath = package->root / ".rocketc/docs";
+    std::string report;
+    if (!rocket::generatePackageDocumentation(*package, outputPath, report,
+                                               error)) {
+      cliDiagnostic(packageFailureCode(error), error); return 1;
+    }
+    std::cout << report;
+    return 0;
+  }
   if (command == "bind") {
     if (argc != 3 && argc != 5) { usage(); return 2; }
     fs::path outputPath;
@@ -739,9 +959,13 @@ int main(int argc, char** argv) {
   auto target = resolveTarget(input, error);
   if (!target) {
     const fs::path absolute = fs::absolute(input).lexically_normal();
-    const auto code = fs::is_directory(absolute) || absolute.filename() == "rocket.toml"
-                          ? rocket::DiagnosticCode::Manifest
-                          : rocket::DiagnosticCode::Tooling;
+    const auto classified = packageFailureCode(error);
+    const auto code = classified != rocket::DiagnosticCode::Manifest
+                          ? classified
+                          : fs::is_directory(absolute) ||
+                                    absolute.filename() == "rocket.toml"
+                                ? rocket::DiagnosticCode::Manifest
+                                : rocket::DiagnosticCode::Tooling;
     cliDiagnostic(code, error); return 2;
   }
   std::vector<std::string> programArguments;

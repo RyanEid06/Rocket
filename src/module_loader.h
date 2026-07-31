@@ -2,6 +2,7 @@
 
 #include "ast.h"
 #include "diagnostic.h"
+#include "package.h"
 
 #include <filesystem>
 #include <optional>
@@ -17,5 +18,10 @@ std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       const std::filesystem::path& packageRoot,
                                       Diagnostics& diagnostics);
+std::optional<Module> loadModuleGraph(
+    const std::filesystem::path& rootPath,
+    const std::filesystem::path& packageRoot,
+    const std::vector<PackageDependencyRoot>& dependencyRoots,
+    Diagnostics& diagnostics);
 
 } // namespace rocket

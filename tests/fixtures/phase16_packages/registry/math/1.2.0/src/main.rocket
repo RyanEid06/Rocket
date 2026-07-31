@@ -1,2 +1,4 @@
+import utility
+
 pub fn answer() -> Int:
-    return 42
+    return utility.identity(42)

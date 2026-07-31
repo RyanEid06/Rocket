@@ -431,6 +431,11 @@ struct PackageInfo:
     native_headers: Array[String]
     error: String
 
+struct DependencyImportPath:
+    matched: Bool
+    valid: Bool
+    path: String
+
 struct ToolchainInfo:
     valid: Bool
     clang: String
@@ -2709,7 +2714,113 @@ fn import_alias(name: String) -> String:
         return name
     return pieces[collections.length(pieces) - 1]
 
-fn resolve_import_path(module_root: String, name: String) -> String:
+fn lock_line_value(line_value: String, key: String) -> String:
+    let line = string.trim(line_value)
+    if not string.starts_with(line, string.concat(key, " ")):
+        return ""
+    var equals = -1
+    for index in 0..string.byte_length(line):
+        if string.byte_at(line, index) == '=':
+            equals = index
+    if equals < 0:
+        return ""
+    let raw = string.trim(string.slice(line, equals + 1, string.byte_length(line)))
+    if string.byte_length(raw) < 2 or string.byte_at(raw, 0) != '"' or string.byte_at(raw, string.byte_length(raw) - 1) != '"':
+        return ""
+    return string.slice(raw, 1, string.byte_length(raw) - 1)
+
+fn lock_package_field(source: String, selector_key: String, selector_value: String, target_key: String) -> String:
+    let lines = string.split(source, "\n")
+    var in_package = false
+    var selected = false
+    for index in 0..collections.length(lines):
+        let line = string.trim(lines[index])
+        if line == "[[package]]":
+            in_package = true
+            selected = false
+            continue
+        if not in_package:
+            continue
+        let selector = lock_line_value(line, selector_key)
+        if selector != "":
+            selected = selector == selector_value
+        if selected:
+            let target = lock_line_value(line, target_key)
+            if target != "":
+                return target
+    return ""
+
+fn lock_owner_dependencies(source: String, cache_root: String, source_path: String) -> String:
+    let lines = string.split(source, "\n")
+    var checksum = ""
+    for index in 0..collections.length(lines):
+        let line = string.trim(lines[index])
+        if line == "[[package]]":
+            checksum = ""
+            continue
+        let raw_checksum = lock_line_value(line, "checksum")
+        if raw_checksum != "":
+            if string.starts_with(raw_checksum, "sha256:"):
+                checksum = string.slice(raw_checksum, 7, string.byte_length(raw_checksum))
+            else:
+                checksum = raw_checksum
+        let dependencies = lock_line_value(line, "dependencies")
+        if dependencies != "" and checksum != "":
+            let owner_root = std.path.normalize(std.path.join(cache_root, checksum))
+            if string.starts_with(std.path.normalize(source_path), owner_root):
+                return dependencies
+    return manifest_value(source, "", "root-dependencies")
+
+fn locked_dependency_import(module_root: String, source_path: String, name: String) -> DependencyImportPath:
+    let lock_path = std.path.join(module_root, "rocket.lock")
+    if not file.exists(lock_path):
+        return DependencyImportPath(false, false, "")
+    let loaded = file.read_text(lock_path)
+    match loaded:
+        case Err(error):
+            return DependencyImportPath(false, false, "")
+        case Ok(source):
+            let pieces = string.split(name, ".")
+            if collections.length(pieces) == 0:
+                return DependencyImportPath(false, false, "")
+            let dependency_name = pieces[0]
+            let version = lock_package_field(source, "name", dependency_name, "version")
+            if version == "":
+                return DependencyImportPath(false, false, "")
+            let identity = string.concat(dependency_name, string.concat("@", version))
+            let cache_root = std.path.normalize(std.path.join(module_root, ".rocketc/cache/sha256"))
+            let allowed = string.split(lock_owner_dependencies(source, cache_root, source_path), ";")
+            if not contains_string(allowed, identity):
+                return DependencyImportPath(true, false, "")
+            let raw_checksum = lock_package_field(source, "name", dependency_name, "checksum")
+            if not string.starts_with(raw_checksum, "sha256:"):
+                return DependencyImportPath(true, false, "")
+            let checksum = string.slice(raw_checksum, 7, string.byte_length(raw_checksum))
+            let dependency_root = std.path.normalize(std.path.join(cache_root, checksum))
+            var resolved = dependency_root
+            if collections.length(pieces) == 1:
+                let manifest = file.read_text(std.path.join(dependency_root, "rocket.toml"))
+                match manifest:
+                    case Err(error):
+                        return DependencyImportPath(true, false, "")
+                    case Ok(manifest_source):
+                        let entry = manifest_value(manifest_source, "package", "entry")
+                        if entry == "":
+                            return DependencyImportPath(true, false, "")
+                        resolved = std.path.normalize(std.path.join(dependency_root, entry))
+            else:
+                for index in 1..collections.length(pieces):
+                    var piece = pieces[index]
+                    if index + 1 == collections.length(pieces):
+                        piece = string.concat(piece, ".rocket")
+                    resolved = std.path.join(resolved, piece)
+                resolved = std.path.normalize(resolved)
+            return DependencyImportPath(true, file.exists(resolved), resolved)
+
+fn resolve_import_path(module_root: String, source_path: String, name: String) -> DependencyImportPath:
+    let dependency = locked_dependency_import(module_root, source_path, name)
+    if dependency.matched:
+        return dependency
     let pieces = string.split(name, ".")
     var result = module_root
     for index in 0..collections.length(pieces):
@@ -2717,7 +2828,7 @@ fn resolve_import_path(module_root: String, name: String) -> String:
         if index + 1 == collections.length(pieces):
             piece = string.concat(piece, ".rocket")
         result = std.path.join(result, piece)
-    return std.path.normalize(result)
+    return DependencyImportPath(false, file.exists(std.path.normalize(result)), std.path.normalize(result))
 
 fn mapped_declaration_name(prefix_name: String, name: String, public_declaration: Bool) -> String:
     if prefix_name == "":
@@ -2925,7 +3036,14 @@ fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name
                         next = load_program_module(next, standard_path, imported.name, module_root)
                 else:
                     if not string.starts_with(imported.name, "std."):
-                        next = load_program_module(next, resolve_import_path(module_root, imported.name), import_alias(imported.name), module_root)
+                        let imported_path = resolve_import_path(module_root, normalized, imported.name)
+                        if not imported_path.valid:
+                            var code = "R3001"
+                            if imported_path.matched:
+                                code = "R3005"
+                            next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic(code, imported.line, imported.column, string.concat("dependency import is absent from the exact locked graph or cache: '", string.concat(imported.name, "'")))))
+                        else:
+                            next = load_program_module(next, imported_path.path, import_alias(imported.name), module_root)
             next = load_state_module(next, merge_ast_modules(next.module, map_imported_module(parsed.module, prefix_name)))
     return load_state_paths(next, append(next.loaded_paths, normalized), prefix(next.active_paths, collections.length(next.active_paths) - 1))
 
@@ -6793,9 +6911,9 @@ fn build_native_source_with_package(package: PackageInfo, source: String, artifa
         if direct_process(toolchain.librarian, [string.concat("/OUT:", artifact), object]) != 0:
             return NativeBuildResult(1, artifact)
         return NativeBuildResult(0, artifact)
-    var link_arguments: Array[String] = [object, toolchain.runtime, "-fuse-ld=lld"]
+    var link_arguments: Array[String] = [object, toolchain.runtime, "-fuse-ld=lld", "-Wl,/Brepro"]
     if output_kind == output_dynamic_library():
-        link_arguments = ["-shared", object, toolchain.runtime, "-fuse-ld=lld"]
+        link_arguments = ["-shared", object, toolchain.runtime, "-fuse-ld=lld", "-Wl,/Brepro"]
     for index in 0..collections.length(toolchain.library_directories):
         link_arguments = append(link_arguments, "-L")
         link_arguments = append(link_arguments, toolchain.library_directories[index])
@@ -7141,7 +7259,7 @@ fn new_command(directory: String) -> Int:
     if ensure_directory(std.path.join(root, "src")) != 0 or ensure_directory(std.path.join(root, "tests")) != 0:
         return 1
     let name = std.path.basename(root)
-    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.5.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
+    let manifest = string.concat("[package]\nname = \"", string.concat(name, string.concat("\"\nversion = \"1.6.0\"\nentry = \"src/main.rocket\"\n\n[test]\ndirectory = \"tests\"\n\n[build]\nkind = \"executable\"\nname = \"", string.concat(name, "\"\n"))))
     let main_source = "fn main() -> Int:\n    print(\"Hello from Rocket\")\n    return 0\n"
     let test_source = "fn main() -> Int:\n    return 0\n"
     let manifest_written = file.write_text(std.path.join(root, "rocket.toml"), manifest)
@@ -7179,14 +7297,68 @@ fn emit_assembly_command(input: String, output: String) -> Int:
         return 1
     return direct_process(toolchain.clang, ["-S", "-O2", "-Wno-override-module", temporary_ir, "-o", output])
 
+fn package_stage0_path() -> String:
+    let configured = environment_or_empty("ROCKET_STAGE0")
+    if configured != "" and file.exists(configured):
+        return std.path.normalize(configured)
+    let executable = process.executable_path()
+    match executable:
+        case Err(error):
+            return ""
+        case Ok(path_value):
+            let executable_directory = source_parent(std.path.normalize(path_value))
+            let packaged = std.path.normalize(std.path.join(source_parent(executable_directory), "stage0/rocketc-stage0.exe"))
+            if file.exists(packaged):
+                return packaged
+            let repository_root = source_parent(source_parent(executable_directory))
+            let release = std.path.normalize(std.path.join(repository_root, "out/build/windows-release/rocketc.exe"))
+            if file.exists(release):
+                return release
+            let debug = std.path.normalize(std.path.join(repository_root, "out/build/windows-debug/rocketc.exe"))
+            if file.exists(debug):
+                return debug
+    return ""
+
+fn forward_package_command(arguments: Array[String]) -> Int:
+    let stage0 = package_stage0_path()
+    if stage0 == "":
+        print("rocketc: error[R5002]: the self-hosted package security host is unavailable; set ROCKET_STAGE0 or install the packaged stage0 compiler")
+        return 1
+    let invoked = process.run(stage0, arguments)
+    match invoked:
+        case Ok(status):
+            return status
+        case Err(error):
+            print(string.concat("rocketc: error[R5002]: could not start the package security host: ", error))
+            return 1
+
+fn verify_package_graph(input: String) -> Int:
+    let normalized = std.path.normalize(input)
+    if std.path.extension(normalized) == ".rocket" or not file.exists(std.path.join(normalized, "rocket.toml")):
+        return 0
+    let stage0 = package_stage0_path()
+    if stage0 == "":
+        print("rocketc: error[R5002]: the self-hosted package security host is unavailable; set ROCKET_STAGE0 or install the packaged stage0 compiler")
+        return 1
+    let verified = process.run(stage0, ["--verify-package-lock", normalized])
+    match verified:
+        case Ok(status):
+            return status
+        case Err(error):
+            print(string.concat("rocketc: error[R5002]: could not verify the exact package graph: ", error))
+            return 1
+
 fn print_help() -> Unit:
-    print("Rocket compiler 1.5.0")
-    print("usage: rocketc <check|build|run|test|fmt|new|emit-ir|emit-asm|emit-header|bind> [arguments]")
+    print("Rocket compiler 1.6.0")
+    print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
     print("  run <path> -- ...   build and run with optional arguments")
     print("  test <package> [--filter text] build and run package tests")
     print("  fmt <path> [--check] format or verify source formatting")
+    print("  resolve <package> [--locked|--offline] resolve the exact dependency graph")
+    print("  tree|audit|doc <package> inspect, audit, or document dependencies")
+    print("  login|logout|publish|registry ... authenticated package workflows")
     print("  emit-header <package> [--output output.h] generate a deterministic C header")
     print("  bind <header.h> [--output bindings.rocket] generate deterministic Rocket bindings")
 
@@ -7231,17 +7403,34 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.5.0")
+        print("rocketc 1.6.0")
         return 0
+    if collections.length(arguments) > 0 and contains_string(["resolve", "tree", "audit", "doc", "login", "logout", "publish", "registry"], arguments[0]):
+        return forward_package_command(arguments)
     if collections.length(arguments) == 2 and arguments[0] == "check":
+        let verified = verify_package_graph(arguments[1])
+        if verified != 0:
+            return verified
         return check_command(arguments[1])
     if collections.length(arguments) == 2 and arguments[0] == "build":
+        let verified = verify_package_graph(arguments[1])
+        if verified != 0:
+            return verified
         return build_command(arguments[1]).status
     if collections.length(arguments) >= 2 and arguments[0] == "run":
+        let verified = verify_package_graph(arguments[1])
+        if verified != 0:
+            return verified
         return run_command(arguments)
     if collections.length(arguments) == 2 and arguments[0] == "test":
+        let verified = verify_package_graph(arguments[1])
+        if verified != 0:
+            return verified
         return test_command(arguments[1], "")
     if collections.length(arguments) == 4 and arguments[0] == "test" and arguments[2] == "--filter":
+        let verified = verify_package_graph(arguments[1])
+        if verified != 0:
+            return verified
         return test_command(arguments[1], arguments[3])
     if collections.length(arguments) >= 2 and collections.length(arguments) <= 3 and arguments[0] == "fmt":
         var check_only = false

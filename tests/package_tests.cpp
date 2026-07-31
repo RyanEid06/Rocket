@@ -1,6 +1,12 @@
 #include "package.h"
+#include "package_git.h"
+#include "package_registry.h"
+#include "safe_archive.h"
 #include "test_support.h"
 
+#include <algorithm>
+#include <array>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -91,8 +97,90 @@ int main() {
       "semantic versions and deterministic constraints follow the Phase 16 contract",
       failures);
 
+  rocket::test::expect(
+      rocket::isValidSpdxExpression("MIT") &&
+          rocket::isValidSpdxExpression("Apache-2.0 OR MIT") &&
+          rocket::isValidSpdxExpression("GPL-2.0-only WITH Classpath-exception-2.0") &&
+          !rocket::isValidSpdxExpression("MIT OR Proprietary") &&
+          !rocket::isValidSpdxExpression("MIT AND"),
+      "SPDX expressions accept documented licenses, operators, and exceptions",
+      failures);
+  rocket::GitAcquisition gitAcquisition;
+  error.clear();
+  rocket::test::expect(
+      !rocket::acquireGitPackage("file:///untrusted/repository", std::string(40, 'a'),
+                                 workspace, gitAcquisition, error) &&
+          error.find("HTTPS") != std::string::npos,
+      "remote Git acquisition rejects local protocols before starting git",
+      failures);
+  error.clear();
+  rocket::test::expect(
+      !rocket::acquireGitPackage("https://user@example.invalid/repository.git",
+                                 "moving-main", workspace, gitAcquisition,
+                                 error) &&
+          (error.find("credential-free") != std::string::npos ||
+           error.find("immutable") != std::string::npos),
+      "remote Git acquisition rejects credentials and moving revisions",
+      failures);
+
+  const auto archive = std::filesystem::current_path() / "package_test_hostile.tar";
+  error.clear();
+  rocket::test::expect(
+      !rocket::safe_archive::validEntryName("../escape") &&
+          !rocket::safe_archive::validEntryName("C:/escape") &&
+          !rocket::safe_archive::validEntryName("folder\\escape") &&
+          !rocket::safe_archive::validEntryName("CON.txt") &&
+          !rocket::safe_archive::validEntryName("trailing. ") &&
+          !rocket::safe_archive::create(
+              archive.string(), {{"Api.rocket", "a"}, {"api.rocket", "b"}},
+              error),
+      "archive creation rejects traversal, device paths, and case collisions",
+      failures);
+  error.clear();
+  bool hostileCreated = rocket::safe_archive::create(
+      archive.string(), {{"src/main.rocket", "fn main() -> Int:\n    return 0\n"}},
+      error);
+  if (hostileCreated) {
+    std::fstream stream(archive, std::ios::binary | std::ios::in | std::ios::out);
+    std::array<char, 512> header{};
+    stream.read(header.data(), static_cast<std::streamsize>(header.size()));
+    header[156] = '2';
+    std::fill(header.begin() + 148, header.begin() + 156, ' ');
+    unsigned long long checksum = 0;
+    for (char byte : header) checksum += static_cast<unsigned char>(byte);
+    std::snprintf(header.data() + 148, 7, "%06llo", checksum);
+    header[155] = ' ';
+    stream.seekp(0);
+    stream.write(header.data(), static_cast<std::streamsize>(header.size()));
+    stream.close();
+  }
+  std::vector<rocket::safe_archive::Entry> hostileEntries;
+  error.clear();
+  rocket::test::expect(
+      hostileCreated &&
+          !rocket::safe_archive::readAll(archive.string(), hostileEntries, error) &&
+          error.find("non-regular") != std::string::npos,
+      "archive reading rejects link entries even with a valid header checksum",
+      failures);
+  error.clear();
+  bool trailingCreated = rocket::safe_archive::create(
+      archive.string(), {{"safe.txt", "safe"}}, error);
+  if (trailingCreated) {
+    std::ofstream trailing(archive, std::ios::binary | std::ios::app);
+    std::array<char, 512> garbage{};
+    garbage[0] = 'x';
+    trailing.write(garbage.data(), static_cast<std::streamsize>(garbage.size()));
+  }
+  error.clear();
+  rocket::test::expect(
+      trailingCreated &&
+          !rocket::safe_archive::readAll(archive.string(), hostileEntries, error) &&
+          error.find("data after") != std::string::npos,
+      "archive reading rejects trailing data after the two end blocks", failures);
+
   const auto phase16 = std::filesystem::current_path() / "package_test_phase16";
   std::filesystem::remove_all(phase16, errorCode);
+  std::filesystem::remove(archive, errorCode);
   const auto registry = phase16 / "registry";
   const auto makeLibrary = [&](const std::filesystem::path& root,
                                const std::string& name,
@@ -195,6 +283,79 @@ int main() {
           error.find("duplicate-version conflict") != std::string::npos,
       "resolver rejects graphs containing two versions of one package name",
       failures);
+
+  const auto policy = phase16 / "policy";
+  const auto nativeDependency = policy / "native_dep";
+  std::filesystem::create_directories(nativeDependency / "src", errorCode);
+  std::filesystem::create_directories(nativeDependency / "native", errorCode);
+  write(nativeDependency / "src/main.rocket",
+        "pub fn native_answer() -> Int:\n    return 42\n");
+  write(nativeDependency / "native/reviewed.lib", "reviewed native input\n");
+  write(nativeDependency / "rocket.toml",
+        "[package]\nname = \"native_dep\"\nnamespace = \"vendor\"\n"
+        "version = \"1.0.0\"\nlicense = \"MIT\"\n"
+        "entry = \"src/main.rocket\"\n\n[native.windows-x64]\n"
+        "libraries = \"native/reviewed.lib\"\n");
+  std::filesystem::create_directories(policy / "app/src", errorCode);
+  write(policy / "app/src/main.rocket", "fn main() -> Int:\n    return 0\n");
+  const std::string policyManifest =
+      "[package]\nname = \"policy_app\"\nversion = \"1.0.0\"\n"
+      "license = \"MIT\"\nentry = \"src/main.rocket\"\n\n"
+      "[dependencies]\nnative_dep = \"path:../native_dep\"\n";
+  write(policy / "app/rocket.toml", policyManifest);
+  error.clear();
+  auto policyPackage = rocket::loadPackage(policy / "app", error);
+  rocket::PackageLock policyLock;
+  bool policyResolved = policyPackage && rocket::resolvePackageDependencies(
+                                             *policyPackage, {}, policyLock, error);
+  std::vector<rocket::PackageDependencyRoot> policyRoots;
+  error.clear();
+  rocket::test::expect(
+      policyResolved &&
+          !rocket::prepareLockedPackageDependencies(
+              *policyPackage, false, policyRoots, policyLock, error) &&
+          error.find("package-policy.allow-native") != std::string::npos,
+      "dependency native inputs require an exact root-package approval", failures);
+  write(policy / "app/rocket.toml",
+        policyManifest +
+            "\n[package-policy]\nallow-native = \"vendor/native_dep@1.0.0\"\n");
+  error.clear();
+  policyPackage = rocket::loadPackage(policy / "app", error);
+  policyRoots.clear();
+  rocket::test::expect(
+      policyPackage && rocket::prepareLockedPackageDependencies(
+                           *policyPackage, false, policyRoots, policyLock, error) &&
+          policyRoots.size() == 1 && policyRoots.front().nativeLibraries.size() == 1,
+      "an exactly approved native dependency exposes only verified package files: " +
+          error,
+      failures);
+
+  const auto scriptedDependency = policy / "scripted_dep";
+  makeLibrary(scriptedDependency, "scripted_dep", "1.0.0");
+  write(scriptedDependency / "rocket.toml",
+        "[package]\nname = \"scripted_dep\"\nversion = \"1.0.0\"\n"
+        "license = \"MIT\"\nentry = \"src/main.rocket\"\n\n"
+        "[build]\nscript = \"tools/generate.rocket\"\n");
+  std::filesystem::create_directories(policy / "script_app/src", errorCode);
+  write(policy / "script_app/src/main.rocket",
+        "fn main() -> Int:\n    return 0\n");
+  write(policy / "script_app/rocket.toml",
+        "[package]\nname = \"script_app\"\nversion = \"1.0.0\"\n"
+        "license = \"MIT\"\nentry = \"src/main.rocket\"\n\n"
+        "[dependencies]\nscripted_dep = \"path:../scripted_dep\"\n");
+  error.clear();
+  auto scriptPackage = rocket::loadPackage(policy / "script_app", error);
+  rocket::PackageLock scriptLock;
+  bool scriptResolved = scriptPackage && rocket::resolvePackageDependencies(
+                                             *scriptPackage, {}, scriptLock, error);
+  std::vector<rocket::PackageDependencyRoot> scriptRoots;
+  error.clear();
+  rocket::test::expect(
+      scriptResolved &&
+          !rocket::prepareLockedPackageDependencies(
+              *scriptPackage, false, scriptRoots, scriptLock, error) &&
+          error.find("dependency code is never run implicitly") != std::string::npos,
+      "dependency build scripts are rejected before compilation", failures);
 
   std::filesystem::remove_all(workspace, errorCode);
   std::filesystem::remove_all(invalid, errorCode);

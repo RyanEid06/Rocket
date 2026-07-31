@@ -488,7 +488,17 @@ are exact Semantic Versioning 2.0.0 values. `[dependencies]` maps a package name
 to a registry constraint, `path:` source, or immutable-revision `git:` source.
 Resolution is deterministic, permits only one selected version per package
 name, and records exact source checksums and graph edges in committed
-`rocket.lock`. A locked offline operation may consume only SHA-256-verified
-content from the package-local generated cache. These rules do not add implicit
-source imports, build-script execution, or a language/runtime ABI feature. The
-complete transport and governance contract is in `PACKAGES.md`.
+`rocket.lock`. Registry identities additionally carry an owned namespace and
+signed publisher provenance. A dependency import is rooted only in the exact
+SHA-256-verified cached package named by that manifest dependency and cannot be
+shadowed by a package-local path. Transitive imports must be edges in the same
+lock graph. A locked offline operation consumes no network or source checkout.
+
+Registry metadata is authenticated by a manifest-pinned ECDSA P-256 key,
+archives are bounded deterministic regular-file-only ustar data, and HTTPS/Git
+transport never disables certificate or immutable-object verification. Package
+metadata grants no code execution. Build scripts are unsupported and denied;
+dependency native inputs require an exact root capability allow-list. These
+rules add no language syntax or runtime ABI feature. The complete import,
+transport, credential, publishing, audit, documentation, and governance
+contract is in `PACKAGES.md`.

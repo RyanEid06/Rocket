@@ -267,15 +267,12 @@ desktop applications without forcing every project to reinvent foundations.
 - Standard modules are implemented as ordinary Rocket packages wherever compiler
   privilege is unnecessary.
 
-### Phase 16 - Rocket 1.6: dependency management and package ecosystem
+### Phase 16 - Rocket 1.6: dependency management and package ecosystem - Completed
 
-**Foundation implemented; completion work remains.** The existing stage0
-foundation parses Semantic Versioning registry, pinned-Git, and local-path
-dependencies; resolves deterministic single-version graphs; writes and verifies
-`rocket.lock`; maintains a SHA-256 content-addressed cache; and provides
-`resolve`, `tree`, and basic license/integrity `audit` commands. It currently
-uses reviewed local/file registry and Git exports only and is not a complete
-package ecosystem.
+**Status:** Completed on 2026-07-31. Stage0 and the Rocket-written compiler
+consume the same exact locked import graph and expose matching package-security
+workflows. The signed file reference registry is the executable deployment;
+authenticated HTTPS services implement the versioned protocol in `PACKAGES.md`.
 
 **Purpose:** Make reusable third-party Rocket libraries discoverable,
 reproducible, secure, and easy to publish.
@@ -294,60 +291,82 @@ reproducible, secure, and easy to publish.
 - Define build-script and native-dependency policy without granting unrestricted
   implicit code execution.
 
-**Unfinished handoff checklist:**
+**Completed handoff checklist:**
 
-- Integrate resolved packages into normal compiler module lookup so `check`,
+- [x] Integrate resolved packages into normal compiler module lookup so `check`,
   `build`, `run`, and `test` consume the exact dependency roots and checksums
   recorded in `rocket.lock`; imports must never bypass the selected graph.
-- Bring the Rocket-written production compiler CLI to feature parity with the
+- [x] Bring the Rocket-written production compiler CLI to feature parity with the
   C++ stage0 `resolve`, `tree`, `audit`, locked, and offline workflows, with the
   same deterministic output and stable diagnostics.
-- Implement authenticated HTTPS registry transport with bounded downloads,
+- [x] Implement authenticated HTTPS registry transport with bounded downloads,
   redirect and timeout policy, TLS validation, checksum and signed-index
   verification, safe archive extraction, transactional cache installation, and
   no credential leakage in manifests, lockfiles, diagnostics, or logs.
-- Implement Git dependency acquisition without shell-command construction:
+- [x] Implement Git dependency acquisition without shell-command construction:
   require an immutable commit, verify the fetched object matches the requested
   revision, reject moving refs/submodules unless explicitly reviewed, and make
   locked offline reuse independent of a working Git checkout.
-- Turn the registry governance design into tested behavior: immutable
+- [x] Turn the registry governance design into tested behavior: immutable
   `(namespace, name, version)` records, verified namespace ownership and
   transfer history, reserved-name and anti-typosquatting rules, yanking without
   deletion, auditable scoped/revocable credentials, and emergency security
   actions.
-- Add `login`/credential management and `publish` commands with preflight
+- [x] Add `login`/credential management and `publish` commands with preflight
   validation, deterministic source archives, duplicate/case-collision/link/path
   traversal and decompression-limit checks, ownership enforcement, immutable
   version refusal, and safe retry behavior.
-- Add package documentation generation and publication with API cross-links,
+- [x] Add package documentation generation and publication with API cross-links,
   examples, package/version identity, deterministic output, and no execution of
   untrusted examples during publishing.
-- Expand licensing and dependency auditing with SPDX validation, license-policy
+- [x] Expand licensing and dependency auditing with SPDX validation, license-policy
   configuration, signed advisory data, affected-version evaluation, yanked and
   compromised-package reporting, provenance display, and useful nonzero exit
   statuses for CI.
-- Finalize an explicit native-dependency/build-script capability policy. If a
+- [x] Finalize an explicit native-dependency/build-script capability policy. If a
   build hook is introduced, declare and validate its inputs, outputs, target,
   environment, network access, cache key, sandbox, and user approval; never run
   dependency code implicitly during resolve, audit, or documentation.
-- Prove clean and offline locked builds produce byte-identical source selection
+- [x] Prove clean and offline locked builds produce byte-identical source selection
   and build artifacts where the pinned toolchain permits, including relocation
   to a machine with an empty package cache.
-- Add end-to-end tests for conflicting constraints, hostile archives, checksum
+- [x] Add end-to-end tests for conflicting constraints, hostile archives, checksum
   and signature failures, namespace takeover/typosquatting, revoked credentials,
   yanks, compromised advisories, poisoned caches, interrupted downloads, and
   deterministic recovery.
-- Publish several independent test packages through the real workflow and
+- [x] Publish several independent test packages through the real workflow and
   consume them transitively from real executable and library applications in
   both online and locked-offline modes.
 
 **Acceptance gate:**
 
-- Clean and offline machines reproduce locked builds byte-for-byte where target
+- [x] Clean and offline machines reproduce locked builds byte-for-byte where target
   toolchains permit.
-- Resolver conflict, malicious archive, checksum, namespace, and compromised-
+- [x] Resolver conflict, malicious archive, checksum, namespace, and compromised-
   dependency scenarios have explicit tests and diagnostics.
-- Several independent packages are published and consumed by real applications.
+- [x] Several independent packages are published and consumed by real applications.
+
+**Completion evidence:**
+
+- Pinned dependency verification passed with Git 2.47.1.windows.2, CMake
+  3.31.6-msvc6, Ninja 1.13.1, MSVC 19.44.35228, and LLVM 22.1.6.
+- LLVM Debug and Release matrices passed 133/133 tests each; LLVM-disabled
+  stage0 Debug and Release matrices passed 93/93 tests each. Each matrix
+  includes three Phase 16 package, registry, and self-hosted workflows.
+- Release bootstrap passed with byte-identical stage2/stage3 LLVM IR at SHA-256
+  `a019dd80b0975efad667588ecab0c886b314d6f77419d9a1342905af38c5202c`.
+- Release conformance passed 78/78 cases; all eight performance gates passed.
+- The clean online and relocated locked-offline executable is byte-identical at
+  SHA-256 `5c84c5ab076b41df6e2c5aaac128680ece5d7a44db52dadb1203e83d0d0dc182`.
+- Distribution relocation/package verification passed. The final Windows x64
+  ZIP is 251,357,847 bytes at SHA-256
+  `53a57a13d62e38006946a11ab18b635ee532ec7da9c4d8058d024fc0f6d060dc`.
+
+**Deliberate limits:** Rocket 1.6 ships a signed file reference registry and an
+HTTPS service contract, not a public hosted registry. Credential storage is
+Windows-only. Dependency build scripts remain unsupported and dependency native
+inputs remain deny-by-default unless the root manifest approves an exact locked
+identity. Phase 17 editor and language-server completion is separate work.
 
 ### Phase 17 - Rocket 1.7: professional developer experience
 

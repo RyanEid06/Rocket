@@ -43,6 +43,7 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'tests\fixtures\phase11_map_set_t
 $savedEnvironment = @{
     ROCKET_CLANG = $env:ROCKET_CLANG
     ROCKET_RUNTIME = $env:ROCKET_RUNTIME
+    ROCKET_STAGE0 = $env:ROCKET_STAGE0
     LIB = $env:LIB
     LIBPATH = $env:LIBPATH
     INCLUDE = $env:INCLUDE
@@ -51,6 +52,7 @@ $savedEnvironment = @{
 try {
     $env:ROCKET_CLANG = $null
     $env:ROCKET_RUNTIME = $null
+    $env:ROCKET_STAGE0 = $null
     $env:LIB = $null
     $env:LIBPATH = $null
     $env:INCLUDE = $null
@@ -59,7 +61,7 @@ try {
     Push-Location $work
     try {
         $version = & $compiler --version
-        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.5.0') {
+        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.6.0') {
             throw "Relocated compiler version check failed: $($version -join ' ')"
         }
         $languageServerVersion = & $languageServer --version
@@ -85,16 +87,32 @@ try {
         }
         & $nativeProgram
         if ($LASTEXITCODE -ne 0) { throw 'Distributed native program failed.' }
+
+        $phase16Packages = Join-Path $work 'phase16-packages'
+        Copy-Item -LiteralPath (Join-Path $projectRoot 'tests\fixtures\phase16_packages') `
+            -Destination $phase16Packages -Recurse
+        $phase16App = Join-Path $phase16Packages 'app'
+        & $compiler resolve $phase16App
+        if ($LASTEXITCODE -ne 0) { throw 'Relocated package resolve failed.' }
+        & $compiler audit $phase16App
+        if ($LASTEXITCODE -ne 0) { throw 'Relocated package audit failed.' }
+        Remove-Item -LiteralPath (Join-Path $phase16Packages 'registry') -Recurse -Force
+        Remove-Item -LiteralPath (Join-Path $phase16Packages 'local_text') -Recurse -Force
+        & $compiler resolve $phase16App --offline
+        if ($LASTEXITCODE -ne 0) { throw 'Relocated package offline resolve failed.' }
+        & $compiler check $phase16App
+        if ($LASTEXITCODE -ne 0) { throw 'Relocated package import check failed.' }
     } finally {
         Pop-Location
     }
 } finally {
     $env:ROCKET_CLANG = $savedEnvironment.ROCKET_CLANG
     $env:ROCKET_RUNTIME = $savedEnvironment.ROCKET_RUNTIME
+    $env:ROCKET_STAGE0 = $savedEnvironment.ROCKET_STAGE0
     $env:LIB = $savedEnvironment.LIB
     $env:LIBPATH = $savedEnvironment.LIBPATH
     $env:INCLUDE = $savedEnvironment.INCLUDE
     $env:PATH = $savedEnvironment.PATH
 }
 
-Write-Output "Rocket 1.5 distribution relocation test passed: $package"
+Write-Output "Rocket 1.6 distribution relocation and package test passed: $package"

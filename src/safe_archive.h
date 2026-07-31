@@ -22,6 +22,26 @@ struct Entry {
 
 namespace detail {
 
+inline std::string asciiLower(std::string_view value) {
+  std::string result(value);
+  for (char& character : result)
+    if (character >= 'A' && character <= 'Z')
+      character = static_cast<char>(character - 'A' + 'a');
+  return result;
+}
+
+inline bool windowsDeviceName(std::string_view component) {
+  std::string stem(component.substr(0, component.find('.')));
+  stem = asciiLower(stem);
+  if (stem == "con" || stem == "prn" || stem == "aux" || stem == "nul")
+    return true;
+  if (stem.size() == 4 &&
+      (stem.starts_with("com") || stem.starts_with("lpt")) &&
+      stem[3] >= '1' && stem[3] <= '9')
+    return true;
+  return false;
+}
+
 inline bool safeName(std::string_view name) {
   if (name.empty() || name.size() > 100 || name.front() == '/' ||
       name.front() == '\\' || name.find('\\') != std::string_view::npos ||
@@ -31,7 +51,11 @@ inline bool safeName(std::string_view name) {
     const std::size_t end = name.find('/', start);
     const std::string_view part = name.substr(
         start, end == std::string_view::npos ? std::string_view::npos : end - start);
-    if (part.empty() || part == "." || part == "..") return false;
+    if (part.empty() || part == "." || part == ".." ||
+        part.back() == '.' || part.back() == ' ' || windowsDeviceName(part))
+      return false;
+    for (const unsigned char byte : part)
+      if (byte < 0x20 || byte == 0x7f) return false;
     if (end == std::string_view::npos) break;
     start = end + 1;
   }
@@ -75,6 +99,7 @@ inline std::filesystem::path path(std::string_view utf8) {
 
 inline bool read(std::string_view archivePath, std::vector<Entry>& entries,
                  std::string& error) {
+  entries.clear();
   std::ifstream input(path(archivePath), std::ios::binary);
   if (!input) { error = "could not open TAR archive"; return false; }
   input.seekg(0, std::ios::end);
@@ -87,6 +112,7 @@ inline bool read(std::string_view archivePath, std::vector<Entry>& entries,
   std::uint64_t consumed = 0;
   std::uint64_t totalBytes = 0;
   std::unordered_set<std::string> names;
+  std::unordered_set<std::string> foldedNames;
   while (consumed + 512 <= static_cast<std::uint64_t>(size)) {
     std::array<char, 512> header{};
     input.read(header.data(), header.size());
@@ -142,8 +168,9 @@ inline bool read(std::string_view archivePath, std::vector<Entry>& entries,
     const auto nameEnd = std::find(header.begin(), header.begin() + 100, '\0');
     const std::size_t nameLength = static_cast<std::size_t>(nameEnd - header.begin());
     const std::string name(header.data(), nameLength);
-    if (!safeName(name) || !names.emplace(name).second) {
-      error = "TAR entry name is unsafe or duplicated";
+    if (!safeName(name) || !names.emplace(name).second ||
+        !foldedNames.emplace(asciiLower(name)).second) {
+      error = "TAR entry name is unsafe, duplicated, or case-colliding";
       return false;
     }
     if (header[156] != '\0' && header[156] != '0') {
@@ -187,10 +214,12 @@ inline bool create(std::string_view archivePath, const std::vector<Entry>& entri
     return false;
   }
   std::unordered_set<std::string> names;
+  std::unordered_set<std::string> foldedNames;
   std::uint64_t totalBytes = 0;
   for (const Entry& entry : entries) {
-    if (!detail::safeName(entry.name) || !names.emplace(entry.name).second) {
-      error = "TAR entry name is unsafe or duplicated";
+    if (!detail::safeName(entry.name) || !names.emplace(entry.name).second ||
+        !foldedNames.emplace(detail::asciiLower(entry.name)).second) {
+      error = "TAR entry name is unsafe, duplicated, or case-colliding";
       return false;
     }
     totalBytes += entry.bytes.size();
@@ -264,6 +293,15 @@ inline bool read(std::string_view archivePath, std::string_view requested,
     if (entry.name == requested) { bytes = std::move(entry.bytes); return true; }
   error = "TAR entry was not found";
   return false;
+}
+
+inline bool readAll(std::string_view archivePath, std::vector<Entry>& entries,
+                    std::string& error) {
+  return detail::read(archivePath, entries, error);
+}
+
+inline bool validEntryName(std::string_view name) {
+  return detail::safeName(name);
 }
 
 } // namespace rocket::safe_archive

@@ -21,6 +21,7 @@ Manifest and tooling errors without a source position use
 | `R3002` | Import cycle | Recursive source-module dependency |
 | `R3003` | Visibility | Private declaration used across modules |
 | `R3004` | Import alias | Two imports claim the same local alias |
+| `R3005` | Dependency import | Import is absent from or attempts to bypass the exact locked dependency graph |
 | `R4001` | Type/semantic | Type mismatch, invalid operation or mutation, unsupported native ABI type, or extern call outside `unsafe:` |
 | `R4002` | Name resolution | Undefined value, function, or constructor |
 | `R4003` | Control flow | Invalid loop control, entry point, or return path |
@@ -28,6 +29,11 @@ Manifest and tooling errors without a source position use
 | `R4005` | Arity | Wrong number of call or constructor arguments |
 | `R5001` | Manifest/package | Invalid `rocket.toml`, semantic version, dependency source, resolver conflict, lockfile, or package checksum |
 | `R5002` | Tooling | Formatter, test-runner, binding/header generation, linker, or artifact workflow failure |
+| `R5003` | Package integrity | Checksum, signing-key, metadata signature, archive, or cache verification failure |
+| `R5004` | Registry authorization | Missing/revoked credentials, insufficient scope, namespace ownership, reserved-name, or immutable-version refusal |
+| `R5005` | Dependency audit | SPDX/license policy, yank policy, signed advisory, provenance, or compromised-package failure |
+| `R5006` | Package transport | HTTPS/Git timeout, redirect, TLS, immutable-object, or bounded-download failure |
+| `R5007` | Package capability | Implicit build script or unapproved native dependency capability |
 | `R9001` | Internal compiler | Verified compiler invariant failed |
 
 Runtime failures remain a separate `rocket runtime error:` stream and exit with
