@@ -84,6 +84,12 @@ private:
       return Type{TypeKind::Array, "Array", std::move(arguments)};
     if (name == "Slice" && arguments.size() == 1)
       return Type{TypeKind::Slice, "Slice", std::move(arguments)};
+    if (name == "Weak" && arguments.size() == 1)
+      return Type{TypeKind::Weak, "Weak", std::move(arguments)};
+    if (name == "UniqueBuffer" && arguments.size() == 1)
+      return Type{TypeKind::UniqueBuffer, "UniqueBuffer", std::move(arguments)};
+    if (name == "Task" && arguments.size() == 1)
+      return Type{TypeKind::Task, "Task", std::move(arguments)};
     if (name == "Pointer" && arguments.size() == 1)
       return Type{TypeKind::Pointer, "Pointer", std::move(arguments)};
     return Type{TypeKind::Struct, name, std::move(arguments)};
@@ -108,6 +114,10 @@ std::string typeName(const Type& type) {
   case TypeKind::Invalid: return "<invalid>";
   case TypeKind::Array: return "Array[" + typeName(type.arguments.at(0)) + "]";
   case TypeKind::Slice: return "Slice[" + typeName(type.arguments.at(0)) + "]";
+  case TypeKind::Weak: return "Weak[" + typeName(type.arguments.at(0)) + "]";
+  case TypeKind::UniqueBuffer:
+    return "UniqueBuffer[" + typeName(type.arguments.at(0)) + "]";
+  case TypeKind::Task: return "Task[" + typeName(type.arguments.at(0)) + "]";
   case TypeKind::Pointer: return "Pointer[" + typeName(type.arguments.at(0)) + "]";
   case TypeKind::Struct:
   case TypeKind::Enum:
@@ -136,6 +146,11 @@ bool isCollectionType(const Type& type) { return isArrayType(type) || isSliceTyp
 bool isAggregateType(const Type& type) {
   return type.kind == TypeKind::Struct || type.kind == TypeKind::Enum;
 }
+bool isWeakType(const Type& type) { return type.kind == TypeKind::Weak; }
+bool isUniqueBufferType(const Type& type) {
+  return type.kind == TypeKind::UniqueBuffer;
+}
+bool isTaskType(const Type& type) { return type.kind == TypeKind::Task; }
 bool isPointerType(const Type& type) { return type.kind == TypeKind::Pointer; }
 bool isNativeType(const Type& type) {
   return type.kind == TypeKind::Pointer || type.kind == TypeKind::NativeStruct ||
@@ -147,7 +162,8 @@ bool isNativeAbiValueType(const Type& type) {
          type.kind == TypeKind::Opaque || type.kind == TypeKind::Callback;
 }
 bool isManagedType(const Type& type) {
-  return type == Type::String || isCollectionType(type) || isAggregateType(type);
+  return type == Type::String || isCollectionType(type) || isAggregateType(type) ||
+         isWeakType(type) || isUniqueBufferType(type) || isTaskType(type);
 }
 
 Type collectionElementType(const Type& type) {
@@ -166,6 +182,25 @@ Type sliceType(const Type& element) {
   return element == Type::Invalid || element == Type::Unit
              ? Type::Invalid
              : Type{TypeKind::Slice, "Slice", {element}};
+}
+
+Type weakType(const Type& target) {
+  const bool identityBearing = isArrayType(target) || isAggregateType(target) ||
+                               isUniqueBufferType(target) || isTaskType(target);
+  return !identityBearing ? Type::Invalid
+                          : Type{TypeKind::Weak, "Weak", {target}};
+}
+
+Type uniqueBufferType(const Type& element) {
+  return element == Type::Invalid || element == Type::Unit || isNativeType(element)
+             ? Type::Invalid
+             : Type{TypeKind::UniqueBuffer, "UniqueBuffer", {element}};
+}
+
+Type taskType(const Type& result) {
+  return result == Type::Invalid || isNativeType(result)
+             ? Type::Invalid
+             : Type{TypeKind::Task, "Task", {result}};
 }
 
 } // namespace rocket

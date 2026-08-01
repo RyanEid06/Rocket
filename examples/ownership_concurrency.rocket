@@ -1,0 +1,32 @@
+import std.buffer
+import std.ownership
+import std.task
+
+struct Record:
+    value: Int
+
+async fn increment(value: Int) -> Result[Int, String]:
+    return Ok(value + 1)
+
+fn main() -> Int:
+    let record = Record(41)
+    let observer = ownership.downgrade(record)
+    match ownership.upgrade(observer):
+        case Some(live):
+            print(live.value)
+        case None:
+            return 1
+
+    let mutable = buffer.thaw([1, 2])
+    let grown = buffer.append(mutable, 3)
+    let frozen = buffer.freeze(grown)
+    print(frozen[2])
+
+    let pending = increment(record.value)
+    match task.join(pending):
+        case Ok(value):
+            print(value)
+        case Err(message):
+            print(message)
+            return 2
+    return 0

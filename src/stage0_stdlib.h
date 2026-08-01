@@ -13,9 +13,12 @@
 // RAII value representation; the production backend uses stdlib.cpp and ABI v1.
 
 #include <algorithm>
+#include <atomic>
 #include <charconv>
 #include <chrono>
 #include <cctype>
+#include <condition_variable>
+#include <deque>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -23,6 +26,7 @@
 #include <iomanip>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string_view>
 #include <thread>
@@ -45,6 +49,463 @@ template <typename T> RocketAggregate rocket_stage0_ok(T value) {
 
 inline RocketAggregate rocket_stage0_error(std::string message) {
   return rocket_stage0_variant(1, {std::move(message)});
+}
+
+inline RocketAggregate rocket_std_task_join(const RocketTask& task) {
+  return rocket_await(task);
+}
+
+inline bool rocket_std_task_is_complete(const RocketTask& task) {
+  return task->future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
+}
+inline bool rocket_std_task_cancel(const RocketTask& task) {
+  if (rocket_std_task_is_complete(task)) return false;
+  return !task->cancellation->cancelled.exchange(true, std::memory_order_acq_rel);
+}
+
+template <typename T> struct RocketTaskGroupState {
+  std::vector<RocketTask> tasks;
+  bool joined = false;
+};
+template <typename T> using RocketTaskGroup = std::shared_ptr<RocketTaskGroupState<T>>;
+template <typename T> RocketTaskGroup<T> rocket_std_task_group(
+    const RocketArray<RocketTask>& tasks) {
+  auto group = std::make_shared<RocketTaskGroupState<T>>();
+  group->tasks.assign(tasks->begin(), tasks->end()); return group;
+}
+template <typename T> RocketAggregate rocket_std_task_group_join(
+    const RocketTaskGroup<T>& group) {
+  if (group->joined) return rocket_stage0_error("TaskGroup was already joined");
+  group->joined = true;
+  auto values = std::make_shared<std::vector<T>>();
+  for (const RocketTask& task : group->tasks) {
+    RocketAggregate result = rocket_await(task);
+    if (result->tag != 0) return result;
+    values->push_back(rocket_field<T>(result, 0));
+  }
+  return rocket_stage0_ok(values);
+}
+template <typename T> bool rocket_std_task_group_cancel(const RocketTaskGroup<T>& group) {
+  bool changed = false;
+  for (const RocketTask& task : group->tasks)
+    changed = rocket_std_task_cancel(task) || changed;
+  return changed;
+}
+
+template <typename T> struct RocketThreadState {
+  RocketTask task;
+  std::thread worker;
+  std::mutex mutex;
+  std::condition_variable completed;
+  RocketAggregate result;
+  bool finished = false;
+  bool consumed = false;
+  ~RocketThreadState() {
+    if (worker.joinable()) {
+      if (worker.get_id() == std::this_thread::get_id()) worker.detach();
+      else worker.join();
+    }
+  }
+};
+template <typename T> using RocketThread = std::shared_ptr<RocketThreadState<T>>;
+template <typename T> RocketAggregate rocket_std_thread_spawn(const RocketTask& task) {
+  auto thread = std::make_shared<RocketThreadState<T>>();
+  thread->task = task;
+  try {
+    thread->worker = std::thread([thread] {
+      RocketAggregate result = rocket_await(thread->task);
+      {
+        std::lock_guard lock(thread->mutex);
+        thread->result = std::move(result);
+        thread->finished = true;
+      }
+      thread->completed.notify_all();
+    });
+  } catch (const std::system_error& error) {
+    return rocket_stage0_error(error.what());
+  }
+  return rocket_stage0_ok(thread);
+}
+template <typename T> RocketAggregate rocket_std_thread_join(const RocketThread<T>& thread) {
+  {
+    std::lock_guard lock(thread->mutex);
+    if (thread->consumed) return rocket_stage0_error("Thread was already joined or detached");
+    thread->consumed = true;
+  }
+  if (thread->worker.joinable()) thread->worker.join();
+  std::lock_guard lock(thread->mutex);
+  return thread->result;
+}
+template <typename T> RocketAggregate rocket_std_thread_detach(const RocketThread<T>& thread) {
+  {
+    std::lock_guard lock(thread->mutex);
+    if (thread->consumed) return rocket_stage0_error("Thread was already joined or detached");
+    thread->consumed = true;
+  }
+  if (thread->worker.joinable()) thread->worker.detach();
+  return rocket_stage0_ok(true);
+}
+template <typename T> bool rocket_std_thread_is_complete(const RocketThread<T>& thread) {
+  std::lock_guard lock(thread->mutex);
+  return thread->finished;
+}
+
+template <typename T> RocketWeak<T> rocket_std_ownership_downgrade(const T& value) {
+  return RocketWeak<T>{value};
+}
+
+template <typename T> RocketAggregate rocket_std_ownership_upgrade(
+    const RocketWeak<T>& weak) {
+  auto value = weak.value.lock();
+  return value ? rocket_stage0_variant(0, {T{std::move(value)}})
+               : rocket_stage0_variant(1);
+}
+
+template <typename T> bool rocket_std_ownership_expired(const RocketWeak<T>& weak) {
+  return weak.value.expired();
+}
+
+template <typename T> RocketUniqueBuffer<T> rocket_std_buffer_thaw(
+    const RocketArray<T>& values) {
+  return std::make_shared<std::vector<T>>(*values);
+}
+
+template <typename T> std::int64_t rocket_std_buffer_length(
+    const RocketUniqueBuffer<T>& buffer) {
+  return static_cast<std::int64_t>(buffer->size());
+}
+
+template <typename T> std::int64_t rocket_std_buffer_capacity(
+    const RocketUniqueBuffer<T>& buffer) {
+  return static_cast<std::int64_t>(buffer->capacity());
+}
+
+template <typename T> T rocket_std_buffer_get(const RocketUniqueBuffer<T>& buffer,
+                                               std::int64_t index) {
+  if (index < 0 || index >= static_cast<std::int64_t>(buffer->size()))
+    rocket_bounds_error();
+  return (*buffer)[static_cast<std::size_t>(index)];
+}
+
+template <typename T> RocketUniqueBuffer<T> rocket_std_buffer_set(
+    const RocketUniqueBuffer<T>& buffer, std::int64_t index, T value) {
+  if (index < 0 || index >= static_cast<std::int64_t>(buffer->size()))
+    rocket_bounds_error();
+  (*buffer)[static_cast<std::size_t>(index)] = std::move(value);
+  return buffer;
+}
+
+template <typename T> RocketUniqueBuffer<T> rocket_std_buffer_append(
+    const RocketUniqueBuffer<T>& buffer, T value) {
+  buffer->push_back(std::move(value));
+  return buffer;
+}
+
+template <typename T> RocketUniqueBuffer<T> rocket_std_buffer_slice(
+    const RocketUniqueBuffer<T>& buffer, std::int64_t start, std::int64_t end) {
+  if (start < 0 || end < start || end > static_cast<std::int64_t>(buffer->size()))
+    rocket_bounds_error();
+  return std::make_shared<std::vector<T>>(buffer->begin() + start,
+                                          buffer->begin() + end);
+}
+
+template <typename T> RocketArray<T> rocket_std_buffer_freeze(
+    const RocketUniqueBuffer<T>& buffer) {
+  return buffer;
+}
+
+inline RocketCancellation rocket_std_cancel_token() {
+  return std::make_shared<RocketCancellationState>();
+}
+inline RocketCancellation rocket_std_cancel_child(const RocketCancellation& parent) {
+  auto child = rocket_std_cancel_token(); child->parent = parent; return child;
+}
+inline RocketCancellation rocket_std_cancel_current() {
+  return rocket_stage0_current_cancellation
+      ? rocket_stage0_current_cancellation : rocket_std_cancel_token();
+}
+inline bool rocket_std_cancel_is_cancelled(const RocketCancellation& token) {
+  return rocket_stage0_token_cancelled(token);
+}
+inline bool rocket_stage0_operation_cancelled(const RocketCancellation& token) {
+  return rocket_stage0_token_cancelled(token) ||
+      (rocket_stage0_current_cancellation != token &&
+       rocket_stage0_token_cancelled(rocket_stage0_current_cancellation));
+}
+inline bool rocket_std_cancel_cancel(const RocketCancellation& token) {
+  return !token->cancelled.exchange(true, std::memory_order_acq_rel);
+}
+inline RocketAggregate rocket_std_cancel_check(const RocketCancellation& token) {
+  return rocket_std_cancel_is_cancelled(token)
+      ? rocket_stage0_error("operation cancelled") : rocket_stage0_ok(true);
+}
+inline std::int64_t rocket_stage0_monotonic_milliseconds() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+inline RocketAggregate rocket_std_async_time_deadline_after(std::int64_t milliseconds) {
+  if (milliseconds < 0) return rocket_stage0_error("deadline duration cannot be negative");
+  return rocket_stage0_ok(rocket_stage0_monotonic_milliseconds() + milliseconds);
+}
+inline std::int64_t rocket_std_async_time_remaining(std::int64_t deadline) {
+  return (std::max)(std::int64_t{0}, deadline - rocket_stage0_monotonic_milliseconds());
+}
+inline RocketTask rocket_std_async_time_sleep_until(
+    std::int64_t deadline, const RocketCancellation& token) {
+  return rocket_task([deadline, token] {
+    while (rocket_stage0_monotonic_milliseconds() < deadline) {
+      if (rocket_stage0_operation_cancelled(token))
+        return rocket_stage0_error("operation cancelled");
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    return rocket_stage0_ok(true);
+  });
+}
+inline RocketTask rocket_std_async_time_sleep(
+    std::int64_t milliseconds, const RocketCancellation& token) {
+  if (milliseconds < 0)
+    return rocket_task([] { return rocket_stage0_error("sleep duration cannot be negative"); });
+  return rocket_std_async_time_sleep_until(
+      rocket_stage0_monotonic_milliseconds() + milliseconds, token);
+}
+inline RocketTask rocket_std_async_file_read(
+    const std::string& path, std::int64_t maximum,
+    const RocketCancellation& token) {
+  return rocket_task([path, maximum, token] {
+    if (maximum < 0 || maximum > 67108864)
+      return rocket_stage0_error("asynchronous file read maximum must be from 0 through 67108864");
+    if (rocket_stage0_operation_cancelled(token))
+      return rocket_stage0_error("operation cancelled");
+    std::ifstream input(std::filesystem::u8path(path), std::ios::binary | std::ios::ate);
+    if (!input) return rocket_stage0_error("could not open file for asynchronous reading");
+    const std::streamoff size = input.tellg();
+    if (size < 0 || size > maximum)
+      return rocket_stage0_error("asynchronous file read exceeds its maximum byte count");
+    input.seekg(0, std::ios::beg);
+    auto bytes = std::make_shared<std::vector<char>>(static_cast<std::size_t>(size));
+    input.read(bytes->data(), size);
+    if (!input && size != 0) return rocket_stage0_error("asynchronous file read failed before completion");
+    if (rocket_stage0_operation_cancelled(token))
+      return rocket_stage0_error("operation cancelled");
+    return rocket_stage0_ok(bytes);
+  });
+}
+inline RocketTask rocket_std_async_file_write(
+    const std::string& path, const RocketUniqueBuffer<char>& buffer, bool append,
+    const RocketCancellation& token) {
+  return rocket_task([path, buffer, append, token] {
+    if (buffer->size() > 67108864)
+      return rocket_stage0_error("asynchronous file write exceeds 67108864 bytes");
+    if (rocket_stage0_operation_cancelled(token))
+      return rocket_stage0_error("operation cancelled");
+    std::ofstream output(std::filesystem::u8path(path), std::ios::binary |
+        (append ? std::ios::app : std::ios::trunc));
+    if (!output) return rocket_stage0_error("could not open file for asynchronous writing");
+    output.write(buffer->data(), static_cast<std::streamsize>(buffer->size()));
+    if (!output) return rocket_stage0_error("asynchronous file write failed before completion");
+    return rocket_stage0_operation_cancelled(token)
+        ? rocket_stage0_error("operation cancelled") : rocket_stage0_ok(true);
+  });
+}
+
+template <typename T> struct RocketMutexState {
+  std::timed_mutex mutex;
+  T value;
+  explicit RocketMutexState(T initial) : value(std::move(initial)) {}
+};
+template <typename T> using RocketMutex = std::shared_ptr<RocketMutexState<T>>;
+template <typename T> struct RocketLockGuardState {
+  RocketMutex<T> owner;
+  std::unique_lock<std::timed_mutex> lock;
+  explicit RocketLockGuardState(RocketMutex<T> value)
+      : owner(std::move(value)), lock(owner->mutex, std::adopt_lock) {}
+};
+template <typename T> using RocketLockGuard = std::shared_ptr<RocketLockGuardState<T>>;
+
+template <typename T> RocketMutex<T> rocket_std_sync_mutex(T value) {
+  return std::make_shared<RocketMutexState<T>>(std::move(value));
+}
+template <typename T> RocketAggregate rocket_std_sync_lock(
+    const RocketMutex<T>& mutex, std::int64_t deadline,
+    const RocketCancellation& token) {
+  while (!mutex->mutex.try_lock_for(std::chrono::milliseconds(2))) {
+    if (rocket_stage0_operation_cancelled(token))
+      return rocket_stage0_error("operation cancelled");
+    if (deadline >= 0 && rocket_stage0_monotonic_milliseconds() >= deadline)
+      return rocket_stage0_error("mutex lock timed out");
+  }
+  return rocket_stage0_ok(std::make_shared<RocketLockGuardState<T>>(mutex));
+}
+template <typename T> T rocket_std_sync_guard_get(const RocketLockGuard<T>& guard) {
+  return guard->owner->value;
+}
+template <typename T> bool rocket_std_sync_guard_set(
+    const RocketLockGuard<T>& guard, T value) {
+  guard->owner->value = std::move(value); return true;
+}
+template <typename T> RocketAggregate rocket_std_sync_unlock(
+    const RocketLockGuard<T>& guard) {
+  if (!guard->lock.owns_lock()) return rocket_stage0_ok(false);
+  guard->lock.unlock(); return rocket_stage0_ok(true);
+}
+
+struct RocketEventState {
+  std::mutex mutex; std::condition_variable changed;
+  bool manual{}; bool set{};
+};
+using RocketEvent = std::shared_ptr<RocketEventState>;
+inline RocketEvent rocket_std_sync_event(bool manual, bool initiallySet) {
+  auto event = std::make_shared<RocketEventState>();
+  event->manual = manual; event->set = initiallySet; return event;
+}
+inline bool rocket_std_sync_event_set(const RocketEvent& event) {
+  { std::lock_guard lock(event->mutex); event->set = true; }
+  if (event->manual) event->changed.notify_all(); else event->changed.notify_one();
+  return true;
+}
+inline bool rocket_std_sync_event_reset(const RocketEvent& event) {
+  std::lock_guard lock(event->mutex); const bool prior = event->set;
+  event->set = false; return prior;
+}
+inline RocketAggregate rocket_std_sync_event_wait(
+    const RocketEvent& event, std::int64_t deadline,
+    const RocketCancellation& token) {
+  std::unique_lock lock(event->mutex);
+  while (!event->set) {
+    if (rocket_stage0_operation_cancelled(token))
+      return rocket_stage0_error("operation cancelled");
+    if (deadline >= 0 && rocket_stage0_monotonic_milliseconds() >= deadline)
+      return rocket_stage0_error("event wait timed out");
+    event->changed.wait_for(lock, std::chrono::milliseconds(2));
+  }
+  if (!event->manual) event->set = false;
+  return rocket_stage0_ok(true);
+}
+
+using RocketAtomicInt = std::shared_ptr<std::atomic<std::int64_t>>;
+inline RocketAtomicInt rocket_std_sync_atomic_int(std::int64_t value) {
+  return std::make_shared<std::atomic<std::int64_t>>(value);
+}
+inline std::int64_t rocket_std_sync_atomic_load(const RocketAtomicInt& value) {
+  return value->load(std::memory_order_seq_cst);
+}
+inline RocketUnit rocket_std_sync_atomic_store(
+    const RocketAtomicInt& value, std::int64_t replacement) {
+  value->store(replacement, std::memory_order_seq_cst); return {};
+}
+inline std::int64_t rocket_std_sync_atomic_fetch_add(
+    const RocketAtomicInt& value, std::int64_t delta) {
+  return value->fetch_add(delta, std::memory_order_seq_cst);
+}
+inline bool rocket_std_sync_atomic_compare_exchange(
+    const RocketAtomicInt& value, std::int64_t expected, std::int64_t replacement) {
+  return value->compare_exchange_strong(expected, replacement, std::memory_order_seq_cst);
+}
+
+template <typename T> struct RocketOnceState { std::mutex mutex; std::optional<T> value; };
+template <typename T> using RocketOnce = std::shared_ptr<RocketOnceState<T>>;
+template <typename T> RocketOnce<T> rocket_std_sync_once(T value) {
+  auto once = std::make_shared<RocketOnceState<T>>(); once->value = std::move(value); return once;
+}
+template <typename T> RocketAggregate rocket_std_sync_once_set(
+    const RocketOnce<T>& once, T value) {
+  std::lock_guard lock(once->mutex);
+  if (once->value) return rocket_stage0_ok(false);
+  once->value = std::move(value); return rocket_stage0_ok(true);
+}
+template <typename T> RocketAggregate rocket_std_sync_once_get(const RocketOnce<T>& once) {
+  std::lock_guard lock(once->mutex);
+  return once->value ? rocket_stage0_variant(0, {*once->value}) : rocket_stage0_variant(1);
+}
+
+template <typename T> struct RocketChannelState {
+  std::mutex mutex; std::condition_variable readable, writable;
+  std::deque<T> values; std::size_t maximum{}; std::size_t senders{}; std::size_t receivers{};
+};
+template <typename T> struct RocketChannelEndpoint {
+  std::shared_ptr<RocketChannelState<T>> state;
+  std::shared_ptr<std::atomic<bool>> open;
+  bool sender{};
+  RocketChannelEndpoint() = default;
+  RocketChannelEndpoint(std::shared_ptr<RocketChannelState<T>> value, bool sends)
+      : state(std::move(value)), open(std::make_shared<std::atomic<bool>>(true)), sender(sends) {
+    std::lock_guard lock(state->mutex); if (sender) ++state->senders; else ++state->receivers;
+  }
+  void close() const {
+    if (!state || !open || !open->exchange(false)) return;
+    { std::lock_guard lock(state->mutex); if (sender) --state->senders; else --state->receivers; }
+    state->readable.notify_all(); state->writable.notify_all();
+  }
+  ~RocketChannelEndpoint() { if (open && open.use_count() == 1) close(); }
+};
+template <typename T> using RocketSender = RocketChannelEndpoint<T>;
+template <typename T> using RocketReceiver = RocketChannelEndpoint<T>;
+template <typename T> struct RocketChannel { RocketSender<T> sender; RocketReceiver<T> receiver; };
+
+template <typename T> RocketAggregate rocket_stage0_channel(
+    const RocketArray<T>& initial, std::size_t maximum) {
+  if (initial->size() > maximum) return rocket_stage0_error("initial channel values exceed channel capacity");
+  auto state = std::make_shared<RocketChannelState<T>>(); state->maximum = maximum;
+  state->values.insert(state->values.end(), initial->begin(), initial->end());
+  return rocket_stage0_ok(RocketChannel<T>{RocketSender<T>{state, true}, RocketReceiver<T>{state, false}});
+}
+template <typename T> RocketAggregate rocket_std_channel_bounded(
+    const RocketArray<T>& initial, std::int64_t capacity) {
+  if (capacity < 1 || capacity > 65536)
+    return rocket_stage0_error("bounded channel capacity must be from 1 through 65536");
+  return rocket_stage0_channel(initial, static_cast<std::size_t>(capacity));
+}
+template <typename T> RocketAggregate rocket_std_channel_unbounded(const RocketArray<T>& initial) {
+  return rocket_stage0_channel(initial, 1048576);
+}
+template <typename T> RocketSender<T> rocket_std_channel_sender(const RocketChannel<T>& channel) {
+  return channel.sender;
+}
+template <typename T> RocketReceiver<T> rocket_std_channel_receiver(const RocketChannel<T>& channel) {
+  return channel.receiver;
+}
+template <typename T> RocketSender<T> rocket_std_channel_clone_sender(const RocketSender<T>& sender) {
+  return RocketSender<T>{sender.state, true};
+}
+template <typename T> RocketReceiver<T> rocket_std_channel_clone_receiver(const RocketReceiver<T>& receiver) {
+  return RocketReceiver<T>{receiver.state, false};
+}
+template <typename T> RocketAggregate rocket_std_channel_send(
+    const RocketSender<T>& sender, T value, std::int64_t deadline,
+    const RocketCancellation& token) {
+  auto state = sender.state; std::unique_lock lock(state->mutex);
+  while (state->values.size() >= state->maximum && state->receivers != 0) {
+    if (rocket_stage0_operation_cancelled(token)) return rocket_stage0_error("operation cancelled");
+    if (deadline >= 0 && rocket_stage0_monotonic_milliseconds() >= deadline)
+      return rocket_stage0_error("channel send timed out");
+    state->writable.wait_for(lock, std::chrono::milliseconds(2));
+  }
+  if (!sender.open->load() || state->receivers == 0)
+    return rocket_stage0_error("channel receivers disconnected");
+  state->values.push_back(std::move(value)); lock.unlock(); state->readable.notify_one();
+  return rocket_stage0_ok(true);
+}
+template <typename T> RocketAggregate rocket_std_channel_receive(
+    const RocketReceiver<T>& receiver, std::int64_t deadline,
+    const RocketCancellation& token) {
+  auto state = receiver.state; std::unique_lock lock(state->mutex);
+  while (state->values.empty() && state->senders != 0) {
+    if (rocket_stage0_operation_cancelled(token)) return rocket_stage0_error("operation cancelled");
+    if (deadline >= 0 && rocket_stage0_monotonic_milliseconds() >= deadline)
+      return rocket_stage0_error("channel receive timed out");
+    state->readable.wait_for(lock, std::chrono::milliseconds(2));
+  }
+  RocketAggregate option;
+  if (state->values.empty()) option = rocket_stage0_variant(1);
+  else { T value = std::move(state->values.front()); state->values.pop_front();
+         option = rocket_stage0_variant(0, {std::move(value)}); }
+  lock.unlock(); state->writable.notify_one(); return rocket_stage0_ok(option);
+}
+template <typename T> RocketAggregate rocket_std_channel_close_sender(const RocketSender<T>& sender) {
+  const bool prior = sender.open->load(); sender.close(); return rocket_stage0_ok(prior);
+}
+template <typename T> RocketAggregate rocket_std_channel_close_receiver(const RocketReceiver<T>& receiver) {
+  const bool prior = receiver.open->load(); receiver.close(); return rocket_stage0_ok(prior);
 }
 
 inline std::int64_t rocket_std_string_byte_length(const std::string& value) {
@@ -2274,4 +2735,90 @@ inline std::int64_t rocket_std_time_monotonic_milliseconds() {
 inline RocketUnit rocket_std_time_sleep_milliseconds(std::int64_t milliseconds) {
   if (milliseconds < 0) rocket_integer_error("sleep duration cannot be negative");
   std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds)); return {};
+}
+
+inline RocketTask rocket_std_async_net_connect(
+    const std::string& host, std::int64_t port, std::int64_t deadline,
+    const RocketCancellation& token) {
+  return rocket_task([host, port, deadline, token] {
+    if (rocket_stage0_operation_cancelled(token)) return rocket_stage0_error("operation cancelled");
+    return rocket_std_net_tcp_connect(host, port,
+        (std::max)(std::int64_t{0}, deadline - rocket_stage0_monotonic_milliseconds()));
+  });
+}
+inline RocketTask rocket_std_async_net_accept(
+    std::int64_t listener, std::int64_t deadline, const RocketCancellation& token) {
+  return rocket_task([listener, deadline, token] {
+    if (rocket_stage0_operation_cancelled(token)) return rocket_stage0_error("operation cancelled");
+    return rocket_std_net_accept(listener,
+        (std::max)(std::int64_t{0}, deadline - rocket_stage0_monotonic_milliseconds()));
+  });
+}
+inline RocketTask rocket_std_async_net_receive(
+    std::int64_t socket, std::int64_t maximum, std::int64_t deadline,
+    const RocketCancellation& token) {
+  return rocket_task([socket, maximum, deadline, token] {
+    if (rocket_stage0_operation_cancelled(token)) return rocket_stage0_error("operation cancelled");
+    RocketAggregate result = rocket_std_net_receive(socket, maximum,
+        (std::max)(std::int64_t{0}, deadline - rocket_stage0_monotonic_milliseconds()));
+    if (result->tag != 0) return result;
+    RocketAggregate buffer = rocket_field<RocketAggregate>(result, 0);
+    return rocket_stage0_ok(rocket_field<RocketArray<char>>(buffer, 0));
+  });
+}
+inline RocketTask rocket_std_async_net_send(
+    std::int64_t socket, const RocketUniqueBuffer<char>& bytes,
+    std::int64_t deadline, const RocketCancellation& token) {
+  return rocket_task([socket, bytes, deadline, token] {
+    if (rocket_stage0_operation_cancelled(token)) return rocket_stage0_error("operation cancelled");
+    RocketAggregate buffer = rocket_aggregate(0, {bytes});
+    return rocket_std_net_send(socket, buffer,
+        (std::max)(std::int64_t{0}, deadline - rocket_stage0_monotonic_milliseconds()));
+  });
+}
+inline RocketTask rocket_std_async_process_run(
+    const std::string& program, const RocketArray<std::string>& arguments,
+    std::int64_t deadline, const RocketCancellation& token) {
+  return rocket_task([program, arguments, deadline, token] {
+    if (rocket_stage0_operation_cancelled(token)) return rocket_stage0_error("operation cancelled");
+    if (deadline < 0 || rocket_stage0_monotonic_milliseconds() >= deadline)
+      return rocket_stage0_error("process deadline exceeded");
+#ifdef _WIN32
+    const std::wstring executable = rocket_stage0_wide(program);
+    if (executable.empty())
+      return rocket_stage0_error("process program is empty or invalid UTF-8");
+    std::wstring command = rocket_stage0_quote(executable);
+    for (const auto& argument : *arguments)
+      command += L" " + rocket_stage0_quote(rocket_stage0_wide(argument));
+    std::vector<wchar_t> mutableCommand(command.begin(), command.end());
+    mutableCommand.push_back(L'\0');
+    STARTUPINFOW startup{}; startup.cb = sizeof(startup); PROCESS_INFORMATION process{};
+    if (!CreateProcessW(nullptr, mutableCommand.data(), nullptr, nullptr, FALSE, 0,
+                        nullptr, nullptr, &startup, &process))
+      return rocket_stage0_error("could not start asynchronous process (Windows error " +
+                                 std::to_string(GetLastError()) + ")");
+    bool cancelled = false; bool timedOut = false; DWORD waited = WAIT_TIMEOUT;
+    while (waited == WAIT_TIMEOUT) {
+      if (rocket_stage0_operation_cancelled(token)) { cancelled = true; break; }
+      const std::int64_t remaining = deadline - rocket_stage0_monotonic_milliseconds();
+      if (remaining <= 0) { timedOut = true; break; }
+      waited = WaitForSingleObject(process.hProcess,
+          static_cast<DWORD>((std::min)(std::int64_t{10}, remaining)));
+    }
+    RocketAggregate result;
+    if (cancelled || timedOut) {
+      TerminateProcess(process.hProcess, 1); WaitForSingleObject(process.hProcess, 5000);
+      result = rocket_stage0_error(cancelled ? "operation cancelled"
+                                             : "process deadline exceeded");
+    } else if (waited == WAIT_OBJECT_0) {
+      DWORD code = 1;
+      result = GetExitCodeProcess(process.hProcess, &code)
+          ? rocket_stage0_ok(static_cast<std::int64_t>(code))
+          : rocket_stage0_error("could not read asynchronous process exit code");
+    } else result = rocket_stage0_error("asynchronous process wait failed");
+    CloseHandle(process.hThread); CloseHandle(process.hProcess); return result;
+#else
+    return rocket_stage0_error("async_process.run is only implemented on Windows x64");
+#endif
+  });
 }

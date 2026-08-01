@@ -15,7 +15,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 - Bootstrap compiler: C++20; preserve it forever as `stage0`.
 - Production backend: LLVM 22.1.6 ahead-of-time native compilation.
-- Memory model: automatic reference counting; cycles are a documented version-1 limitation.
+- Memory model: automatic reference counting; strong cycles must be prevented by
+  using explicit `Weak[T]` back edges.
 - Syntax: indentation blocks, explicit `let`/`var`, inferred local types, typed function boundaries.
 - Error model: `Option[T]`, `Result[T, E]`, and `?`; never universal null or exceptions.
 - Extensibility: official curated syntax sugar only; no arbitrary user macros in Rocket 1.0.
@@ -28,9 +29,9 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.5 standard-library, Rocket 1.6 package ecosystem, and Rocket 1.7
-professional developer experience are complete on the self-hosted Rocket 1.4
-foundation. The production `rocketc` is written in Rocket,
+Rocket 1.5 standard-library, Rocket 1.6 package ecosystem, Rocket 1.7
+professional developer experience, and Rocket 1.8 ownership/concurrency release
+are complete on the self-hosted Rocket 1.4 foundation. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -125,11 +126,18 @@ Implemented:
   CodeView/PDB and source maps for optimized/unoptimized builds, coverage,
   profiling and benchmarking reports, machine compiler/test/build messages,
   and an evaluated incremental-AOT REPL prototype.
+- Rocket 1.8 typed weak ownership, move-only unique buffers, structural
+  `Send`/`Share`, checked atomic ARC promotion, dedicated thread handles, a
+  bounded default executor, typed tasks and task groups, bounded FIFO channels,
+  mutex guards, events, integer atomics, once cells, cooperative cancellation,
+  monotonic timers/deadlines, `async fn`/`await`, and bounded-worker Windows
+  asynchronous file, socket, and process APIs, with matching C++ stage0 and
+  Rocket-written compiler behavior.
 
 Not implemented yet:
 
-- Robust ownership and concurrency, broader native calling conventions,
-  dynamic native loading, the full raylib surface, non-Windows targets, and the
+- Broader native calling conventions, dynamic native loading, the full raylib
+  surface, non-Windows targets, and the
   Rocket 2.0 security/performance/compatibility release gates. No casino
   implementation has begun.
 
@@ -732,11 +740,93 @@ Known limitations remain those in the implementation-state list above; no langua
   independent editor-neutral LSP client, and the self-hosted package-scaffold
   parity regression.
 
+**Phase 18 - Rocket 1.8 robust ownership, concurrency, and asynchronous I/O (completed)**
+
+- Specified the complete safe surface in `CONCURRENCY.md`, `SPEC.md`,
+  `STDLIB.md`, decision D032, the R4101-R4106 diagnostic catalog, the 1.8 syntax
+  dictionary, release contract, migration guide, and a runnable ownership/
+  buffer/task example. Existing Rocket 1.0-1.7 source and synchronous APIs are
+  unchanged.
+- Added identity-bearing `Weak[T]` handles with atomic upgrade/expiration and
+  an explicit weak-back-edge cycle strategy. Added move-only
+  `UniqueBuffer[T]` thaw/get/set/append/slice/freeze operations while preserving
+  immutable `Array`/`Slice` observable value semantics.
+- Added structural `Send`/`Share` checking, scoped and move-only escape rules,
+  graph promotion from cheap thread-confined ARC to atomic shared ARC, and
+  stable R4101-R4106 diagnostics in both compilers. Native pointers/opaque
+  handles, unique buffers, guards, and task groups cannot cross concurrency
+  boundaries in safe code.
+- Added a bounded default executor (1-64 workers, queue limit 65,536), repeatable
+  typed task results, cooperative task cancellation, same-executor helping for
+  nested waits, deterministic drain/join shutdown, dedicated thread handles,
+  finite task groups, FIFO bounded channels with backpressure and close/drain
+  semantics, mutex guards, events, sequentially consistent `AtomicInt`, and
+  seeded once cells. Dropped groups cancel and join every child; dropped
+  undetached thread handles join.
+- Added contextual `async fn` and prefix `await` through lexer/parser/AST,
+  typed HIR, explicit async-call/await MIR, verifier rules, C++ LLVM lowering,
+  the C++ fallback emitter, and the Rocket-written LLVM emitter. Both LLVM
+  compilers capture arguments in managed aggregate contexts and call the same
+  bounded runtime task-spawn entry through generated thunks; async functions
+  return `Result[T, String]` and require `T: Send`.
+- Added cooperative cancellation tokens/children/current-task observation,
+  monotonic deadlines and timers, and bounded-worker async file read/write,
+  loopback socket connect/accept/send/receive, and direct Windows child-process
+  execution with cancellation/deadline termination. No operation creates an
+  unbounded thread per request.
+- Runtime stress covers 10,000 weak self-cycle allocations, a weak-broken
+  multi-object cycle, concurrent weak upgrade/destruction, high-contention
+  retain/release with exactly-once destruction, task cancellation before/during/
+  after completion, nested awaits, group ordering/drop cleanup, thread lifetime,
+  finite contended mutex waits, 8x10,000 atomic increments, concurrent once
+  reads, event wakeup/cancellation, and channel FIFO/backpressure/close/leak
+  behavior. Parser, HIR, MIR-verifier, C++ emitter, LLVM IR, positive native,
+  negative diagnostic, stage0, and self-hosted fixture coverage is included.
+- Dependency verification passed with Git 2.47.1, CMake 3.31.6-msvc6, Ninja
+  1.13.1, Clang/LLVM 22.1.6, MSVC 19.44.35228 x64, and raylib 6.0.
+- The exact required build matrices passed: pinned LLVM Debug 179/179 in
+  947.39 seconds and Release 179/179 in 329.28 seconds; LLVM-disabled stage0
+  Debug 136/136 in 611.77 seconds and Release 136/136 in 598.08 seconds. The
+  focused Phase 18 suite passed 41/41 twice in 40.23 and 40.36 seconds.
+- Release bootstrap passed in 1168.2 seconds. The final documentation-refresh
+  bootstrap checksum file records stage1
+  `5fd03434a03b3081016fced801d73a54043a15131a9013548ad179ff3e5ae612`,
+  stage2 `1f89a2b3f00fe7e71335352ec478d06c10f090472407a81d446a9e6adfdb2caf`,
+  and stage3 `cc28755d5b89a8fc5b97e4d9b8416a1fd0c184580f19c3a2ae4124f07de3ca40`.
+  Stage2/stage3 LLVM IR is byte-identical at
+  `413766d67b0d0496bc163a63a6e329f75247e5b96cefa637c65f3f780d3e9b6e`;
+  `SHA256SUMS.txt` is
+  `6d52d6ba9dc18bab39808dda6f995f940dd03941973e12d3a9c7339eae3c6a43`.
+- Release conformance passed 90/90 in 25.8 seconds; its report SHA-256 is
+  `6bb2f64fdcf19eb6e3ed4fd500a8970c1adcdc4faa3a29a8dcbfa4893c6b23cd`.
+  All 11 performance budgets passed: 0.016/0.350/118.034/126.288/0.091/0.341/
+  0.100/0.831/0.039/0.317/0.336 seconds for hello check/build, compiler HIR/
+  MIR, native check/build, raylib check/build, and Phase 18 concurrency check/
+  async build/group build. The report SHA-256 is
+  `e36a2e65196e3727441c0275b8abde6b8434e05e2721e8c40f97e1a869102ec9`.
+- Final Release packaging and sanitized relocation passed in 1278.5 seconds,
+  including a fresh 179/179 suite in 351.05 seconds, bootstrap, native build/
+  run, coverage, collection execution, and locked/offline package audit. The
+  final ZIP is 252,073,532 bytes at SHA-256
+  `055e2f9ed645ce1f7e17dfdb7db8fbffa11f0e5f3c2f7166f2660345eb120963`;
+  its `SHA256SUMS.txt` is
+  `c5430dc40bc7ed9358c5e124dcffc6e54f5980ed09d28eddd3c106914df60870`.
+- Deliberate Rocket 1.8 limits: Windows is the only async backend; file/socket
+  operations are bounded-worker blocking rather than IOCP-overlapped; process
+  tasks inherit standard streams and return only an exit code; only one bounded
+  default pool is public; task groups accept a finite existing task array rather
+  than dynamic spawn; channels are bounded only; once cells are seeded at
+  construction; and strong cycles still leak unless a programmer makes at least
+  one back edge weak. These are explicit contracts, not hidden claims of IOCP,
+  output capture, user-created pools, dynamic groups, unbounded channels, lazy
+  once initialization, or tracing collection.
+
 ## Current next task
 
-**Begin Phase 18 only from the completed Rocket 1.7 branch after review. Define
-the ownership/concurrency contract first, preserve stage0 and all Phase 17
-editor/debug/tooling guarantees, and do not begin casino implementation.**
+**Review the completed Rocket 1.8 milestone. Phase 19 is the next roadmap item,
+but do not begin multi-platform work or casino implementation without an
+explicit owner instruction. Preserve the C++ stage0 and every Rocket 1.0-1.8
+compatibility, bootstrap, package, tooling, ownership, and concurrency gate.**
 
 ## New-chat prompt
 

@@ -365,6 +365,9 @@ private:
   void rewriteExpression(LoadedModule& module, std::unique_ptr<Expr>& expression,
                          const std::unordered_set<std::string>& typeParameters) {
     switch (expression->kind) {
+    case ExprKind::Await:
+      rewriteExpression(module, static_cast<AwaitExpr&>(*expression).value,
+                        typeParameters); break;
     case ExprKind::Unary:
       rewriteExpression(module, static_cast<UnaryExpr&>(*expression).operand,
                         typeParameters); break;

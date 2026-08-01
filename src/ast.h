@@ -12,7 +12,7 @@ struct Parameter { std::string name; std::string typeName; Location location; };
 
 enum class ExprKind {
   Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, Array, Index, Slice,
-  Field, Propagate, Lambda
+  Field, Propagate, Lambda, Await
 };
 
 struct Expr {
@@ -90,6 +90,12 @@ struct FieldExpr final : Expr {
 struct PropagateExpr final : Expr {
   PropagateExpr(Location location, std::unique_ptr<Expr> value)
       : Expr(ExprKind::Propagate, std::move(location)), value(std::move(value)) {}
+  std::unique_ptr<Expr> value;
+};
+
+struct AwaitExpr final : Expr {
+  AwaitExpr(Location location, std::unique_ptr<Expr> value)
+      : Expr(ExprKind::Await, std::move(location)), value(std::move(value)) {}
   std::unique_ptr<Expr> value;
 };
 
@@ -248,6 +254,7 @@ struct Function {
   bool nativeExport = false;
   bool nativeConstant = false;
   std::string nativeName;
+  bool asynchronous = false;
 };
 
 struct TraitMethod {

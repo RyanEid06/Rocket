@@ -463,7 +463,7 @@ operate in substantial codebases.
 - Exact report and distribution hashes, timings, and deliberate limitations are
   recorded in `PROJECT_CONTEXT.md`.
 
-### Phase 18 - Rocket 1.8: robust ownership, concurrency, and asynchronous I/O
+### Phase 18 - Rocket 1.8: robust ownership, concurrency, and asynchronous I/O - Completed
 
 **Purpose:** Support responsive applications and parallel services while keeping
 Rocket's default programming model understandable and safe.
@@ -491,6 +491,19 @@ Rocket's default programming model understandable and safe.
   suites pass repeatedly.
 - Compiler, runtime, and async scheduling behavior are specified rather than
   depending on undocumented implementation accidents.
+
+**Acceptance evidence:**
+
+- Pinned LLVM Debug and Release passed 179/179 tests; LLVM-disabled stage0
+  Debug and Release passed 136/136. The focused 41-test Phase 18 suite passed
+  twice, including native and self-hosted checks.
+- Release conformance passed 90/90 cases and all 11 performance budgets passed.
+  Packaging and sanitized relocation passed with Rocket 1.8 runtime/docs and a
+  separately named stage0 compiler.
+- Release stage2/stage3 LLVM IR is byte-identical at SHA-256
+  `413766d67b0d0496bc163a63a6e329f75247e5b96cefa637c65f3f780d3e9b6e`.
+  Exact timings, executable/report/archive hashes, and deliberate Windows 1.8
+  limitations are recorded in `PROJECT_CONTEXT.md`.
 
 ### Phase 19 - Rocket 1.9: multi-platform compiler and runtime
 

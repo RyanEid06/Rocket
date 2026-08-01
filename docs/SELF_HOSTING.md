@@ -110,3 +110,11 @@ explicit commands to its colocated `stage0/rocketc-stage0.exe`. Ordinary
 self-hosted check/build/run, exact package graph loading, and deterministic
 bootstrap stay Rocket-written. The full bootstrap gate must still prove
 byte-identical stage2/stage3 IR before Phase 17 can ship.
+
+Rocket 1.8 also preserves the boundary. Both compilers parse and type-check
+`async fn`/`await`, derive the same `Send`/`Share` results, enforce move and
+scoped-lifetime diagnostics, and lower async calls to the bounded runtime
+executor through captured aggregate contexts and compiler-generated entry
+thunks. Bootstrap conformance includes ownership, buffer, task, group, thread,
+cancellation, file, socket, and process fixtures; the stage2/stage3 IR equality
+check remains the release authority.

@@ -1,0 +1,23 @@
+import std.buffer
+
+struct Item:
+    value: Int
+
+fn main() -> Int:
+    let original = [10, 20]
+    let first = buffer.thaw(original)
+    print(buffer.length(first))
+    print(buffer.get(first, 1))
+    let second = buffer.set(first, 0, 99)
+    let third = buffer.append(second, 30)
+    let frozen = buffer.freeze(third)
+    print(original[0])
+    print(frozen[0])
+    print(frozen[2])
+
+    let managed = buffer.thaw([Item(7)])
+    let item = buffer.get(managed, 0)
+    print(item.value)
+    let managed_frozen = buffer.freeze(managed)
+    print(managed_frozen[0].value)
+    return 0

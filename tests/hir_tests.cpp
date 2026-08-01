@@ -264,5 +264,28 @@ int main() {
   rocket::test::expect(!unsafeFailure.has_value() && unsafeDiagnostics.hasErrors(),
                        "extern calls are rejected outside explicit unsafe blocks", failures);
 
+  rocket::Diagnostics asyncDiagnostics;
+  auto asyncHir = rocket::test::lowerToHir(
+      "async fn leaf(value: Int) -> Result[Int, String]:\n"
+      "    return Ok(value)\n"
+      "async fn parent() -> Result[Int, String]:\n"
+      "    let result = await leaf(42)\n"
+      "    return result\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      asyncDiagnostics);
+  rocket::test::expect(asyncHir.has_value(),
+                       "async calls and await lower to typed HIR", failures);
+  if (asyncHir.has_value()) {
+    const auto& binding = static_cast<const rocket::HirBindingStmt&>(
+        *asyncHir->functions[1].body[0]);
+    const auto& awaited = static_cast<const rocket::HirAwaitExpr&>(*binding.initializer);
+    rocket::test::expect(awaited.task->kind == rocket::HirExprKind::AsyncCall &&
+                             awaited.type.declaration == "Result" &&
+                             awaited.type.arguments[0] == rocket::Type::Int,
+                         "HIR records Task[Int] scheduling and Result[Int, String] await",
+                         failures);
+  }
+
   return rocket::test::finish(failures, "hir");
 }

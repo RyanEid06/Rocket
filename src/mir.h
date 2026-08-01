@@ -27,7 +27,8 @@ struct MirOperand {
 };
 
 enum class MirRvalueKind {
-  Use, Unary, Binary, Call, Array, ArrayUpdate, Index, Slice, Aggregate, Field, Tag
+  Use, Unary, Binary, Call, AsyncCall, Await, Array, ArrayUpdate, Index, Slice,
+  Aggregate, Field, Tag
 };
 
 struct MirRvalue {
@@ -46,6 +47,9 @@ struct MirRvalue {
   static MirRvalue unary(Type type, TokenKind op, MirOperand operand);
   static MirRvalue binary(Type type, TokenKind op, MirOperand left, MirOperand right);
   static MirRvalue call(Type type, SymbolId callee, std::vector<MirOperand> arguments);
+  static MirRvalue asyncCall(Type type, SymbolId callee,
+                             std::vector<MirOperand> arguments);
+  static MirRvalue await(Type type, MirOperand task);
   static MirRvalue array(Type type, std::vector<MirOperand> elements);
   static MirRvalue arrayUpdate(Type type, MirOperand array, MirOperand index,
                                MirOperand value);
@@ -102,6 +106,7 @@ struct MirLocal {
 struct MirFunction {
   SymbolId symbol = InvalidSymbol;
   Type result = Type::Invalid;
+  bool asynchronous = false;
   std::vector<MirLocal> locals;
   std::vector<MirLocalId> parameters;
   std::vector<MirBasicBlock> blocks;

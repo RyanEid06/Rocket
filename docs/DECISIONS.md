@@ -477,3 +477,42 @@ Phase 13 linker can see them. Documentation renders examples as text and audit
 uses signed advisory and SPDX policy data without executing dependency code.
 These choices keep package operations reproducible without widening runtime ABI
 v1 or smuggling unrestricted execution into manifests.
+
+## D032 - Structural thread safety, weak ARC, and bounded stackful tasks
+
+**Accepted for Rocket 1.8.** Safe Rocket prevents strong ownership cycles and
+data races by construction. `Weak[T]` supplies explicit non-owning back links
+with atomic all-or-nothing upgrade. `UniqueBuffer[T]` is move-only mutation
+authority that may cross a thread only when `T` is `Send`. `Send` and `Share`
+are compiler-derived structural properties; native pointers, opaque native
+handles, callbacks, and mutable builders receive neither property. Lock guards
+and task groups are move-only scoped values that cannot escape. Stable
+`R4101`-`R4106` diagnostics cover cross-thread, move, scope, await, and
+suspension violations.
+
+Thread-confined allocations keep a plain strong count. Publication through a
+checked concurrency primitive recursively promotes the reachable strong graph
+to atomic ownership. Atomic retain is relaxed, final release is release/acquire,
+and weak upgrade is acquire compare/exchange. Promotion is idempotent, does not
+traverse weak edges, and does not change source identity or value semantics.
+
+An `async fn` must return `Result[T, String]`; calling it returns `Task[T]`, and
+prefix `await` produces `Result[T, String]`. The implementation uses a bounded
+stackful worker representation. Await is explicit in HIR/MIR; a worker awaiting
+same-executor work pumps ready tasks, while ordinary MIR ownership keeps every
+managed local alive across that logical suspension. This preserves the existing
+`?`, match, loop, return, and deterministic cleanup machinery instead of adding
+exceptions or a second ownership system.
+
+Dedicated thread handles, one bounded default pool, structured task groups,
+FIFO channels, mutex guards,
+events, sequentially consistent integer atomics, once cells, cancellation
+tokens, monotonic deadlines, and timers use synchronized managed handles. All
+queues are bounded. Group destruction cancels and joins children; default-pool
+destruction drains queued work and joins workers; dropping an unjoined thread
+joins it. The Windows asynchronous file/socket/process/timer surface uses that
+bounded worker service and never creates an unbounded thread per operation.
+It is deliberately worker-blocking rather than IOCP-overlapped, and process
+tasks inherit standard streams instead of capturing output in Rocket 1.8.
+Synchronous Rocket 1.5 APIs remain compatible. The complete API, failure,
+memory-ordering, cancellation, and race contract is in `CONCURRENCY.md`.

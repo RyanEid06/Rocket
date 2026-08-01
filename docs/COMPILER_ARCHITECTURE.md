@@ -52,6 +52,12 @@ must not inspect the AST or HIR.
 - Copy-on-write Array element replacement is an explicit typed MIR rvalue. It
   consumes a borrowed Array, checked Int index, and exactly typed element, and
   produces an updated owned Array value before the source `var` is rebound.
+- Rocket 1.8 async calls and awaits are explicit typed MIR rvalues. An async
+  call owns a concrete argument frame and callback symbol; await borrows its
+  task and returns the task's `Result[T, String]` outcome. Backends do not infer
+  suspension from ordinary calls.
+- Move-only and scoped-value validation completes in HIR. MIR never contains a
+  read of a moved local or an escaping lock guard/task group.
 
 Future aggregate and generic types must extend these invariants without
 weakening them.
@@ -133,8 +139,11 @@ use `extern "C"`, fixed-width scalar arguments, and opaque pointers; C++ layout
 is not exposed to generated code.
 
 All managed runtime allocations begin with an internal strong-reference header
-and a type-specific destructor. ABI v1 is single-threaded, so reference counts
-are non-atomic. Null is accepted only by internal retain/release operations to
+and a type-specific destructor. ABI v1 allocations begin thread-confined with a
+plain reference count. Rocket 1.8 publication recursively promotes only the
+reachable shared graph to atomic strong ownership; thread-confined
+retain/release remains non-atomic. Null is accepted only by internal
+retain/release operations to
 support zero-initialized MIR storage; null is never a Rocket source value.
 
 Ownership conventions are:
@@ -180,10 +189,16 @@ uses the existing scalar or length-aware String equality contract. Stable hash
 entry points use the same FNV-1a bytes in the runtime and stage0 RAII library;
 iteration never exposes an implementation-dependent lookup order.
 
+Weak references keep an atomic control reference after the payload destructor
+runs. Upgrade performs an acquire conditional strong increment, so it returns a
+complete owner or reports expiration. Promoted retain is relaxed and final
+release is release/acquire. Weak edges are not traversed during promotion.
+
 The runtime reports bounds failures, invalid UTF-8, allocation failures,
 reference-count corruption, integer overflow, and integer division by zero to
 standard error and exits with status 101. Reference-count cycles remain a
-documented Rocket 1.0 limitation.
+historical Rocket 1.0 limitation; Rocket 1.8 safe construction prevents strong
+cycles and exposes `Weak` for recursive back links.
 
 Runtime aggregates store a deterministic enum tag, up to 64 typed field slots,
 and a managed-field mask. Construction retains managed fields, managed field
@@ -396,3 +411,35 @@ forwards explicitly host-dependent Phase 17 commands (`coverage`, `profile`,
 `benchmark`, `--debug`, and machine output) to its colocated reproducible stage0
 host. This boundary is visible and tested; the self-hosted frontend/bootstrap
 pipeline and ordinary optimized compilation remain unchanged.
+
+## Rocket 1.8 concurrency and async architecture
+
+HIR derives `Send`/`Share` recursively through concrete nominal declarations,
+closure capture structs, collections, weak references, and runtime handles.
+Native pointers/handles/callbacks and mutable builders fail both properties.
+The lowerer tracks move-only locals and rejects copies/use-after-move. It also
+rejects scoped guards/groups in return types, aggregate fields, escaping
+captures, and cross-thread frames.
+
+Each async function retains an ordinary MIR body returning `Result[T, String]`.
+Its source-level call lowers to an async-call rvalue returning `Task[T]`. LLVM
+emits a concrete frame plus one internal entry thunk that reads typed frame
+fields, calls the ordinary body, and completes the runtime task. The stage0 C++
+backend emits the equivalent typed closure. Await lowers to the versioned task
+outcome ABI and returns the same Result representation used by `?`.
+
+The runtime executor has a bounded queue and fixed workers. A worker awaiting
+same-executor work pumps ready tasks, so nested awaits do not require an
+unbounded worker supply. Ordinary MIR locals stay on the worker stack and retain
+managed values across the logical suspension. Task groups own child tasks in
+spawn order and their destructors cancel and join remaining children.
+
+The Windows async surface submits timers and file/socket/process requests to the
+same bounded default executor used by async functions. File work advances in
+64 KiB chunks, socket calls reuse the finite-timeout Windows socket layer, and
+process waits poll a child handle in 10 ms slices so cancellation/deadline
+cleanup owns the child through termination. This design is bounded
+worker-blocking, not IOCP-overlapped, and never creates an unbounded I/O thread
+per request. `CONCURRENCY.md` defines the public ordering, cancellation,
+partial-I/O, shutdown, deliberate process-capture limitation, and resource
+limits.

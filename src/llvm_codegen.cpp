@@ -30,6 +30,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -48,6 +49,7 @@ public:
       : mir_(mir), module_(std::make_unique<llvm::Module>("rocket", context_)),
         builder_(context_), functions_(mir.symbols.size(), nullptr),
         callbackWrappers_(mir.symbols.size(), nullptr),
+        taskThunks_(mir.symbols.size(), nullptr),
         subprograms_(mir.symbols.size(), nullptr), debugInfo_(debugInfo),
         coverage_(coverage), profiling_(profiling) {}
 
@@ -110,6 +112,9 @@ private:
     case TypeKind::String:
     case TypeKind::Array:
     case TypeKind::Slice:
+    case TypeKind::Weak:
+    case TypeKind::UniqueBuffer:
+    case TypeKind::Task:
     case TypeKind::Struct:
     case TypeKind::Enum:
     case TypeKind::Pointer:
@@ -142,6 +147,9 @@ private:
     case TypeKind::String:
     case TypeKind::Array:
     case TypeKind::Slice:
+    case TypeKind::Weak:
+    case TypeKind::UniqueBuffer:
+    case TypeKind::Task:
     case TypeKind::Struct:
     case TypeKind::Enum:
     case TypeKind::Pointer:
@@ -222,7 +230,7 @@ private:
       if (!symbol.location.file.empty()) { first = symbol.location; break; }
     auto* file = debugFile(first);
     compileUnit_ = debugBuilder_->createCompileUnit(
-        llvm::dwarf::DW_LANG_C_plus_plus, file, "Rocket compiler 1.7.0",
+        llvm::dwarf::DW_LANG_C_plus_plus, file, "Rocket compiler 1.8.0",
         optimize, optimize ? "-O2" : "-O0", 0);
     module_->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
                            llvm::DEBUG_METADATA_VERSION);
@@ -540,6 +548,9 @@ private:
       return zero(Type::Unit);
     case TypeKind::Array:
     case TypeKind::Slice:
+    case TypeKind::Weak:
+    case TypeKind::UniqueBuffer:
+    case TypeKind::Task:
     case TypeKind::Struct:
     case TypeKind::Enum:
     case TypeKind::Pointer:
@@ -610,6 +621,19 @@ private:
     if (value.kind == MirRvalueKind::Tag)
       return lowerTag(value, locals, error);
 
+    if (value.kind == MirRvalueKind::AsyncCall)
+      return lowerAsyncCall(value, locals, error);
+
+    if (value.kind == MirRvalueKind::Await) {
+      llvm::Value* task = lowerOperand(value.left, locals, error);
+      if (!task) return nullptr;
+      llvm::FunctionCallee await = module_->getOrInsertFunction(
+          "rocket_rt_task_await",
+          llvm::FunctionType::get(llvm::PointerType::getUnqual(context_),
+                                  {llvm::PointerType::getUnqual(context_)}, false));
+      return builder_.CreateCall(await, {task}, "task.await");
+    }
+
     if (mir_.symbols[value.callee].kind == SymbolKind::BuiltinFunction) {
       if (mir_.symbols[value.callee].intrinsic == Intrinsic::Print)
         return lowerPrint(value, locals, error);
@@ -633,6 +657,67 @@ private:
     return callee.nativeImport ? fromNativeValue(call, value.type) : call;
   }
 
+  llvm::Function* asyncThunk(SymbolId target, std::string& error) {
+    if (target >= taskThunks_.size() || !functions_[target]) {
+      error = "invalid async task target";
+      return nullptr;
+    }
+    if (taskThunks_[target]) return taskThunks_[target];
+    auto* pointer = llvm::PointerType::getUnqual(context_);
+    auto* signature = llvm::FunctionType::get(pointer, {pointer}, false);
+    auto* thunk = llvm::Function::Create(
+        signature, llvm::Function::InternalLinkage,
+        "rocket_async_entry_" + std::to_string(target), *module_);
+    taskThunks_[target] = thunk;
+    const auto saved = builder_.saveIP();
+    auto* entry = llvm::BasicBlock::Create(context_, "entry", thunk);
+    builder_.SetInsertPoint(entry);
+    llvm::Value* context = thunk->arg_begin();
+    context->setName("task.context");
+    const HirSymbol& symbol = mir_.symbols[target];
+    std::vector<llvm::Value*> arguments;
+    arguments.reserve(symbol.parameterTypes.size());
+    for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
+      const Type& type = symbol.parameterTypes[index];
+      const char* suffix = aggregateSuffix(type);
+      if (std::string_view(suffix) == "invalid") {
+        builder_.restoreIP(saved);
+        error = "async task has an unsupported captured parameter type";
+        return nullptr;
+      }
+      llvm::FunctionCallee getter = module_->getOrInsertFunction(
+          std::string("rocket_rt_aggregate_get_") + suffix,
+          llvm::FunctionType::get(aggregateRuntimeType(type),
+                                  {pointer, llvm::Type::getInt32Ty(context_)}, false));
+      llvm::Value* argument = builder_.CreateCall(
+          getter, {context, builder_.getInt32(static_cast<std::uint32_t>(index))},
+          "task.argument");
+      if (type == Type::Bool)
+        argument = builder_.CreateTrunc(argument, llvm::Type::getInt1Ty(context_),
+                                        "task.argument.bool");
+      arguments.push_back(argument);
+    }
+    llvm::Value* result = builder_.CreateCall(functions_[target], arguments, "task.result");
+    builder_.CreateRet(result);
+    builder_.restoreIP(saved);
+    return thunk;
+  }
+
+  llvm::Value* lowerAsyncCall(const MirRvalue& value,
+                              const std::vector<llvm::AllocaInst*>& locals,
+                              std::string& error) {
+    MirRvalue captured = MirRvalue::aggregate(Type::Invalid, 0, 0, value.arguments);
+    llvm::Value* context = lowerAggregate(captured, locals, error);
+    if (!context) return nullptr;
+    llvm::Function* entry = asyncThunk(value.callee, error);
+    if (!entry) return nullptr;
+    auto* pointer = llvm::PointerType::getUnqual(context_);
+    llvm::FunctionCallee spawn = module_->getOrInsertFunction(
+        "rocket_rt_task_spawn",
+        llvm::FunctionType::get(pointer, {pointer, pointer}, false));
+    return builder_.CreateCall(spawn, {entry, context}, "task.spawn");
+  }
+
   static std::uint32_t runtimeElementKind(Type element) {
     switch (element.kind) {
     case TypeKind::Int: return 1;
@@ -642,6 +727,9 @@ private:
     case TypeKind::String: return 5;
     case TypeKind::Array:
     case TypeKind::Slice:
+    case TypeKind::Weak:
+    case TypeKind::UniqueBuffer:
+    case TypeKind::Task:
     case TypeKind::Struct:
     case TypeKind::Enum: return 6;
     default: return 0;
@@ -657,6 +745,9 @@ private:
     case TypeKind::String: return "string";
     case TypeKind::Array:
     case TypeKind::Slice:
+    case TypeKind::Weak:
+    case TypeKind::UniqueBuffer:
+    case TypeKind::Task:
     case TypeKind::Struct:
     case TypeKind::Enum: return "managed";
     default: return "invalid";
@@ -676,6 +767,9 @@ private:
     case TypeKind::String:
     case TypeKind::Array:
     case TypeKind::Slice:
+    case TypeKind::Weak:
+    case TypeKind::UniqueBuffer:
+    case TypeKind::Task:
     case TypeKind::Struct:
     case TypeKind::Enum: return "managed";
     default: return "invalid";
@@ -1015,6 +1109,9 @@ private:
       break;
     case TypeKind::Array:
     case TypeKind::Slice:
+    case TypeKind::Weak:
+    case TypeKind::UniqueBuffer:
+    case TypeKind::Task:
     case TypeKind::Struct:
     case TypeKind::Enum:
       error = "aggregate print reached LLVM lowering";
@@ -1196,6 +1293,71 @@ private:
     case Intrinsic::TimeUnixMilliseconds: return "rocket_std_time_unix_milliseconds";
     case Intrinsic::TimeMonotonicMilliseconds: return "rocket_std_time_monotonic_milliseconds";
     case Intrinsic::TimeSleepMilliseconds: return "rocket_std_time_sleep_milliseconds";
+    case Intrinsic::TaskJoin: return "rocket_std_task_join";
+    case Intrinsic::TaskIsComplete: return "rocket_std_task_is_complete";
+    case Intrinsic::OwnershipDowngrade: return "rocket_std_ownership_downgrade";
+    case Intrinsic::OwnershipUpgrade: return "rocket_std_ownership_upgrade";
+    case Intrinsic::OwnershipExpired: return "rocket_std_ownership_expired";
+    case Intrinsic::BufferThaw: return "rocket_std_buffer_thaw";
+    case Intrinsic::BufferLength: return "rocket_std_buffer_length";
+    case Intrinsic::BufferCapacity: return "rocket_std_buffer_capacity";
+    case Intrinsic::BufferGet: return "rocket_std_buffer_get";
+    case Intrinsic::BufferSet: return "rocket_std_buffer_set";
+    case Intrinsic::BufferAppend: return "rocket_std_buffer_append";
+    case Intrinsic::BufferSlice: return "rocket_std_buffer_slice";
+    case Intrinsic::BufferFreeze: return "rocket_std_buffer_freeze";
+    case Intrinsic::CancelToken: return "rocket_std_cancel_token";
+    case Intrinsic::CancelChild: return "rocket_std_cancel_child";
+    case Intrinsic::CancelCurrent: return "rocket_std_cancel_current";
+    case Intrinsic::CancelCancel: return "rocket_std_cancel_cancel";
+    case Intrinsic::CancelIsCancelled: return "rocket_std_cancel_is_cancelled";
+    case Intrinsic::CancelCheck: return "rocket_std_cancel_check";
+    case Intrinsic::AsyncTimeDeadlineAfter: return "rocket_std_async_time_deadline_after";
+    case Intrinsic::AsyncTimeRemaining: return "rocket_std_async_time_remaining";
+    case Intrinsic::AsyncTimeSleep: return "rocket_std_async_time_sleep";
+    case Intrinsic::AsyncTimeSleepUntil: return "rocket_std_async_time_sleep_until";
+    case Intrinsic::SyncMutex: return "rocket_std_sync_mutex";
+    case Intrinsic::SyncLock: return "rocket_std_sync_lock";
+    case Intrinsic::SyncGuardGet: return "rocket_std_sync_guard_get";
+    case Intrinsic::SyncGuardSet: return "rocket_std_sync_guard_set";
+    case Intrinsic::SyncUnlock: return "rocket_std_sync_unlock";
+    case Intrinsic::SyncEvent: return "rocket_std_sync_event";
+    case Intrinsic::SyncEventSet: return "rocket_std_sync_event_set";
+    case Intrinsic::SyncEventReset: return "rocket_std_sync_event_reset";
+    case Intrinsic::SyncEventWait: return "rocket_std_sync_event_wait";
+    case Intrinsic::SyncAtomicInt: return "rocket_std_sync_atomic_int";
+    case Intrinsic::SyncAtomicLoad: return "rocket_std_sync_atomic_load";
+    case Intrinsic::SyncAtomicStore: return "rocket_std_sync_atomic_store";
+    case Intrinsic::SyncAtomicFetchAdd: return "rocket_std_sync_atomic_fetch_add";
+    case Intrinsic::SyncAtomicCompareExchange: return "rocket_std_sync_atomic_compare_exchange";
+    case Intrinsic::SyncOnce: return "rocket_std_sync_once";
+    case Intrinsic::SyncOnceSet: return "rocket_std_sync_once_set";
+    case Intrinsic::SyncOnceGet: return "rocket_std_sync_once_get";
+    case Intrinsic::ChannelBounded: return "rocket_std_channel_bounded";
+    case Intrinsic::ChannelUnbounded: return "rocket_std_channel_unbounded";
+    case Intrinsic::ChannelSender: return "rocket_std_channel_sender";
+    case Intrinsic::ChannelReceiver: return "rocket_std_channel_receiver";
+    case Intrinsic::ChannelCloneSender: return "rocket_std_channel_clone_sender";
+    case Intrinsic::ChannelCloneReceiver: return "rocket_std_channel_clone_receiver";
+    case Intrinsic::ChannelSend: return "rocket_std_channel_send";
+    case Intrinsic::ChannelReceive: return "rocket_std_channel_receive";
+    case Intrinsic::ChannelCloseSender: return "rocket_std_channel_close_sender";
+    case Intrinsic::ChannelCloseReceiver: return "rocket_std_channel_close_receiver";
+    case Intrinsic::AsyncFileRead: return "rocket_std_async_file_read";
+    case Intrinsic::AsyncFileWrite: return "rocket_std_async_file_write";
+    case Intrinsic::TaskGroup: return "rocket_std_task_group";
+    case Intrinsic::TaskGroupJoin: return "rocket_std_task_group_join";
+    case Intrinsic::AsyncNetConnect: return "rocket_std_async_net_connect";
+    case Intrinsic::AsyncNetAccept: return "rocket_std_async_net_accept";
+    case Intrinsic::AsyncNetReceive: return "rocket_std_async_net_receive";
+    case Intrinsic::AsyncNetSend: return "rocket_std_async_net_send";
+    case Intrinsic::AsyncProcessRun: return "rocket_std_async_process_run";
+    case Intrinsic::ThreadSpawn: return "rocket_std_thread_spawn";
+    case Intrinsic::ThreadJoin: return "rocket_std_thread_join";
+    case Intrinsic::ThreadDetach: return "rocket_std_thread_detach";
+    case Intrinsic::ThreadIsComplete: return "rocket_std_thread_is_complete";
+    case Intrinsic::TaskCancel: return "rocket_std_task_cancel";
+    case Intrinsic::TaskGroupCancel: return "rocket_std_task_group_cancel";
     default: return nullptr;
     }
   }
@@ -1217,10 +1379,23 @@ private:
     }
     std::string runtimeName = fixedRuntimeName;
     if (symbol.intrinsic == Intrinsic::CollectionsAppend ||
-        symbol.intrinsic == Intrinsic::CollectionsInsert) {
+        symbol.intrinsic == Intrinsic::CollectionsInsert ||
+        symbol.intrinsic == Intrinsic::BufferSet ||
+        symbol.intrinsic == Intrinsic::BufferAppend) {
       const Type element = collectionElementType(value.arguments[0].type);
+      const Type resolvedElement = isUniqueBufferType(value.arguments[0].type)
+                                       ? value.arguments[0].type.arguments[0]
+                                       : element;
       runtimeName += "_";
-      runtimeName += runtimeElementSuffix(element);
+      runtimeName += runtimeElementSuffix(resolvedElement);
+    }
+    if (symbol.intrinsic == Intrinsic::BufferGet) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.type);
+    }
+    if (symbol.intrinsic == Intrinsic::TaskGroup) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.type.arguments.at(0));
     }
     if (symbol.intrinsic == Intrinsic::CollectionsMapFind ||
         symbol.intrinsic == Intrinsic::CollectionsMapGet ||
@@ -1365,6 +1540,7 @@ private:
   llvm::IRBuilder<> builder_;
   std::vector<llvm::Function*> functions_;
   std::vector<llvm::Function*> callbackWrappers_;
+  std::vector<llvm::Function*> taskThunks_;
   std::vector<llvm::DISubprogram*> subprograms_;
   std::unique_ptr<llvm::TargetMachine> targetMachine_;
   std::unique_ptr<llvm::DIBuilder> debugBuilder_;

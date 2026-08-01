@@ -76,6 +76,7 @@ struct AstFunction:
     constraints: Array[AstTraitConstraint]
     line: Int
     column: Int
+    asynchronous: Bool
 
 struct AstTypeField:
     name: String
@@ -217,6 +218,7 @@ struct HirSymbol:
     native_import: Bool
     native_export: Bool
     native_name: String
+    asynchronous: Bool
 
 struct HirExpr:
     kind: Int
@@ -251,6 +253,7 @@ struct HirFunction:
     parameters: Array[Int]
     result_type: String
     body: Array[HirStatement]
+    asynchronous: Bool
 
 struct HirModule:
     symbols: Array[HirSymbol]
@@ -294,6 +297,9 @@ struct LowerState:
     pending: Array[PendingSpecialization]
     specializations: Array[Specialization]
     diagnostics: Array[Diagnostic]
+    current_async: Bool
+    moved_symbols: Array[Int]
+    borrowing_unique: Bool
 
 struct SymbolResult:
     symbol: Int
@@ -359,6 +365,7 @@ struct MirFunction:
     locals: Array[MirLocal]
     blocks: Array[MirBlock]
     result_type: String
+    asynchronous: Bool
 
 struct MirModule:
     symbols: Array[HirSymbol]
@@ -691,6 +698,9 @@ fn expr_lambda() -> Int:
 
 fn expr_function_ref() -> Int:
     return 15
+
+fn expr_await() -> Int:
+    return 16
 
 fn statement_binding() -> Int:
     return 0
@@ -1241,6 +1251,150 @@ fn intrinsic_testing_coverage_hit() -> Int:
 fn intrinsic_testing_coverage_write() -> Int:
     return 156
 
+fn intrinsic_task_join() -> Int:
+    return 157
+
+fn intrinsic_task_is_complete() -> Int:
+    return 158
+
+fn intrinsic_ownership_downgrade() -> Int:
+    return 159
+
+fn intrinsic_ownership_upgrade() -> Int:
+    return 160
+
+fn intrinsic_ownership_expired() -> Int:
+    return 161
+
+fn intrinsic_buffer_thaw() -> Int:
+    return 162
+
+fn intrinsic_buffer_length() -> Int:
+    return 163
+
+fn intrinsic_buffer_capacity() -> Int:
+    return 164
+
+fn intrinsic_buffer_get() -> Int:
+    return 165
+
+fn intrinsic_buffer_set() -> Int:
+    return 166
+
+fn intrinsic_buffer_append() -> Int:
+    return 167
+
+fn intrinsic_buffer_slice() -> Int:
+    return 168
+
+fn intrinsic_buffer_freeze() -> Int:
+    return 169
+
+fn intrinsic_cancel_token() -> Int:
+    return 170
+fn intrinsic_cancel_child() -> Int:
+    return 171
+fn intrinsic_cancel_current() -> Int:
+    return 172
+fn intrinsic_cancel_cancel() -> Int:
+    return 173
+fn intrinsic_cancel_is_cancelled() -> Int:
+    return 174
+fn intrinsic_cancel_check() -> Int:
+    return 175
+fn intrinsic_async_time_deadline_after() -> Int:
+    return 176
+fn intrinsic_async_time_remaining() -> Int:
+    return 177
+fn intrinsic_async_time_sleep() -> Int:
+    return 178
+fn intrinsic_async_time_sleep_until() -> Int:
+    return 179
+fn intrinsic_sync_mutex() -> Int:
+    return 180
+fn intrinsic_sync_lock() -> Int:
+    return 181
+fn intrinsic_sync_guard_get() -> Int:
+    return 182
+fn intrinsic_sync_guard_set() -> Int:
+    return 183
+fn intrinsic_sync_unlock() -> Int:
+    return 184
+fn intrinsic_sync_event() -> Int:
+    return 185
+fn intrinsic_sync_event_set() -> Int:
+    return 186
+fn intrinsic_sync_event_reset() -> Int:
+    return 187
+fn intrinsic_sync_event_wait() -> Int:
+    return 188
+fn intrinsic_sync_atomic_int() -> Int:
+    return 189
+fn intrinsic_sync_atomic_load() -> Int:
+    return 190
+fn intrinsic_sync_atomic_store() -> Int:
+    return 191
+fn intrinsic_sync_atomic_fetch_add() -> Int:
+    return 192
+fn intrinsic_sync_atomic_compare_exchange() -> Int:
+    return 193
+fn intrinsic_sync_once() -> Int:
+    return 194
+fn intrinsic_sync_once_set() -> Int:
+    return 195
+fn intrinsic_sync_once_get() -> Int:
+    return 196
+fn intrinsic_channel_bounded() -> Int:
+    return 197
+fn intrinsic_channel_unbounded() -> Int:
+    return 198
+fn intrinsic_channel_sender() -> Int:
+    return 199
+fn intrinsic_channel_receiver() -> Int:
+    return 200
+fn intrinsic_channel_clone_sender() -> Int:
+    return 201
+fn intrinsic_channel_clone_receiver() -> Int:
+    return 202
+fn intrinsic_channel_send() -> Int:
+    return 203
+fn intrinsic_channel_receive() -> Int:
+    return 204
+fn intrinsic_channel_close_sender() -> Int:
+    return 205
+fn intrinsic_channel_close_receiver() -> Int:
+    return 206
+fn intrinsic_async_file_read() -> Int:
+    return 207
+fn intrinsic_async_file_write() -> Int:
+    return 208
+fn intrinsic_task_group() -> Int:
+    return 209
+fn intrinsic_task_group_join() -> Int:
+    return 210
+fn intrinsic_async_net_connect() -> Int:
+    return 211
+fn intrinsic_async_net_accept() -> Int:
+    return 212
+fn intrinsic_async_net_receive() -> Int:
+    return 213
+fn intrinsic_async_net_send() -> Int:
+    return 214
+fn intrinsic_async_process_run() -> Int:
+    return 215
+fn intrinsic_thread_spawn() -> Int:
+    return 216
+fn intrinsic_thread_join() -> Int:
+    return 217
+fn intrinsic_thread_detach() -> Int:
+    return 218
+fn intrinsic_thread_is_complete() -> Int:
+    return 219
+fn intrinsic_task_cancel() -> Int:
+    return 220
+fn intrinsic_task_group_cancel() -> Int:
+    return 221
+
 fn mir_constant() -> Int:
     return 0
 
@@ -1282,6 +1436,12 @@ fn mir_release() -> Int:
 
 fn mir_array_update() -> Int:
     return 13
+
+fn mir_async_call() -> Int:
+    return 14
+
+fn mir_await() -> Int:
+    return 15
 
 fn terminator_goto() -> Int:
     return 0
@@ -1856,6 +2016,9 @@ fn parse_call(state: ParserState) -> ExprResult:
 
 fn parse_unary(state: ParserState) -> ExprResult:
     let token = current_token(state)
+    if token.kind == kind_identifier() and token.text == "await":
+        let operand = parse_unary(advance_parser(state))
+        return ExprResult(make_expression(expr_await(), "", [operand.expression], token), operand.state)
     if token.kind == kind_minus() or token.kind == kind_not():
         let operand = parse_unary(advance_parser(state))
         return ExprResult(make_expression(expr_unary(), token.text, [operand.expression], token), operand.state)
@@ -2094,7 +2257,7 @@ fn parse_statement(state: ParserState) -> StatementResult:
     let newline = consume_token(target.state, kind_newline(), "expected newline after expression")
     return StatementResult(make_statement(statement_expression(), "", "", false, [target.expression], [], [], [], token), newline.state)
 
-fn parse_function(state: ParserState, public_declaration: Bool) -> FunctionResult:
+fn parse_function(state: ParserState, public_declaration: Bool, asynchronous: Bool) -> FunctionResult:
     let keyword = consume_token(state, kind_fn(), "expected 'fn'")
     let name = consume_token(keyword.state, kind_identifier(), "expected function name")
     let type_parameters = parse_type_parameters(name.state)
@@ -2133,7 +2296,7 @@ fn parse_function(state: ParserState, public_declaration: Bool) -> FunctionResul
     let colon = consume_token(next_after_type, kind_colon(), "expected ':' before function body")
     let newline = consume_token(colon.state, kind_newline(), "expected newline after function signature")
     let body = parse_block(newline.state)
-    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, "", "", false, false, false, false, name.token.text, constraints, keyword.token.line, keyword.token.column), body.state)
+    return FunctionResult(AstFunction(name.token.text, public_declaration, type_parameters.values, parameters, result_type.name, body.statements, "", "", false, false, false, false, name.token.text, constraints, keyword.token.line, keyword.token.column, asynchronous), body.state)
 
 fn parse_extern_function(state: ParserState, public_declaration: Bool) -> FunctionResult:
     let keyword = consume_token(state, kind_fn(), "expected 'fn'")
@@ -2156,7 +2319,7 @@ fn parse_extern_function(state: ParserState, public_declaration: Bool) -> Functi
     let arrow = consume_token(close.state, kind_arrow(), "expected '->' and native result type")
     let result_type = parse_type_name(arrow.state)
     let newline = consume_token(result_type.state, kind_newline(), "expected newline after native function declaration")
-    let function = AstFunction(name.token.text, public_declaration, [], parameters, result_type.name, [], "", "", false, true, false, false, name.token.text, [], keyword.token.line, keyword.token.column)
+    let function = AstFunction(name.token.text, public_declaration, [], parameters, result_type.name, [], "", "", false, true, false, false, name.token.text, [], keyword.token.line, keyword.token.column, false)
     return FunctionResult(function, newline.state)
 
 fn parse_extern_constant(state: ParserState, public_declaration: Bool) -> FunctionResult:
@@ -2168,7 +2331,7 @@ fn parse_extern_constant(state: ParserState, public_declaration: Bool) -> Functi
     let value = parse_expression(equal.state)
     let newline = consume_token(value.state, kind_newline(), "expected newline after native constant")
     let returned = make_statement(statement_return(), "", "", false, [value.expression], [], [], [], keyword.token)
-    let constant = AstFunction(name.token.text, public_declaration, [], [], type_name.name, [returned], "", "", false, false, false, true, name.token.text, [], keyword.token.line, keyword.token.column)
+    let constant = AstFunction(name.token.text, public_declaration, [], [], type_name.name, [returned], "", "", false, false, false, true, name.token.text, [], keyword.token.line, keyword.token.column, false)
     return FunctionResult(constant, newline.state)
 
 fn parse_extern_type(state: ParserState, public_declaration: Bool) -> StructResult:
@@ -2261,20 +2424,24 @@ fn parse_impl(state: ParserState) -> FunctionsResult:
                 constant_state = parser_error(constant_state, constant_name.token, "trait impl blocks cannot declare associated constants")
             let constant_full_name = string.concat(type_base(owner_name), string.concat(".", constant_name.token.text))
             let returned = make_statement(statement_return(), "", "", false, [constant_value.expression], [], [], [], constant_name.token)
-            methods = append(methods, AstFunction(constant_full_name, public_declaration, impl_parameters.values, [], constant_type.name, [returned], owner_name, trait_name, true, false, false, false, constant_full_name, [], constant_name.token.line, constant_name.token.column))
+            methods = append(methods, AstFunction(constant_full_name, public_declaration, impl_parameters.values, [], constant_type.name, [returned], owner_name, trait_name, true, false, false, false, constant_full_name, [], constant_name.token.line, constant_name.token.column, false))
             next = constant_state
             continue
+        var asynchronous = false
+        if at_token(next, kind_identifier()) and current_token(next).text == "async":
+            asynchronous = true
+            next = advance_parser(next)
         if not at_token(next, kind_fn()):
             next = parser_error(next, current_token(next), "expected a method or associated constant in impl body")
             next = synchronize_top_level(next)
             continue
-        let parsed = parse_function(next, public_declaration)
+        let parsed = parse_function(next, public_declaration, asynchronous)
         let method = parsed.function
         var name = string.concat(type_base(owner_name), string.concat(".", method.name))
         if trait_name != "":
             name = string.concat(type_base(owner_name), string.concat(".", string.concat(trait_name, string.concat(".", method.name))))
         let parameters = collections.concat(impl_parameters.values, method.type_parameters)
-        methods = append(methods, AstFunction(name, method.public_declaration, parameters, method.parameters, method.result_type, method.body, owner_name, trait_name, false, false, false, false, name, method.constraints, method.line, method.column))
+        methods = append(methods, AstFunction(name, method.public_declaration, parameters, method.parameters, method.result_type, method.body, owner_name, trait_name, false, false, false, false, name, method.constraints, method.line, method.column, method.asynchronous))
         next = parsed.state
     let closing = consume_token(next, kind_dedent(), "expected end of impl body")
     return FunctionsResult(methods, closing.state)
@@ -2443,13 +2610,17 @@ fn parse_tokens(tokens: Array[Token], lexer_diagnostics: Array[Diagnostic]) -> P
                 state = parser_error(state, current_token(state), "expected 'fn' after 'export'")
                 state = synchronize_top_level(state)
                 continue
-            let parsed = parse_function(state, true)
+            let parsed = parse_function(state, true, false)
             let function = parsed.function
-            functions = append(functions, AstFunction(function.name, true, function.type_parameters, function.parameters, function.result_type, function.body, function.method_owner, function.method_trait, function.associated_constant, false, true, false, function.name, function.constraints, function.line, function.column))
+            functions = append(functions, AstFunction(function.name, true, function.type_parameters, function.parameters, function.result_type, function.body, function.method_owner, function.method_trait, function.associated_constant, false, true, false, function.name, function.constraints, function.line, function.column, false))
             state = skip_newlines(parsed.state)
             continue
+        var asynchronous = false
+        if at_token(state, kind_identifier()) and current_token(state).text == "async":
+            asynchronous = true
+            state = advance_parser(state)
         if at_token(state, kind_fn()):
-            let function = parse_function(state, public_declaration)
+            let function = parse_function(state, public_declaration, asynchronous)
             functions = append(functions, function.function)
             state = skip_newlines(function.state)
             continue
@@ -2485,52 +2656,70 @@ fn parse_source(source: String) -> ParseResult:
     return parse_tokens(lexed.tokens, lexed.diagnostics)
 
 fn state_symbols(state: LowerState, symbols: Array[HirSymbol]) -> LowerState:
-    return LowerState(state.module, symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_module(state: LowerState, module: AstModule) -> LowerState:
-    return LowerState(module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_functions(state: LowerState, functions: Array[HirFunction]) -> LowerState:
-    return LowerState(state.module, state.symbols, functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_bindings(state: LowerState, bindings: Array[ScopeBinding]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_depth(state: LowerState, depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
-fn state_function_context(state: LowerState, return_type: String, loop_depth: Int, substitutions: Substitutions) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, return_type, loop_depth, state.unsafe_depth, substitutions, state.pending, state.specializations, state.diagnostics)
+fn state_function_context(state: LowerState, return_type: String, loop_depth: Int, substitutions: Substitutions, current_async: Bool) -> LowerState:
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, return_type, loop_depth, state.unsafe_depth, substitutions, state.pending, state.specializations, state.diagnostics, current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_loop_depth(state: LowerState, loop_depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_unsafe_depth(state: LowerState, unsafe_depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_pending(state: LowerState, pending: Array[PendingSpecialization]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, pending, state.specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn state_specializations(state: LowerState, specializations: Array[Specialization]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, specializations, state.diagnostics)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+
+fn state_moved_symbols(state: LowerState, moved_symbols: Array[Int]) -> LowerState:
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, moved_symbols, state.borrowing_unique)
+
+fn state_borrowing_unique(state: LowerState, borrowing_unique: Bool) -> LowerState:
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, borrowing_unique)
+
+fn contains_symbol(symbols: Array[Int], symbol: Int) -> Bool:
+    for index in 0..collections.length(symbols):
+        if symbols[index] == symbol:
+            return true
+    return false
 
 fn lower_error(state: LowerState, line: Int, column: Int, message: String) -> LowerState:
     let diagnostic = make_diagnostic("R4001", line, column, message)
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic))
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic), state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn lower_issue(state: LowerState, code: String, line: Int, column: Int, message: String) -> LowerState:
     let diagnostic = make_diagnostic(code, line, column, message)
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic))
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic), state.current_async, state.moved_symbols, state.borrowing_unique)
 
 fn add_hir_symbol(state: LowerState, kind: Int, name: String, type_name: String, mutable_binding: Bool, parameter_types: Array[String], intrinsic: Int) -> SymbolResult:
     let id = collections.length(state.symbols)
-    let symbol = HirSymbol(id, kind, name, type_name, mutable_binding, parameter_types, intrinsic, false, false, name)
+    let symbol = HirSymbol(id, kind, name, type_name, mutable_binding, parameter_types, intrinsic, false, false, name, false)
     return SymbolResult(id, state_symbols(state, append(state.symbols, symbol)))
 
 fn set_hir_native_symbol(state: LowerState, symbol: Int, native_import: Bool, native_export: Bool, native_name: String) -> LowerState:
     var symbols = state.symbols
     let value = symbols[symbol]
-    symbols[symbol] = HirSymbol(value.id, value.kind, value.name, value.type_name, value.mutable_binding, value.parameter_types, value.intrinsic, native_import, native_export, native_name)
+    symbols[symbol] = HirSymbol(value.id, value.kind, value.name, value.type_name, value.mutable_binding, value.parameter_types, value.intrinsic, native_import, native_export, native_name, value.asynchronous)
+    return state_symbols(state, symbols)
+
+fn set_hir_async_symbol(state: LowerState, symbol: Int, asynchronous: Bool) -> LowerState:
+    var symbols = state.symbols
+    let value = symbols[symbol]
+    symbols[symbol] = HirSymbol(value.id, value.kind, value.name, value.type_name, value.mutable_binding, value.parameter_types, value.intrinsic, value.native_import, value.native_export, value.native_name, asynchronous)
     return state_symbols(state, symbols)
 
 fn add_scope_binding(state: LowerState, name: String, symbol: Int) -> LowerState:
@@ -2986,7 +3175,7 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
         for constraint_index in 0..collections.length(function.constraints):
             let constraint = function.constraints[constraint_index]
             constraints = append(constraints, AstTraitConstraint(constraint.type_parameter, mapped_local_trait(module, prefix_name, constraint.trait_name), constraint.line, constraint.column))
-        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), mapped_local_type(module, prefix_name, function.method_owner), mapped_local_trait(module, prefix_name, function.method_trait), function.associated_constant, function.native_import, function.native_export, function.native_constant, function.native_name, constraints, function.line, function.column))
+        functions = append(functions, AstFunction(mapped_declaration_name(prefix_name, function.name, function.public_declaration), function.public_declaration, function.type_parameters, parameters, mapped_local_type(module, prefix_name, function.result_type), map_module_statements(module, prefix_name, function.body), mapped_local_type(module, prefix_name, function.method_owner), mapped_local_trait(module, prefix_name, function.method_trait), function.associated_constant, function.native_import, function.native_export, function.native_constant, function.native_name, constraints, function.line, function.column, function.asynchronous))
     return AstModule(module.imports, structs, enums, traits, functions)
 
 fn merge_ast_modules(left: AstModule, right: AstModule) -> AstModule:
@@ -3493,6 +3682,138 @@ fn standard_signature(name: String) -> StandardSignature:
         return StandardSignature(true, [], [], "Int", intrinsic_time_monotonic_milliseconds())
     if name == "std.time.sleep_milliseconds":
         return StandardSignature(true, [], ["Int"], "Unit", intrinsic_time_sleep_milliseconds())
+    if name == "std.task.join":
+        return StandardSignature(true, ["T"], ["Task[T]"], "Result[T, String]", intrinsic_task_join())
+    if name == "std.task.is_complete":
+        return StandardSignature(true, ["T"], ["Task[T]"], "Bool", intrinsic_task_is_complete())
+    if name == "std.task.cancel":
+        return StandardSignature(true, ["T"], ["Task[T]"], "Bool", intrinsic_task_cancel())
+    if name == "std.task.group":
+        return StandardSignature(true, ["T"], ["Array[Task[T]]"], "std.task.TaskGroup[T]", intrinsic_task_group())
+    if name == "std.task.group_join":
+        return StandardSignature(true, ["T"], ["std.task.TaskGroup[T]"], "Result[Array[T], String]", intrinsic_task_group_join())
+    if name == "std.task.group_cancel":
+        return StandardSignature(true, ["T"], ["std.task.TaskGroup[T]"], "Bool", intrinsic_task_group_cancel())
+    if name == "std.thread.spawn":
+        return StandardSignature(true, ["T"], ["Task[T]"], "Result[std.thread.Thread[T], String]", intrinsic_thread_spawn())
+    if name == "std.thread.join":
+        return StandardSignature(true, ["T"], ["std.thread.Thread[T]"], "Result[T, String]", intrinsic_thread_join())
+    if name == "std.thread.detach":
+        return StandardSignature(true, ["T"], ["std.thread.Thread[T]"], "Result[Bool, String]", intrinsic_thread_detach())
+    if name == "std.thread.is_complete":
+        return StandardSignature(true, ["T"], ["std.thread.Thread[T]"], "Bool", intrinsic_thread_is_complete())
+    if name == "std.ownership.downgrade":
+        return StandardSignature(true, ["T"], ["T"], "Weak[T]", intrinsic_ownership_downgrade())
+    if name == "std.ownership.upgrade":
+        return StandardSignature(true, ["T"], ["Weak[T]"], "Option[T]", intrinsic_ownership_upgrade())
+    if name == "std.ownership.expired":
+        return StandardSignature(true, ["T"], ["Weak[T]"], "Bool", intrinsic_ownership_expired())
+    if name == "std.buffer.thaw":
+        return StandardSignature(true, ["T"], ["Array[T]"], "UniqueBuffer[T]", intrinsic_buffer_thaw())
+    if name == "std.buffer.length":
+        return StandardSignature(true, ["T"], ["UniqueBuffer[T]"], "Int", intrinsic_buffer_length())
+    if name == "std.buffer.capacity":
+        return StandardSignature(true, ["T"], ["UniqueBuffer[T]"], "Int", intrinsic_buffer_capacity())
+    if name == "std.buffer.get":
+        return StandardSignature(true, ["T"], ["UniqueBuffer[T]", "Int"], "T", intrinsic_buffer_get())
+    if name == "std.buffer.set":
+        return StandardSignature(true, ["T"], ["UniqueBuffer[T]", "Int", "T"], "UniqueBuffer[T]", intrinsic_buffer_set())
+    if name == "std.buffer.append":
+        return StandardSignature(true, ["T"], ["UniqueBuffer[T]", "T"], "UniqueBuffer[T]", intrinsic_buffer_append())
+    if name == "std.buffer.slice":
+        return StandardSignature(true, ["T"], ["UniqueBuffer[T]", "Int", "Int"], "UniqueBuffer[T]", intrinsic_buffer_slice())
+    if name == "std.buffer.freeze":
+        return StandardSignature(true, ["T"], ["UniqueBuffer[T]"], "Array[T]", intrinsic_buffer_freeze())
+    if name == "std.cancel.token":
+        return StandardSignature(true, [], [], "std.cancel.CancellationToken", intrinsic_cancel_token())
+    if name == "std.cancel.child":
+        return StandardSignature(true, [], ["std.cancel.CancellationToken"], "std.cancel.CancellationToken", intrinsic_cancel_child())
+    if name == "std.cancel.current":
+        return StandardSignature(true, [], [], "std.cancel.CancellationToken", intrinsic_cancel_current())
+    if name == "std.cancel.cancel":
+        return StandardSignature(true, [], ["std.cancel.CancellationToken"], "Bool", intrinsic_cancel_cancel())
+    if name == "std.cancel.is_cancelled":
+        return StandardSignature(true, [], ["std.cancel.CancellationToken"], "Bool", intrinsic_cancel_is_cancelled())
+    if name == "std.cancel.check":
+        return StandardSignature(true, [], ["std.cancel.CancellationToken"], "Result[Bool, String]", intrinsic_cancel_check())
+    if name == "std.async_time.deadline_after":
+        return StandardSignature(true, [], ["Int"], "Result[Int, String]", intrinsic_async_time_deadline_after())
+    if name == "std.async_time.remaining":
+        return StandardSignature(true, [], ["Int"], "Int", intrinsic_async_time_remaining())
+    if name == "std.async_time.sleep":
+        return StandardSignature(true, [], ["Int", "std.cancel.CancellationToken"], "Task[Bool]", intrinsic_async_time_sleep())
+    if name == "std.async_time.sleep_until":
+        return StandardSignature(true, [], ["Int", "std.cancel.CancellationToken"], "Task[Bool]", intrinsic_async_time_sleep_until())
+    if name == "std.async_file.read":
+        return StandardSignature(true, [], ["String", "Int", "std.cancel.CancellationToken"], "Task[UniqueBuffer[Char]]", intrinsic_async_file_read())
+    if name == "std.async_file.write":
+        return StandardSignature(true, [], ["String", "UniqueBuffer[Char]", "Bool", "std.cancel.CancellationToken"], "Task[Bool]", intrinsic_async_file_write())
+    if name == "std.async_net.connect":
+        return StandardSignature(true, [], ["String", "Int", "Int", "std.cancel.CancellationToken"], "Task[Int]", intrinsic_async_net_connect())
+    if name == "std.async_net.accept":
+        return StandardSignature(true, [], ["Int", "Int", "std.cancel.CancellationToken"], "Task[Int]", intrinsic_async_net_accept())
+    if name == "std.async_net.receive":
+        return StandardSignature(true, [], ["Int", "Int", "Int", "std.cancel.CancellationToken"], "Task[UniqueBuffer[Char]]", intrinsic_async_net_receive())
+    if name == "std.async_net.send":
+        return StandardSignature(true, [], ["Int", "UniqueBuffer[Char]", "Int", "std.cancel.CancellationToken"], "Task[Int]", intrinsic_async_net_send())
+    if name == "std.async_net.shutdown":
+        return StandardSignature(true, [], ["Int"], "Result[Bool, String]", intrinsic_net_close())
+    if name == "std.async_process.run":
+        return StandardSignature(true, [], ["String", "Array[String]", "Int", "std.cancel.CancellationToken"], "Task[Int]", intrinsic_async_process_run())
+    if name == "std.sync.mutex":
+        return StandardSignature(true, ["T"], ["T"], "std.sync.Mutex[T]", intrinsic_sync_mutex())
+    if name == "std.sync.lock":
+        return StandardSignature(true, ["T"], ["std.sync.Mutex[T]", "Int", "std.cancel.CancellationToken"], "Result[std.sync.LockGuard[T], String]", intrinsic_sync_lock())
+    if name == "std.sync.guard_get":
+        return StandardSignature(true, ["T"], ["std.sync.LockGuard[T]"], "T", intrinsic_sync_guard_get())
+    if name == "std.sync.guard_set":
+        return StandardSignature(true, ["T"], ["std.sync.LockGuard[T]", "T"], "Bool", intrinsic_sync_guard_set())
+    if name == "std.sync.unlock":
+        return StandardSignature(true, ["T"], ["std.sync.LockGuard[T]"], "Result[Bool, String]", intrinsic_sync_unlock())
+    if name == "std.sync.event":
+        return StandardSignature(true, [], ["Bool", "Bool"], "std.sync.Event", intrinsic_sync_event())
+    if name == "std.sync.event_set":
+        return StandardSignature(true, [], ["std.sync.Event"], "Bool", intrinsic_sync_event_set())
+    if name == "std.sync.event_reset":
+        return StandardSignature(true, [], ["std.sync.Event"], "Bool", intrinsic_sync_event_reset())
+    if name == "std.sync.event_wait":
+        return StandardSignature(true, [], ["std.sync.Event", "Int", "std.cancel.CancellationToken"], "Result[Bool, String]", intrinsic_sync_event_wait())
+    if name == "std.sync.atomic_int":
+        return StandardSignature(true, [], ["Int"], "std.sync.AtomicInt", intrinsic_sync_atomic_int())
+    if name == "std.sync.atomic_load":
+        return StandardSignature(true, [], ["std.sync.AtomicInt"], "Int", intrinsic_sync_atomic_load())
+    if name == "std.sync.atomic_store":
+        return StandardSignature(true, [], ["std.sync.AtomicInt", "Int"], "Unit", intrinsic_sync_atomic_store())
+    if name == "std.sync.atomic_fetch_add":
+        return StandardSignature(true, [], ["std.sync.AtomicInt", "Int"], "Int", intrinsic_sync_atomic_fetch_add())
+    if name == "std.sync.atomic_compare_exchange":
+        return StandardSignature(true, [], ["std.sync.AtomicInt", "Int", "Int"], "Bool", intrinsic_sync_atomic_compare_exchange())
+    if name == "std.sync.once":
+        return StandardSignature(true, ["T"], ["T"], "std.sync.Once[T]", intrinsic_sync_once())
+    if name == "std.sync.once_set":
+        return StandardSignature(true, ["T"], ["std.sync.Once[T]", "T"], "Result[Bool, String]", intrinsic_sync_once_set())
+    if name == "std.sync.once_get":
+        return StandardSignature(true, ["T"], ["std.sync.Once[T]"], "Option[T]", intrinsic_sync_once_get())
+    if name == "std.channel.bounded":
+        return StandardSignature(true, ["T"], ["Array[T]", "Int"], "Result[std.channel.Channel[T], String]", intrinsic_channel_bounded())
+    if name == "std.channel.unbounded":
+        return StandardSignature(true, ["T"], ["Array[T]"], "Result[std.channel.Channel[T], String]", intrinsic_channel_unbounded())
+    if name == "std.channel.sender":
+        return StandardSignature(true, ["T"], ["std.channel.Channel[T]"], "std.channel.Sender[T]", intrinsic_channel_sender())
+    if name == "std.channel.receiver":
+        return StandardSignature(true, ["T"], ["std.channel.Channel[T]"], "std.channel.Receiver[T]", intrinsic_channel_receiver())
+    if name == "std.channel.clone_sender":
+        return StandardSignature(true, ["T"], ["std.channel.Sender[T]"], "std.channel.Sender[T]", intrinsic_channel_clone_sender())
+    if name == "std.channel.clone_receiver":
+        return StandardSignature(true, ["T"], ["std.channel.Receiver[T]"], "std.channel.Receiver[T]", intrinsic_channel_clone_receiver())
+    if name == "std.channel.send":
+        return StandardSignature(true, ["T"], ["std.channel.Sender[T]", "T", "Int", "std.cancel.CancellationToken"], "Result[Bool, String]", intrinsic_channel_send())
+    if name == "std.channel.receive":
+        return StandardSignature(true, ["T"], ["std.channel.Receiver[T]", "Int", "std.cancel.CancellationToken"], "Result[Option[T], String]", intrinsic_channel_receive())
+    if name == "std.channel.close_sender":
+        return StandardSignature(true, ["T"], ["std.channel.Sender[T]"], "Result[Bool, String]", intrinsic_channel_close_sender())
+    if name == "std.channel.close_receiver":
+        return StandardSignature(true, ["T"], ["std.channel.Receiver[T]"], "Result[Bool, String]", intrinsic_channel_close_receiver())
     return StandardSignature(false, [], [], "<invalid>", intrinsic_none())
 
 fn find_struct_index(module: AstModule, name: String) -> Int:
@@ -3506,6 +3827,58 @@ fn find_enum_index(module: AstModule, name: String) -> Int:
         if module.enums[index].name == name:
             return index
     return -1
+
+fn structurally_transferable(module: AstModule, type_name: String, sharing: Bool, depth: Int) -> Bool:
+    if depth > 64 or type_name == "<invalid>":
+        return false
+    if type_name == "Int" or type_name == "Float" or type_name == "Bool" or type_name == "Char" or type_name == "Unit" or type_name == "String":
+        return true
+    if is_native_type(module, type_name) or type_name == "std.string.Builder":
+        return false
+    let base = type_base(type_name)
+    if base == "std.cancel.CancellationToken" or base == "std.sync.Mutex" or base == "std.sync.Event" or base == "std.sync.AtomicInt" or base == "std.sync.Once" or base == "std.channel.Channel" or base == "std.channel.Sender" or base == "std.channel.Receiver":
+        return true
+    if base == "std.sync.LockGuard":
+        return false
+    let arguments = type_arguments(type_name)
+    if base == "UniqueBuffer":
+        if sharing or collections.length(arguments) != 1:
+            return false
+        return structurally_transferable(module, arguments[0], false, depth + 1)
+    if base == "Array" or base == "Slice":
+        return collections.length(arguments) == 1 and structurally_transferable(module, arguments[0], sharing, depth + 1)
+    if base == "Weak":
+        return collections.length(arguments) == 1 and structurally_transferable(module, arguments[0], true, depth + 1)
+    if base == "Task":
+        return collections.length(arguments) == 1 and structurally_transferable(module, arguments[0], false, depth + 1)
+    let structure_index = find_struct_index(module, base)
+    if structure_index >= 0:
+        let declaration = module.structs[structure_index]
+        if declaration.representation != representation_rocket():
+            return false
+        var substitutions = Substitutions([], [])
+        substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), type_name, declaration.type_parameters, substitutions)
+        for field_index in 0..collections.length(declaration.fields):
+            if not structurally_transferable(module, substitute_type(declaration.fields[field_index].type_name, substitutions), sharing, depth + 1):
+                return false
+        return true
+    let enum_index = find_enum_index(module, base)
+    if enum_index >= 0:
+        let declaration = module.enums[enum_index]
+        var substitutions = Substitutions([], [])
+        substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), type_name, declaration.type_parameters, substitutions)
+        for variant_index in 0..collections.length(declaration.variants):
+            for payload_index in 0..collections.length(declaration.variants[variant_index].payload_types):
+                if not structurally_transferable(module, substitute_type(declaration.variants[variant_index].payload_types[payload_index], substitutions), sharing, depth + 1):
+                    return false
+        return true
+    return false
+
+fn is_send_type(module: AstModule, type_name: String) -> Bool:
+    return structurally_transferable(module, type_name, false, 0)
+
+fn is_share_type(module: AstModule, type_name: String) -> Bool:
+    return structurally_transferable(module, type_name, true, 0)
 
 fn find_function_index(module: AstModule, name: String) -> Int:
     for index in 0..collections.length(module.functions):
@@ -3598,8 +3971,14 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
             let candidate = substitute_type(signature.parameter_types[index], substitutions)
             if not contains_type_parameter(candidate, signature.type_parameters):
                 expected = candidate
-        let lowered = lower_hir_expression(next, arguments[index], expected)
+        var argument_state = next
+        let borrows_buffer = index == 0 and(signature.intrinsic == intrinsic_buffer_length() or signature.intrinsic == intrinsic_buffer_capacity() or signature.intrinsic == intrinsic_buffer_get() or signature.intrinsic == intrinsic_sync_guard_get() or signature.intrinsic == intrinsic_sync_guard_set() or signature.intrinsic == intrinsic_task_group_cancel() or signature.intrinsic == intrinsic_thread_is_complete())
+        if borrows_buffer:
+            argument_state = state_borrowing_unique(argument_state, true)
+        let lowered = lower_hir_expression(argument_state, arguments[index], expected)
         next = lowered.state
+        if borrows_buffer:
+            next = state_borrowing_unique(next, false)
         lowered_arguments = append(lowered_arguments, lowered.expression)
         if index < collections.length(signature.parameter_types):
             substitutions = infer_type(signature.parameter_types[index], lowered.expression.type_name, signature.type_parameters, substitutions)
@@ -3621,6 +4000,12 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
     if signature.intrinsic == intrinsic_collections_contains() or signature.intrinsic == intrinsic_collections_find() or signature.intrinsic == intrinsic_collections_filter_equal():
         if not is_collection_comparable(substitution_value(substitutions, "T")):
             next = lower_error(next, expression.line, expression.column, "collection equality requires Int, Float, Bool, Char, or String")
+    if signature.intrinsic == intrinsic_ownership_downgrade() and not is_share_type(next.module, substitution_value(substitutions, "T")):
+        next = lower_issue(next, "R4102", expression.line, expression.column, "Weak targets must satisfy Share")
+    if signature.intrinsic == intrinsic_sync_mutex() or signature.intrinsic == intrinsic_sync_once() or signature.intrinsic == intrinsic_channel_bounded() or signature.intrinsic == intrinsic_channel_unbounded() or signature.intrinsic == intrinsic_channel_send() or signature.intrinsic == intrinsic_task_group() or signature.intrinsic == intrinsic_thread_spawn():
+        let transferred = substitution_value(substitutions, "T")
+        if not is_send_type(next.module, transferred) or not managed_type(transferred):
+            next = lower_issue(next, "R4101", expression.line, expression.column, "synchronized storage requires a managed Send value")
     var key = name
     if collections.length(signature.type_parameters) > 0:
         key = specialization_key(name, substitutions, signature.type_parameters)
@@ -3791,8 +4176,20 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
             else:
                 let added = add_hir_symbol(next, symbol_function(), key, result_type, false, parameter_types, intrinsic_none())
                 symbol = added.symbol
-                next = state_specializations(added.state, append(added.state.specializations, Specialization(key, symbol)))
+                next = set_hir_async_symbol(added.state, symbol, function.asynchronous)
+                next = state_specializations(next, append(next.specializations, Specialization(key, symbol)))
                 next = state_pending(next, append(next.pending, PendingSpecialization(function_index, symbol, substitutions)))
+    if function.asynchronous:
+        for index in 0..collections.length(lowered_arguments):
+            if not is_send_type(next.module, lowered_arguments[index].type_name):
+                next = lower_issue(next, "R4101", arguments[index].line, arguments[index].column, "async arguments must satisfy Send")
+        let results = type_arguments(result_type)
+        var success = "<invalid>"
+        if collections.length(results) == 2:
+            success = results[0]
+            if not is_send_type(next.module, success):
+                next = lower_issue(next, "R4101", expression.line, expression.column, "async task result must satisfy Send")
+        return HirExprResult(hir_expression(expr_call(), "$async", make_type("Task", [success]), lowered_arguments, symbol, -1, expression), next)
     return HirExprResult(hir_expression(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression), next)
 
 fn closure_value_call(state: LowerState, expression: AstExpr, closure: HirExpr, arguments: Array[AstExpr]) -> HirExprResult:
@@ -4023,7 +4420,14 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         if symbol < 0:
             let next = lower_error(state, expression.line, expression.column, string.concat("undefined name '", string.concat(expression.text, "'")))
             return HirExprResult(hir_expression(expression.kind, expression.text, "<invalid>", [], -1, -1, expression), next)
-        return HirExprResult(hir_expression(expression.kind, expression.text, state.symbols[symbol].type_name, [], symbol, -1, expression), state)
+        var next = state
+        let symbol_base = type_base(state.symbols[symbol].type_name)
+        if(symbol_base == "UniqueBuffer" or symbol_base == "std.sync.LockGuard" or symbol_base == "std.task.TaskGroup" or symbol_base == "std.thread.Thread") and not state.borrowing_unique:
+            if contains_symbol(state.moved_symbols, symbol):
+                next = lower_issue(next, "R4103", expression.line, expression.column, string.concat("move-only value '", string.concat(expression.text, "' was already consumed")))
+            else:
+                next = state_moved_symbols(next, append(next.moved_symbols, symbol))
+        return HirExprResult(hir_expression(expression.kind, expression.text, state.symbols[symbol].type_name, [], symbol, -1, expression), next)
     if expression.kind == expr_lambda():
         var parameter_names: Array[String] = []
         var parameters: Array[AstParameter] = []
@@ -4050,7 +4454,7 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         let returned = AstStatement(statement_return(), "", "", false, [rewritten], [], [], [], expression.line, expression.column)
         let callable_name = string.concat(closure_name, ".call")
         let result_type = substitute_type(expression.text, state.substitutions)
-        let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), result_type, [returned], closure_name, "", false, false, false, false, callable_name, [], expression.line, expression.column)
+        let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), result_type, [returned], closure_name, "", false, false, false, false, callable_name, [], expression.line, expression.column, false)
         var module = state.module
         module = AstModule(module.imports, append(module.structs, closure), module.enums, module.traits, append(module.functions, callable))
         var next = state_module(state, module)
@@ -4135,6 +4539,20 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
             if collections.length(return_arguments) != 2 or return_arguments[1] != arguments[1]:
                 next = lower_error(next, expression.line, expression.column, "'?' error type does not match the function result")
         return HirExprResult(hir_expression(expression.kind, "", arguments[0], [value.expression], -1, -1, expression), next)
+    if expression.kind == expr_await():
+        let task = lower_hir_expression(state, expression.children[0], "")
+        var next = task.state
+        if not next.current_async:
+            next = lower_issue(next, "R4105", expression.line, expression.column, "await is valid only inside an async function")
+        for binding_index in 0..collections.length(next.bindings):
+            let binding = next.bindings[binding_index]
+            if is_native_type(next.module, next.symbols[binding.symbol].type_name):
+                next = lower_issue(next, "R4106", expression.line, expression.column, "native values cannot remain live across await")
+        let arguments = type_arguments(task.expression.type_name)
+        if type_base(task.expression.type_name) != "Task" or collections.length(arguments) != 1:
+            next = lower_issue(next, "R4105", expression.line, expression.column, "await requires a Task[T] operand")
+            return HirExprResult(hir_expression(expr_await(), "", "<invalid>", [task.expression], -1, -1, expression), next)
+        return HirExprResult(hir_expression(expr_await(), "", make_type("Result", [arguments[0], "String"]), [task.expression], -1, -1, expression), next)
     let next = lower_error(state, expression.line, expression.column, "unsupported expression in self-hosted HIR")
     return HirExprResult(hir_expression(expression.kind, expression.text, "<invalid>", [], -1, -1, expression), next)
 
@@ -4305,6 +4723,8 @@ fn lower_hir_statement(state: LowerState, statement: AstStatement) -> HirStateme
             let value = lower_hir_expression(next, statement.expressions[0], next.return_type)
             next = value.state
             expressions = append(expressions, value.expression)
+            if type_base(value.expression.type_name) == "std.sync.LockGuard" or type_base(value.expression.type_name) == "std.task.TaskGroup":
+                next = lower_issue(next, "R4104", statement.line, statement.column, "scoped concurrency value cannot escape its function")
             if value.expression.type_name != next.return_type and value.expression.type_name != "<invalid>":
                 next = lower_error(next, statement.line, statement.column, string.concat("return value is ", string.concat(value.expression.type_name, string.concat(", expected ", next.return_type))))
         return HirStatementResult(hir_statement(statement_return(), -1, expressions, [], [], [], statement), next)
@@ -4396,7 +4816,8 @@ fn lower_hir_function(state: LowerState, function_index: Int, symbol: Int, subst
     let saved_loop = state.loop_depth
     let saved_substitutions = state.substitutions
     let saved_bindings = state.bindings
-    var next = state_bindings(state_function_context(state_depth(state, 0), substitute_type(function.result_type, substitutions), 0, substitutions), [])
+    let saved_async = state.current_async
+    var next = state_bindings(state_function_context(state_depth(state, 0), substitute_type(function.result_type, substitutions), 0, substitutions, function.asynchronous), [])
     var parameters: Array[Int] = []
     for index in 0..collections.length(function.parameters):
         let parameter = function.parameters[index]
@@ -4405,8 +4826,8 @@ fn lower_hir_function(state: LowerState, function_index: Int, symbol: Int, subst
         next = add_scope_binding(added.state, parameter.name, added.symbol)
         parameters = append(parameters, added.symbol)
     let body = lower_hir_block(next, function.body, false)
-    next = state_bindings(state_function_context(state_depth(body.state, saved_depth), saved_return, saved_loop, saved_substitutions), saved_bindings)
-    return HirFunctionResult(HirFunction(symbol, parameters, substitute_type(function.result_type, substitutions), body.statements), next)
+    next = state_bindings(state_function_context(state_depth(body.state, saved_depth), saved_return, saved_loop, saved_substitutions, saved_async), saved_bindings)
+    return HirFunctionResult(HirFunction(symbol, parameters, substitute_type(function.result_type, substitutions), body.statements, function.asynchronous), next)
 
 fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], library: Bool) -> HirResult:
     let pop_type = AstStructDecl("std.collections.Pop", true, ["T"], [AstTypeField("values", "Array[T]", 1, 1), AstTypeField("value", "T", 1, 1)], representation_rocket(), [], "", "std.collections.Pop", 1, 1)
@@ -4422,7 +4843,7 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], librar
     let http_request_type = AstStructDecl("std.http.Request", true, [], [AstTypeField("method", "String", 1, 1), AstTypeField("path", "String", 1, 1), AstTypeField("body", "std.collections.ByteBuffer", 1, 1)], representation_rocket(), [], "", "std.http.Request", 1, 1)
     let builtins = [pop_type, removal_type, tuple2_type, tuple3_type, map_type, set_type, queue_type, stack_type, buffer_type, http_response_type, http_request_type]
     let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.traits, module.functions)
-    var state = LowerState(complete_module, [], [], [], 0, "", 0, 0, Substitutions([], []), [], [], parser_diagnostics)
+    var state = LowerState(complete_module, [], [], [], 0, "", 0, 0, Substitutions([], []), [], [], parser_diagnostics, false, [], false)
     let print_symbol = add_hir_symbol(state, symbol_builtin(), "print", "Unit", false, [], intrinsic_print())
     state = print_symbol.state
     var function_symbols: Array[Int] = []
@@ -4455,6 +4876,12 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], librar
                 state = lower_error(state, method.line, method.column, "trait methods require first parameter 'self: Self'")
     for index in 0..collections.length(complete_module.functions):
         let function = complete_module.functions[index]
+        if function.asynchronous:
+            let async_result = type_arguments(function.result_type)
+            if type_base(function.result_type) != "Result" or collections.length(async_result) != 2 or async_result[1] != "String":
+                state = lower_issue(state, "R4106", function.line, function.column, "async functions must return Result[T, String]")
+            if function.native_import or function.native_export:
+                state = lower_issue(state, "R4106", function.line, function.column, "async functions cannot be native imports or exports")
         if collection_contains_native(complete_module, function.result_type):
             state = lower_error(state, function.line, function.column, "collections cannot contain native values")
         for parameter_index in 0..collections.length(function.parameters):
@@ -4513,6 +4940,7 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], librar
                 parameter_types = append(parameter_types, function.parameters[parameter_index].type_name)
             let added = add_hir_symbol(state, symbol_function(), function.name, function.result_type, false, parameter_types, intrinsic_none())
             state = set_hir_native_symbol(added.state, added.symbol, function.native_import, function.native_export, function.native_name)
+            state = set_hir_async_symbol(state, added.symbol, function.asynchronous)
             if function.native_import or function.native_export:
                 for parameter_index in 0..collections.length(parameter_types):
                     let parameter_type = parameter_types[parameter_index]
@@ -4703,7 +5131,12 @@ fn lower_mir_expression(state: MirState, expression: HirExpr) -> MirOperandResul
         if expression.symbol < 0 and expression.field >= 0:
             instruction_kind = mir_aggregate()
         else:
-            instruction_kind = mir_call()
+            if expression.text == "$async":
+                instruction_kind = mir_async_call()
+            else:
+                instruction_kind = mir_call()
+    if expression.kind == expr_await():
+        instruction_kind = mir_await()
     if expression.kind == expr_array():
         instruction_kind = mir_array()
     if expression.kind == expr_index():
@@ -4920,7 +5353,7 @@ fn add_explicit_ownership(module: HirModule, function: MirFunction) -> MirFuncti
                 if managed_type_for_structs(module.structs, local.type_name) and not local.parameter:
                     instructions = append(instructions, MirInstruction(mir_release(), -1, [MirOperand(local.id, "", local.type_name, false)], -1, -1, "function cleanup", local.type_name))
         blocks = append(blocks, MirBlock(block.id, instructions, block.terminator))
-    return MirFunction(function.symbol, function.parameters, function.locals, blocks, function.result_type)
+    return MirFunction(function.symbol, function.parameters, function.locals, blocks, function.result_type, function.asynchronous)
 
 fn build_mir_function(module: HirModule, function: HirFunction, input_diagnostics: Array[Diagnostic]) -> MirFunctionBuildResult:
     var state = MirState(module, [], [], [], 0, [], false, 1, [], [], input_diagnostics)
@@ -4938,7 +5371,7 @@ fn build_mir_function(module: HirModule, function: HirFunction, input_diagnostic
             state = mir_error(state, 1, 1, "non-Unit MIR function can reach its end")
             let fallback = MirOperand(-1, "0", function.result_type, true)
             state = finish_mir_block(state, return_terminator(fallback, true))
-    let lowered = MirFunction(function.symbol, parameters, state.locals, state.blocks, function.result_type)
+    let lowered = MirFunction(function.symbol, parameters, state.locals, state.blocks, function.result_type, function.asynchronous)
     return MirFunctionBuildResult(add_explicit_ownership(module, lowered), state.diagnostics)
 
 fn block_exists(blocks: Array[MirBlock], id: Int) -> Bool:
@@ -4965,6 +5398,11 @@ fn verify_mir_function(function: MirFunction, diagnostics: Array[Diagnostic]) ->
                 else:
                     if instruction.operands[0].type_name != instruction.type_name or instruction.operands[1].type_name != "Int" or instruction.operands[2].type_name != collection_element_type(instruction.type_name):
                         result = append(result, make_diagnostic("R9001", 1, 1, "Array update operand type mismatch"))
+            if instruction.kind == mir_async_call() and type_base(instruction.type_name) != "Task":
+                result = append(result, make_diagnostic("R9001", 1, 1, "async MIR call must produce Task[T]"))
+            if instruction.kind == mir_await():
+                if not function.asynchronous or collections.length(instruction.operands) != 1 or type_base(instruction.operands[0].type_name) != "Task" or type_base(instruction.type_name) != "Result":
+                    result = append(result, make_diagnostic("R9001", 1, 1, "invalid await MIR instruction"))
         if block.terminator.kind == terminator_goto() and not block_exists(function.blocks, block.terminator.target):
             result = append(result, make_diagnostic("R9001", 1, 1, "MIR goto target does not exist"))
         if block.terminator.kind == terminator_branch() and(not block_exists(function.blocks, block.terminator.then_target) or not block_exists(function.blocks, block.terminator.else_target)):
@@ -5066,6 +5504,9 @@ fn llvm_zero(type_name: String) -> String:
 
 fn llvm_function_name(symbol: Int) -> String:
     return string.concat("@rocket_fn_", string.from_int(symbol))
+
+fn llvm_async_entry_name(symbol: Int) -> String:
+    return string.concat("@rocket_async_entry_", string.from_int(symbol))
 
 fn llvm_local_name(local: Int) -> String:
     return string.concat("%l", string.from_int(local))
@@ -5201,6 +5642,19 @@ fn llvm_key_suffix(type_name: String) -> String:
     if type_name == "Char":
         return "_char"
     return "_string"
+
+fn llvm_value_suffix(type_name: String) -> String:
+    if type_name == "Int":
+        return "_int"
+    if type_name == "Float":
+        return "_float"
+    if type_name == "Bool":
+        return "_bool"
+    if type_name == "Char":
+        return "_char"
+    if type_name == "String":
+        return "_string"
+    return "_managed"
 
 fn llvm_index_name(type_name: String) -> String:
     if type_name == "Int":
@@ -5554,6 +6008,136 @@ fn intrinsic_runtime_name(intrinsic: Int) -> String:
         return "@rocket_std_time_monotonic_milliseconds"
     if intrinsic == intrinsic_time_sleep_milliseconds():
         return "@rocket_std_time_sleep_milliseconds"
+    if intrinsic == intrinsic_task_join():
+        return "@rocket_std_task_join"
+    if intrinsic == intrinsic_task_is_complete():
+        return "@rocket_std_task_is_complete"
+    if intrinsic == intrinsic_ownership_downgrade():
+        return "@rocket_std_ownership_downgrade"
+    if intrinsic == intrinsic_ownership_upgrade():
+        return "@rocket_std_ownership_upgrade"
+    if intrinsic == intrinsic_ownership_expired():
+        return "@rocket_std_ownership_expired"
+    if intrinsic == intrinsic_buffer_thaw():
+        return "@rocket_std_buffer_thaw"
+    if intrinsic == intrinsic_buffer_length():
+        return "@rocket_std_buffer_length"
+    if intrinsic == intrinsic_buffer_capacity():
+        return "@rocket_std_buffer_capacity"
+    if intrinsic == intrinsic_buffer_get():
+        return "@rocket_std_buffer_get"
+    if intrinsic == intrinsic_buffer_set():
+        return "@rocket_std_buffer_set"
+    if intrinsic == intrinsic_buffer_append():
+        return "@rocket_std_buffer_append"
+    if intrinsic == intrinsic_buffer_slice():
+        return "@rocket_std_buffer_slice"
+    if intrinsic == intrinsic_buffer_freeze():
+        return "@rocket_std_buffer_freeze"
+    if intrinsic == intrinsic_cancel_token():
+        return "@rocket_std_cancel_token"
+    if intrinsic == intrinsic_cancel_child():
+        return "@rocket_std_cancel_child"
+    if intrinsic == intrinsic_cancel_current():
+        return "@rocket_std_cancel_current"
+    if intrinsic == intrinsic_cancel_cancel():
+        return "@rocket_std_cancel_cancel"
+    if intrinsic == intrinsic_cancel_is_cancelled():
+        return "@rocket_std_cancel_is_cancelled"
+    if intrinsic == intrinsic_cancel_check():
+        return "@rocket_std_cancel_check"
+    if intrinsic == intrinsic_async_time_deadline_after():
+        return "@rocket_std_async_time_deadline_after"
+    if intrinsic == intrinsic_async_time_remaining():
+        return "@rocket_std_async_time_remaining"
+    if intrinsic == intrinsic_async_time_sleep():
+        return "@rocket_std_async_time_sleep"
+    if intrinsic == intrinsic_async_time_sleep_until():
+        return "@rocket_std_async_time_sleep_until"
+    if intrinsic == intrinsic_sync_mutex():
+        return "@rocket_std_sync_mutex"
+    if intrinsic == intrinsic_sync_lock():
+        return "@rocket_std_sync_lock"
+    if intrinsic == intrinsic_sync_guard_get():
+        return "@rocket_std_sync_guard_get"
+    if intrinsic == intrinsic_sync_guard_set():
+        return "@rocket_std_sync_guard_set"
+    if intrinsic == intrinsic_sync_unlock():
+        return "@rocket_std_sync_unlock"
+    if intrinsic == intrinsic_sync_event():
+        return "@rocket_std_sync_event"
+    if intrinsic == intrinsic_sync_event_set():
+        return "@rocket_std_sync_event_set"
+    if intrinsic == intrinsic_sync_event_reset():
+        return "@rocket_std_sync_event_reset"
+    if intrinsic == intrinsic_sync_event_wait():
+        return "@rocket_std_sync_event_wait"
+    if intrinsic == intrinsic_sync_atomic_int():
+        return "@rocket_std_sync_atomic_int"
+    if intrinsic == intrinsic_sync_atomic_load():
+        return "@rocket_std_sync_atomic_load"
+    if intrinsic == intrinsic_sync_atomic_store():
+        return "@rocket_std_sync_atomic_store"
+    if intrinsic == intrinsic_sync_atomic_fetch_add():
+        return "@rocket_std_sync_atomic_fetch_add"
+    if intrinsic == intrinsic_sync_atomic_compare_exchange():
+        return "@rocket_std_sync_atomic_compare_exchange"
+    if intrinsic == intrinsic_sync_once():
+        return "@rocket_std_sync_once"
+    if intrinsic == intrinsic_sync_once_set():
+        return "@rocket_std_sync_once_set"
+    if intrinsic == intrinsic_sync_once_get():
+        return "@rocket_std_sync_once_get"
+    if intrinsic == intrinsic_channel_bounded():
+        return "@rocket_std_channel_bounded"
+    if intrinsic == intrinsic_channel_unbounded():
+        return "@rocket_std_channel_unbounded"
+    if intrinsic == intrinsic_channel_sender():
+        return "@rocket_std_channel_sender"
+    if intrinsic == intrinsic_channel_receiver():
+        return "@rocket_std_channel_receiver"
+    if intrinsic == intrinsic_channel_clone_sender():
+        return "@rocket_std_channel_clone_sender"
+    if intrinsic == intrinsic_channel_clone_receiver():
+        return "@rocket_std_channel_clone_receiver"
+    if intrinsic == intrinsic_channel_send():
+        return "@rocket_std_channel_send"
+    if intrinsic == intrinsic_channel_receive():
+        return "@rocket_std_channel_receive"
+    if intrinsic == intrinsic_channel_close_sender():
+        return "@rocket_std_channel_close_sender"
+    if intrinsic == intrinsic_channel_close_receiver():
+        return "@rocket_std_channel_close_receiver"
+    if intrinsic == intrinsic_async_file_read():
+        return "@rocket_std_async_file_read"
+    if intrinsic == intrinsic_async_file_write():
+        return "@rocket_std_async_file_write"
+    if intrinsic == intrinsic_task_group():
+        return "@rocket_std_task_group"
+    if intrinsic == intrinsic_task_group_join():
+        return "@rocket_std_task_group_join"
+    if intrinsic == intrinsic_task_group_cancel():
+        return "@rocket_std_task_group_cancel"
+    if intrinsic == intrinsic_async_net_connect():
+        return "@rocket_std_async_net_connect"
+    if intrinsic == intrinsic_async_net_accept():
+        return "@rocket_std_async_net_accept"
+    if intrinsic == intrinsic_async_net_receive():
+        return "@rocket_std_async_net_receive"
+    if intrinsic == intrinsic_async_net_send():
+        return "@rocket_std_async_net_send"
+    if intrinsic == intrinsic_async_process_run():
+        return "@rocket_std_async_process_run"
+    if intrinsic == intrinsic_thread_spawn():
+        return "@rocket_std_thread_spawn"
+    if intrinsic == intrinsic_thread_join():
+        return "@rocket_std_thread_join"
+    if intrinsic == intrinsic_thread_detach():
+        return "@rocket_std_thread_detach"
+    if intrinsic == intrinsic_thread_is_complete():
+        return "@rocket_std_thread_is_complete"
+    if intrinsic == intrinsic_task_cancel():
+        return "@rocket_std_task_cancel"
     return ""
 
 fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
@@ -5562,6 +6146,9 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare { i64, i1 } @llvm.smul.with.overflow.i64(i64, i64)")
     emit_llvm_line(builder, "declare void @rocket_rt_retain(ptr)")
     emit_llvm_line(builder, "declare void @rocket_rt_release(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_task_spawn(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_task_ready(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_rt_task_await(ptr)")
     emit_llvm_line(builder, "declare void @rocket_rt_panic_integer_overflow()")
     emit_llvm_line(builder, "declare void @rocket_rt_panic_division_by_zero()")
     emit_llvm_line(builder, "declare ptr @rocket_rt_string_new(ptr, i64)")
@@ -5796,6 +6383,88 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare i64 @rocket_std_time_unix_milliseconds()")
     emit_llvm_line(builder, "declare i64 @rocket_std_time_monotonic_milliseconds()")
     emit_llvm_line(builder, "declare void @rocket_std_time_sleep_milliseconds(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_join(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_task_is_complete(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_ownership_downgrade(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_ownership_upgrade(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_ownership_expired(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_thaw(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_buffer_length(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_buffer_capacity(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_buffer_get_int(ptr, i64)")
+    emit_llvm_line(builder, "declare double @rocket_std_buffer_get_float(ptr, i64)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_buffer_get_bool(ptr, i64)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_buffer_get_char(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_get_string(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_get_managed(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_set_int(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_set_float(ptr, i64, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_set_bool(ptr, i64, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_set_char(ptr, i64, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_set_string(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_set_managed(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_append_int(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_append_float(ptr, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_append_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_append_char(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_append_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_append_managed(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_slice(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_buffer_freeze(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_cancel_token()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_cancel_child(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_cancel_current()")
+    emit_llvm_line(builder, "declare i8 @rocket_std_cancel_cancel(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_cancel_is_cancelled(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_cancel_check(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_time_deadline_after(i64)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_async_time_remaining(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_time_sleep(i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_time_sleep_until(i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_lock(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_guard_get(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_unlock(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_event(i8, i8)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_event_set(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_event_reset(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_event_wait(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_atomic_int(i64)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_sync_atomic_load(ptr)")
+    emit_llvm_line(builder, "declare void @rocket_std_sync_atomic_store(ptr, i64)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_sync_atomic_fetch_add(ptr, i64)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_atomic_compare_exchange(ptr, i64, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_bounded(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_unbounded(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_sender(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_receiver(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_clone_sender(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_clone_receiver(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send(ptr, ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_receive(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_close_sender(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_close_receiver(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_file_read(ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_file_write(ptr, ptr, i8, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group_string(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group_managed(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group_join(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_task_group_cancel(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_net_connect(ptr, i64, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_net_accept(i64, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_net_receive(i64, i64, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_net_send(i64, ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_async_process_run(ptr, ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_thread_spawn(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_thread_join(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_thread_detach(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_thread_is_complete(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_task_cancel(ptr)")
     emit_llvm_line(builder, "declare void @rocket_std_process_set_arguments(i32, ptr)")
     emit_llvm_line(builder, "")
 
@@ -5943,6 +6612,10 @@ fn emit_call_llvm(builder: std.string.Builder, module: MirModule, instruction: M
             runtime_name = string.concat(runtime_name, llvm_key_suffix(values[0].type_name))
         if symbol.intrinsic == intrinsic_collections_map_hash():
             runtime_name = string.concat(runtime_name, llvm_key_suffix(collection_element_type(values[0].type_name)))
+        if symbol.intrinsic == intrinsic_buffer_get() or symbol.intrinsic == intrinsic_buffer_set() or symbol.intrinsic == intrinsic_buffer_append():
+            runtime_name = string.concat(runtime_name, llvm_value_suffix(collection_element_type(values[0].type_name)))
+        if symbol.intrinsic == intrinsic_task_group():
+            runtime_name = string.concat(runtime_name, llvm_value_suffix(collection_element_type(instruction.type_name)))
         if instruction.type_name == "Unit":
             emit_llvm_line(builder, string.concat("  call void ", string.concat(runtime_name, string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))
             return LlvmValue("0", "Unit")
@@ -6037,6 +6710,31 @@ fn emit_mir_instruction_llvm(builder: std.string.Builder, globals: std.string.Bu
     if instruction.kind == mir_call():
         let value = emit_call_llvm(builder, module, instruction, values, name)
         store_owned_llvm(builder, instruction.destination, value, name)
+        return
+    if instruction.kind == mir_async_call():
+        var mask = 0
+        for index in 0..collections.length(values):
+            if managed_type(values[index].type_name):
+                mask = mask + power_of_two(index)
+        let context = string.concat("%", string.concat(name, "_async_context"))
+        emit_llvm_line(builder, string.concat("  ", string.concat(context, string.concat(" = call ptr @rocket_rt_aggregate_new(i32 0, i32 ", string.concat(string.from_int(collections.length(values)), string.concat(", i64 ", string.concat(string.from_int(mask), ")")))))))
+        for index in 0..collections.length(values):
+            var argument_name = values[index].name
+            var argument_type = llvm_type(values[index].type_name)
+            if values[index].type_name == "Bool":
+                let extended = string.concat("%", string.concat(name, string.concat("_async_bool_", string.from_int(index))))
+                emit_llvm_line(builder, string.concat("  ", string.concat(extended, string.concat(" = zext i1 ", string.concat(argument_name, " to i8")))))
+                argument_name = extended
+                argument_type = "i8"
+            emit_llvm_line(builder, string.concat("  call void ", string.concat(llvm_aggregate_set_name(values[index].type_name), string.concat("(ptr ", string.concat(context, string.concat(", i32 ", string.concat(string.from_int(index), string.concat(", ", string.concat(argument_type, string.concat(" ", string.concat(argument_name, ")")))))))))))
+        let task = string.concat("%", string.concat(name, "_task"))
+        emit_llvm_line(builder, string.concat("  ", string.concat(task, string.concat(" = call ptr @rocket_rt_task_spawn(ptr ", string.concat(llvm_async_entry_name(instruction.symbol), string.concat(", ptr ", string.concat(context, ")")))))))
+        store_owned_llvm(builder, instruction.destination, LlvmValue(task, instruction.type_name), name)
+        return
+    if instruction.kind == mir_await():
+        let result = string.concat("%", string.concat(name, "_await"))
+        emit_llvm_line(builder, string.concat("  ", string.concat(result, string.concat(" = call ptr @rocket_rt_task_await(ptr ", string.concat(values[0].name, ")")))))
+        store_owned_llvm(builder, instruction.destination, LlvmValue(result, instruction.type_name), name)
         return
     if instruction.kind == mir_array():
         let element_type = collection_element_type(instruction.type_name)
@@ -6166,6 +6864,33 @@ fn emit_mir_function_llvm(builder: std.string.Builder, globals: std.string.Build
     emit_llvm_line(builder, "}")
     emit_llvm_line(builder, "")
 
+fn emit_async_entry_llvm(builder: std.string.Builder, module: MirModule, function: MirFunction) -> Unit:
+    let symbol = module.symbols[function.symbol]
+    emit_llvm_line(builder, string.concat("define internal ptr ", string.concat(llvm_async_entry_name(function.symbol), "(ptr %context) {")))
+    emit_llvm_line(builder, "entry:")
+    var arguments: Array[String] = []
+    for index in 0..collections.length(symbol.parameter_types):
+        let type_name = symbol.parameter_types[index]
+        var raw_type = llvm_type(type_name)
+        if type_name == "Bool":
+            raw_type = "i8"
+        let raw = string.concat("%rocket_async_arg_", string.from_int(index))
+        emit_llvm_line(builder, string.concat("  ", string.concat(raw, string.concat(" = call ", string.concat(raw_type, string.concat(" ", string.concat(llvm_aggregate_get_name(type_name), string.concat("(ptr %context, i32 ", string.concat(string.from_int(index), ")")))))))))
+        var argument = raw
+        if type_name == "Bool":
+            argument = string.concat("%rocket_async_bool_", string.from_int(index))
+            emit_llvm_line(builder, string.concat("  ", string.concat(argument, string.concat(" = trunc i8 ", string.concat(raw, " to i1")))))
+        arguments = append(arguments, string.concat(llvm_type(type_name), string.concat(" ", argument)))
+    emit_llvm_line(builder, string.concat("  %rocket_async_result = call ptr ", string.concat(llvm_function_name(function.symbol), string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))
+    emit_llvm_line(builder, "  ret ptr %rocket_async_result")
+    emit_llvm_line(builder, "}")
+    emit_llvm_line(builder, "")
+
+fn emit_async_entries_llvm(builder: std.string.Builder, module: MirModule) -> Unit:
+    for index in 0..collections.length(module.functions):
+        if module.functions[index].asynchronous:
+            emit_async_entry_llvm(builder, module, module.functions[index])
+
 fn emit_native_declarations(builder: std.string.Builder, module: MirModule) -> Unit:
     for symbol_index in 0..collections.length(module.symbols):
         let symbol = module.symbols[symbol_index]
@@ -6279,6 +7004,7 @@ fn generate_llvm_ir(module: MirModule) -> String:
     emit_native_declarations(output, module)
     for index in 0..collections.length(module.functions):
         emit_mir_function_llvm(output, globals, module, module.functions[index])
+    emit_async_entries_llvm(output, module)
     emit_callback_wrappers(output, module)
     emit_export_wrappers(output, module)
     emit_native_entrypoint(output, module)
@@ -7349,7 +8075,7 @@ fn verify_package_graph(input: String) -> Int:
             return 1
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.7.0")
+    print("Rocket compiler 1.8.0")
     print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|coverage|profile|benchmark|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
@@ -7403,7 +8129,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.7.0")
+        print("rocketc 1.8.0")
         return 0
     if collections.length(arguments) > 0 and contains_string(["coverage", "profile", "benchmark"], arguments[0]):
         return forward_package_command(arguments)

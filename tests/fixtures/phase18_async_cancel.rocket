@@ -1,0 +1,27 @@
+import std.async_net
+import std.async_process
+import std.buffer
+import std.cancel
+import std.task
+import std.time
+
+fn main() -> Int:
+    let token = cancel.token()
+    print(cancel.cancel(token))
+    match task.join(async_net.connect("127.0.0.1", 1, time.monotonic_milliseconds() + 1000, token)):
+        case Ok(handle):
+            print(handle)
+        case Err(message):
+            print(message)
+    let bytes = buffer.thaw(['x'])
+    match task.join(async_net.send(-1, bytes, time.monotonic_milliseconds() + 1000, token)):
+        case Ok(count):
+            print(count)
+        case Err(message):
+            print(message)
+    match task.join(async_process.run("missing.exe", [], time.monotonic_milliseconds() + 1000, token)):
+        case Ok(code):
+            print(code)
+        case Err(message):
+            print(message)
+    return 0

@@ -1,0 +1,8 @@
+import std.string
+
+async fn make_builder() -> Result[std.string.Builder, String]:
+    return Ok(string.builder())
+
+fn main() -> Int:
+    let task = make_builder()
+    return 0

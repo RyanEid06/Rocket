@@ -1,0 +1,9 @@
+import std.buffer
+
+fn main() -> Int:
+    let first = buffer.thaw([1, 2])
+    let second = buffer.append(first, 3)
+    let invalid = buffer.freeze(first)
+    print(second[0])
+    print(invalid[0])
+    return 0

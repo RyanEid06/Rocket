@@ -3,6 +3,28 @@
 
 #include <cstdint>
 #include <cstring>
+#include <atomic>
+#include <chrono>
+#include <thread>
+#include <vector>
+
+namespace {
+
+void* phase18TaskEntry(void* context) {
+  const std::int64_t value = rocket_rt_aggregate_get_int(
+      static_cast<RocketAggregate*>(context), 0);
+  RocketAggregate* result = rocket_rt_aggregate_new(0, 1, 0);
+  rocket_rt_aggregate_set_int(result, 0, value + 1);
+  return result;
+}
+
+void* phase18ManagedTaskEntry(void* context) {
+  RocketAggregate* result = rocket_rt_aggregate_new(0, 1, 1);
+  rocket_rt_aggregate_set_managed(result, 0, context);
+  return result;
+}
+
+} // namespace
 
 int main() {
   int failures = 0;
@@ -293,5 +315,394 @@ int main() {
   rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
                        "allocation stress leaves no collection or aggregate leaks",
                        failures);
+
+  RocketAggregate* shared = rocket_rt_aggregate_new(0, 1, 0);
+  rocket_rt_aggregate_set_int(shared, 0, 42);
+  rocket_rt_promote(shared);
+  std::vector<std::thread> contenders;
+  for (int worker = 0; worker < 8; ++worker) {
+    contenders.emplace_back([shared] {
+      for (int iteration = 0; iteration < 25000; ++iteration) {
+        rocket_rt_retain(shared);
+        rocket_rt_release(shared);
+      }
+    });
+  }
+  for (auto& contender : contenders) contender.join();
+  rocket::test::expect(rocket_rt_aggregate_get_int(shared, 0) == 42,
+                       "atomic shared ARC survives high-contention retain/release",
+                       failures);
+  rocket_rt_release(shared);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "atomic shared ARC destroys the payload exactly once", failures);
+
+  RocketAggregate* weakTarget = rocket_rt_aggregate_new(0, 1, 0);
+  RocketWeak* weak = rocket_rt_weak_new(weakTarget);
+  std::atomic<bool> beginWeakRace = false;
+  std::atomic<std::uint64_t> successfulUpgrades = 0;
+  contenders.clear();
+  for (int worker = 0; worker < 8; ++worker) {
+    contenders.emplace_back([weak, &beginWeakRace, &successfulUpgrades] {
+      while (!beginWeakRace.load(std::memory_order_acquire)) std::this_thread::yield();
+      for (int iteration = 0; iteration < 10000; ++iteration) {
+        if (void* upgraded = rocket_rt_weak_upgrade(weak)) {
+          successfulUpgrades.fetch_add(1, std::memory_order_relaxed);
+          rocket_rt_release(upgraded);
+        } else {
+          break;
+        }
+      }
+    });
+  }
+  beginWeakRace.store(true, std::memory_order_release);
+  rocket_rt_release(weakTarget);
+  for (auto& contender : contenders) contender.join();
+  rocket::test::expect(rocket_rt_weak_expired(weak) == 1 &&
+                           rocket_rt_weak_upgrade(weak) == nullptr,
+                       "Weak upgrade is all-or-nothing during concurrent destruction",
+                       failures);
+  rocket::test::expect(successfulUpgrades.load(std::memory_order_relaxed) <= 80000,
+                       "Weak contention completes without duplicate ownership", failures);
+  rocket_rt_release(weak);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "Weak control storage is released after expiration", failures);
+
+  for (int iteration = 0; iteration < 10000; ++iteration) {
+    RocketAggregate* self = rocket_rt_aggregate_new(0, 1, 1);
+    RocketWeak* backToSelf = rocket_rt_weak_new(self);
+    rocket_rt_aggregate_set_managed(self, 0, backToSelf);
+    rocket_rt_release(backToSelf);
+    rocket_rt_release(self);
+  }
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "Weak self-cycles destroy deterministically under stress", failures);
+
+  RocketAggregate* cycleLeft = rocket_rt_aggregate_new(0, 1, 1);
+  RocketAggregate* cycleRight = rocket_rt_aggregate_new(0, 1, 1);
+  RocketWeak* weakLeft = rocket_rt_weak_new(cycleLeft);
+  rocket_rt_aggregate_set_managed(cycleLeft, 0, cycleRight);
+  rocket_rt_aggregate_set_managed(cycleRight, 0, weakLeft);
+  rocket_rt_release(weakLeft);
+  rocket_rt_release(cycleRight);
+  rocket_rt_release(cycleLeft);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "a Weak back edge breaks a multi-object ownership cycle", failures);
+
+  RocketAggregate* taskContext = rocket_rt_aggregate_new(0, 1, 0);
+  rocket_rt_aggregate_set_int(taskContext, 0, 41);
+  RocketTask* task = rocket_rt_task_spawn(
+      reinterpret_cast<void*>(&phase18TaskEntry), taskContext);
+  RocketAggregate* taskResult = rocket_std_task_join(task);
+  rocket::test::expect(rocket_rt_aggregate_tag(taskResult) == 0 &&
+                           rocket_rt_aggregate_get_int(taskResult, 0) == 42,
+                       "bounded task executor owns and joins typed results", failures);
+  rocket_rt_release(taskResult);
+  rocket_rt_release(task);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                        "Task completion releases captured context and result", failures);
+
+  RocketCancellation* taskCancellation = rocket_std_cancel_token();
+  RocketTask* cancellableTask = rocket_std_async_time_sleep(1000, taskCancellation);
+  rocket::test::expect(rocket_std_task_cancel(cancellableTask) == 1,
+                       "Task cancellation wins before timer completion", failures);
+  RocketAggregate* cancelledTaskResult = rocket_std_task_join(cancellableTask);
+  rocket::test::expect(rocket_rt_aggregate_tag(cancelledTaskResult) == 1 &&
+                           rocket_std_task_cancel(cancellableTask) == 0,
+                       "cancelled Task completes once and rejects late cancellation", failures);
+  rocket_rt_release(cancelledTaskResult);
+  rocket_rt_release(cancellableTask);
+  rocket_rt_release(taskCancellation);
+
+  RocketAggregate* threadContext = rocket_rt_aggregate_new(0, 1, 0);
+  rocket_rt_aggregate_set_int(threadContext, 0, 9);
+  RocketTask* threadTask = rocket_rt_task_spawn(
+      reinterpret_cast<void*>(&phase18TaskEntry), threadContext);
+  RocketAggregate* threadSpawned = rocket_std_thread_spawn(threadTask);
+  auto* runtimeThread = reinterpret_cast<RocketThread*>(
+      rocket_rt_aggregate_get_managed(threadSpawned, 0));
+  RocketAggregate* threadResult = rocket_std_thread_join(runtimeThread);
+  rocket::test::expect(rocket_rt_aggregate_tag(threadResult) == 0 &&
+                           rocket_rt_aggregate_get_int(threadResult, 0) == 10,
+                       "Thread join transfers one completed task result", failures);
+  rocket_rt_release(threadResult);
+  rocket_rt_release(runtimeThread);
+  rocket_rt_release(threadSpawned);
+  rocket_rt_release(threadTask);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "joined Thread and underlying Task release exactly once", failures);
+
+  RocketString* firstTaskValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("first"), 5);
+  RocketString* secondTaskValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("second"), 6);
+  RocketTask* firstTask = rocket_rt_task_spawn(
+      reinterpret_cast<void*>(&phase18ManagedTaskEntry), firstTaskValue);
+  RocketTask* secondTask = rocket_rt_task_spawn(
+      reinterpret_cast<void*>(&phase18ManagedTaskEntry), secondTaskValue);
+  RocketArray* groupedTasks = rocket_rt_array_new(ROCKET_ELEMENT_MANAGED, 2);
+  rocket_rt_array_set_managed(groupedTasks, 0, firstTask);
+  rocket_rt_array_set_managed(groupedTasks, 1, secondTask);
+  RocketTaskGroup* group = rocket_std_task_group_string(groupedTasks);
+  RocketAggregate* groupResult = rocket_std_task_group_join(group);
+  auto* groupValues = reinterpret_cast<RocketArray*>(
+      rocket_rt_aggregate_get_managed(groupResult, 0));
+  RocketString* groupedFirst = rocket_rt_index_string(groupValues, 0);
+  RocketString* groupedSecond = rocket_rt_index_string(groupValues, 1);
+  rocket::test::expect(rocket_rt_string_equal(groupedFirst, firstTaskValue) == 1 &&
+                           rocket_rt_string_equal(groupedSecond, secondTaskValue) == 1,
+                       "TaskGroup joins every child in spawn order", failures);
+  rocket_rt_release(groupedSecond);
+  rocket_rt_release(groupedFirst);
+  rocket_rt_release(groupValues);
+  rocket_rt_release(groupResult);
+  rocket_rt_release(group);
+  rocket_rt_release(groupedTasks);
+  rocket_rt_release(secondTask);
+  rocket_rt_release(firstTask);
+  // Task contexts are consumed by spawn; the Task objects release these strings.
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "TaskGroup structured cleanup releases every child", failures);
+
+  RocketCancellation* abandonedToken = rocket_std_cancel_token();
+  RocketTask* abandonedFirst = rocket_std_async_time_sleep(1000, abandonedToken);
+  RocketTask* abandonedSecond = rocket_std_async_time_sleep(1000, abandonedToken);
+  RocketArray* abandonedTasks = rocket_rt_array_new(ROCKET_ELEMENT_MANAGED, 2);
+  rocket_rt_array_set_managed(abandonedTasks, 0, abandonedFirst);
+  rocket_rt_array_set_managed(abandonedTasks, 1, abandonedSecond);
+  RocketTaskGroup* abandonedGroup = rocket_std_task_group(abandonedTasks);
+  const auto abandonStarted = std::chrono::steady_clock::now();
+  rocket_rt_release(abandonedGroup);
+  const auto abandonElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - abandonStarted);
+  rocket::test::expect(abandonElapsed < std::chrono::milliseconds(500),
+                       "dropping an unjoined TaskGroup cancels and joins its children",
+                       failures);
+  rocket_rt_release(abandonedTasks);
+  rocket_rt_release(abandonedSecond);
+  rocket_rt_release(abandonedFirst);
+  rocket_rt_release(abandonedToken);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "unjoined TaskGroup cleanup leaves no child tasks", failures);
+
+  RocketCancellation* cancellation = rocket_std_cancel_token();
+  RocketCancellation* childCancellation = rocket_std_cancel_child(cancellation);
+  rocket::test::expect(rocket_std_cancel_is_cancelled(childCancellation) == 0 &&
+                           rocket_std_cancel_cancel(cancellation) == 1 &&
+                           rocket_std_cancel_is_cancelled(childCancellation) == 1 &&
+                           rocket_std_cancel_cancel(cancellation) == 0,
+                       "cancellation is idempotent and propagates to children", failures);
+  RocketTask* cancelledTimer = rocket_std_async_time_sleep(1000, childCancellation);
+  RocketAggregate* cancelledTimerResult = rocket_std_task_join(cancelledTimer);
+  rocket::test::expect(rocket_rt_aggregate_tag(cancelledTimerResult) == 1,
+                       "timer observes cancellation without waiting for its deadline", failures);
+  rocket_rt_release(cancelledTimerResult);
+  rocket_rt_release(cancelledTimer);
+  rocket_rt_release(childCancellation);
+  rocket_rt_release(cancellation);
+
+  RocketString* protectedValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("before"), 6);
+  RocketString* replacementValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("after"), 5);
+  RocketMutex* mutex = rocket_std_sync_mutex(protectedValue);
+  RocketCancellation* waitToken = rocket_std_cancel_token();
+  RocketAggregate* locked = rocket_std_sync_lock(
+      mutex, rocket_std_time_monotonic_milliseconds() + 1000, waitToken);
+  auto* guard = reinterpret_cast<RocketGuard*>(rocket_rt_aggregate_get_managed(locked, 0));
+  auto* readBefore = reinterpret_cast<RocketString*>(rocket_std_sync_guard_get(guard));
+  rocket::test::expect(rocket_rt_string_equal(readBefore, protectedValue) == 1 &&
+                           rocket_std_sync_guard_set(guard, replacementValue) == 1,
+                       "Mutex guards serialize managed get and set", failures);
+  RocketAggregate* timedLock = rocket_std_sync_lock(
+      mutex, rocket_std_time_monotonic_milliseconds() + 10, waitToken);
+  rocket::test::expect(rocket_rt_aggregate_tag(timedLock) == 1,
+                       "contended Mutex lock reaches a finite timeout", failures);
+  rocket_rt_release(timedLock);
+  RocketAggregate* unlocked = rocket_std_sync_unlock(guard);
+  rocket::test::expect(rocket_rt_aggregate_tag(unlocked) == 0,
+                       "LockGuard unlock succeeds exactly once", failures);
+  rocket_rt_release(unlocked);
+  rocket_rt_release(readBefore);
+  rocket_rt_release(guard);
+  rocket_rt_release(locked);
+  rocket_rt_release(waitToken);
+  rocket_rt_release(mutex);
+  rocket_rt_release(replacementValue);
+  rocket_rt_release(protectedValue);
+
+  RocketAtomicInt* atomicValue = rocket_std_sync_atomic_int(0);
+  contenders.clear();
+  for (int worker = 0; worker < 8; ++worker)
+    contenders.emplace_back([atomicValue] {
+      for (int iteration = 0; iteration < 10000; ++iteration)
+        rocket_std_sync_atomic_fetch_add(atomicValue, 1);
+    });
+  for (auto& contender : contenders) contender.join();
+  rocket::test::expect(rocket_std_sync_atomic_load(atomicValue) == 80000,
+                       "AtomicInt is sequentially consistent under contention", failures);
+  rocket_rt_release(atomicValue);
+
+  RocketString* onceValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("once"), 4);
+  RocketString* ignoredOnceValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("ignored"), 7);
+  RocketOnce* once = rocket_std_sync_once(onceValue);
+  std::atomic<int> onceReaders = 0;
+  contenders.clear();
+  for (int worker = 0; worker < 8; ++worker)
+    contenders.emplace_back([once, &onceReaders] {
+      for (int iteration = 0; iteration < 1000; ++iteration) {
+        RocketAggregate* observed = rocket_std_sync_once_get(once);
+        if (rocket_rt_aggregate_tag(observed) == 0) {
+          void* value = rocket_rt_aggregate_get_managed(observed, 0);
+          rocket_rt_release(value);
+          onceReaders.fetch_add(1, std::memory_order_relaxed);
+        }
+        rocket_rt_release(observed);
+      }
+    });
+  for (auto& contender : contenders) contender.join();
+  RocketAggregate* onceSetAgain = rocket_std_sync_once_set(once, ignoredOnceValue);
+  rocket::test::expect(onceReaders.load(std::memory_order_relaxed) == 8000 &&
+                           rocket_rt_aggregate_tag(onceSetAgain) == 0 &&
+                           rocket_rt_aggregate_get_bool(onceSetAgain, 0) == 0,
+                       "Once publishes one immutable managed value to all readers", failures);
+  rocket_rt_release(onceSetAgain);
+  rocket_rt_release(once);
+  rocket_rt_release(ignoredOnceValue);
+  rocket_rt_release(onceValue);
+
+  RocketEvent* event = rocket_std_sync_event(1, 0);
+  RocketCancellation* eventToken = rocket_std_cancel_token();
+  std::atomic<bool> eventObserved = false;
+  std::thread waiter([&] {
+    RocketAggregate* waited = rocket_std_sync_event_wait(
+        event, rocket_std_time_monotonic_milliseconds() + 1000, eventToken);
+    eventObserved.store(rocket_rt_aggregate_tag(waited) == 0, std::memory_order_release);
+    rocket_rt_release(waited);
+  });
+  rocket_std_sync_event_set(event);
+  waiter.join();
+  rocket::test::expect(eventObserved.load(std::memory_order_acquire),
+                       "Event wait cannot lose a concurrent set", failures);
+  rocket_rt_release(eventToken);
+  rocket_rt_release(event);
+
+  RocketEvent* cancelledEvent = rocket_std_sync_event(1, 0);
+  RocketCancellation* cancelledEventToken = rocket_std_cancel_token();
+  std::atomic<bool> cancelledWaitObserved = false;
+  std::thread cancelledWaiter([&] {
+    RocketAggregate* waited = rocket_std_sync_event_wait(
+        cancelledEvent, rocket_std_time_monotonic_milliseconds() + 1000,
+        cancelledEventToken);
+    cancelledWaitObserved.store(rocket_rt_aggregate_tag(waited) == 1,
+                                std::memory_order_release);
+    rocket_rt_release(waited);
+  });
+  rocket_std_cancel_cancel(cancelledEventToken);
+  cancelledWaiter.join();
+  rocket::test::expect(cancelledWaitObserved.load(std::memory_order_acquire),
+                       "Event wait observes cancellation under contention", failures);
+  rocket_rt_release(cancelledEventToken);
+  rocket_rt_release(cancelledEvent);
+
+  RocketString* initialValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("first"), 5);
+  RocketString* sentValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("second"), 6);
+  RocketArray* initialValues = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 1);
+  rocket_rt_array_set_string(initialValues, 0, initialValue);
+  RocketAggregate* channelResult = rocket_std_channel_bounded(initialValues, 1);
+  auto* channel = reinterpret_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(channelResult, 0));
+  RocketSender* sender = rocket_std_channel_sender(channel);
+  RocketReceiver* receiver = rocket_std_channel_receiver(channel);
+  RocketCancellation* channelToken = rocket_std_cancel_token();
+  RocketAggregate* firstReceived = rocket_std_channel_receive(
+      receiver, rocket_std_time_monotonic_milliseconds() + 1000, channelToken);
+  RocketAggregate* firstOption = reinterpret_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(firstReceived, 0));
+  auto* firstPayload = reinterpret_cast<RocketString*>(
+      rocket_rt_aggregate_get_managed(firstOption, 0));
+  RocketAggregate* sent = rocket_std_channel_send(
+      sender, sentValue, rocket_std_time_monotonic_milliseconds() + 1000, channelToken);
+  rocket::test::expect(rocket_rt_string_equal(firstPayload, initialValue) == 1 &&
+                           rocket_rt_aggregate_tag(sent) == 0,
+                       "bounded Channel preserves FIFO order and releases backpressure",
+                       failures);
+  rocket_rt_release(sent);
+  rocket_rt_release(firstPayload);
+  rocket_rt_release(firstOption);
+  rocket_rt_release(firstReceived);
+  RocketAggregate* senderClosed = rocket_std_channel_close_sender(sender);
+  RocketAggregate* receiverClosed = rocket_std_channel_close_receiver(receiver);
+  rocket_rt_release(senderClosed);
+  rocket_rt_release(receiverClosed);
+  rocket_rt_release(channelToken);
+  rocket_rt_release(receiver);
+  rocket_rt_release(sender);
+  rocket_rt_release(channel);
+  rocket_rt_release(channelResult);
+  rocket_rt_release(initialValues);
+  rocket_rt_release(sentValue);
+  rocket_rt_release(initialValue);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "Phase 18 synchronization and channel handles leave no leaks",
+                       failures);
+
+  RocketString* blockedInitial = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("queued"), 6);
+  RocketString* blockedValue = rocket_rt_string_new(
+      reinterpret_cast<const std::uint8_t*>("released"), 8);
+  RocketArray* blockedInitialValues = rocket_rt_array_new(ROCKET_ELEMENT_STRING, 1);
+  rocket_rt_array_set_string(blockedInitialValues, 0, blockedInitial);
+  RocketAggregate* blockedCreated = rocket_std_channel_bounded(blockedInitialValues, 1);
+  auto* blockedChannel = reinterpret_cast<RocketAggregate*>(
+      rocket_rt_aggregate_get_managed(blockedCreated, 0));
+  RocketSender* blockedSender = rocket_std_channel_sender(blockedChannel);
+  RocketReceiver* blockedReceiver = rocket_std_channel_receiver(blockedChannel);
+  RocketCancellation* blockedToken = rocket_std_cancel_token();
+  std::atomic<bool> sendStarted = false;
+  std::atomic<bool> sendFinished = false;
+  std::atomic<bool> sendSucceeded = false;
+  std::thread blockedProducer([&] {
+    sendStarted.store(true, std::memory_order_release);
+    RocketAggregate* result = rocket_std_channel_send(
+        blockedSender, blockedValue,
+        rocket_std_time_monotonic_milliseconds() + 1000, blockedToken);
+    sendSucceeded.store(rocket_rt_aggregate_tag(result) == 0,
+                        std::memory_order_release);
+    rocket_rt_release(result);
+    sendFinished.store(true, std::memory_order_release);
+  });
+  const auto producerWatchdog = std::chrono::steady_clock::now() +
+      std::chrono::milliseconds(100);
+  while (!sendStarted.load(std::memory_order_acquire) &&
+         std::chrono::steady_clock::now() < producerWatchdog)
+    std::this_thread::yield();
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  rocket::test::expect(sendStarted.load(std::memory_order_acquire) &&
+                           !sendFinished.load(std::memory_order_acquire),
+                       "bounded Channel applies producer backpressure", failures);
+  RocketAggregate* releasedSlot = rocket_std_channel_receive(
+      blockedReceiver, rocket_std_time_monotonic_milliseconds() + 1000, blockedToken);
+  rocket_rt_release(releasedSlot);
+  blockedProducer.join();
+  rocket::test::expect(sendSucceeded.load(std::memory_order_acquire),
+                       "bounded send resumes after a receiver releases capacity", failures);
+  RocketAggregate* blockedSenderClosed = rocket_std_channel_close_sender(blockedSender);
+  RocketAggregate* blockedReceiverClosed = rocket_std_channel_close_receiver(blockedReceiver);
+  rocket_rt_release(blockedReceiverClosed);
+  rocket_rt_release(blockedSenderClosed);
+  rocket_rt_release(blockedToken);
+  rocket_rt_release(blockedReceiver);
+  rocket_rt_release(blockedSender);
+  rocket_rt_release(blockedChannel);
+  rocket_rt_release(blockedCreated);
+  rocket_rt_release(blockedInitialValues);
+  rocket_rt_release(blockedValue);
+  rocket_rt_release(blockedInitial);
+  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+                       "backpressure and close paths release queued channel values", failures);
   return rocket::test::finish(failures, "runtime");
 }

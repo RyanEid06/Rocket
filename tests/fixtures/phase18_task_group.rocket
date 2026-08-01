@@ -1,0 +1,16 @@
+import std.task
+
+async fn label(value: String) -> Result[String, String]:
+    return Ok(value)
+
+fn main() -> Int:
+    let group = task.group([label("first"), label("second"), label("third")])
+    match task.group_join(group):
+        case Ok(values):
+            print(values[0])
+            print(values[1])
+            print(values[2])
+        case Err(message):
+            print(message)
+            return 1
+    return 0

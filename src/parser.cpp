@@ -73,6 +73,10 @@ Module Parser::parseModule() {
         function.nativeName = function.name;
         module.functions.push_back(std::move(function));
       }
+    } else if (at(TokenKind::Identifier) && current().text == "async" &&
+               index_ + 1 < tokens_.size() && tokens_[index_ + 1].kind == TokenKind::KwFn) {
+      ++index_;
+      module.functions.push_back(parseFunction(isPublic, true));
     } else if (at(TokenKind::KwFn)) {
       module.functions.push_back(parseFunction(isPublic));
     } else if (at(TokenKind::KwStruct)) {
@@ -237,6 +241,12 @@ std::vector<Function> Parser::parseImpl() {
       methods.push_back(std::move(constant));
       continue;
     }
+    bool asynchronous = false;
+    if (at(TokenKind::Identifier) && current().text == "async" &&
+        index_ + 1 < tokens_.size() && tokens_[index_ + 1].kind == TokenKind::KwFn) {
+      asynchronous = true;
+      ++index_;
+    }
     if (!at(TokenKind::KwFn)) {
       diagnostics_.error(current().location,
                          "expected a method or associated constant in impl body",
@@ -244,7 +254,7 @@ std::vector<Function> Parser::parseImpl() {
       synchronize();
       continue;
     }
-    Function method = parseFunction(isPublic);
+    Function method = parseFunction(isPublic, asynchronous);
     std::vector<std::string> parameters = implParameters;
     parameters.insert(parameters.end(), method.typeParameters.begin(),
                       method.typeParameters.end());
@@ -313,7 +323,7 @@ std::vector<std::string> Parser::parseTypeParameters() {
   return parameters;
 }
 
-Function Parser::parseFunction(bool isPublic) {
+Function Parser::parseFunction(bool isPublic, bool asynchronous) {
   const Token start = consume(TokenKind::KwFn, "expected 'fn'");
   const Token name = consume(TokenKind::Identifier, "expected function name");
   auto typeParameters = parseTypeParameters();
@@ -350,6 +360,7 @@ Function Parser::parseFunction(bool isPublic) {
   Function result{name.text, start.location, isPublic, std::move(typeParameters),
                   std::move(parameters), returnType, std::move(body)};
   result.constraints = std::move(constraints);
+  result.asynchronous = asynchronous;
   return result;
 }
 
@@ -628,6 +639,11 @@ std::unique_ptr<Expr> Parser::parseFactor() {
 }
 
 std::unique_ptr<Expr> Parser::parseUnary() {
+  if (at(TokenKind::Identifier) && current().text == "await") {
+    const Token keyword = current();
+    ++index_;
+    return std::make_unique<AwaitExpr>(keyword.location, parseUnary());
+  }
   if (matchAny({TokenKind::Minus, TokenKind::KwNot})) {
     const Token op = previous();
     return std::make_unique<UnaryExpr>(op.location, op.kind, parseUnary());

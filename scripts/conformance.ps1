@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
 $fixtures = Join-Path $projectRoot 'tests\fixtures'
 $reportDirectory = Join-Path $projectRoot 'out\conformance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.7-$configurationName.txt"
+$reportPath = Join-Path $reportDirectory "rocket-1.8-$configurationName.txt"
 $env:ROCKET_STAGE0 = Join-Path $projectRoot "out\build\windows-$configurationName\rocketc.exe"
 $results = [System.Collections.Generic.List[string]]::new()
 
@@ -46,7 +46,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.7\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.8\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -130,6 +130,18 @@ Invoke-ConformanceCase 'phase15-archive' @('run', (Join-Path $fixtures 'phase15_
 Invoke-ConformanceCase 'phase15-sqlite' @('run', (Join-Path $fixtures 'phase15_sqlite.rocket')) 0 'phase15-sqlite-ok'
 Invoke-ConformanceCase 'phase15-testing' @('run', (Join-Path $fixtures 'phase15_testing.rocket')) 0 'phase15-testing-ok'
 Invoke-ConformanceCase 'phase15-test-runner' @('test', (Join-Path $fixtures 'phase15_test_package')) 0 '1 passed; 0 failed; 1 expected failure'
+Invoke-ConformanceCase 'phase18-async-check' @('check', (Join-Path $fixtures 'phase18_nested_await.rocket')) 0 'check succeeded'
+Invoke-ConformanceCase 'phase18-ownership-run' @('run', (Join-Path $fixtures 'phase18_weak.rocket')) 0 '(?m)^42$'
+Invoke-ConformanceCase 'phase18-buffer-run' @('run', (Join-Path $fixtures 'phase18_unique_buffer.rocket')) 0 '2[\r\n]+20[\r\n]+10[\r\n]+99[\r\n]+30[\r\n]+7[\r\n]+7'
+Invoke-ConformanceCase 'phase18-concurrency-run' @('run', (Join-Path $fixtures 'phase18_concurrency.rocket')) 0 'published'
+Invoke-ConformanceCase 'phase18-async-file-run' @('run', (Join-Path $fixtures 'phase18_async_file.rocket')) 0 'R[\r\n]+T'
+Invoke-ConformanceCase 'phase18-structured-run' @('run', (Join-Path $fixtures 'phase18_task_group.rocket')) 0 'first[\r\n]+second[\r\n]+third'
+Invoke-ConformanceCase 'phase18-thread-run' @('run', (Join-Path $fixtures 'phase18_thread.rocket')) 0 'thread-result'
+Invoke-ConformanceCase 'phase18-cancel-run' @('run', (Join-Path $fixtures 'phase18_async_cancel.rocket')) 0 'operation cancelled'
+Invoke-ConformanceCase 'phase18-await-context-diagnostic' @('check', (Join-Path $fixtures 'phase18_await_context_failure.rocket')) 1 'R4105'
+Invoke-ConformanceCase 'phase18-send-diagnostic' @('check', (Join-Path $fixtures 'phase18_send_failure.rocket')) 1 'R4101'
+Invoke-ConformanceCase 'phase18-move-diagnostic' @('check', (Join-Path $fixtures 'phase18_unique_buffer_move_failure.rocket')) 1 'R4103'
+Invoke-ConformanceCase 'phase18-scope-diagnostic' @('check', (Join-Path $fixtures 'phase18_scoped_escape_failure.rocket')) 1 'R4104'
 $phase16Work = Join-Path $reportDirectory "phase16-packages-$configurationName"
 if (Test-Path -LiteralPath $phase16Work) {
     Remove-Item -LiteralPath $phase16Work -Recurse -Force
@@ -151,7 +163,7 @@ Invoke-ConformanceCase 'remove-bounds' @('run', (Join-Path $fixtures 'phase11_re
 Invoke-ConformanceCase 'checked-overflow' @('run', (Join-Path $fixtures 'int_overflow.rocket')) 101 'Int arithmetic overflow'
 
 $header = @(
-    'Rocket 1.7 conformance report'
+    'Rocket 1.8 conformance report'
     "compiler  $Compiler"
     "sha256  $((Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant())"
     "configuration  $Configuration"
@@ -159,4 +171,4 @@ $header = @(
     ''
 )
 Set-Content -LiteralPath $reportPath -Value ($header + $results) -Encoding utf8
-Write-Output "Rocket 1.7 conformance passed: $($results.Count) cases ($reportPath)"
+Write-Output "Rocket 1.8 conformance passed: $($results.Count) cases ($reportPath)"

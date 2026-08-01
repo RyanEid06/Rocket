@@ -1,9 +1,9 @@
-# Rocket 1.7
+# Rocket 1.8
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
-Rocket is complete through the validated 1.7 professional-tooling release,
-including the Rocket 1.6 package ecosystem. Phases 18 through 20 must pass the
+Rocket is complete through the 1.8 ownership, concurrency, and asynchronous-I/O
+release, including the Rocket 1.6 package ecosystem and 1.7 tooling. Phases 19 and 20 must pass the
 [master roadmap](docs/ROADMAP.md) before the separate casino application may
 begin.
 
@@ -27,6 +27,11 @@ available only as the reproducible stage0 fallback when LLVM is explicitly disab
 - Explicit `unsafe:` native boundaries, C imports/exports, pointers, opaque handles,
   pointer-only native layouts, and synchronous callbacks
 - `Option[T]`, `Result[T, E]`, and exception-free postfix `?` propagation
+- typed `Weak[T]`, move-only `UniqueBuffer[T]`, structural `Send`/`Share`,
+  atomic ARC publication, and stable concurrency diagnostics
+- `async fn`, prefix `await`, bounded tasks, dedicated thread handles,
+  structured task groups, cancellation, monotonic timers, channels, mutexes,
+  events, atomics, once publication, and bounded asynchronous I/O work
 - Package-relative `import` modules with explicit `pub` visibility
 - Editor-neutral `rocket-lsp` Protocol 1.0 semantic tooling with incremental
   multi-package analysis, unsaved overlays, navigation, refactoring, semantic
@@ -99,14 +104,18 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [Rocket 1.3 native syntax](docs/ROCKET_1_3_SYNTAX_DICTIONARY.md),
 [Rocket 1.4 syntax](docs/ROCKET_1_4_SYNTAX_DICTIONARY.md),
 [Rocket 1.5 library dictionary](docs/ROCKET_1_5_SYNTAX_DICTIONARY.md),
+[Rocket 1.8 syntax](docs/ROCKET_1_8_SYNTAX_DICTIONARY.md),
+[ownership and concurrency contract](docs/CONCURRENCY.md),
+[Rocket 1.8 migration guide](docs/MIGRATION_1_8.md),
+[Rocket 1.8 release contract](docs/RELEASE_1_8.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
-Rocket 1.7 completes the professional developer-experience milestone without
-changing Rocket grammar or runtime ABI v1. Tooling uses the compiler's semantic
-structures, remains bounded and editor-neutral, and never executes project code
-merely because a source file was opened.
+Rocket 1.8 extends runtime ABI v1 additively. Thread-confined values retain cheap
+plain ARC; checked publication promotes a complete managed graph to atomic ARC.
+The compiler rejects unsafe transfers, move reuse, scoped-handle escape, and
+invalid suspension with stable `R4101`-`R4106` diagnostics.
 
-## Rocket 1.7 release
+## Rocket 1.8 release
 
 Build the checksummed, relocation-tested, self-contained Windows x64 archive:
 
@@ -116,6 +125,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compil
 
 The package uses the Rocket-written stage3 compiler and includes the runtime,
 pinned Clang/LLD, compiler-rt resources, and native static link libraries. See
+[the Rocket 1.8 release contract](docs/RELEASE_1_8.md),
 [the tooling guide](docs/TOOLING.md), [language-server contract](docs/LANGUAGE_SERVER.md),
 and [project context](docs/PROJECT_CONTEXT.md) for compatibility, limitations,
 and the complete validation matrix.

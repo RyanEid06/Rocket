@@ -67,12 +67,15 @@ try {
     Measure-RocketCommand 'native-library-build' @('build', (Join-Path $projectRoot 'tests\fixtures\phase13_static_library')) 15
     Measure-RocketCommand 'raylib-reference-check' @('check', (Join-Path $projectRoot 'examples\raylib_showcase')) 10
     Measure-RocketCommand 'raylib-reference-build' @('build', (Join-Path $projectRoot 'examples\raylib_showcase')) 30
+    Measure-RocketCommand 'phase18-concurrency-check' @('check', (Join-Path $projectRoot 'tests\fixtures\phase18_concurrency.rocket')) 5
+    Measure-RocketCommand 'phase18-async-build' @('build', (Join-Path $projectRoot 'tests\fixtures\phase18_nested_await.rocket')) 15
+    Measure-RocketCommand 'phase18-task-group-build' @('build', (Join-Path $projectRoot 'tests\fixtures\phase18_task_group.rocket')) 15
 
     $reportDirectory = Join-Path $projectRoot 'out\performance'
     New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-    $reportPath = Join-Path $reportDirectory "rocket-1.7-$configurationName.json"
+    $reportPath = Join-Path $reportDirectory "rocket-1.8-$configurationName.json"
     $report = [pscustomobject]@{
-        version = '1.7.0'
+        version = '1.8.0'
         configuration = $Configuration
         compiler = $Compiler
         sha256 = (Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -80,7 +83,7 @@ try {
         measurements = $measurements
     }
     $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $reportPath -Encoding utf8
-    Write-Output "Rocket 1.7 performance gates passed: $reportPath"
+    Write-Output "Rocket 1.8 performance gates passed: $reportPath"
     foreach ($measurement in $measurements) {
         Write-Output ("  {0}: {1}s <= {2}s" -f $measurement.name, $measurement.seconds,
             $measurement.maximum_seconds)

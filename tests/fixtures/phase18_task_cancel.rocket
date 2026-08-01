@@ -1,0 +1,34 @@
+import std.async_time
+import std.cancel
+import std.task
+
+async fn delayed(value: String) -> Result[String, String]:
+    let token = cancel.current()
+    match await async_time.sleep(1000, token):
+        case Ok(ready):
+            return Ok(value)
+        case Err(message):
+            return Err(message)
+
+fn main() -> Int:
+    let sleeper = delayed("late")
+    print(task.cancel(sleeper))
+    match task.join(sleeper):
+        case Ok(value):
+            print(value)
+            return 1
+        case Err(message):
+            print(message)
+    print(task.cancel(sleeper))
+
+    let first = delayed("first")
+    let second = delayed("second")
+    let group = task.group([first, second])
+    print(task.group_cancel(group))
+    match task.group_join(group):
+        case Ok(values):
+            print(values[0])
+            return 2
+        case Err(message):
+            print(message)
+    return 0

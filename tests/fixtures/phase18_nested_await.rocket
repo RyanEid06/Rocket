@@ -1,0 +1,22 @@
+import std.task
+
+async fn leaf(value: Int) -> Result[Int, String]:
+    return Ok(value + 1)
+
+async fn parent(value: Int) -> Result[Int, String]:
+    let child = await leaf(value)
+    match child:
+        case Ok(result):
+            return Ok(result + 1)
+        case Err(message):
+            return Err(message)
+
+fn main() -> Int:
+    let task = parent(40)
+    match task.join(task):
+        case Ok(value):
+            print(value)
+            return 0
+        case Err(message):
+            print(message)
+            return 1

@@ -11,6 +11,18 @@ struct RocketArray;
 struct RocketSlice;
 struct RocketAggregate;
 struct RocketStringBuilder;
+struct RocketWeak;
+struct RocketTask;
+struct RocketCancellation;
+struct RocketMutex;
+struct RocketGuard;
+struct RocketEvent;
+struct RocketAtomicInt;
+struct RocketOnce;
+struct RocketSender;
+struct RocketReceiver;
+struct RocketTaskGroup;
+struct RocketThread;
 
 enum RocketElementKind : std::uint32_t {
   ROCKET_ELEMENT_INT = 1,
@@ -25,6 +37,131 @@ std::uint32_t rocket_rt_abi_version();
 
 void rocket_rt_retain(void* object);
 void rocket_rt_release(void* object);
+void rocket_rt_promote(void* object);
+RocketWeak* rocket_rt_weak_new(void* object);
+void* rocket_rt_weak_upgrade(RocketWeak* weak);
+std::uint8_t rocket_rt_weak_expired(RocketWeak* weak);
+RocketTask* rocket_rt_task_spawn(void* entry, void* context);
+RocketTask* rocket_rt_task_ready(void* result);
+void* rocket_rt_task_await(RocketTask* task);
+RocketAggregate* rocket_std_task_join(RocketTask* task);
+std::uint8_t rocket_std_task_is_complete(RocketTask* task);
+std::uint8_t rocket_std_task_cancel(RocketTask* task);
+RocketTaskGroup* rocket_std_task_group(RocketArray* tasks);
+RocketTaskGroup* rocket_std_task_group_string(RocketArray* tasks);
+RocketTaskGroup* rocket_std_task_group_managed(RocketArray* tasks);
+RocketAggregate* rocket_std_task_group_join(RocketTaskGroup* group);
+std::uint8_t rocket_std_task_group_cancel(RocketTaskGroup* group);
+RocketAggregate* rocket_std_thread_spawn(RocketTask* task);
+RocketAggregate* rocket_std_thread_join(RocketThread* thread);
+RocketAggregate* rocket_std_thread_detach(RocketThread* thread);
+std::uint8_t rocket_std_thread_is_complete(RocketThread* thread);
+RocketWeak* rocket_std_ownership_downgrade(void* object);
+RocketAggregate* rocket_std_ownership_upgrade(RocketWeak* weak);
+std::uint8_t rocket_std_ownership_expired(RocketWeak* weak);
+RocketArray* rocket_std_buffer_thaw(RocketArray* values);
+std::int64_t rocket_std_buffer_length(RocketArray* buffer);
+std::int64_t rocket_std_buffer_capacity(RocketArray* buffer);
+std::int64_t rocket_std_buffer_get_int(RocketArray* buffer, std::int64_t index);
+double rocket_std_buffer_get_float(RocketArray* buffer, std::int64_t index);
+std::uint8_t rocket_std_buffer_get_bool(RocketArray* buffer, std::int64_t index);
+std::uint8_t rocket_std_buffer_get_char(RocketArray* buffer, std::int64_t index);
+RocketString* rocket_std_buffer_get_string(RocketArray* buffer, std::int64_t index);
+void* rocket_std_buffer_get_managed(RocketArray* buffer, std::int64_t index);
+RocketArray* rocket_std_buffer_set_int(RocketArray* buffer, std::int64_t index,
+                                       std::int64_t value);
+RocketArray* rocket_std_buffer_set_float(RocketArray* buffer, std::int64_t index,
+                                         double value);
+RocketArray* rocket_std_buffer_set_bool(RocketArray* buffer, std::int64_t index,
+                                        std::uint8_t value);
+RocketArray* rocket_std_buffer_set_char(RocketArray* buffer, std::int64_t index,
+                                        std::uint8_t value);
+RocketArray* rocket_std_buffer_set_string(RocketArray* buffer, std::int64_t index,
+                                          RocketString* value);
+RocketArray* rocket_std_buffer_set_managed(RocketArray* buffer, std::int64_t index,
+                                           void* value);
+RocketArray* rocket_std_buffer_append_int(RocketArray* buffer, std::int64_t value);
+RocketArray* rocket_std_buffer_append_float(RocketArray* buffer, double value);
+RocketArray* rocket_std_buffer_append_bool(RocketArray* buffer, std::uint8_t value);
+RocketArray* rocket_std_buffer_append_char(RocketArray* buffer, std::uint8_t value);
+RocketArray* rocket_std_buffer_append_string(RocketArray* buffer, RocketString* value);
+RocketArray* rocket_std_buffer_append_managed(RocketArray* buffer, void* value);
+RocketArray* rocket_std_buffer_slice(RocketArray* buffer, std::int64_t start,
+                                     std::int64_t end);
+RocketArray* rocket_std_buffer_freeze(RocketArray* buffer);
+RocketCancellation* rocket_std_cancel_token();
+RocketCancellation* rocket_std_cancel_child(RocketCancellation* parent);
+RocketCancellation* rocket_std_cancel_current();
+std::uint8_t rocket_std_cancel_cancel(RocketCancellation* token);
+std::uint8_t rocket_std_cancel_is_cancelled(RocketCancellation* token);
+RocketAggregate* rocket_std_cancel_check(RocketCancellation* token);
+RocketAggregate* rocket_std_async_time_deadline_after(std::int64_t milliseconds);
+std::int64_t rocket_std_async_time_remaining(std::int64_t deadline);
+RocketTask* rocket_std_async_time_sleep(std::int64_t milliseconds,
+                                        RocketCancellation* token);
+RocketTask* rocket_std_async_time_sleep_until(std::int64_t deadline,
+                                              RocketCancellation* token);
+RocketTask* rocket_std_async_file_read(RocketString* path, std::int64_t maximum,
+                                       RocketCancellation* token);
+RocketTask* rocket_std_async_file_write(RocketString* path, RocketArray* buffer,
+                                        std::uint8_t append,
+                                        RocketCancellation* token);
+RocketTask* rocket_std_async_net_connect(RocketString* host, std::int64_t port,
+                                         std::int64_t deadline,
+                                         RocketCancellation* token);
+RocketTask* rocket_std_async_net_accept(std::int64_t listener,
+                                        std::int64_t deadline,
+                                        RocketCancellation* token);
+RocketTask* rocket_std_async_net_receive(std::int64_t socket,
+                                         std::int64_t maximum,
+                                         std::int64_t deadline,
+                                         RocketCancellation* token);
+RocketTask* rocket_std_async_net_send(std::int64_t socket, RocketArray* bytes,
+                                      std::int64_t deadline,
+                                      RocketCancellation* token);
+RocketTask* rocket_std_async_process_run(RocketString* program,
+                                         RocketArray* arguments,
+                                         std::int64_t deadline,
+                                         RocketCancellation* token);
+RocketMutex* rocket_std_sync_mutex(void* value);
+RocketAggregate* rocket_std_sync_lock(RocketMutex* mutex, std::int64_t deadline,
+                                      RocketCancellation* token);
+void* rocket_std_sync_guard_get(RocketGuard* guard);
+std::uint8_t rocket_std_sync_guard_set(RocketGuard* guard, void* value);
+RocketAggregate* rocket_std_sync_unlock(RocketGuard* guard);
+RocketEvent* rocket_std_sync_event(std::uint8_t manualReset,
+                                   std::uint8_t initiallySet);
+std::uint8_t rocket_std_sync_event_set(RocketEvent* event);
+std::uint8_t rocket_std_sync_event_reset(RocketEvent* event);
+RocketAggregate* rocket_std_sync_event_wait(RocketEvent* event,
+                                            std::int64_t deadline,
+                                            RocketCancellation* token);
+RocketAtomicInt* rocket_std_sync_atomic_int(std::int64_t value);
+std::int64_t rocket_std_sync_atomic_load(RocketAtomicInt* value);
+void rocket_std_sync_atomic_store(RocketAtomicInt* value, std::int64_t replacement);
+std::int64_t rocket_std_sync_atomic_fetch_add(RocketAtomicInt* value,
+                                              std::int64_t delta);
+std::uint8_t rocket_std_sync_atomic_compare_exchange(RocketAtomicInt* value,
+                                                     std::int64_t expected,
+                                                     std::int64_t replacement);
+RocketOnce* rocket_std_sync_once(void* value);
+RocketAggregate* rocket_std_sync_once_set(RocketOnce* cell, void* value);
+RocketAggregate* rocket_std_sync_once_get(RocketOnce* cell);
+RocketAggregate* rocket_std_channel_bounded(RocketArray* initial,
+                                            std::int64_t capacity);
+RocketAggregate* rocket_std_channel_unbounded(RocketArray* initial);
+RocketSender* rocket_std_channel_sender(RocketAggregate* channel);
+RocketReceiver* rocket_std_channel_receiver(RocketAggregate* channel);
+RocketSender* rocket_std_channel_clone_sender(RocketSender* sender);
+RocketReceiver* rocket_std_channel_clone_receiver(RocketReceiver* receiver);
+RocketAggregate* rocket_std_channel_send(RocketSender* sender, void* value,
+                                         std::int64_t deadline,
+                                         RocketCancellation* token);
+RocketAggregate* rocket_std_channel_receive(RocketReceiver* receiver,
+                                            std::int64_t deadline,
+                                            RocketCancellation* token);
+RocketAggregate* rocket_std_channel_close_sender(RocketSender* sender);
+RocketAggregate* rocket_std_channel_close_receiver(RocketReceiver* receiver);
 
 RocketString* rocket_rt_string_new(const std::uint8_t* bytes, std::uint64_t length);
 std::uint8_t rocket_rt_string_equal(const RocketString* left, const RocketString* right);

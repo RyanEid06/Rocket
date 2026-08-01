@@ -137,5 +137,31 @@ int main() {
                          "MIR explicitly represents aggregate construction and matching",
                          failures);
   }
+  rocket::Diagnostics asyncDiagnostics;
+  auto asyncMir = rocket::test::lowerToMir(
+      "async fn leaf(value: Int) -> Result[Int, String]:\n"
+      "    return Ok(value)\n"
+      "async fn parent() -> Result[Int, String]:\n"
+      "    let result = await leaf(42)\n"
+      "    return result\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      asyncDiagnostics);
+  rocket::test::expect(asyncMir.has_value(), "async HIR lowers to explicit MIR", failures);
+  if (asyncMir.has_value()) {
+    std::string verifierError;
+    rocket::test::expect(rocket::verifyMir(*asyncMir, verifierError),
+                         "async MIR verifies: " + verifierError, failures);
+    const std::string dump = rocket::dumpMir(*asyncMir);
+    rocket::test::expect(dump.find("async-call @leaf") != std::string::npos &&
+                             dump.find("await") != std::string::npos,
+                         "MIR exposes scheduling and suspension as distinct operations",
+                         failures);
+    auto invalidAsync = *asyncMir;
+    invalidAsync.functions[1].asynchronous = false;
+    rocket::test::expect(!rocket::verifyMir(invalidAsync, verifierError) &&
+                             verifierError == "invalid await operation",
+                         "MIR verifier rejects await in a non-async function", failures);
+  }
   return rocket::test::finish(failures, "mir");
 }

@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$version = '1.7.0'
+$version = '1.8.0'
 $configurationName = $Configuration.ToLowerInvariant()
 $buildDirectory = Join-Path $projectRoot "out\build\windows-$configurationName"
 $bootstrapDirectory = Join-Path $projectRoot "out\bootstrap\windows-$configurationName"
@@ -111,7 +111,7 @@ foreach ($tool in 'debugging.ps1', 'tooling.ps1', 'repl-prototype.ps1') {
 }
 
 $packageNote = @"
-# Rocket 1.7.0 for Windows x64
+# Rocket 1.8.0 for Windows x64
 
 ``bin\rocketc.exe`` is the production self-hosted Rocket compiler. It discovers
 the bundled runtime, Clang/LLD, compiler-rt resources, and native link libraries
@@ -129,7 +129,7 @@ stage2/stage3 proof; ``SHA256SUMS.txt`` covers every distributed file.
 
 Supported target: Windows x64. See ``docs\RELEASE_1_6.md`` for the package
 ecosystem and ``docs\LANGUAGE_SERVER.md``, ``docs\DEBUGGING.md``,
-``docs\REPL.md``, and ``docs\PROJECT_CONTEXT.md`` for the Rocket 1.7 tooling
+``docs\REPL.md``, and ``docs\PROJECT_CONTEXT.md`` for the Rocket 1.8 tooling
 contracts, limitations, and validation matrix.
 "@
 Set-Content -LiteralPath (Join-Path $packageRoot 'PACKAGE.md') `

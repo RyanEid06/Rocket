@@ -174,5 +174,25 @@ int main() {
                            contextual.functions.size() == 2,
                        "Phase 13 contextual words preserve earlier identifier source",
                        failures);
+
+  rocket::Diagnostics asyncDiagnostics;
+  auto asynchronous = rocket::test::parse(
+      "async fn leaf(value: Int) -> Result[Int, String]:\n"
+      "    return Ok(value)\n"
+      "async fn parent() -> Result[Int, String]:\n"
+      "    let result = await leaf(42)\n"
+      "    return result\n",
+      asyncDiagnostics);
+  rocket::test::expect(!asyncDiagnostics.hasErrors() &&
+                           asynchronous.functions.size() == 2 &&
+                           asynchronous.functions[0].asynchronous &&
+                           asynchronous.functions[1].asynchronous,
+                       "Rocket 1.8 async function syntax is explicit in the AST", failures);
+  if (!asyncDiagnostics.hasErrors() && asynchronous.functions.size() == 2) {
+    const auto& binding = static_cast<const rocket::BindingStmt&>(
+        *asynchronous.functions[1].body[0]);
+    rocket::test::expect(binding.initializer->kind == rocket::ExprKind::Await,
+                         "await has a dedicated prefix-expression AST node", failures);
+  }
   return rocket::test::finish(failures, "parser");
 }

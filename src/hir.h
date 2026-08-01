@@ -179,6 +179,71 @@ enum class Intrinsic {
   TimeUnixMilliseconds,
   TimeMonotonicMilliseconds,
   TimeSleepMilliseconds,
+  TaskJoin,
+  TaskIsComplete,
+  OwnershipDowngrade,
+  OwnershipUpgrade,
+  OwnershipExpired,
+  BufferThaw,
+  BufferLength,
+  BufferCapacity,
+  BufferGet,
+  BufferSet,
+  BufferAppend,
+  BufferSlice,
+  BufferFreeze,
+  CancelToken,
+  CancelChild,
+  CancelCurrent,
+  CancelCancel,
+  CancelIsCancelled,
+  CancelCheck,
+  AsyncTimeDeadlineAfter,
+  AsyncTimeRemaining,
+  AsyncTimeSleep,
+  AsyncTimeSleepUntil,
+  SyncMutex,
+  SyncLock,
+  SyncGuardGet,
+  SyncGuardSet,
+  SyncUnlock,
+  SyncEvent,
+  SyncEventSet,
+  SyncEventReset,
+  SyncEventWait,
+  SyncAtomicInt,
+  SyncAtomicLoad,
+  SyncAtomicStore,
+  SyncAtomicFetchAdd,
+  SyncAtomicCompareExchange,
+  SyncOnce,
+  SyncOnceSet,
+  SyncOnceGet,
+  ChannelBounded,
+  ChannelUnbounded,
+  ChannelSender,
+  ChannelReceiver,
+  ChannelCloneSender,
+  ChannelCloneReceiver,
+  ChannelSend,
+  ChannelReceive,
+  ChannelCloseSender,
+  ChannelCloseReceiver,
+  AsyncFileRead,
+  AsyncFileWrite,
+  TaskGroup,
+  TaskGroupJoin,
+  AsyncNetConnect,
+  AsyncNetAccept,
+  AsyncNetReceive,
+  AsyncNetSend,
+  AsyncProcessRun,
+  ThreadSpawn,
+  ThreadJoin,
+  ThreadDetach,
+  ThreadIsComplete,
+  TaskCancel,
+  TaskGroupCancel,
 };
 
 struct HirSymbol {
@@ -193,11 +258,12 @@ struct HirSymbol {
   bool nativeImport = false;
   bool nativeExport = false;
   std::string nativeName;
+  bool asynchronous = false;
 };
 
 enum class HirExprKind {
   Literal, Name, FunctionRef, Unary, Binary, Call, Array, Index, Slice, Aggregate, Field,
-  Propagate
+  Propagate, AsyncCall, Await
 };
 
 struct HirExpr {
@@ -255,6 +321,15 @@ struct HirCallExpr final : HirExpr {
   std::vector<std::unique_ptr<HirExpr>> arguments;
 };
 
+struct HirAsyncCallExpr final : HirExpr {
+  HirAsyncCallExpr(Location location, Type type, SymbolId callee,
+                   std::vector<std::unique_ptr<HirExpr>> arguments)
+      : HirExpr(HirExprKind::AsyncCall, std::move(location), std::move(type)),
+        callee(callee), arguments(std::move(arguments)) {}
+  SymbolId callee = InvalidSymbol;
+  std::vector<std::unique_ptr<HirExpr>> arguments;
+};
+
 struct HirArrayExpr final : HirExpr {
   HirArrayExpr(Location location, Type type, std::vector<std::unique_ptr<HirExpr>> elements)
       : HirExpr(HirExprKind::Array, std::move(location), type),
@@ -309,6 +384,13 @@ struct HirPropagateExpr final : HirExpr {
   std::unique_ptr<HirExpr> value;
   Type functionResult;
   std::uint32_t declaration = 0;
+};
+
+struct HirAwaitExpr final : HirExpr {
+  HirAwaitExpr(Location location, Type type, std::unique_ptr<HirExpr> task)
+      : HirExpr(HirExprKind::Await, std::move(location), std::move(type)),
+        task(std::move(task)) {}
+  std::unique_ptr<HirExpr> task;
 };
 
 enum class HirStmtKind {
@@ -428,6 +510,7 @@ struct HirFunction {
   std::vector<HirParameter> parameters;
   Type result = Type::Invalid;
   HirBlock body;
+  bool asynchronous = false;
 };
 
 enum class HirTypeDeclKind { Struct, Enum, NativeStruct, Opaque, Callback };
@@ -585,6 +668,11 @@ private:
   void collectLambdaCaptures(const Expr& expression,
                              const std::unordered_set<std::string>& parameters,
                              std::vector<LambdaCapture>& captures) const;
+  bool isSendType(const Type& type) const;
+  bool isShareType(const Type& type) const;
+  void diagnoseAsyncArguments(
+      const std::vector<std::unique_ptr<HirExpr>>& arguments,
+      const Location& location) const;
 
   const Module& ast_;
   Diagnostics& diagnostics_;
@@ -609,6 +697,9 @@ private:
   Type currentReturnType_ = Type::Invalid;
   int loopDepth_ = 0;
   int unsafeDepth_ = 0;
+  bool currentAsync_ = false;
+  std::unordered_set<SymbolId> movedSymbols_;
+  int borrowUniqueDepth_ = 0;
 };
 
 } // namespace rocket

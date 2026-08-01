@@ -1,8 +1,10 @@
-# Rocket Tooling and Packages through Rocket 1.7
+# Rocket Tooling and Packages through Rocket 1.8
 
-Rocket 1.7 is the latest completed release. This guide documents the completed
-Rocket 1.6 package ecosystem and Rocket 1.7 language-server and developer-tooling
-contracts.
+Rocket 1.8 retains the Rocket 1.6 package ecosystem and Rocket 1.7
+language-server and developer-tooling contracts. Its ownership, concurrency,
+and asynchronous-I/O additions require no new editor protocol or manifest
+syntax; `CONCURRENCY.md`, `STDLIB.md`, and `MIGRATION_1_8.md` document the new
+source APIs and diagnostics.
 
 ## Create and use a package
 

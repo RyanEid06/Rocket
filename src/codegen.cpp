@@ -27,11 +27,36 @@ std::string BootstrapCodeGenerator::cppType(Type type) const {
     return "RocketArray<" + cppType(collectionElementType(type)) + ">";
   case TypeKind::Slice:
     return "RocketSlice<" + cppType(collectionElementType(type)) + ">";
+  case TypeKind::Weak:
+    return "RocketWeak<" + cppType(type.arguments.at(0)) + ">";
+  case TypeKind::UniqueBuffer:
+    return "RocketUniqueBuffer<" + cppType(type.arguments.at(0)) + ">";
+  case TypeKind::Task:
+    return "RocketTask";
   case TypeKind::Pointer:
     if (type.arguments.empty() || type.arguments[0] == Type::Unit) return "void*";
     return nativeCppType(type.arguments[0]) + "*";
   case TypeKind::Struct:
     if (type.declaration == "std.string.Builder") return "RocketStringBuilder";
+    if (type.declaration == "std.cancel.CancellationToken") return "RocketCancellation";
+    if (type.declaration == "std.sync.Event") return "RocketEvent";
+    if (type.declaration == "std.sync.AtomicInt") return "RocketAtomicInt";
+    if (type.declaration == "std.sync.Mutex")
+      return "RocketMutex<" + cppType(type.arguments.at(0)) + ">";
+    if (type.declaration == "std.sync.LockGuard")
+      return "RocketLockGuard<" + cppType(type.arguments.at(0)) + ">";
+    if (type.declaration == "std.sync.Once")
+      return "RocketOnce<" + cppType(type.arguments.at(0)) + ">";
+    if (type.declaration == "std.task.TaskGroup")
+      return "RocketTaskGroup<" + cppType(type.arguments.at(0)) + ">";
+    if (type.declaration == "std.thread.Thread")
+      return "RocketThread<" + cppType(type.arguments.at(0)) + ">";
+    if (type.declaration == "std.channel.Channel")
+      return "RocketChannel<" + cppType(type.arguments.at(0)) + ">";
+    if (type.declaration == "std.channel.Sender")
+      return "RocketSender<" + cppType(type.arguments.at(0)) + ">";
+    if (type.declaration == "std.channel.Receiver")
+      return "RocketReceiver<" + cppType(type.arguments.at(0)) + ">";
     return "RocketAggregate";
   case TypeKind::Enum: return "RocketAggregate";
   case TypeKind::NativeStruct: return nativeTypeName(type, "RocketNative_");
@@ -244,6 +269,71 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::TimeUnixMilliseconds: return "rocket_std_time_unix_milliseconds";
   case Intrinsic::TimeMonotonicMilliseconds: return "rocket_std_time_monotonic_milliseconds";
   case Intrinsic::TimeSleepMilliseconds: return "rocket_std_time_sleep_milliseconds";
+  case Intrinsic::TaskJoin: return "rocket_std_task_join";
+  case Intrinsic::TaskIsComplete: return "rocket_std_task_is_complete";
+  case Intrinsic::OwnershipDowngrade: return "rocket_std_ownership_downgrade";
+  case Intrinsic::OwnershipUpgrade: return "rocket_std_ownership_upgrade";
+  case Intrinsic::OwnershipExpired: return "rocket_std_ownership_expired";
+  case Intrinsic::BufferThaw: return "rocket_std_buffer_thaw";
+  case Intrinsic::BufferLength: return "rocket_std_buffer_length";
+  case Intrinsic::BufferCapacity: return "rocket_std_buffer_capacity";
+  case Intrinsic::BufferGet: return "rocket_std_buffer_get";
+  case Intrinsic::BufferSet: return "rocket_std_buffer_set";
+  case Intrinsic::BufferAppend: return "rocket_std_buffer_append";
+  case Intrinsic::BufferSlice: return "rocket_std_buffer_slice";
+  case Intrinsic::BufferFreeze: return "rocket_std_buffer_freeze";
+  case Intrinsic::CancelToken: return "rocket_std_cancel_token";
+  case Intrinsic::CancelChild: return "rocket_std_cancel_child";
+  case Intrinsic::CancelCurrent: return "rocket_std_cancel_current";
+  case Intrinsic::CancelCancel: return "rocket_std_cancel_cancel";
+  case Intrinsic::CancelIsCancelled: return "rocket_std_cancel_is_cancelled";
+  case Intrinsic::CancelCheck: return "rocket_std_cancel_check";
+  case Intrinsic::AsyncTimeDeadlineAfter: return "rocket_std_async_time_deadline_after";
+  case Intrinsic::AsyncTimeRemaining: return "rocket_std_async_time_remaining";
+  case Intrinsic::AsyncTimeSleep: return "rocket_std_async_time_sleep";
+  case Intrinsic::AsyncTimeSleepUntil: return "rocket_std_async_time_sleep_until";
+  case Intrinsic::SyncMutex: return "rocket_std_sync_mutex";
+  case Intrinsic::SyncLock: return "rocket_std_sync_lock";
+  case Intrinsic::SyncGuardGet: return "rocket_std_sync_guard_get";
+  case Intrinsic::SyncGuardSet: return "rocket_std_sync_guard_set";
+  case Intrinsic::SyncUnlock: return "rocket_std_sync_unlock";
+  case Intrinsic::SyncEvent: return "rocket_std_sync_event";
+  case Intrinsic::SyncEventSet: return "rocket_std_sync_event_set";
+  case Intrinsic::SyncEventReset: return "rocket_std_sync_event_reset";
+  case Intrinsic::SyncEventWait: return "rocket_std_sync_event_wait";
+  case Intrinsic::SyncAtomicInt: return "rocket_std_sync_atomic_int";
+  case Intrinsic::SyncAtomicLoad: return "rocket_std_sync_atomic_load";
+  case Intrinsic::SyncAtomicStore: return "rocket_std_sync_atomic_store";
+  case Intrinsic::SyncAtomicFetchAdd: return "rocket_std_sync_atomic_fetch_add";
+  case Intrinsic::SyncAtomicCompareExchange: return "rocket_std_sync_atomic_compare_exchange";
+  case Intrinsic::SyncOnce: return "rocket_std_sync_once";
+  case Intrinsic::SyncOnceSet: return "rocket_std_sync_once_set";
+  case Intrinsic::SyncOnceGet: return "rocket_std_sync_once_get";
+  case Intrinsic::ChannelBounded: return "rocket_std_channel_bounded";
+  case Intrinsic::ChannelUnbounded: return "rocket_std_channel_unbounded";
+  case Intrinsic::ChannelSender: return "rocket_std_channel_sender";
+  case Intrinsic::ChannelReceiver: return "rocket_std_channel_receiver";
+  case Intrinsic::ChannelCloneSender: return "rocket_std_channel_clone_sender";
+  case Intrinsic::ChannelCloneReceiver: return "rocket_std_channel_clone_receiver";
+  case Intrinsic::ChannelSend: return "rocket_std_channel_send";
+  case Intrinsic::ChannelReceive: return "rocket_std_channel_receive";
+  case Intrinsic::ChannelCloseSender: return "rocket_std_channel_close_sender";
+  case Intrinsic::ChannelCloseReceiver: return "rocket_std_channel_close_receiver";
+  case Intrinsic::AsyncFileRead: return "rocket_std_async_file_read";
+  case Intrinsic::AsyncFileWrite: return "rocket_std_async_file_write";
+  case Intrinsic::TaskGroup: return "rocket_std_task_group";
+  case Intrinsic::TaskGroupJoin: return "rocket_std_task_group_join";
+  case Intrinsic::AsyncNetConnect: return "rocket_std_async_net_connect";
+  case Intrinsic::AsyncNetAccept: return "rocket_std_async_net_accept";
+  case Intrinsic::AsyncNetReceive: return "rocket_std_async_net_receive";
+  case Intrinsic::AsyncNetSend: return "rocket_std_async_net_send";
+  case Intrinsic::AsyncProcessRun: return "rocket_std_async_process_run";
+  case Intrinsic::ThreadSpawn: return "rocket_std_thread_spawn";
+  case Intrinsic::ThreadJoin: return "rocket_std_thread_join";
+  case Intrinsic::ThreadDetach: return "rocket_std_thread_detach";
+  case Intrinsic::ThreadIsComplete: return "rocket_std_thread_is_complete";
+  case Intrinsic::TaskCancel: return "rocket_std_task_cancel";
+  case Intrinsic::TaskGroupCancel: return "rocket_std_task_group_cancel";
   default: return nullptr;
   }
 }
@@ -251,18 +341,75 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
 std::string BootstrapCodeGenerator::generate() const {
   std::ostringstream out;
   out << "// Generated by rocketc bootstrap backend from verified MIR. Do not edit.\n"
-         "#include <any>\n#include <cstdint>\n#include <cstdlib>\n#include <initializer_list>\n"
-         "#include <iostream>\n#include <limits>\n#include <memory>\n#include <string>\n"
+         "#include <any>\n#include <atomic>\n#include <chrono>\n#include <condition_variable>\n"
+         "#include <cstdint>\n#include <cstdlib>\n#include <deque>\n#include <functional>\n"
+         "#include <initializer_list>\n#include <future>\n#include <iostream>\n#include <limits>\n"
+         "#include <memory>\n#include <mutex>\n#include <stdexcept>\n#include <string>\n#include <thread>\n"
          "#include <utility>\n#include <vector>\n\n"
          "struct RocketUnit {};\n"
          "constexpr bool operator==(RocketUnit, RocketUnit) { return true; }\n"
          "template <typename T> RocketUnit rocket_print(const T& value) { "
          "std::cout << value << '\\n'; return {}; }\n"
          "template <typename T> using RocketArray = std::shared_ptr<std::vector<T>>;\n"
+         "template <typename T> struct RocketWeak { std::weak_ptr<typename T::element_type> value; };\n"
+         "template <typename T> using RocketUniqueBuffer = std::shared_ptr<std::vector<T>>;\n"
          "template <typename T> struct RocketSlice { RocketArray<T> owner; "
          "std::int64_t offset{}; std::int64_t length{}; };\n"
          "struct RocketAggregateData { std::uint32_t tag{}; std::vector<std::any> fields; };\n"
          "using RocketAggregate = std::shared_ptr<RocketAggregateData>;\n"
+         "struct RocketCancellationState { std::atomic<bool> cancelled{false}; "
+         "std::shared_ptr<RocketCancellationState> parent; };\n"
+         "using RocketCancellation = std::shared_ptr<RocketCancellationState>;\n"
+         "inline thread_local RocketCancellation rocket_stage0_current_cancellation;\n"
+         "inline bool rocket_stage0_token_cancelled(const RocketCancellation& token) { "
+         "for (auto current = token; current; current = current->parent) "
+         "if (current->cancelled.load(std::memory_order_acquire)) return true; return false; }\n"
+         "struct RocketTaskState { std::shared_future<RocketAggregate> future; "
+         "RocketCancellation cancellation; RocketTaskState(std::shared_future<RocketAggregate> f, "
+         "RocketCancellation c) : future(std::move(f)), cancellation(std::move(c)) {} };\n"
+         "using RocketTask = std::shared_ptr<RocketTaskState>;\n"
+         "class RocketStage0Executor { public: RocketStage0Executor() { "
+         "unsigned detected = std::thread::hardware_concurrency(); unsigned count = "
+         "(std::max)(1U, (std::min)(detected == 0 ? 4U : detected, 64U)); "
+         "for (unsigned index = 0; index < count; ++index) workers_.emplace_back([this] { run(); }); } "
+         "~RocketStage0Executor() { { std::lock_guard lock(mutex_); stopping_ = true; } "
+         "ready_.notify_all(); space_.notify_all(); for (auto& worker : workers_) "
+         "if (worker.joinable()) worker.join(); } "
+         "void enqueue(std::function<void()> work) { std::unique_lock lock(mutex_); "
+         "while (!stopping_ && queue_.size() >= 65536) { if (worker_) { lock.unlock(); "
+         "if (!help_one()) std::this_thread::yield(); lock.lock(); } else space_.wait(lock); } "
+         "if (stopping_) throw std::runtime_error(\"task executor is shutting down\"); "
+         "queue_.push_back(std::move(work)); lock.unlock(); ready_.notify_one(); } "
+         "bool help_one() { std::function<void()> work; { std::lock_guard lock(mutex_); "
+         "if (queue_.empty()) return false; work = std::move(queue_.front()); queue_.pop_front(); } "
+         "space_.notify_one(); work(); return true; } static bool is_worker() { return worker_; } "
+         "private: void run() { worker_ = true; while (true) { std::function<void()> work; "
+         "{ std::unique_lock lock(mutex_); ready_.wait(lock, [this] { return stopping_ || !queue_.empty(); }); "
+         "if (stopping_ && queue_.empty()) break; work = std::move(queue_.front()); queue_.pop_front(); } "
+         "space_.notify_one(); work(); } worker_ = false; } std::mutex mutex_; "
+         "std::condition_variable ready_, space_; std::deque<std::function<void()>> queue_; "
+         "std::vector<std::thread> workers_; bool stopping_ = false; "
+         "inline static thread_local bool worker_ = false; };\n"
+         "inline RocketStage0Executor& rocket_stage0_executor() { static RocketStage0Executor value; return value; }\n"
+         "template <typename F> RocketTask rocket_task(F body) { "
+         "auto cancellation = std::make_shared<RocketCancellationState>(); "
+         "auto promise = std::make_shared<std::promise<RocketAggregate>>(); "
+         "auto future = promise->get_future().share(); "
+         "auto task = std::make_shared<RocketTaskState>(future, cancellation); "
+         "rocket_stage0_executor().enqueue([body = std::move(body), cancellation, promise]() mutable { "
+         "auto previous = rocket_stage0_current_cancellation; rocket_stage0_current_cancellation = cancellation; "
+         "RocketAggregate result; if (rocket_stage0_token_cancelled(cancellation)) "
+         "result = std::make_shared<RocketAggregateData>(RocketAggregateData{1, {std::string(\"operation cancelled\")}}); "
+         "else { try { result = body(); } catch (const std::exception& error) { "
+         "result = std::make_shared<RocketAggregateData>(RocketAggregateData{1, {std::string(error.what())}}); } } "
+         "rocket_stage0_current_cancellation = previous; promise->set_value(std::move(result)); }); return task; }\n"
+         "inline RocketAggregate rocket_await(const RocketTask& task) { while (task->future.wait_for("
+         "std::chrono::milliseconds(0)) != std::future_status::ready) { if (RocketStage0Executor::is_worker()) { "
+         "if (rocket_stage0_token_cancelled(rocket_stage0_current_cancellation)) { "
+         "task->cancellation->cancelled.store(true, std::memory_order_release); return "
+         "std::make_shared<RocketAggregateData>(RocketAggregateData{1, {std::string(\"operation cancelled\")}}); } "
+         "if (!rocket_stage0_executor().help_one()) std::this_thread::yield(); } else task->future.wait(); } "
+         "return task->future.get(); }\n"
          "inline RocketAggregate rocket_aggregate(std::uint32_t tag, std::vector<std::any> fields) { "
          "return std::make_shared<RocketAggregateData>(RocketAggregateData{tag, std::move(fields)}); }\n"
          "template <typename T> T rocket_field(const RocketAggregate& value, std::size_t index) { "
@@ -570,6 +717,10 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
                  symbol.intrinsic == Intrinsic::CollectionsSetValues) {
         const Type set = symbol.parameterTypes[0];
         out << '<' << cppType(set.arguments[0]) << '>';
+      } else if (symbol.intrinsic == Intrinsic::TaskGroup) {
+        out << '<' << cppType(value.type.arguments[0]) << '>';
+      } else if (symbol.intrinsic == Intrinsic::ThreadSpawn) {
+        out << '<' << cppType(symbol.parameterTypes[0].arguments[0]) << '>';
       }
     } else {
       const auto& symbol = module_.symbols[value.callee];
@@ -586,6 +737,19 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
     if (nativeUnit) out << ", RocketUnit{})";
     break;
   }
+  case MirRvalueKind::AsyncCall:
+    out << "rocket_task([=]() { return " << functionName(value.callee) << '(';
+    for (std::size_t i = 0; i < value.arguments.size(); ++i) {
+      if (i) out << ", ";
+      emitOperand(out, value.arguments[i]);
+    }
+    out << "); })";
+    break;
+  case MirRvalueKind::Await:
+    out << "rocket_await(";
+    emitOperand(out, value.left);
+    out << ')';
+    break;
   case MirRvalueKind::Array:
     out << "rocket_array<" << cppType(collectionElementType(value.type)) << ">({";
     for (std::size_t i = 0; i < value.arguments.size(); ++i) {
@@ -655,6 +819,9 @@ void BootstrapCodeGenerator::emitOperand(std::ostream& out,
   case TypeKind::Unit: out << "RocketUnit{}"; break;
   case TypeKind::Array:
   case TypeKind::Slice:
+  case TypeKind::Weak:
+  case TypeKind::UniqueBuffer:
+  case TypeKind::Task:
   case TypeKind::Struct:
   case TypeKind::Enum:
   case TypeKind::Pointer:

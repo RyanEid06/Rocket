@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdint>
+#include <functional>
 #include <sstream>
 #include <unordered_set>
 #include <utility>
@@ -29,6 +30,13 @@ bool isHashableKey(const Type& type) {
 
 bool isCollectionComparable(const Type& type) {
   return isHashableKey(type) || type == Type::Float;
+}
+
+std::optional<Type> asyncSuccessType(const Type& result) {
+  if (result.kind != TypeKind::Enum || result.declaration != "Result" ||
+      result.arguments.size() != 2 || result.arguments[1] != Type::String)
+    return std::nullopt;
+  return result.arguments[0];
 }
 
 std::string associatedLibraryFunction(const std::string& name) {
@@ -577,6 +585,133 @@ void HirLowerer::registerStandardLibrary() {
       Intrinsic::TimeMonotonicMilliseconds);
   add("std.time.sleep_milliseconds", {Type::Int}, Type::Unit,
       Intrinsic::TimeSleepMilliseconds);
+  add("std.task.join", {taskType(t)}, result(t), Intrinsic::TaskJoin, {"T"});
+  add("std.task.is_complete", {taskType(t)}, Type::Bool,
+      Intrinsic::TaskIsComplete, {"T"});
+  add("std.task.cancel", {taskType(t)}, Type::Bool, Intrinsic::TaskCancel, {"T"});
+  const Type taskGroupT{TypeKind::Struct, "std.task.TaskGroup", {t}};
+  add("std.task.group", {arrayType(taskType(t))}, taskGroupT,
+      Intrinsic::TaskGroup, {"T"});
+  add("std.task.group_join", {taskGroupT}, result(arrayType(t)),
+      Intrinsic::TaskGroupJoin, {"T"});
+  add("std.task.group_cancel", {taskGroupT}, Type::Bool,
+      Intrinsic::TaskGroupCancel, {"T"});
+  const Type threadT{TypeKind::Struct, "std.thread.Thread", {t}};
+  add("std.thread.spawn", {taskType(t)}, result(threadT), Intrinsic::ThreadSpawn,
+      {"T"});
+  add("std.thread.join", {threadT}, result(t), Intrinsic::ThreadJoin, {"T"});
+  add("std.thread.detach", {threadT}, result(Type::Bool), Intrinsic::ThreadDetach,
+      {"T"});
+  add("std.thread.is_complete", {threadT}, Type::Bool, Intrinsic::ThreadIsComplete,
+      {"T"});
+  const Type weakT{TypeKind::Weak, "Weak", {t}};
+  add("std.ownership.downgrade", {t}, weakT,
+      Intrinsic::OwnershipDowngrade, {"T"});
+  add("std.ownership.upgrade", {weakT},
+      Type{TypeKind::Enum, "Option", {t}}, Intrinsic::OwnershipUpgrade, {"T"});
+  add("std.ownership.expired", {weakT}, Type::Bool,
+      Intrinsic::OwnershipExpired, {"T"});
+  const Type bufferT{TypeKind::UniqueBuffer, "UniqueBuffer", {t}};
+  add("std.buffer.thaw", {arrayType(t)}, bufferT, Intrinsic::BufferThaw, {"T"});
+  add("std.buffer.length", {bufferT}, Type::Int, Intrinsic::BufferLength, {"T"});
+  add("std.buffer.capacity", {bufferT}, Type::Int, Intrinsic::BufferCapacity, {"T"});
+  add("std.buffer.get", {bufferT, Type::Int}, t, Intrinsic::BufferGet, {"T"});
+  add("std.buffer.set", {bufferT, Type::Int, t}, bufferT,
+      Intrinsic::BufferSet, {"T"});
+  add("std.buffer.append", {bufferT, t}, bufferT,
+      Intrinsic::BufferAppend, {"T"});
+  add("std.buffer.slice", {bufferT, Type::Int, Type::Int}, bufferT,
+      Intrinsic::BufferSlice, {"T"});
+  add("std.buffer.freeze", {bufferT}, arrayType(t), Intrinsic::BufferFreeze, {"T"});
+
+  const Type cancellation{TypeKind::Struct, "std.cancel.CancellationToken"};
+  add("std.cancel.token", {}, cancellation, Intrinsic::CancelToken);
+  add("std.cancel.child", {cancellation}, cancellation, Intrinsic::CancelChild);
+  add("std.cancel.current", {}, cancellation, Intrinsic::CancelCurrent);
+  add("std.cancel.cancel", {cancellation}, Type::Bool, Intrinsic::CancelCancel);
+  add("std.cancel.is_cancelled", {cancellation}, Type::Bool,
+      Intrinsic::CancelIsCancelled);
+  add("std.cancel.check", {cancellation}, result(Type::Bool), Intrinsic::CancelCheck);
+  add("std.async_time.deadline_after", {Type::Int}, result(Type::Int),
+      Intrinsic::AsyncTimeDeadlineAfter);
+  add("std.async_time.remaining", {Type::Int}, Type::Int,
+      Intrinsic::AsyncTimeRemaining);
+  add("std.async_time.sleep", {Type::Int, cancellation}, taskType(Type::Bool),
+      Intrinsic::AsyncTimeSleep);
+  add("std.async_time.sleep_until", {Type::Int, cancellation}, taskType(Type::Bool),
+      Intrinsic::AsyncTimeSleepUntil);
+  const Type charBuffer{TypeKind::UniqueBuffer, "UniqueBuffer", {Type::Char}};
+  add("std.async_file.read", {Type::String, Type::Int, cancellation},
+      taskType(charBuffer), Intrinsic::AsyncFileRead);
+  add("std.async_file.write", {Type::String, charBuffer, Type::Bool, cancellation},
+      taskType(Type::Bool), Intrinsic::AsyncFileWrite);
+  add("std.async_net.connect",
+      {Type::String, Type::Int, Type::Int, cancellation}, taskType(Type::Int),
+      Intrinsic::AsyncNetConnect);
+  add("std.async_net.accept", {Type::Int, Type::Int, cancellation},
+      taskType(Type::Int), Intrinsic::AsyncNetAccept);
+  add("std.async_net.receive",
+      {Type::Int, Type::Int, Type::Int, cancellation}, taskType(charBuffer),
+      Intrinsic::AsyncNetReceive);
+  add("std.async_net.send", {Type::Int, charBuffer, Type::Int, cancellation},
+      taskType(Type::Int), Intrinsic::AsyncNetSend);
+  add("std.async_net.shutdown", {Type::Int}, result(Type::Bool), Intrinsic::NetClose);
+  add("std.async_process.run",
+      {Type::String, arrayType(Type::String), Type::Int, cancellation},
+      taskType(Type::Int), Intrinsic::AsyncProcessRun);
+
+  const Type mutexT{TypeKind::Struct, "std.sync.Mutex", {t}};
+  const Type guardT{TypeKind::Struct, "std.sync.LockGuard", {t}};
+  const Type event{TypeKind::Struct, "std.sync.Event"};
+  const Type atomicInt{TypeKind::Struct, "std.sync.AtomicInt"};
+  const Type onceT{TypeKind::Struct, "std.sync.Once", {t}};
+  add("std.sync.mutex", {t}, mutexT, Intrinsic::SyncMutex, {"T"});
+  add("std.sync.lock", {mutexT, Type::Int, cancellation}, result(guardT),
+      Intrinsic::SyncLock, {"T"});
+  add("std.sync.guard_get", {guardT}, t, Intrinsic::SyncGuardGet, {"T"});
+  add("std.sync.guard_set", {guardT, t}, Type::Bool, Intrinsic::SyncGuardSet, {"T"});
+  add("std.sync.unlock", {guardT}, result(Type::Bool), Intrinsic::SyncUnlock, {"T"});
+  add("std.sync.event", {Type::Bool, Type::Bool}, event, Intrinsic::SyncEvent);
+  add("std.sync.event_set", {event}, Type::Bool, Intrinsic::SyncEventSet);
+  add("std.sync.event_reset", {event}, Type::Bool, Intrinsic::SyncEventReset);
+  add("std.sync.event_wait", {event, Type::Int, cancellation}, result(Type::Bool),
+      Intrinsic::SyncEventWait);
+  add("std.sync.atomic_int", {Type::Int}, atomicInt, Intrinsic::SyncAtomicInt);
+  add("std.sync.atomic_load", {atomicInt}, Type::Int, Intrinsic::SyncAtomicLoad);
+  add("std.sync.atomic_store", {atomicInt, Type::Int}, Type::Unit,
+      Intrinsic::SyncAtomicStore);
+  add("std.sync.atomic_fetch_add", {atomicInt, Type::Int}, Type::Int,
+      Intrinsic::SyncAtomicFetchAdd);
+  add("std.sync.atomic_compare_exchange", {atomicInt, Type::Int, Type::Int},
+      Type::Bool, Intrinsic::SyncAtomicCompareExchange);
+  add("std.sync.once", {t}, onceT, Intrinsic::SyncOnce, {"T"});
+  add("std.sync.once_set", {onceT, t}, result(Type::Bool), Intrinsic::SyncOnceSet,
+      {"T"});
+  add("std.sync.once_get", {onceT}, Type{TypeKind::Enum, "Option", {t}},
+      Intrinsic::SyncOnceGet, {"T"});
+
+  const Type channelT{TypeKind::Struct, "std.channel.Channel", {t}};
+  const Type senderT{TypeKind::Struct, "std.channel.Sender", {t}};
+  const Type receiverT{TypeKind::Struct, "std.channel.Receiver", {t}};
+  add("std.channel.bounded", {arrayType(t), Type::Int}, result(channelT),
+      Intrinsic::ChannelBounded, {"T"});
+  add("std.channel.unbounded", {arrayType(t)}, result(channelT),
+      Intrinsic::ChannelUnbounded, {"T"});
+  add("std.channel.sender", {channelT}, senderT, Intrinsic::ChannelSender, {"T"});
+  add("std.channel.receiver", {channelT}, receiverT, Intrinsic::ChannelReceiver,
+      {"T"});
+  add("std.channel.clone_sender", {senderT}, senderT, Intrinsic::ChannelCloneSender,
+      {"T"});
+  add("std.channel.clone_receiver", {receiverT}, receiverT,
+      Intrinsic::ChannelCloneReceiver, {"T"});
+  add("std.channel.send", {senderT, t, Type::Int, cancellation}, result(Type::Bool),
+      Intrinsic::ChannelSend, {"T"});
+  add("std.channel.receive", {receiverT, Type::Int, cancellation},
+      result(Type{TypeKind::Enum, "Option", {t}}), Intrinsic::ChannelReceive, {"T"});
+  add("std.channel.close_sender", {senderT}, result(Type::Bool),
+      Intrinsic::ChannelCloseSender, {"T"});
+  add("std.channel.close_receiver", {receiverT}, result(Type::Bool),
+      Intrinsic::ChannelCloseReceiver, {"T"});
 }
 
 void HirLowerer::registerTypeDeclarations() {
@@ -947,6 +1082,15 @@ std::optional<HirModule> HirLowerer::lower() {
     hir_.symbols[symbol].nativeImport = function.nativeImport;
     hir_.symbols[symbol].nativeExport = function.nativeExport;
     hir_.symbols[symbol].nativeName = function.nativeName;
+    hir_.symbols[symbol].asynchronous = function.asynchronous;
+    if (function.asynchronous && !asyncSuccessType(result).has_value())
+      diagnostics_.error(function.location,
+                         "async function result must be Result[T, String]",
+                         DiagnosticCode::AsyncSuspension);
+    if (function.asynchronous && (function.nativeImport || function.nativeExport))
+      diagnostics_.error(function.location,
+                         "async functions cannot be native imports or exports",
+                         DiagnosticCode::AsyncSuspension);
     auto validNativeParameter = [](const Type& type) {
       return isNativeAbiValueType(type) && type != Type::Unit &&
              type.kind != TypeKind::NativeStruct;
@@ -1034,7 +1178,8 @@ Type HirLowerer::resolveParsedType(const Type& parsed, const Location& location,
     if (parameter != substitutions.end()) return parameter->second;
   }
   if (parsed.kind == TypeKind::Array || parsed.kind == TypeKind::Slice ||
-      parsed.kind == TypeKind::Pointer) {
+      parsed.kind == TypeKind::Weak || parsed.kind == TypeKind::UniqueBuffer ||
+      parsed.kind == TypeKind::Task || parsed.kind == TypeKind::Pointer) {
     Type argument = resolveParsedType(parsed.arguments.at(0), location, substitutions);
     if ((parsed.kind == TypeKind::Array || parsed.kind == TypeKind::Slice) &&
         argument == Type::Unit)
@@ -1044,9 +1189,46 @@ Type HirLowerer::resolveParsedType(const Type& parsed, const Location& location,
       diagnostics_.error(location, "collections cannot contain native values");
     if (parsed.kind == TypeKind::Array) return arrayType(argument);
     if (parsed.kind == TypeKind::Slice) return sliceType(argument);
+    if (parsed.kind == TypeKind::Weak) {
+      if (!isManagedType(argument))
+        diagnostics_.error(location, "Weak target must be a managed type");
+      return Type{TypeKind::Weak, "Weak", {argument}};
+    }
+    if (parsed.kind == TypeKind::UniqueBuffer) {
+      if (argument == Type::Unit || isNativeType(argument))
+        diagnostics_.error(location,
+                           "UniqueBuffer elements cannot be Unit or native values");
+      return Type{TypeKind::UniqueBuffer, "UniqueBuffer", {argument}};
+    }
+    if (parsed.kind == TypeKind::Task) {
+      if (isNativeType(argument))
+        diagnostics_.error(location, "Task result cannot be a native value");
+      return Type{TypeKind::Task, "Task", {argument}};
+    }
     return Type{TypeKind::Pointer, "Pointer", {argument}};
   }
   if (parsed.kind != TypeKind::Struct) return parsed;
+
+  const std::unordered_map<std::string, std::size_t> standardConcurrencyTypes{
+      {"std.cancel.CancellationToken", 0}, {"std.sync.Event", 0},
+      {"std.sync.AtomicInt", 0}, {"std.sync.Mutex", 1},
+      {"std.sync.LockGuard", 1}, {"std.sync.Once", 1},
+      {"std.channel.Channel", 1}, {"std.channel.Sender", 1},
+      {"std.channel.Receiver", 1}, {"std.task.TaskGroup", 1},
+      {"std.thread.Thread", 1}};
+  if (auto standard = standardConcurrencyTypes.find(parsed.declaration);
+      standard != standardConcurrencyTypes.end()) {
+    if (parsed.arguments.size() != standard->second) {
+      diagnostics_.error(location, "type '" + parsed.declaration + "' expects " +
+                                       std::to_string(standard->second) +
+                                       " type argument(s)");
+      return Type::Invalid;
+    }
+    std::vector<Type> arguments;
+    for (const Type& argument : parsed.arguments)
+      arguments.push_back(resolveParsedType(argument, location, substitutions));
+    return Type{TypeKind::Struct, parsed.declaration, std::move(arguments)};
+  }
 
   auto found = typeDeclarations_.find(parsed.declaration);
   if (found == typeDeclarations_.end()) {
@@ -1116,11 +1298,15 @@ HirFunction HirLowerer::lowerFunction(const Function& function, SymbolId symbol)
   scopes_.emplace_back();
   loopDepth_ = 0;
   unsafeDepth_ = 0;
+  currentAsync_ = function.asynchronous;
+  movedSymbols_.clear();
+  borrowUniqueDepth_ = 0;
 
   HirFunction result;
   result.symbol = symbol;
   result.location = function.location;
   result.result = signature.type;
+  result.asynchronous = function.asynchronous;
 
   std::unordered_set<std::string> names;
   for (std::size_t index = 0; index < function.parameters.size(); ++index) {
@@ -1150,11 +1336,16 @@ HirFunction HirLowerer::lowerSpecialization(const PendingSpecialization& special
   scopes_.clear();
   scopes_.emplace_back();
   loopDepth_ = 0;
+  unsafeDepth_ = 0;
+  currentAsync_ = specialization.function->asynchronous;
+  movedSymbols_.clear();
+  borrowUniqueDepth_ = 0;
 
   HirFunction result;
   result.symbol = specialization.symbol;
   result.location = specialization.function->location;
   result.result = specialization.result;
+  result.asynchronous = specialization.function->asynchronous;
   std::unordered_set<std::string> names;
   for (std::size_t index = 0; index < specialization.function->parameters.size(); ++index) {
     const auto& parameter = specialization.function->parameters[index];
@@ -1269,6 +1460,11 @@ std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
     const auto& returned = static_cast<const ReturnStmt&>(statement);
     auto value = returned.value ? lowerExpression(*returned.value, returnType) : nullptr;
     const Type actual = value ? value->type : Type::Unit;
+    if (actual.declaration == "std.sync.LockGuard" ||
+        actual.declaration == "std.task.TaskGroup")
+      diagnostics_.error(returned.location,
+                         "scoped concurrency value cannot escape its function",
+                         DiagnosticCode::ScopedLifetime);
     if (actual != Type::Invalid && returnType != Type::Invalid && actual != returnType)
       diagnostics_.error(returned.location, "return type is " + typeName(actual) +
                                                 ", expected " + typeName(returnType));
@@ -1550,6 +1746,11 @@ SymbolId HirLowerer::specializeFunction(
   Type result = substitute(resultPattern, inferred);
   const SymbolId symbol = addSymbol(SymbolKind::Function, key, result, false,
                                     function.location, parameters);
+  hir_.symbols[symbol].asynchronous = function.asynchronous;
+  if (function.asynchronous && !asyncSuccessType(result).has_value())
+    diagnostics_.error(location,
+                       "async function result must be Result[T, String]",
+                       DiagnosticCode::AsyncSuspension);
   specializations_.emplace(key, symbol);
   pendingSpecializations_.push_back({&function, symbol, std::move(inferred),
                                      std::move(parameters), std::move(result)});
@@ -1609,6 +1810,9 @@ void HirLowerer::collectLambdaCaptures(
   case ExprKind::Propagate:
     collectLambdaCaptures(*static_cast<const PropagateExpr&>(expression).value,
                           parameters, captures); break;
+  case ExprKind::Await:
+    collectLambdaCaptures(*static_cast<const AwaitExpr&>(expression).value,
+                          parameters, captures); break;
   case ExprKind::Lambda: break;
   default: break;
   }
@@ -1621,6 +1825,10 @@ HirFunction HirLowerer::lowerLambda(const PendingLambda& pending) {
   scopes_.emplace_back();
   activeCaptures_.clear();
   loopDepth_ = 0;
+  unsafeDepth_ = 0;
+  currentAsync_ = false;
+  movedSymbols_.clear();
+  borrowUniqueDepth_ = 0;
 
   HirFunction result;
   result.symbol = pending.symbol;
@@ -1711,6 +1919,9 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
         inferred.contains("T") && !isCollectionComparable(inferred.at("T")))
       diagnostics_.error(location,
                          "collection equality requires Int, Float, Bool, Char, or String");
+    if (definition.intrinsic == Intrinsic::OwnershipDowngrade &&
+        inferred.contains("T") && weakType(inferred.at("T")) == Type::Invalid)
+      diagnostics_.error(location, "Weak requires an identity-bearing managed target");
     SymbolId callee = InvalidSymbol;
     if (auto found = specializations_.find(key); found != specializations_.end()) {
       callee = found->second;
@@ -1733,9 +1944,21 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
   }
   if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end()) {
     const SymbolId callee = specializeFunction(*generic->second, arguments, location);
+    if (callee != InvalidSymbol && hir_.symbol(callee).asynchronous) {
+      const auto success = asyncSuccessType(hir_.symbol(callee).type);
+      diagnoseAsyncArguments(arguments, location);
+      if (success.has_value() && !isSendType(*success))
+        diagnostics_.error(location,
+                           "async task result type " + typeName(*success) +
+                               " does not satisfy Send",
+                           DiagnosticCode::SendConstraint);
+      return std::make_unique<HirAsyncCallExpr>(
+          location, success.has_value() ? taskType(*success) : Type::Invalid,
+          callee, std::move(arguments));
+    }
     const Type result = callee == InvalidSymbol ? Type::Invalid : hir_.symbol(callee).type;
     return std::make_unique<HirCallExpr>(location, result, callee,
-                                         std::move(arguments));
+                                        std::move(arguments));
   }
 
   auto found = functions_.find(name);
@@ -1758,8 +1981,20 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
                                                       typeName(arguments[index]->type) +
                                                       ", expected " +
                                                       typeName(signature.parameterTypes[index]));
+  if (signature.asynchronous) {
+    const auto success = asyncSuccessType(signature.type);
+    diagnoseAsyncArguments(arguments, location);
+    if (success.has_value() && !isSendType(*success))
+      diagnostics_.error(location,
+                         "async task result type " + typeName(*success) +
+                             " does not satisfy Send",
+                         DiagnosticCode::SendConstraint);
+    return std::make_unique<HirAsyncCallExpr>(
+        location, success.has_value() ? taskType(*success) : Type::Invalid,
+        callee, std::move(arguments));
+  }
   return std::make_unique<HirCallExpr>(location, signature.type, callee,
-                                       std::move(arguments));
+                                      std::move(arguments));
 }
 
 std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
@@ -1856,6 +2091,17 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       diagnostics_.error(expression.location, "undefined name '" + name + "'",
                          DiagnosticCode::Name);
       return std::make_unique<HirNameExpr>(expression.location, Type::Invalid, symbol);
+    }
+    const Type& symbolType = hir_.symbol(symbol).type;
+    const bool moveOnly = isUniqueBufferType(symbolType) ||
+                          symbolType.declaration == "std.sync.LockGuard" ||
+                          symbolType.declaration == "std.task.TaskGroup" ||
+                          symbolType.declaration == "std.thread.Thread";
+    if (borrowUniqueDepth_ == 0 && moveOnly) {
+      if (!movedSymbols_.insert(symbol).second)
+        diagnostics_.error(expression.location,
+                           "move-only value '" + name + "' was already consumed",
+                           DiagnosticCode::MoveOnly);
     }
     return std::make_unique<HirNameExpr>(expression.location, hir_.symbol(symbol).type, symbol);
   }
@@ -2080,7 +2326,17 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         if (index < definition.parameterTypes.size() &&
             !containsTypeParameter(definition.parameterTypes[index]))
           argumentExpected = definition.parameterTypes[index];
+        const bool borrowsBuffer = index == 0 &&
+            (definition.intrinsic == Intrinsic::BufferLength ||
+             definition.intrinsic == Intrinsic::BufferCapacity ||
+             definition.intrinsic == Intrinsic::BufferGet ||
+             definition.intrinsic == Intrinsic::SyncGuardGet ||
+             definition.intrinsic == Intrinsic::SyncGuardSet ||
+             definition.intrinsic == Intrinsic::TaskGroupCancel ||
+             definition.intrinsic == Intrinsic::ThreadIsComplete);
+        if (borrowsBuffer) ++borrowUniqueDepth_;
         arguments.push_back(lowerExpression(*call.arguments[index], argumentExpected));
+        if (borrowsBuffer) --borrowUniqueDepth_;
       }
       if (arguments.size() != definition.parameterTypes.size())
         diagnostics_.error(expression.location, "standard function '" + name + "' expects " +
@@ -2141,6 +2397,30 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
           diagnostics_.error(expression.location,
                              "collection equality requires Int, Float, Bool, Char, or String");
       }
+      if (definition.intrinsic == Intrinsic::OwnershipDowngrade &&
+          inferred.contains("T") && weakType(inferred.at("T")) == Type::Invalid)
+        diagnostics_.error(expression.location,
+                            "Weak requires an identity-bearing managed target");
+      const bool concurrencyValue =
+          definition.intrinsic == Intrinsic::SyncMutex ||
+          definition.intrinsic == Intrinsic::SyncOnce ||
+          definition.intrinsic == Intrinsic::ChannelBounded ||
+          definition.intrinsic == Intrinsic::ChannelUnbounded ||
+          definition.intrinsic == Intrinsic::ChannelSend ||
+          definition.intrinsic == Intrinsic::TaskGroup ||
+          definition.intrinsic == Intrinsic::ThreadSpawn;
+      if (concurrencyValue && inferred.contains("T")) {
+        const Type& transferred = inferred.at("T");
+        if (!isSendType(transferred))
+          diagnostics_.error(expression.location,
+                             "concurrency boundary type " + typeName(transferred) +
+                                 " does not satisfy Send",
+                             DiagnosticCode::SendConstraint);
+        if (!isManagedType(transferred))
+          diagnostics_.error(expression.location,
+                             "Rocket 1.8 synchronized storage requires a managed value type",
+                             DiagnosticCode::SendConstraint);
+      }
       SymbolId callee = InvalidSymbol;
       if (auto found = specializations_.find(key); found != specializations_.end()) {
         callee = found->second;
@@ -2167,6 +2447,19 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
       const SymbolId callee = specializeFunction(*generic->second, arguments, expression.location);
+      if (callee != InvalidSymbol && hir_.symbol(callee).asynchronous) {
+        const auto success = asyncSuccessType(hir_.symbol(callee).type);
+        diagnoseAsyncArguments(arguments, expression.location);
+        if (success.has_value() && !isSendType(*success))
+          diagnostics_.error(expression.location,
+                             "async task result type " + typeName(*success) +
+                                 " does not satisfy Send",
+                             DiagnosticCode::SendConstraint);
+        return std::make_unique<HirAsyncCallExpr>(
+            expression.location,
+            success.has_value() ? taskType(*success) : Type::Invalid,
+            callee, std::move(arguments));
+      }
       const Type result = callee == InvalidSymbol ? Type::Invalid : hir_.symbol(callee).type;
       return std::make_unique<HirCallExpr>(expression.location, result, callee,
                                            std::move(arguments));
@@ -2219,8 +2512,21 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                                                         typeName(arguments[index]->type) +
                                                         ", expected " +
                                                         typeName(signature.parameterTypes[index]));
+    if (signature.asynchronous) {
+      const auto success = asyncSuccessType(signature.type);
+      diagnoseAsyncArguments(arguments, expression.location);
+      if (success.has_value() && !isSendType(*success))
+        diagnostics_.error(expression.location,
+                           "async task result type " + typeName(*success) +
+                               " does not satisfy Send",
+                           DiagnosticCode::SendConstraint);
+      return std::make_unique<HirAsyncCallExpr>(
+          expression.location,
+          success.has_value() ? taskType(*success) : Type::Invalid,
+          callee, std::move(arguments));
+    }
     return std::make_unique<HirCallExpr>(expression.location, signature.type, callee,
-                                         std::move(arguments));
+                                        std::move(arguments));
   }
   case ExprKind::Array: {
     const auto& array = static_cast<const ArrayExpr&>(expression);
@@ -2338,6 +2644,37 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                                               std::move(value), currentReturnType_,
                                               declarationIndex);
   }
+  case ExprKind::Await: {
+    const auto& await = static_cast<const AwaitExpr&>(expression);
+    auto task = lowerExpression(*await.value);
+    if (!currentAsync_)
+      diagnostics_.error(expression.location,
+                         "await is valid only inside an async function",
+                         DiagnosticCode::AwaitContext);
+    if (currentAsync_) {
+      std::unordered_set<SymbolId> checked;
+      for (const auto& scope : scopes_)
+        for (const auto& [unused, symbol] : scope)
+          if (checked.insert(symbol).second && isNativeType(hir_.symbol(symbol).type))
+            diagnostics_.error(
+                expression.location,
+                "native value '" + hir_.symbol(symbol).name +
+                    "' cannot remain live across await",
+                DiagnosticCode::AsyncSuspension);
+    }
+    if (!isTaskType(task->type) || task->type.arguments.size() != 1) {
+      if (task->type != Type::Invalid)
+        diagnostics_.error(expression.location,
+                           "await requires a Task[T] operand",
+                           DiagnosticCode::AwaitContext);
+      return std::make_unique<HirAwaitExpr>(expression.location, Type::Invalid,
+                                            std::move(task));
+    }
+    Type outcome{TypeKind::Enum, "Result",
+                 {task->type.arguments.front(), Type::String}};
+    return std::make_unique<HirAwaitExpr>(expression.location, std::move(outcome),
+                                          std::move(task));
+  }
   case ExprKind::Lambda: {
     const auto& lambda = static_cast<const LambdaExpr&>(expression);
     std::unordered_set<std::string> parameterNames;
@@ -2396,6 +2733,111 @@ SymbolId HirLowerer::findVariable(const std::string& name) const {
     if (found != scope->end()) return found->second;
   }
   return InvalidSymbol;
+}
+
+bool HirLowerer::isSendType(const Type& root) const {
+  std::unordered_set<std::string> visiting;
+  std::function<bool(const Type&, bool)> check = [&](const Type& type, bool sharing) {
+    if (type == Type::Int || type == Type::Float || type == Type::Bool ||
+        type == Type::Char || type == Type::String || type == Type::Unit)
+      return true;
+    if (isArrayType(type) || isSliceType(type))
+      return type.arguments.size() == 1 && check(type.arguments[0], sharing);
+    if (isUniqueBufferType(type))
+      return !sharing && type.arguments.size() == 1 && check(type.arguments[0], false);
+    if (isWeakType(type))
+      return type.arguments.size() == 1 && check(type.arguments[0], true);
+    if (isTaskType(type))
+      return type.arguments.size() == 1 && check(type.arguments[0], false);
+    if (type.declaration == "std.cancel.CancellationToken" ||
+        type.declaration == "std.sync.Mutex" ||
+        type.declaration == "std.sync.Event" ||
+        type.declaration == "std.sync.AtomicInt" ||
+        type.declaration == "std.sync.Once" ||
+        type.declaration == "std.channel.Channel" ||
+        type.declaration == "std.channel.Sender" ||
+        type.declaration == "std.channel.Receiver")
+      return true;
+    if (type.declaration == "std.sync.LockGuard") return false;
+    if (type.kind != TypeKind::Struct && type.kind != TypeKind::Enum) return false;
+    if (type.declaration == "std.string.Builder") return false;
+    const std::string key = typeName(type) + (sharing ? "#share" : "#send");
+    if (!visiting.insert(key).second) return true;
+    const std::uint32_t index = findTypeDeclaration(type);
+    if (index == static_cast<std::uint32_t>(-1)) return false;
+    const auto& declaration = hir_.typeDeclarations[index];
+    Substitutions substitutions;
+    for (std::size_t argument = 0;
+         argument < declaration.typeParameters.size() && argument < type.arguments.size();
+         ++argument)
+      substitutions.emplace(declaration.typeParameters[argument], type.arguments[argument]);
+    bool accepted = true;
+    for (const auto& field : declaration.fields)
+      accepted = accepted && check(substitute(field.type, substitutions), sharing);
+    for (const auto& variant : declaration.variants)
+      for (const auto& payload : variant.payloadTypes)
+        accepted = accepted && check(substitute(payload, substitutions), sharing);
+    visiting.erase(key);
+    return accepted;
+  };
+  return check(root, false);
+}
+
+bool HirLowerer::isShareType(const Type& root) const {
+  std::unordered_set<std::string> visiting;
+  std::function<bool(const Type&)> check = [&](const Type& type) {
+    if (type == Type::Int || type == Type::Float || type == Type::Bool ||
+        type == Type::Char || type == Type::String || type == Type::Unit)
+      return true;
+    if (isArrayType(type) || isSliceType(type) || isWeakType(type))
+      return type.arguments.size() == 1 && check(type.arguments[0]);
+    if (isTaskType(type))
+      return type.arguments.size() == 1 && isSendType(type.arguments[0]);
+    if (type.declaration == "std.cancel.CancellationToken" ||
+        type.declaration == "std.sync.Mutex" ||
+        type.declaration == "std.sync.Event" ||
+        type.declaration == "std.sync.AtomicInt" ||
+        type.declaration == "std.sync.Once" ||
+        type.declaration == "std.channel.Channel" ||
+        type.declaration == "std.channel.Sender" ||
+        type.declaration == "std.channel.Receiver")
+      return true;
+    if (isUniqueBufferType(type) || type.declaration == "std.sync.LockGuard" ||
+        (type.kind != TypeKind::Struct && type.kind != TypeKind::Enum))
+      return false;
+    if (type.declaration == "std.string.Builder") return false;
+    const std::string key = typeName(type);
+    if (!visiting.insert(key).second) return true;
+    const std::uint32_t index = findTypeDeclaration(type);
+    if (index == static_cast<std::uint32_t>(-1)) return false;
+    const auto& declaration = hir_.typeDeclarations[index];
+    Substitutions substitutions;
+    for (std::size_t argument = 0;
+         argument < declaration.typeParameters.size() && argument < type.arguments.size();
+         ++argument)
+      substitutions.emplace(declaration.typeParameters[argument], type.arguments[argument]);
+    bool accepted = true;
+    for (const auto& field : declaration.fields)
+      accepted = accepted && check(substitute(field.type, substitutions));
+    for (const auto& variant : declaration.variants)
+      for (const auto& payload : variant.payloadTypes)
+        accepted = accepted && check(substitute(payload, substitutions));
+    visiting.erase(key);
+    return accepted;
+  };
+  return check(root);
+}
+
+void HirLowerer::diagnoseAsyncArguments(
+    const std::vector<std::unique_ptr<HirExpr>>& arguments,
+    const Location& location) const {
+  for (const auto& argument : arguments)
+    if (argument->type != Type::Invalid && !isSendType(argument->type))
+      diagnostics_.error(
+          argument->location.file.empty() ? location : argument->location,
+          "async task argument of type " + typeName(argument->type) +
+              " does not satisfy Send",
+          DiagnosticCode::SendConstraint);
 }
 
 bool HirLowerer::definitelyReturns(const HirBlock& body) const {

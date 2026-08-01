@@ -57,6 +57,24 @@ MirRvalue MirRvalue::call(Type type, SymbolId callee, std::vector<MirOperand> ar
   return result;
 }
 
+MirRvalue MirRvalue::asyncCall(Type type, SymbolId callee,
+                               std::vector<MirOperand> arguments) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::AsyncCall;
+  result.type = std::move(type);
+  result.callee = callee;
+  result.arguments = std::move(arguments);
+  return result;
+}
+
+MirRvalue MirRvalue::await(Type type, MirOperand task) {
+  MirRvalue result;
+  result.kind = MirRvalueKind::Await;
+  result.type = std::move(type);
+  result.left = std::move(task);
+  return result;
+}
+
 MirRvalue MirRvalue::array(Type type, std::vector<MirOperand> elements) {
   MirRvalue result;
   result.kind = MirRvalueKind::Array;
@@ -185,6 +203,7 @@ MirFunction MirLowerer::lowerFunction(const HirFunction& function) {
   MirFunction result;
   result.symbol = function.symbol;
   result.result = function.result;
+  result.asynchronous = function.asynchronous;
   function_ = &result;
   symbolLocals_.assign(hir_.symbols.size(), InvalidMirLocal);
   loops_.clear();
@@ -454,6 +473,22 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
     const MirLocalId result = addInstruction(
         current, MirRvalue::call(call.type, call.callee, std::move(arguments)));
     return MirOperand::localValue(call.type, result);
+  }
+  case HirExprKind::AsyncCall: {
+    const auto& call = static_cast<const HirAsyncCallExpr&>(expression);
+    std::vector<MirOperand> arguments;
+    for (const auto& argument : call.arguments)
+      arguments.push_back(lowerExpression(*argument, current));
+    const MirLocalId result = addInstruction(
+        current, MirRvalue::asyncCall(call.type, call.callee, std::move(arguments)));
+    return MirOperand::localValue(call.type, result);
+  }
+  case HirExprKind::Await: {
+    const auto& awaited = static_cast<const HirAwaitExpr&>(expression);
+    MirOperand task = lowerExpression(*awaited.task, current);
+    const MirLocalId result = addInstruction(
+        current, MirRvalue::await(awaited.type, std::move(task)));
+    return MirOperand::localValue(awaited.type, result);
   }
   case HirExprKind::Array: {
     const auto& array = static_cast<const HirArrayExpr&>(expression);
@@ -758,7 +793,8 @@ bool verifyMir(const MirModule& module, std::string& error) {
           if (!validArithmetic && !validComparison) {
             error = "invalid binary operation"; return false;
           }
-        } else if (instruction.value.kind == MirRvalueKind::Call) {
+        } else if (instruction.value.kind == MirRvalueKind::Call ||
+                   instruction.value.kind == MirRvalueKind::AsyncCall) {
           if (instruction.value.callee >= module.symbols.size()) {
             error = "call has invalid callee symbol"; return false;
           }
@@ -769,7 +805,17 @@ bool verifyMir(const MirModule& module, std::string& error) {
           for (const auto& argument : instruction.value.arguments)
             if (!verifyOperand(argument, function, error)) return false;
           const auto& callee = module.symbols[instruction.value.callee];
-          if (callee.type != instruction.value.type) {
+          if (instruction.value.kind == MirRvalueKind::AsyncCall) {
+            if (kind != SymbolKind::Function || !callee.asynchronous ||
+                !isTaskType(instruction.value.type) ||
+                instruction.value.type.arguments.size() != 1 ||
+                callee.type.declaration != "Result" ||
+                callee.type.arguments.size() != 2 ||
+                callee.type.arguments[1] != Type::String ||
+                instruction.value.type.arguments[0] != callee.type.arguments[0]) {
+              error = "invalid async call result"; return false;
+            }
+          } else if (callee.asynchronous || callee.type != instruction.value.type) {
             error = "call result type mismatch"; return false;
           }
           if (kind == SymbolKind::BuiltinFunction) {
@@ -797,6 +843,18 @@ bool verifyMir(const MirModule& module, std::string& error) {
                 error = "call argument type mismatch"; return false;
               }
             }
+          }
+        } else if (instruction.value.kind == MirRvalueKind::Await) {
+          if (!verifyOperand(instruction.value.left, function, error)) return false;
+          if (!function.asynchronous ||
+              !isTaskType(instruction.value.left.type) ||
+              instruction.value.left.type.arguments.size() != 1 ||
+              instruction.value.type.declaration != "Result" ||
+              instruction.value.type.arguments.size() != 2 ||
+              instruction.value.type.arguments[0] !=
+                  instruction.value.left.type.arguments[0] ||
+              instruction.value.type.arguments[1] != Type::String) {
+            error = "invalid await operation"; return false;
           }
         } else if (instruction.value.kind == MirRvalueKind::Array) {
           if (!isArrayType(instruction.value.type)) {
@@ -929,7 +987,8 @@ bool verifyMir(const MirModule& module, std::string& error) {
 std::string dumpMir(const MirModule& module) {
   std::ostringstream out;
   for (const auto& function : module.functions) {
-    out << "fn @" << module.symbols[function.symbol].name << " -> " << typeName(function.result) << "\n";
+    out << (function.asynchronous ? "async fn @" : "fn @")
+        << module.symbols[function.symbol].name << " -> " << typeName(function.result) << "\n";
     for (std::size_t blockId = 0; blockId < function.blocks.size(); ++blockId) {
       out << "bb" << blockId << ":\n";
       const auto& block = function.blocks[blockId];
@@ -952,6 +1011,13 @@ std::string dumpMir(const MirModule& module) {
         case MirRvalueKind::Call:
           out << "call @" << module.symbols[instruction.value.callee].name;
           for (const auto& argument : instruction.value.arguments) { out << ' '; operandText(argument, out); }
+          break;
+        case MirRvalueKind::AsyncCall:
+          out << "async-call @" << module.symbols[instruction.value.callee].name;
+          for (const auto& argument : instruction.value.arguments) { out << ' '; operandText(argument, out); }
+          break;
+        case MirRvalueKind::Await:
+          out << "await "; operandText(instruction.value.left, out);
           break;
         case MirRvalueKind::Array:
           out << "array";

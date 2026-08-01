@@ -66,7 +66,7 @@ try {
     Push-Location $work
     try {
         $version = & $compiler --version
-        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.7.0') {
+        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.8.0') {
             throw "Relocated compiler version check failed: $($version -join ' ')"
         }
         $languageServerVersion = & $languageServer --version
@@ -137,4 +137,4 @@ try {
     $env:PATH = $savedEnvironment.PATH
 }
 
-Write-Output "Rocket 1.7 distribution relocation and package test passed: $package"
+Write-Output "Rocket 1.8 distribution relocation and package test passed: $package"

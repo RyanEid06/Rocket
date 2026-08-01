@@ -24,7 +24,7 @@ private:
   void skipNewlines();
   void synchronize();
 
-  Function parseFunction(bool isPublic);
+  Function parseFunction(bool isPublic, bool asynchronous = false);
   Function parseExternFunction(bool isPublic);
   Function parseExternConstant(bool isPublic);
   StructDecl parseExternType(bool isPublic);

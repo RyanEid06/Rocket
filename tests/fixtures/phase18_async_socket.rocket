@@ -1,0 +1,40 @@
+import std.async_net
+import std.buffer
+import std.cancel
+import std.net
+import std.task
+import std.time
+
+fn exercise() -> Result[String, String]:
+    let listener = net.tcp_listen("127.0.0.1", 0, 4)?
+    let port = net.local_port(listener)?
+    let token = cancel.token()
+    let deadline = time.monotonic_milliseconds() + 5000
+    let accepted = async_net.accept(listener, deadline, token)
+    let connected = async_net.connect("127.0.0.1", port, deadline, token)
+    let client = task.join(connected)?
+    let server = task.join(accepted)?
+    let sent = task.join(async_net.send(client, buffer.thaw(['R', 'K', 'T']), deadline, token))?
+    if sent != 3:
+        return Err("async socket send was partial")
+    let received = task.join(async_net.receive(server, 3, deadline, token))?
+    if buffer.length(received) != 3:
+        return Err("async socket receive length mismatch")
+    let first = buffer.get(received, 0)
+    let second = buffer.get(received, 1)
+    let third = buffer.get(received, 2)
+    if first != 'R' or second != 'K' or third != 'T':
+        return Err("async socket receive contents mismatch")
+    async_net.shutdown(client)?
+    async_net.shutdown(server)?
+    async_net.shutdown(listener)?
+    return Ok("socket-ok")
+
+fn main() -> Int:
+    match exercise():
+        case Ok(value):
+            print(value)
+            return 0
+        case Err(message):
+            print(message)
+            return 1

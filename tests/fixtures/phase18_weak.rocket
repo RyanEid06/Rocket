@@ -1,0 +1,21 @@
+import std.ownership
+
+struct Box:
+    value: Int
+
+fn expired_box() -> Weak[Box]:
+    let box = Box(7)
+    return ownership.downgrade(box)
+
+fn main() -> Int:
+    let box = Box(42)
+    let weak = ownership.downgrade(box)
+    match ownership.upgrade(weak):
+        case Some(live):
+            print(live.value)
+        case None:
+            return 1
+    let expired = expired_box()
+    if ownership.expired(expired):
+        return 0
+    return 2

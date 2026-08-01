@@ -1,0 +1,7 @@
+import std.sync
+
+fn escape(guard: std.sync.LockGuard[String]) -> std.sync.LockGuard[String]:
+    return guard
+
+fn main() -> Int:
+    return 0

@@ -1,0 +1,72 @@
+import std.async_time
+import std.cancel
+import std.channel
+import std.sync
+import std.task
+import std.time
+
+fn main() -> Int:
+    let token = cancel.token()
+    let child = cancel.child(token)
+    print(cancel.is_cancelled(child))
+
+    let atomic = sync.atomic_int(4)
+    print(sync.atomic_fetch_add(atomic, 3))
+    print(sync.atomic_load(atomic))
+    print(sync.atomic_compare_exchange(atomic, 7, 9))
+
+    let mutex = sync.mutex("before")
+    let lock_result = sync.lock(mutex, time.monotonic_milliseconds() + 1000, token)
+    match lock_result:
+        case Ok(guard):
+            print(sync.guard_get(guard))
+            print(sync.guard_set(guard, "after"))
+            let unlocked = sync.unlock(guard)
+            match unlocked:
+                case Ok(value):
+                    print(value)
+                case Err(message):
+                    print(message)
+        case Err(message):
+            print(message)
+
+    let once = sync.once("published")
+    match sync.once_get(once):
+        case Some(value):
+            print(value)
+        case None:
+            print("missing")
+
+    let created = channel.bounded(["first"], 2)
+    match created:
+        case Ok(ch):
+            let sender = channel.sender(ch)
+            let receiver = channel.receiver(ch)
+            let sent = channel.send(sender, "second", time.monotonic_milliseconds() + 1000, token)
+            match sent:
+                case Ok(value):
+                    print(value)
+                case Err(message):
+                    print(message)
+            let received = channel.receive(receiver, time.monotonic_milliseconds() + 1000, token)
+            match received:
+                case Ok(item):
+                    match item:
+                        case Some(value):
+                            print(value)
+                        case None:
+                            print("closed")
+                case Err(message):
+                    print(message)
+        case Err(message):
+            print(message)
+
+    let sleep_task = async_time.sleep(1, token)
+    match task.join(sleep_task):
+        case Ok(value):
+            print(value)
+        case Err(message):
+            print(message)
+    print(cancel.cancel(token))
+    print(cancel.is_cancelled(child))
+    return 0

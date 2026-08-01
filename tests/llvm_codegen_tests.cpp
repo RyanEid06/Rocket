@@ -141,5 +141,28 @@ int main() {
                          "LLVM emits stable C declarations, callback trampolines, and exports",
                          failures);
   }
+  rocket::Diagnostics asyncDiagnostics;
+  auto asyncMir = rocket::test::lowerToMir(
+      "async fn leaf(value: Int) -> Result[Int, String]:\n"
+      "    return Ok(value)\n"
+      "async fn parent() -> Result[Int, String]:\n"
+      "    let result = await leaf(42)\n"
+      "    return result\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      asyncDiagnostics);
+  rocket::test::expect(asyncMir.has_value(),
+                       "async LLVM fixture lowers to MIR", failures);
+  if (asyncMir.has_value()) {
+    std::string error;
+    std::string ir;
+    rocket::test::expect(rocket::generateLlvmIr(*asyncMir, false, ir, error),
+                         "async MIR lowers to valid LLVM IR: " + error, failures);
+    rocket::test::expect(ir.find("@rocket_rt_task_spawn") != std::string::npos &&
+                             ir.find("@rocket_rt_task_await") != std::string::npos &&
+                             ir.find("rocket_async_entry_") != std::string::npos,
+                         "LLVM emits runtime task calls and an owned async entry thunk",
+                         failures);
+  }
   return rocket::test::finish(failures, "llvm_codegen");
 }

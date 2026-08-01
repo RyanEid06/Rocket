@@ -1,9 +1,10 @@
-# Rocket Standard Library through Rocket 1.5
+# Rocket Standard Library through Rocket 1.8
 
 The stable library combines typed host-backed modules with bundled ordinary
 Rocket source modules, including the Rocket 1.2 dot-call additions, the
-unchanged Rocket 1.3 native boundary, and the completed Rocket 1.5 production
-library. Import a module by its stable name; no downloaded dependency is
+unchanged Rocket 1.3 native boundary, the completed Rocket 1.5 production
+library, and Rocket 1.8 concurrency and asynchronous I/O. Import a module by
+its stable name; no downloaded dependency is
 required:
 
 ```rocket
@@ -424,3 +425,132 @@ Returned strings, arrays, JSON values, and errors are ordinary ARC-managed
 Rocket values. LLVM calls versioned C ABI entry points; the permanent C++ Stage
 0 backend provides equivalent RAII implementations. The same Phase 7 program
 is compiled and run by both backends in the test workflow.
+
+## Rocket 1.8 ownership and concurrency modules
+
+The detailed type, ordering, cancellation, publication, and memory-ordering
+rules are normative in `CONCURRENCY.md`. Every deadline below is an absolute
+monotonic `Int`; every cancellation argument is
+`std.cancel.CancellationToken`.
+
+### `std.ownership` and `std.buffer`
+
+| Function | Result |
+| --- | --- |
+| `downgrade[T](value: T)` | `Weak[T]` |
+| `upgrade[T](value: Weak[T])` | `Option[T]` |
+| `expired[T](value: Weak[T])` | `Bool` |
+| `thaw[T](values: Array[T])` | `UniqueBuffer[T]` |
+| `length[T](buffer: UniqueBuffer[T])` | `Int` |
+| `capacity[T](buffer: UniqueBuffer[T])` | `Int` |
+| `get[T](buffer: UniqueBuffer[T], index: Int)` | `T` |
+| `set[T](buffer: UniqueBuffer[T], index: Int, value: T)` | `UniqueBuffer[T]` |
+| `append[T](buffer: UniqueBuffer[T], value: T)` | `UniqueBuffer[T]` |
+| `slice[T](buffer: UniqueBuffer[T], start: Int, end: Int)` | `UniqueBuffer[T]` |
+| `freeze[T](buffer: UniqueBuffer[T])` | `Array[T]` |
+
+Buffer `length`, `capacity`, and `get` borrow. `set`, `append`, `slice`, and
+`freeze` consume their buffer argument. No writable slice aliases the storage.
+
+### `std.cancel` and `std.async_time`
+
+| Function | Result |
+| --- | --- |
+| `token()` | `CancellationToken` |
+| `child(parent: CancellationToken)` | `CancellationToken` |
+| `current()` | `CancellationToken` |
+| `cancel(token: CancellationToken)` | `Bool` |
+| `is_cancelled(token: CancellationToken)` | `Bool` |
+| `check(token: CancellationToken)` | `Result[Bool, String]` |
+| `deadline_after(milliseconds: Int)` | `Result[Int, String]` |
+| `remaining(deadline: Int)` | `Int` |
+| `sleep(milliseconds: Int, token: CancellationToken)` | `Task[Bool]` |
+| `sleep_until(deadline: Int, token: CancellationToken)` | `Task[Bool]` |
+
+Deadlines are monotonic `Int` values. Timer tasks run in bounded polling slices
+on the default executor and observe both their explicit token and task token.
+
+### `std.thread` and `std.task`
+
+| Function | Result |
+| --- | --- |
+| `thread.spawn[T](task: Task[T])` | `Result[Thread[T], String]` |
+| `thread.join[T](thread: Thread[T])` | `Result[T, String]` |
+| `thread.detach[T](thread: Thread[T])` | `Result[Bool, String]` |
+| `thread.is_complete[T](thread: Thread[T])` | `Bool` |
+| `task.join[T](task: Task[T])` | `Result[T, String]` |
+| `task.cancel[T](task: Task[T])` | `Bool` |
+| `task.is_complete[T](task: Task[T])` | `Bool` |
+| `task.group[T](tasks: Array[Task[T]])` | `TaskGroup[T]` |
+| `task.group_cancel[T](group: TaskGroup[T])` | `Bool` |
+| `task.group_join[T](group: TaskGroup[T])` | `Result[Array[T], String]` |
+
+Thread join/detach and group join consume their move-only handle;
+`is_complete` and `group_cancel` borrow. Async calls use one default pool with
+1-64 workers and a 65,536-entry queue. Group results and the selected first
+error use input-array order.
+
+### `std.sync`
+
+| Function | Result |
+| --- | --- |
+| `mutex[T](value: T)` | `Mutex[T]` |
+| `lock[T](mutex: Mutex[T], deadline: Int, token: CancellationToken)` | `Result[LockGuard[T], String]` |
+| `guard_get[T](guard: LockGuard[T])` | `T` |
+| `guard_set[T](guard: LockGuard[T], value: T)` | `Bool` |
+| `unlock[T](guard: LockGuard[T])` | `Result[Bool, String]` |
+| `event(manual_reset: Bool, initially_set: Bool)` | `Event` |
+| `event_set(event: Event)` | `Bool` |
+| `event_reset(event: Event)` | `Bool` |
+| `event_wait(event: Event, deadline: Int, token: CancellationToken)` | `Result[Bool, String]` |
+| `atomic_int(value: Int)` | `AtomicInt` |
+| `atomic_load(value: AtomicInt)` | `Int` |
+| `atomic_store(value: AtomicInt, replacement: Int)` | `Unit` |
+| `atomic_fetch_add(value: AtomicInt, delta: Int)` | `Int` |
+| `atomic_compare_exchange(value: AtomicInt, expected: Int, replacement: Int)` | `Bool` |
+| `once[T](value: T)` | `Once[T]` |
+| `once_set[T](cell: Once[T], value: T)` | `Result[Bool, String]` |
+| `once_get[T](cell: Once[T])` | `Option[T]` |
+
+Guard reads/writes borrow; unlock consumes. Mutex and once values must be
+`Send`. Events use predicate-based waits, atomics are sequentially consistent,
+and mutexes do not have exception poisoning. `once(value)` publishes its seed
+immediately, so `once_set` on that initialized cell returns `Ok(false)`.
+
+### `std.channel`
+
+| Function | Result |
+| --- | --- |
+| `bounded[T](initial: Array[T], capacity: Int)` | `Result[Channel[T], String]` |
+| `unbounded[T](initial: Array[T])` | `Result[Channel[T], String]` |
+| `sender[T](channel: Channel[T])` | `Sender[T]` |
+| `receiver[T](channel: Channel[T])` | `Receiver[T]` |
+| `clone_sender[T](sender: Sender[T])` | `Sender[T]` |
+| `clone_receiver[T](receiver: Receiver[T])` | `Receiver[T]` |
+| `send[T](sender: Sender[T], value: T, deadline: Int, token: CancellationToken)` | `Result[Bool, String]` |
+| `receive[T](receiver: Receiver[T], deadline: Int, token: CancellationToken)` | `Result[Option[T], String]` |
+| `close_sender[T](sender: Sender[T])` | `Result[Bool, String]` |
+| `close_receiver[T](receiver: Receiver[T])` | `Result[Bool, String]` |
+
+Send consumes `value`. Endpoints are explicitly cloneable. Bounded channels
+apply backpressure; unbounded channels return a resource error at the process
+safety ceiling. Dropping the last endpoint closes its direction and wakes every
+waiter.
+
+### Asynchronous files, sockets, and processes
+
+| Function | Result |
+| --- | --- |
+| `async_file.read(path: String, maximum: Int, token: CancellationToken)` | `Task[UniqueBuffer[Char]]` |
+| `async_file.write(path: String, bytes: UniqueBuffer[Char], append: Bool, token: CancellationToken)` | `Task[Bool]` |
+| `async_net.connect(host: String, port: Int, deadline: Int, token: CancellationToken)` | `Task[Int]` |
+| `async_net.accept(listener: Int, deadline: Int, token: CancellationToken)` | `Task[Int]` |
+| `async_net.receive(socket: Int, maximum: Int, deadline: Int, token: CancellationToken)` | `Task[UniqueBuffer[Char]]` |
+| `async_net.send(socket: Int, bytes: UniqueBuffer[Char], deadline: Int, token: CancellationToken)` | `Task[Int]` |
+| `async_net.shutdown(socket: Int)` | `Result[Bool, String]` |
+| `async_process.run(program: String, arguments: Array[String], deadline: Int, token: CancellationToken)` | `Task[Int]` |
+
+Partial I/O, EOF, close, cancellation races, and resource limits are defined
+in `CONCURRENCY.md`. Async process execution returns the child exit code and
+inherits standard streams; 1.8 does not expose output capture. The Rocket 1.5
+synchronous functions remain unchanged.

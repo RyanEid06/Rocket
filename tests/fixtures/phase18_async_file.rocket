@@ -1,0 +1,33 @@
+import std.async_file
+import std.buffer
+import std.cancel
+import std.file
+import std.task
+
+fn main() -> Int:
+    let path = "tests/fixtures/.rocketc/phase18-async-file.tmp"
+    let token = cancel.token()
+    let bytes = buffer.thaw(['R', 'K', 'T'])
+    let written = task.join(async_file.write(path, bytes, false, token))
+    match written:
+        case Ok(value):
+            print(value)
+        case Err(message):
+            print(message)
+            return 1
+    let read = task.join(async_file.read(path, 16, token))
+    match read:
+        case Ok(contents):
+            print(buffer.length(contents))
+            print(buffer.get(contents, 0))
+            let frozen = buffer.freeze(contents)
+            print(frozen[2])
+        case Err(message):
+            print(message)
+            return 2
+    match file.remove(path):
+        case Ok(value):
+            print(value)
+        case Err(message):
+            print(message)
+    return 0

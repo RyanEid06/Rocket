@@ -1,0 +1,14 @@
+import std.task
+
+async fn compute(value: Int) -> Result[Int, String]:
+    return Ok(value + 1)
+
+fn main() -> Int:
+    let task = compute(41)
+    match task.join(task):
+        case Ok(value):
+            print(value)
+            return 0
+        case Err(message):
+            print(message)
+            return 1

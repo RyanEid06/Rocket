@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Rocket VERSION 1.7.0 LANGUAGES C CXX)
+project(Rocket VERSION 1.8.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -404,6 +404,76 @@ add_test(NAME cli_run_phase9_bootstrap_primitives
     -- first second)
 set_tests_properties(cli_run_phase9_bootstrap_primitives PROPERTIES
   PASS_REGULAR_EXPRESSION "Rocket[\r\n]+4[\r\n]+2")
+foreach(fixture async_join nested_await weak unique_buffer concurrency async_file async_socket async_cancel process task_group task_cancel thread)
+  add_test(NAME cli_check_phase18_${fixture}
+    COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${fixture}.rocket")
+  set_tests_properties(cli_check_phase18_${fixture} PROPERTIES
+    LABELS "phase18;ownership;concurrency")
+endforeach()
+add_test(NAME cli_run_phase18_async_join
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_async_join.rocket")
+set_tests_properties(cli_run_phase18_async_join PROPERTIES
+  PASS_REGULAR_EXPRESSION "42" LABELS "phase18;async;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_concurrency
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_concurrency.rocket")
+set_tests_properties(cli_run_phase18_concurrency PROPERTIES
+  PASS_REGULAR_EXPRESSION "published" LABELS "phase18;concurrency;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_async_file
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_async_file.rocket")
+set_tests_properties(cli_run_phase18_async_file PROPERTIES
+  PASS_REGULAR_EXPRESSION "R[\r\n]+T" LABELS "phase18;async;file;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_async_socket
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_async_socket.rocket")
+set_tests_properties(cli_run_phase18_async_socket PROPERTIES
+  PASS_REGULAR_EXPRESSION "socket-ok" LABELS "phase18;async;socket;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_process
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_process.rocket")
+set_tests_properties(cli_run_phase18_process PROPERTIES
+  PASS_REGULAR_EXPRESSION "7[\r\n]+1[\r\n]+operation cancelled"
+  LABELS "phase18;async;process;cancel;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_task_group
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_task_group.rocket")
+set_tests_properties(cli_run_phase18_task_group PROPERTIES
+  PASS_REGULAR_EXPRESSION "first[\r\n]+second[\r\n]+third"
+  LABELS "phase18;structured;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_task_cancel
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_task_cancel.rocket")
+set_tests_properties(cli_run_phase18_task_cancel PROPERTIES
+  PASS_REGULAR_EXPRESSION "operation cancelled" LABELS "phase18;structured;cancel;native"
+  TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_async_cancel
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_async_cancel.rocket")
+set_tests_properties(cli_run_phase18_async_cancel PROPERTIES
+  PASS_REGULAR_EXPRESSION "operation cancelled" LABELS "phase18;cancel;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_thread
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_thread.rocket")
+set_tests_properties(cli_run_phase18_thread PROPERTIES
+  PASS_REGULAR_EXPRESSION "thread-result" LABELS "phase18;thread;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME cli_run_phase18_example
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/examples/ownership_concurrency.rocket")
+set_tests_properties(cli_run_phase18_example PROPERTIES
+  PASS_REGULAR_EXPRESSION "41[\r\n]+3[\r\n]+42"
+  LABELS "phase18;example;native" TIMEOUT 30
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+foreach(failure await_context send async_result_send suspension unique_buffer_move scoped_escape)
+  add_test(NAME cli_phase18_${failure}_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${failure}_failure.rocket"
+      "-DEXPECTED=R410"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+  set_tests_properties(cli_phase18_${failure}_failure PROPERTIES
+    LABELS "phase18;negative")
+endforeach()
 add_test(NAME cli_check_self_hosted_compiler
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/compiler")
 add_test(NAME cli_build_self_hosted_compiler
@@ -444,6 +514,15 @@ add_test(NAME cli_self_hosted_check_package
 set_tests_properties(cli_self_hosted_check_package PROPERTIES
   PASS_REGULAR_EXPRESSION "check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler)
+foreach(fixture async_join nested_await weak unique_buffer concurrency async_file async_socket async_cancel process task_group task_cancel thread)
+  add_test(NAME cli_self_hosted_phase18_${fixture}
+    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${fixture}.rocket")
+  set_tests_properties(cli_self_hosted_phase18_${fixture} PROPERTIES
+    PASS_REGULAR_EXPRESSION "check succeeded"
+    FIXTURES_REQUIRED self_hosted_compiler
+    LABELS "phase18;selfhost")
+endforeach()
 add_test(NAME cli_self_hosted_fmt_package
   COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" fmt
     "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package" --check)
@@ -474,7 +553,7 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.7.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.8.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
 add_test(NAME cli_phase8_invalid_manifest

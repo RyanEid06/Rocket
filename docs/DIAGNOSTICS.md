@@ -1,8 +1,9 @@
 # Rocket Diagnostic Catalog
 
 The `Rdddd` format and original categories were frozen for Rocket 1.0. The
-catalog has since grown additively for native interoperability and the Rocket
-1.6 package ecosystem without changing existing code identities.
+catalog has since grown additively for native interoperability, the Rocket
+1.6 package ecosystem, and Rocket 1.8 concurrency without changing existing
+code identities.
 
 Compiler diagnostics use the stable shape:
 
@@ -31,6 +32,12 @@ Manifest and tooling errors without a source position use
 | `R4003` | Control flow | Invalid loop control, entry point, or return path |
 | `R4004` | Pattern match | Invalid, duplicate, or non-exhaustive cases |
 | `R4005` | Arity | Wrong number of call or constructor arguments |
+| `R4101` | Send constraint | A thread, task, channel, async operation, or publication captures/transfers a value that is not `Send` |
+| `R4102` | Share constraint | A weak reference targets a value that is not an identity-bearing `Share` value |
+| `R4103` | Move-only ownership | A `UniqueBuffer`, thread, guard, or task-group value is copied or used after move |
+| `R4104` | Scoped lifetime | A lock guard or structured task group is returned, stored, sent, or captured beyond its lexical scope |
+| `R4105` | Await context | `await` occurs outside an async function or its operand is not `Task[T]` |
+| `R4106` | Async suspension | An async result/capture/local cannot safely cross a suspension or async functions do not return `Result[T, String]` |
 | `R5001` | Manifest/package | Invalid `rocket.toml`, semantic version, dependency source, resolver conflict, lockfile, or package checksum |
 | `R5002` | Tooling | Formatter, test-runner, binding/header generation, linker, or artifact workflow failure |
 | `R5003` | Package integrity | Checksum, signing-key, metadata signature, archive, or cache verification failure |

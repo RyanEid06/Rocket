@@ -1,7 +1,7 @@
 # Rocket 1.0 Release Contract
 
 > Historical compatibility baseline: this document intentionally describes the
-> frozen Rocket 1.0 release. The latest completed release is Rocket 1.5; see
+> frozen Rocket 1.0 release. The latest completed release is Rocket 1.8; see
 > [RELEASE_1_5.md](RELEASE_1_5.md) and the [roadmap](ROADMAP.md) for current
 > status. Later additions do not rewrite the 1.0 contract.
 

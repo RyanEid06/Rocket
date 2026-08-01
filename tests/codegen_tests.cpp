@@ -120,5 +120,25 @@ int main() {
             generated.find(", RocketUnit{})") != std::string::npos,
         "fallback backend materializes Unit after a void C import", failures);
   }
+  rocket::Diagnostics asyncDiagnostics;
+  auto asyncMir = rocket::test::lowerToMir(
+      "async fn leaf(value: Int) -> Result[Int, String]:\n"
+      "    return Ok(value)\n"
+      "async fn parent() -> Result[Int, String]:\n"
+      "    let result = await leaf(42)\n"
+      "    return result\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      asyncDiagnostics);
+  rocket::test::expect(asyncMir.has_value(),
+                       "async fallback fixture lowers to MIR", failures);
+  if (asyncMir.has_value()) {
+    const std::string generated = rocket::BootstrapCodeGenerator(*asyncMir).generate();
+    rocket::test::expect(generated.find("RocketStage0Executor") != std::string::npos &&
+                             generated.find("rocket_task([=]()") != std::string::npos &&
+                             generated.find("rocket_await(") != std::string::npos,
+                         "stage0 emits a bounded executor, task creation, and await",
+                         failures);
+  }
   return rocket::test::finish(failures, "codegen");
 }

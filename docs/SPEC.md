@@ -1,9 +1,9 @@
-# Rocket Language Specification through Rocket 1.7
+# Rocket Language Specification through Rocket 1.8
 
 This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
 incompatible language changes require a recorded decision and a new major
-version. It records additive language contracts through Rocket 1.7, including
+version. It records additive language contracts through Rocket 1.8, including
 the Rocket 1.6 package metadata and source-selection contract. Rocket 1.4 and
 1.5 add validated native/library surfaces without introducing new grammar.
 
@@ -22,8 +22,9 @@ fn add(left: Int, right: Int) -> Int:
 ```
 
 Public function boundaries are explicit. Built-in types are `Int`, `Float`,
-`Bool`, `Char`, `String`, `Unit`, `Array[T]`, `Slice[T]`, `Option[T]`, and
-`Result[T, E]`. Type arguments nest without a fixed depth. User structs,
+`Bool`, `Char`, `String`, `Unit`, `Array[T]`, `Slice[T]`, `Option[T]`,
+`Result[T, E]`, `Weak[T]`, `UniqueBuffer[T]`, and `Task[T]`. Type arguments
+nest without a fixed depth. User structs,
 enums, and functions may declare type parameters in brackets. Generic function
 calls infer every type argument from value arguments and are specialized to
 concrete functions before MIR lowering.
@@ -193,11 +194,43 @@ aliasing preserve the value through automatic reference counting; programmers
 do not write retain or release operations. Destruction is deterministic when
 the last owning reference is released. Arrays release managed elements, Slices
 release their backing Array, and aggregate destructors release every managed
-field. Reference-count cycles are a documented Rocket 1.0 limitation. Current
-immutable aggregate construction does not provide a source-level operation that
-can create a self-cycle. Array mutation uses copy-on-write: cloning retains each
+field. Rocket 1.8 prevents strong reference cycles on the safe surface and adds
+`Weak[T]` for non-owning recursive links. Weak upgrade returns `Option[T]` and
+racing destruction is all-or-nothing. Current immutable aggregate construction
+does not provide a source-level operation that can create a self-cycle. Array
+mutation uses copy-on-write: cloning retains each
 managed element, replacement retains the new element before releasing the old
 one, and rebinding releases the prior Array after the updated value is owned.
+
+`UniqueBuffer[T]` is move-only mutation authority. A source operation either
+borrows it explicitly or consumes it; an ordinary copy or use after move is a
+compile-time error. Freezing returns an immutable Array snapshot. `Send` and
+`Share` are derived structurally and cannot be asserted by user source. Values
+published to another thread are checked and their reachable ARC graph is
+promoted to atomic ownership. Thread-confined values retain plain-count ARC.
+The complete derivation, move, weak, memory-ordering, and scoped-value rules are
+normative in `CONCURRENCY.md`.
+
+## Asynchronous functions and await (Rocket 1.8)
+
+```rocket
+async fn load(path: String) -> Result[UniqueBuffer[Char], String]:
+    return await async_file.read(path, 67108864, cancel.current())
+```
+
+`async` immediately before `fn` declares an async function. Its written result
+must be `Result[T, String]` and `T` must satisfy `Send`. Calling it evaluates
+arguments left to right and returns `Task[T]`. Prefix `await` is valid only in
+an async body; `await task` has type `Result[T, String]` when `task` has type
+`Task[T]`. The existing postfix `?` therefore composes as `(await task)?`.
+
+Await is explicit in HIR and MIR. It is a cooperative cancellation observation
+point and retains all owning managed locals across the logical suspension.
+Every early return, propagated failure, loop exit, and match path continues to
+run normal deterministic MIR cleanup. Values that cannot satisfy the suspension
+or cross-thread rules are rejected before MIR. Scheduling, task state,
+cancellation, deadlines, and failure behavior are normative in
+`CONCURRENCY.md`.
 
 ## Structs and generics
 
@@ -442,7 +475,9 @@ lower to typed MIR calls. The stable foundational modules are `std.string`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,
 `std.unicode`, `std.regex`, `std.crypto`, `std.net`, `std.http`, `std.datetime`,
 `std.log`, `std.cli`, `std.config`, `std.compression`, `std.archive`,
-`std.sqlite`, and `std.testing`.
+`std.sqlite`, and `std.testing`. Rocket 1.8 adds `std.ownership`, `std.buffer`,
+`std.thread`, `std.task`, `std.sync`, `std.channel`, `std.cancel`,
+`std.async_time`, `std.async_file`, `std.async_net`, and `std.async_process`.
 
 Standard APIs use the same `Option` and `Result` enums as user code. File,
 process, conversion, JSON, and CSV failures are recoverable values. No standard

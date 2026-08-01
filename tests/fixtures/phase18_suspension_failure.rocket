@@ -1,0 +1,13 @@
+extern fn native_pointer() -> Pointer[Int]
+
+async fn leaf() -> Result[Int, String]:
+    return Ok(1)
+
+async fn invalid() -> Result[Int, String]:
+    unsafe:
+        let pointer = native_pointer()
+        let result = await leaf()
+        return result
+
+fn main() -> Int:
+    return 0

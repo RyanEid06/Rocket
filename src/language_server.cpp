@@ -887,6 +887,17 @@ void indexExpression(const HirExpr& expression, SemanticSnapshot& snapshot,
       indexExpression(*argument, snapshot, symbolKeys);
     break;
   }
+  case HirExprKind::AsyncCall: {
+    const auto& item = static_cast<const HirAsyncCallExpr&>(expression);
+    addOccurrence(snapshot, symbolKeys, item.callee, expression.location);
+    for (const auto& argument : item.arguments)
+      indexExpression(*argument, snapshot, symbolKeys);
+    break;
+  }
+  case HirExprKind::Await:
+    indexExpression(*static_cast<const HirAwaitExpr&>(expression).task,
+                    snapshot, symbolKeys);
+    break;
   case HirExprKind::Unary:
     indexExpression(*static_cast<const HirUnaryExpr&>(expression).operand,
                     snapshot, symbolKeys);

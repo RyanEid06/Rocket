@@ -1,0 +1,9 @@
+import std.string
+
+async fn consume(builder: string.Builder) -> Result[Int, String]:
+    return Ok(1)
+
+fn main() -> Int:
+    let builder = string.builder()
+    let task = consume(builder)
+    return 0

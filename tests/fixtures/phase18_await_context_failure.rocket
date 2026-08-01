@@ -1,0 +1,6 @@
+async fn work() -> Result[Int, String]:
+    return Ok(1)
+
+fn main() -> Int:
+    let result = await work()
+    return 0
