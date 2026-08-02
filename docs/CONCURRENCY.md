@@ -22,9 +22,9 @@ deterministic MIR cleanup rules keep their prior meaning.
 
 ## Weak ownership and the cycle policy
 
-`Weak[T]` is a managed non-owning reference to an identity-bearing managed
-array, aggregate, unique buffer, or task. `String`, scalar, `Slice`, pointer,
-and opaque-native values are not weak targets.
+`Weak[T]` is a managed non-owning reference to an identity-bearing `Share`
+array, aggregate, or task. `String`, scalar, `Slice`, `UniqueBuffer`, pointer,
+and opaque-native values are not valid weak targets.
 
 ```rocket
 import std.ownership
@@ -72,10 +72,12 @@ copy-on-write updates.
 | `freeze[T](buffer: UniqueBuffer[T])` | `Array[T]` | Consumes mutation authority and returns a snapshot |
 
 Bounds failures use the existing fatal collection-bounds rule. Assignment,
-return, aggregate construction, capture, and consuming parameters move a
-unique value; use after move is `R4103`. `UniqueBuffer[T]` is `Send` when `T`
-is `Send` and is never `Share`. Managed elements follow ordinary ARC ownership.
-No writable slice aliases another buffer or a frozen array.
+return, aggregate construction, and consuming parameters move a unique value;
+use after move is `R4103`. A reusable closure cannot capture a move-only value.
+`UniqueBuffer[T]` requires `T: Share`, is therefore `Send`, and is never
+`Share`. The element constraint makes repeated `get` safe while still allowing
+managed elements under ordinary ARC ownership. No writable slice aliases
+another buffer or a frozen array.
 
 ## `Send`, `Share`, and scoped values
 
@@ -88,21 +90,28 @@ unsafe blanket implementation.
 
 Scalars and `String` are `Send + Share`. `Array[T]` and `Slice[T]` derive the
 properties from `T`; structs, enums, and closure captures derive them from all
-reachable fields and payloads. `Weak[T]` requires `T: Share`. `Task[T]` is
-transferable only when `T: Send`.
+reachable fields and payloads. Move-only status is likewise derived through
+arrays, slices, options, results, structs, and enums. `Weak[T]` requires an
+identity-bearing `T: Share`. `Task[T]` is `Send` only when `T: Send`, is never
+`Share`, and consequently cannot be a weak target. `Thread[T]` is likewise
+never `Share` and cannot be weakly observed.
 
 Cancellation tokens, mutexes, events, integer atomics, once cells, channels,
 senders, and receivers are synchronized `Send + Share` handles. A
-`UniqueBuffer`, `LockGuard`, `TaskGroup`, and `Thread` is move-only.
+`UniqueBuffer`, `Task`, `LockGuard`, `TaskGroup`, and `Thread` is move-only.
 `LockGuard` and `TaskGroup` cannot escape their function. Native pointers,
 opaque native handles, native callbacks, and `std.string.Builder` are neither
 `Send` nor `Share`. Race-prone foreign access therefore remains inside an
-explicit `unsafe:` region and outside Rocket's guarantees.
+explicit `unsafe:` region and outside Rocket's guarantees. An `unsafe:` block
+does not grant either property, so a native pointer still cannot be captured by
+a task. `Thread[T]` is `Send` when `T` is `Send`, but is never `Share`.
+Primitive payloads are valid at mutex, once, channel, task-group, and thread
+boundaries; the runtime ABI preserves their exact type.
 
 Stable diagnostics are:
 
-- `R4101`: a task/thread/channel/synchronized-storage value is not managed and
-  `Send`;
+- `R4101`: a task/thread/channel/synchronized-storage value does not satisfy
+  its `Send` or `Share` constraint;
 - `R4102`: a weak target is not an identity-bearing `Share` value;
 - `R4103`: a move-only value is used after consumption;
 - `R4104`: a scoped concurrency value escapes;
@@ -148,8 +157,9 @@ locals remain owning MIR locals on the worker stack and cleanup exactly once.
 Task states are `queued -> running -> completed`. Cancellation before start
 publishes one cancellation error. Running work observes cancellation
 cooperatively at await and explicit wait/I/O points. Completion is immutable;
-a late `task.cancel` returns `false`. Multiple joins/awaits return owned views of
-the same immutable result. At process exit the singleton executor stops
+a late `task.cancel` returns `false`. `Task[T]` is an affine handle: `join` and
+`await` consume it exactly once, while `is_complete` and `cancel` borrow it.
+This prevents repeated extraction from aliasing a move-only result. At process exit the singleton executor stops
 accepting work, drains its bounded queue, and joins every worker. Rocket 1.8
 does not expose user-created executor pools; the required thread pool is the
 bounded default executor used by all tasks and asynchronous operations.
@@ -162,7 +172,7 @@ bounded default executor used by all tasks and asynchronous operations.
 
 ## Dedicated threads and structured groups
 
-`thread.spawn` accepts an already-created `Task[T]`. It creates one dedicated
+`thread.spawn` consumes an already-created `Task[T]`. It creates one dedicated
 Windows coordination thread that owns and awaits that task. This keeps the
 source boundary typed and prevents borrowed closure state from escaping.
 
@@ -216,17 +226,21 @@ atomic_fetch_add(value, delta) -> Int
 atomic_compare_exchange(value, expected, replacement) -> Bool
 
 once[T](value) -> Once[T]
+once_empty[T](type_witness) -> Once[T]
 once_set[T](cell, value) -> Result[Bool, String]
 once_get[T](cell) -> Option[T]
 ```
 
-Mutex and once values must be managed and `Send`. Guard reads/writes borrow;
+Mutex and once values must be `Share`. Guard reads/writes borrow;
 unlock consumes; dropping a live guard unlocks it. Rocket has no exception
 poison state: recoverable errors do not poison, and a panic terminates. Event
 waits use a locked predicate, preventing lost wakeups; auto-reset consumes one
 set. Integer atomics are sequentially consistent. `once(value)` publishes its
 seed immediately; `once_set` therefore returns `Ok(false)` for that initialized
-cell and `once_get` returns an owned `Some(value)`.
+cell and `once_get` returns an owned `Some(value)`. `once_empty(witness)` uses
+its argument only to infer `T`. Concurrent `once_set` calls linearize under the
+cell lock: exactly one returns `Ok(true)`, and every later getter observes that
+immutable value.
 
 ## Channels
 
@@ -245,7 +259,8 @@ close_sender[T](sender) -> Result[Bool, String]
 close_receiver[T](receiver) -> Result[Bool, String]
 ```
 
-`T` must be a managed `Send` value. A bounded capacity is 1 through 65,536 and
+`T` must be `Send`; scalar and managed payloads use the same typed contract. A
+bounded capacity is 1 through 65,536 and
 cannot be smaller than `initial.length`; a full send applies backpressure until
 space, cancellation, deadline, or disconnection. The resource-limited
 unbounded form permits 1,048,576 pending values, then returns `Err`. FIFO order
@@ -275,9 +290,9 @@ token outside a task. Observation points are task start, await, timer loops,
 mutex/event/channel waits, file chunk boundaries, socket operation boundaries,
 and process wait polling. An explicit operation token and its current task
 token are both observed. Deadlines use the monotonic clock. Negative durations
-are errors; an elapsed absolute deadline fails immediately. Timer waits poll in
-bounded 2 ms slices on the default executor, so cancellation cannot be lost or
-double-complete a task.
+are errors; an elapsed absolute deadline fails immediately. Timer waits use a
+Windows waitable timer and observe cancellation in bounded 2 ms slices on the
+default executor, so cancellation cannot be lost or double-complete a task.
 
 ## Windows x64 asynchronous files, sockets, and processes
 
@@ -296,26 +311,30 @@ async_net.shutdown(socket) -> Result[Bool, String]
 async_process.run(program, arguments, deadline, token) -> Task[Int]
 ```
 
-The implementation uses the bounded default executor as its documented
-scalable mechanism; it does not create an unbounded operating-system thread per
-I/O request. File work uses 64 KiB progress chunks and a 64 MiB request cap.
+The implementation uses the bounded default executor plus Windows platform
+events; it does not create an unbounded operating-system thread per I/O
+request. Files use `FILE_FLAG_OVERLAPPED`, per-operation events,
+`GetOverlappedResult`, and `CancelIoEx`; work advances in 64 KiB chunks with a
+64 MiB request cap.
 Read consumes the known file size up to `maximum`; an empty successful buffer
 is EOF. Write continues through the full buffer or returns an error.
 
-Socket calls reuse the Windows socket layer with the remaining deadline.
+Socket calls reuse nonblocking Winsock plus `select` readiness with the
+remaining deadline.
 `receive` may return fewer than `maximum` bytes, including an empty buffer for
 orderly shutdown. `send` returns the actual byte count, so callers that require
 a complete write must loop until their buffer is exhausted. A successful
 connect or accept that loses a cancellation race is closed before cancellation
 is returned. `shutdown` closes the runtime socket handle and prevents reuse.
 
-Process execution uses `CreateProcessW`, direct UTF-8 argument quoting, and a
-10 ms bounded wait loop. Deadline or cancellation terminates only the directly
+Process execution uses `CreateProcessW`, direct UTF-8 argument quoting, and
+bounded waits on the process handle. Deadline or cancellation terminates only the directly
 created child and waits for its handle before completing. The result is the
 exit code. Rocket 1.8 deliberately inherits the child's standard streams and
 does not yet expose output capture; this is a documented limitation, not a
-silent truncation behavior. File/socket operations are bounded worker-blocking
-rather than IOCP-overlapped in 1.8.
+silent truncation behavior. Socket and process coordination remains
+bounded-worker blocking rather than a general IOCP completion dispatcher in
+1.8; file transfer itself is overlapped.
 
 All handles and buffers stay owned until the single task completion is
 published. Timeouts, cancellation, close races, resource limits, and platform

@@ -1,0 +1,10 @@
+extern fn native_race_pointer() -> Pointer[Int]
+
+async fn transfer(pointer: Pointer[Int]) -> Result[Int, String]:
+    return Ok(1)
+
+fn main() -> Int:
+    unsafe:
+        let pointer = native_race_pointer()
+        let task = transfer(pointer)
+    return 0

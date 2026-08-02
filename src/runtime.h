@@ -34,6 +34,7 @@ enum RocketElementKind : std::uint32_t {
 };
 
 std::uint32_t rocket_rt_abi_version();
+std::uint8_t rocket_rt_debug_executor_cycles(std::int64_t cycles);
 
 void rocket_rt_retain(void* object);
 void rocket_rt_release(void* object);
@@ -50,6 +51,10 @@ std::uint8_t rocket_std_task_cancel(RocketTask* task);
 RocketTaskGroup* rocket_std_task_group(RocketArray* tasks);
 RocketTaskGroup* rocket_std_task_group_string(RocketArray* tasks);
 RocketTaskGroup* rocket_std_task_group_managed(RocketArray* tasks);
+RocketTaskGroup* rocket_std_task_group_int(RocketArray* tasks);
+RocketTaskGroup* rocket_std_task_group_float(RocketArray* tasks);
+RocketTaskGroup* rocket_std_task_group_bool(RocketArray* tasks);
+RocketTaskGroup* rocket_std_task_group_char(RocketArray* tasks);
 RocketAggregate* rocket_std_task_group_join(RocketTaskGroup* group);
 std::uint8_t rocket_std_task_group_cancel(RocketTaskGroup* group);
 RocketAggregate* rocket_std_thread_spawn(RocketTask* task);
@@ -124,10 +129,28 @@ RocketTask* rocket_std_async_process_run(RocketString* program,
                                          std::int64_t deadline,
                                          RocketCancellation* token);
 RocketMutex* rocket_std_sync_mutex(void* value);
+RocketMutex* rocket_std_sync_mutex_managed(void* value);
+RocketMutex* rocket_std_sync_mutex_string(RocketString* value);
+RocketMutex* rocket_std_sync_mutex_int(std::int64_t value);
+RocketMutex* rocket_std_sync_mutex_float(double value);
+RocketMutex* rocket_std_sync_mutex_bool(std::uint8_t value);
+RocketMutex* rocket_std_sync_mutex_char(std::uint8_t value);
 RocketAggregate* rocket_std_sync_lock(RocketMutex* mutex, std::int64_t deadline,
                                       RocketCancellation* token);
 void* rocket_std_sync_guard_get(RocketGuard* guard);
+void* rocket_std_sync_guard_get_managed(RocketGuard* guard);
+RocketString* rocket_std_sync_guard_get_string(RocketGuard* guard);
+std::int64_t rocket_std_sync_guard_get_int(RocketGuard* guard);
+double rocket_std_sync_guard_get_float(RocketGuard* guard);
+std::uint8_t rocket_std_sync_guard_get_bool(RocketGuard* guard);
+std::uint8_t rocket_std_sync_guard_get_char(RocketGuard* guard);
 std::uint8_t rocket_std_sync_guard_set(RocketGuard* guard, void* value);
+std::uint8_t rocket_std_sync_guard_set_managed(RocketGuard* guard, void* value);
+std::uint8_t rocket_std_sync_guard_set_string(RocketGuard* guard, RocketString* value);
+std::uint8_t rocket_std_sync_guard_set_int(RocketGuard* guard, std::int64_t value);
+std::uint8_t rocket_std_sync_guard_set_float(RocketGuard* guard, double value);
+std::uint8_t rocket_std_sync_guard_set_bool(RocketGuard* guard, std::uint8_t value);
+std::uint8_t rocket_std_sync_guard_set_char(RocketGuard* guard, std::uint8_t value);
 RocketAggregate* rocket_std_sync_unlock(RocketGuard* guard);
 RocketEvent* rocket_std_sync_event(std::uint8_t manualReset,
                                    std::uint8_t initiallySet);
@@ -145,8 +168,33 @@ std::uint8_t rocket_std_sync_atomic_compare_exchange(RocketAtomicInt* value,
                                                      std::int64_t expected,
                                                      std::int64_t replacement);
 RocketOnce* rocket_std_sync_once(void* value);
+RocketOnce* rocket_std_sync_once_managed(void* value);
+RocketOnce* rocket_std_sync_once_string(RocketString* value);
+RocketOnce* rocket_std_sync_once_int(std::int64_t value);
+RocketOnce* rocket_std_sync_once_float(double value);
+RocketOnce* rocket_std_sync_once_bool(std::uint8_t value);
+RocketOnce* rocket_std_sync_once_char(std::uint8_t value);
+RocketOnce* rocket_std_sync_once_empty(void* witness);
+RocketOnce* rocket_std_sync_once_empty_managed(void* witness);
+RocketOnce* rocket_std_sync_once_empty_string(RocketString* witness);
+RocketOnce* rocket_std_sync_once_empty_int(std::int64_t witness);
+RocketOnce* rocket_std_sync_once_empty_float(double witness);
+RocketOnce* rocket_std_sync_once_empty_bool(std::uint8_t witness);
+RocketOnce* rocket_std_sync_once_empty_char(std::uint8_t witness);
 RocketAggregate* rocket_std_sync_once_set(RocketOnce* cell, void* value);
+RocketAggregate* rocket_std_sync_once_set_managed(RocketOnce* cell, void* value);
+RocketAggregate* rocket_std_sync_once_set_string(RocketOnce* cell, RocketString* value);
+RocketAggregate* rocket_std_sync_once_set_int(RocketOnce* cell, std::int64_t value);
+RocketAggregate* rocket_std_sync_once_set_float(RocketOnce* cell, double value);
+RocketAggregate* rocket_std_sync_once_set_bool(RocketOnce* cell, std::uint8_t value);
+RocketAggregate* rocket_std_sync_once_set_char(RocketOnce* cell, std::uint8_t value);
 RocketAggregate* rocket_std_sync_once_get(RocketOnce* cell);
+RocketAggregate* rocket_std_sync_once_get_managed(RocketOnce* cell);
+RocketAggregate* rocket_std_sync_once_get_string(RocketOnce* cell);
+RocketAggregate* rocket_std_sync_once_get_int(RocketOnce* cell);
+RocketAggregate* rocket_std_sync_once_get_float(RocketOnce* cell);
+RocketAggregate* rocket_std_sync_once_get_bool(RocketOnce* cell);
+RocketAggregate* rocket_std_sync_once_get_char(RocketOnce* cell);
 RocketAggregate* rocket_std_channel_bounded(RocketArray* initial,
                                             std::int64_t capacity);
 RocketAggregate* rocket_std_channel_unbounded(RocketArray* initial);
@@ -157,6 +205,28 @@ RocketReceiver* rocket_std_channel_clone_receiver(RocketReceiver* receiver);
 RocketAggregate* rocket_std_channel_send(RocketSender* sender, void* value,
                                          std::int64_t deadline,
                                          RocketCancellation* token);
+RocketAggregate* rocket_std_channel_send_managed(RocketSender* sender, void* value,
+                                                 std::int64_t deadline,
+                                                 RocketCancellation* token);
+RocketAggregate* rocket_std_channel_send_string(RocketSender* sender,
+                                                RocketString* value,
+                                                std::int64_t deadline,
+                                                RocketCancellation* token);
+RocketAggregate* rocket_std_channel_send_int(RocketSender* sender,
+                                             std::int64_t value,
+                                             std::int64_t deadline,
+                                             RocketCancellation* token);
+RocketAggregate* rocket_std_channel_send_float(RocketSender* sender, double value,
+                                               std::int64_t deadline,
+                                               RocketCancellation* token);
+RocketAggregate* rocket_std_channel_send_bool(RocketSender* sender,
+                                              std::uint8_t value,
+                                              std::int64_t deadline,
+                                              RocketCancellation* token);
+RocketAggregate* rocket_std_channel_send_char(RocketSender* sender,
+                                              std::uint8_t value,
+                                              std::int64_t deadline,
+                                              RocketCancellation* token);
 RocketAggregate* rocket_std_channel_receive(RocketReceiver* receiver,
                                             std::int64_t deadline,
                                             RocketCancellation* token);

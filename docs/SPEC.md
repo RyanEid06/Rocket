@@ -204,10 +204,16 @@ one, and rebinding releases the prior Array after the updated value is owned.
 
 `UniqueBuffer[T]` is move-only mutation authority. A source operation either
 borrows it explicitly or consumes it; an ordinary copy or use after move is a
-compile-time error. Freezing returns an immutable Array snapshot. `Send` and
+compile-time error. A borrowing operation checks moved state and therefore
+cannot revive a consumed buffer or lock guard. Freezing returns an immutable
+Array snapshot. `Send` and
 `Share` are derived structurally and cannot be asserted by user source. Values
 published to another thread are checked and their reachable ARC graph is
 promoted to atomic ownership. Thread-confined values retain plain-count ARC.
+Scalar and managed values may cross typed concurrency boundaries without
+boxing at source level. Mutex payloads, once-cell values, and readable unique
+buffer elements require `Share`. `Task[T]` and aggregates containing move-only
+values are move-only; task join/await consume while status/cancel borrow.
 The complete derivation, move, weak, memory-ordering, and scoped-value rules are
 normative in `CONCURRENCY.md`.
 
@@ -221,8 +227,9 @@ async fn load(path: String) -> Result[UniqueBuffer[Char], String]:
 `async` immediately before `fn` declares an async function. Its written result
 must be `Result[T, String]` and `T` must satisfy `Send`. Calling it evaluates
 arguments left to right and returns `Task[T]`. Prefix `await` is valid only in
-an async body; `await task` has type `Result[T, String]` when `task` has type
-`Task[T]`. The existing postfix `?` therefore composes as `(await task)?`.
+an async body; `await task` consumes a `Task[T]` and has type
+`Result[T, String]`. The existing postfix `?` therefore composes as
+`(await task)?`.
 
 Await is explicit in HIR and MIR. It is a cooperative cancellation observation
 point and retains all owning managed locals across the logical suspension.

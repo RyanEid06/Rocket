@@ -1358,6 +1358,7 @@ private:
     case Intrinsic::ThreadIsComplete: return "rocket_std_thread_is_complete";
     case Intrinsic::TaskCancel: return "rocket_std_task_cancel";
     case Intrinsic::TaskGroupCancel: return "rocket_std_task_group_cancel";
+    case Intrinsic::SyncOnceEmpty: return "rocket_std_sync_once_empty";
     default: return nullptr;
     }
   }
@@ -1394,6 +1395,26 @@ private:
       runtimeName += runtimeElementSuffix(value.type);
     }
     if (symbol.intrinsic == Intrinsic::TaskGroup) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.type.arguments.at(0));
+    }
+    if (symbol.intrinsic == Intrinsic::SyncMutex ||
+        symbol.intrinsic == Intrinsic::SyncOnce ||
+        symbol.intrinsic == Intrinsic::SyncOnceEmpty) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.arguments.at(0).type);
+    }
+    if (symbol.intrinsic == Intrinsic::SyncGuardGet) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.type);
+    }
+    if (symbol.intrinsic == Intrinsic::SyncGuardSet ||
+        symbol.intrinsic == Intrinsic::SyncOnceSet ||
+        symbol.intrinsic == Intrinsic::ChannelSend) {
+      runtimeName += "_";
+      runtimeName += runtimeElementSuffix(value.arguments.at(1).type);
+    }
+    if (symbol.intrinsic == Intrinsic::SyncOnceGet) {
       runtimeName += "_";
       runtimeName += runtimeElementSuffix(value.type.arguments.at(0));
     }

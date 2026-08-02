@@ -32,9 +32,9 @@ Manifest and tooling errors without a source position use
 | `R4003` | Control flow | Invalid loop control, entry point, or return path |
 | `R4004` | Pattern match | Invalid, duplicate, or non-exhaustive cases |
 | `R4005` | Arity | Wrong number of call or constructor arguments |
-| `R4101` | Send constraint | A thread, task, channel, async operation, or publication captures/transfers a value that is not `Send` |
+| `R4101` | Concurrency constraint | A boundary transfers a non-`Send` value, or repeatable mutex/once/buffer access requires a value that is not `Share` |
 | `R4102` | Share constraint | A weak reference targets a value that is not an identity-bearing `Share` value |
-| `R4103` | Move-only ownership | A `UniqueBuffer`, thread, guard, or task-group value is copied or used after move |
+| `R4103` | Move-only ownership | A task, unique buffer, thread, guard, task group, or aggregate containing one is copied, recaptured, or used after move |
 | `R4104` | Scoped lifetime | A lock guard or structured task group is returned, stored, sent, or captured beyond its lexical scope |
 | `R4105` | Await context | `await` occurs outside an async function or its operand is not `Task[T]` |
 | `R4106` | Async suspension | An async result/capture/local cannot safely cross a suspension or async functions do not return `Result[T, String]` |

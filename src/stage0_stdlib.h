@@ -253,11 +253,40 @@ inline std::int64_t rocket_std_async_time_remaining(std::int64_t deadline) {
 inline RocketTask rocket_std_async_time_sleep_until(
     std::int64_t deadline, const RocketCancellation& token) {
   return rocket_task([deadline, token] {
+#ifdef _WIN32
+    HANDLE timer = CreateWaitableTimerExW(
+        nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    if (!timer) timer = CreateWaitableTimerW(nullptr, TRUE, nullptr);
+    if (!timer)
+      return rocket_stage0_error("could not create Windows waitable timer");
+    while (rocket_stage0_monotonic_milliseconds() < deadline) {
+      if (rocket_stage0_operation_cancelled(token)) {
+        CancelWaitableTimer(timer); CloseHandle(timer);
+        return rocket_stage0_error("operation cancelled");
+      }
+      LARGE_INTEGER due{};
+      due.QuadPart = -(std::max)(std::int64_t{1}, (std::min)(
+          deadline - rocket_stage0_monotonic_milliseconds(),
+          std::int64_t{86400000})) * 10000;
+      if (!SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE)) {
+        CloseHandle(timer);
+        return rocket_stage0_error("could not arm Windows waitable timer");
+      }
+      while (WaitForSingleObject(timer, 2) == WAIT_TIMEOUT) {
+        if (rocket_stage0_operation_cancelled(token)) {
+          CancelWaitableTimer(timer); CloseHandle(timer);
+          return rocket_stage0_error("operation cancelled");
+        }
+      }
+    }
+    CloseHandle(timer);
+#else
     while (rocket_stage0_monotonic_milliseconds() < deadline) {
       if (rocket_stage0_operation_cancelled(token))
         return rocket_stage0_error("operation cancelled");
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
+#endif
     return rocket_stage0_ok(true);
   });
 }
@@ -406,6 +435,9 @@ template <typename T> struct RocketOnceState { std::mutex mutex; std::optional<T
 template <typename T> using RocketOnce = std::shared_ptr<RocketOnceState<T>>;
 template <typename T> RocketOnce<T> rocket_std_sync_once(T value) {
   auto once = std::make_shared<RocketOnceState<T>>(); once->value = std::move(value); return once;
+}
+template <typename T> RocketOnce<T> rocket_std_sync_once_empty(const T&) {
+  return std::make_shared<RocketOnceState<T>>();
 }
 template <typename T> RocketAggregate rocket_std_sync_once_set(
     const RocketOnce<T>& once, T value) {

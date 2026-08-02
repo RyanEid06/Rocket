@@ -1,0 +1,6 @@
+import std.buffer
+
+fn main() -> Int:
+    let inner = buffer.thaw([1, 2, 3])
+    let nested = buffer.thaw([inner])
+    return 0

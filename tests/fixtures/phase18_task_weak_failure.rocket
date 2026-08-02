@@ -1,0 +1,9 @@
+import std.ownership
+
+async fn produce() -> Result[Int, String]:
+    return Ok(42)
+
+fn main() -> Int:
+    let pending = produce()
+    let observer = ownership.downgrade(pending)
+    return 0

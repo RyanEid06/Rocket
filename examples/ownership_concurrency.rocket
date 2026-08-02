@@ -1,5 +1,6 @@
 import std.buffer
 import std.ownership
+import std.sync
 import std.task
 
 struct Record:
@@ -29,4 +30,17 @@ fn main() -> Int:
         case Err(message):
             print(message)
             return 2
+
+    let initialized = sync.once_empty(0)
+    match sync.once_set(initialized, 7):
+        case Ok(won):
+            print(won)
+        case Err(message):
+            print(message)
+            return 3
+    match sync.once_get(initialized):
+        case Some(value):
+            print(value)
+        case None:
+            return 4
     return 0

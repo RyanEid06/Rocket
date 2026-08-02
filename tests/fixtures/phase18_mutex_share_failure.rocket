@@ -1,0 +1,7 @@
+import std.buffer
+import std.sync
+
+fn main() -> Int:
+    let values = buffer.thaw([1, 2, 3])
+    let mutex = sync.mutex(values)
+    return 0

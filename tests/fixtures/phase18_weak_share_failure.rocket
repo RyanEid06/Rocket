@@ -1,0 +1,8 @@
+import std.buffer
+import std.ownership
+
+fn main() -> Int:
+    let mutable = buffer.thaw([1, 2, 3])
+    let observer = ownership.downgrade(mutable)
+    print(ownership.expired(observer))
+    return 0

@@ -467,8 +467,9 @@ Buffer `length`, `capacity`, and `get` borrow. `set`, `append`, `slice`, and
 | `sleep(milliseconds: Int, token: CancellationToken)` | `Task[Bool]` |
 | `sleep_until(deadline: Int, token: CancellationToken)` | `Task[Bool]` |
 
-Deadlines are monotonic `Int` values. Timer tasks run in bounded polling slices
-on the default executor and observe both their explicit token and task token.
+Deadlines are monotonic `Int` values. Timer tasks use Windows waitable timers
+with bounded cancellation observation on the default executor and observe both
+their explicit token and task token.
 
 ### `std.thread` and `std.task`
 
@@ -485,8 +486,9 @@ on the default executor and observe both their explicit token and task token.
 | `task.group_cancel[T](group: TaskGroup[T])` | `Bool` |
 | `task.group_join[T](group: TaskGroup[T])` | `Result[Array[T], String]` |
 
-Thread join/detach and group join consume their move-only handle;
-`is_complete` and `group_cancel` borrow. Async calls use one default pool with
+Task join/await, thread spawn/join/detach, task-group construction, and group
+join consume their move-only input; task/thread `is_complete`, task `cancel`,
+and `group_cancel` borrow. Async calls use one default pool with
 1-64 workers and a 65,536-entry queue. Group results and the selected first
 error use input-array order.
 
@@ -509,13 +511,15 @@ error use input-array order.
 | `atomic_fetch_add(value: AtomicInt, delta: Int)` | `Int` |
 | `atomic_compare_exchange(value: AtomicInt, expected: Int, replacement: Int)` | `Bool` |
 | `once[T](value: T)` | `Once[T]` |
+| `once_empty[T](type_witness: T)` | `Once[T]` |
 | `once_set[T](cell: Once[T], value: T)` | `Result[Bool, String]` |
 | `once_get[T](cell: Once[T])` | `Option[T]` |
 
 Guard reads/writes borrow; unlock consumes. Mutex and once values must be
-`Send`. Events use predicate-based waits, atomics are sequentially consistent,
-and mutexes do not have exception poisoning. `once(value)` publishes its seed
-immediately, so `once_set` on that initialized cell returns `Ok(false)`.
+`Share`. Events use predicate-based waits, atomics are
+sequentially consistent, and mutexes do not have exception poisoning.
+`once(value)` publishes its seed immediately. `once_empty(witness)` uses its
+argument only to infer `T`; exactly one concurrent `once_set` succeeds.
 
 ### `std.channel`
 
@@ -535,7 +539,7 @@ immediately, so `once_set` on that initialized cell returns `Ok(false)`.
 Send consumes `value`. Endpoints are explicitly cloneable. Bounded channels
 apply backpressure; unbounded channels return a resource error at the process
 safety ceiling. Dropping the last endpoint closes its direction and wakes every
-waiter.
+waiter. Any structurally `Send` payload is accepted, including primitives.
 
 ### Asynchronous files, sockets, and processes
 
@@ -553,4 +557,6 @@ waiter.
 Partial I/O, EOF, close, cancellation races, and resource limits are defined
 in `CONCURRENCY.md`. Async process execution returns the child exit code and
 inherits standard streams; 1.8 does not expose output capture. The Rocket 1.5
-synchronous functions remain unchanged.
+synchronous functions remain unchanged. The Windows backend combines bounded
+executor work with overlapped file events, Winsock readiness, waitable timers,
+and process-handle waits.

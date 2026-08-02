@@ -38,14 +38,18 @@ let immutable = buffer.freeze(grown)
 Every consuming buffer operation moves its input. Reusing the old binding is an
 `R4103` error. A frozen buffer becomes an ordinary immutable `Array[T]`; slices
 remain retained immutable views and never expose aliases to mutable storage.
+Buffer elements must satisfy `Share`, and a reusable closure cannot capture a
+buffer or another move-only value.
 
 ## Make concurrency boundaries explicit
 
 `Send` means that ownership may cross a concurrency boundary. `Share` means a
 value may be observed concurrently. Rocket derives both structurally and does
 not allow user-written unsafe implementations. Pointers, opaque native handles,
-unique buffers, guards, and task groups are intentionally rejected at the
-wrong boundary with `R4101`-`R4104`.
+guards, and task groups are intentionally rejected at the wrong boundary with
+`R4101`-`R4104`. A unique buffer may move through a `Send` boundary but is never
+`Share`. Primitives remain valid payloads for mutexes, once cells, channels,
+task groups, and threads.
 
 The public scheduler is one bounded default pool. Calling an `async fn` queues
 work and returns `Task[T]`; it does not create an OS thread per call. Use
@@ -66,7 +70,10 @@ match task.join(pending):
 Async functions must return `Result[T, String]`, and `T` must be `Send`.
 `await` is valid only inside an async function and also produces
 `Result[T, String]`. Existing postfix `?`, loops, matches, and returns keep their
-normal ownership cleanup behavior.
+normal ownership cleanup behavior. `Task[T]` is move-only: `task.join`, `await`,
+and `thread.spawn` consume it exactly once; `task.is_complete` and
+`task.cancel` borrow it. Arrays and user aggregates containing a task or other
+move-only value inherit that move-only status.
 
 ## Handle cancellation, deadlines, and closure
 
@@ -75,10 +82,16 @@ deadlines from `time.monotonic_milliseconds()`, and continue to handle ordinary
 `Result` errors. Cancelling a completed task returns `false`; cancellation does
 not retroactively change its result.
 
-Channels in 1.8 are bounded FIFO queues. Their constructors take an initial
-array and a capacity; send applies backpressure, receive returns `None` after
-the queue is drained and all senders close, and all waits accept a deadline and
-cancellation token. Rocket 1.8 does not expose an unbounded channel.
+Channels in 1.8 include bounded FIFO queues and a deliberately
+resource-limited unbounded form. Bounded construction takes an initial array
+and capacity; send applies backpressure, receive returns `None` after the queue
+is drained and all senders close, and all waits accept a deadline and
+cancellation token. The unbounded form returns `Err` after 1,048,576 pending
+values.
+
+Use `sync.once(value)` for an already initialized cell. Use
+`sync.once_empty(witness)` when threads must race to initialize; the witness is
+only a type-inference value, and exactly one `once_set` returns `Ok(true)`.
 
 Task groups take a finite array of already-created tasks. `group_join` returns
 results in input order and the first input-order failure. Dropping an unjoined
@@ -88,10 +101,12 @@ group-spawn API in 1.8.
 ## Windows asynchronous I/O limits
 
 The new async file, socket, process, and timer APIs use the bounded default
-worker pool. File and socket operations are worker-blocking rather than IOCP
-overlapped. Process tasks return an exit code and inherit standard streams;
-they do not capture output. Synchronous Rocket 1.5 APIs remain available when
-these limits are a better fit.
+worker pool and Windows event facilities. Files use overlapped handles and
+cancellable events; sockets use Winsock readiness; timers use waitable timers;
+processes wait on child handles. Socket/process coordination is still
+worker-blocking rather than a general IOCP dispatcher. Process tasks return an
+exit code and inherit standard streams; they do not capture output.
+Synchronous Rocket 1.5 APIs remain available when these limits are a better fit.
 
 See `CONCURRENCY.md`, `STDLIB.md`, and the Rocket 1.8 syntax dictionary for the
 normative signatures and memory-ordering rules.

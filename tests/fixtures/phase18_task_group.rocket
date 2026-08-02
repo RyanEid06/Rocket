@@ -3,6 +3,9 @@ import std.task
 async fn label(value: String) -> Result[String, String]:
     return Ok(value)
 
+async fn number(value: Int) -> Result[Int, String]:
+    return Ok(value)
+
 fn main() -> Int:
     let group = task.group([label("first"), label("second"), label("third")])
     match task.group_join(group):
@@ -13,4 +16,11 @@ fn main() -> Int:
         case Err(message):
             print(message)
             return 1
+    let numbers = task.group([number(40), number(2)])
+    match task.group_join(numbers):
+        case Ok(values):
+            print(values[0] + values[1])
+        case Err(message):
+            print(message)
+            return 2
     return 0

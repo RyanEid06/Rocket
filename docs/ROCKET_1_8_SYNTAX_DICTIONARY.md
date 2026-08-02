@@ -13,8 +13,8 @@ async fn fetch(path: String) -> Result[UniqueBuffer[Char], String]:
 - `async` immediately before `fn` declares an asynchronous function.
 - Its written result must be `Result[T, String]` with `T: Send`.
 - Calling it returns `Task[T]` after evaluating arguments left to right.
-- `await task` is a prefix expression valid only in an async body and has type
-  `Result[T, String]` for an operand of type `Task[T]`.
+- `await task` is a prefix expression valid only in an async body, consumes its
+  `Task[T]` operand, and has type `Result[T, String]`.
 - `(await task)?` uses the existing postfix propagation rule.
 
 ## Ownership types
@@ -27,11 +27,16 @@ let frozen: Array[Char] = buffer.freeze(bytes)
 ```
 
 `Weak[T]`, `UniqueBuffer[T]`, and `Task[T]` are built-in structural generic type
-spellings. `Weak` is non-owning; `UniqueBuffer` is move-only; `Task` is an
-internally synchronized owned handle. Standard concurrency handle types live in
+spellings. `Weak` is non-owning; `UniqueBuffer` and `Task` are move-only;
+`Task` is an internally synchronized owned handle whose result is consumed by
+one join or await. Standard concurrency handle types live in
 `std.thread`, `std.task`, `std.sync`, `std.channel`, `std.cancel`, and the
 `std.async_*` modules. Their exact signatures and lifetime rules are defined in
 `CONCURRENCY.md` and `STDLIB.md`.
+
+`sync.once(value)` constructs an initialized `Once[T]`.
+`sync.once_empty(type_witness)` constructs an empty cell while inferring `T`;
+the witness is not published. These are library calls, not new syntax.
 
 Rocket 1.8 adds no null, exceptions, shared mutable fields, implicit detach,
 unchecked native sharing, or user-written unsafe `Send`/`Share` implementation.

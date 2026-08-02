@@ -463,7 +463,7 @@ operate in substantial codebases.
 - Exact report and distribution hashes, timings, and deliberate limitations are
   recorded in `PROJECT_CONTEXT.md`.
 
-### Phase 18 - Rocket 1.8: robust ownership, concurrency, and asynchronous I/O - Completed
+### Phase 18 - Rocket 1.8: robust ownership, concurrency, and asynchronous I/O - Implementation complete; validation follow-up
 
 **Purpose:** Support responsive applications and parallel services while keeping
 Rocket's default programming model understandable and safe.
@@ -494,16 +494,19 @@ Rocket's default programming model understandable and safe.
 
 **Acceptance evidence:**
 
-- Pinned LLVM Debug and Release passed 179/179 tests; LLVM-disabled stage0
-  Debug and Release passed 136/136. The focused 41-test Phase 18 suite passed
-  twice, including native and self-hosted checks.
-- Release conformance passed 90/90 cases and all 11 performance budgets passed.
-  Packaging and sanitized relocation passed with Rocket 1.8 runtime/docs and a
-  separately named stage0 compiler.
-- Release stage2/stage3 LLVM IR is byte-identical at SHA-256
-  `413766d67b0d0496bc163a63a6e329f75247e5b96cefa637c65f3f780d3e9b6e`.
-  Exact timings, executable/report/archive hashes, and deliberate Windows 1.8
-  limitations are recorded in `PROJECT_CONTEXT.md`.
+- The expanded pre-final-gating LLVM Debug/Release matrices passed 210/210,
+  LLVM-disabled stage0 Debug/Release passed 165/165, and the focused Phase 18
+  selection passed 78/78 twice, including compiler, runtime stress, native,
+  and self-hosted checks. Direct final-source compiler and ownership parity
+  checks also passed.
+- The most recent completed pre-final-gating bootstrap produced byte-identical
+  stage2/stage3 LLVM IR at SHA-256
+  `4c4491f28fe9013e151f88147fbce6d921e3fd90d39c343428726f6e2681c315`.
+- Final-source full matrices, bootstrap/conformance hashes, the updated
+  performance budget, and package/relocation must be rerun. Exact observed
+  timings, failures, and the reason the upload preceded those reruns are
+  recorded in `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`; no stale artifact
+  is presented as the final Rocket 1.8 package.
 
 ### Phase 19 - Rocket 1.9: multi-platform compiler and runtime
 

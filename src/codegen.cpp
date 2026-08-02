@@ -334,6 +334,7 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::ThreadIsComplete: return "rocket_std_thread_is_complete";
   case Intrinsic::TaskCancel: return "rocket_std_task_cancel";
   case Intrinsic::TaskGroupCancel: return "rocket_std_task_group_cancel";
+  case Intrinsic::SyncOnceEmpty: return "rocket_std_sync_once_empty";
   default: return nullptr;
   }
 }

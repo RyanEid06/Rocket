@@ -37,6 +37,37 @@ fn main() -> Int:
         case None:
             print("missing")
 
+    let scalar_mutex = sync.mutex(10)
+    match sync.lock(scalar_mutex, time.monotonic_milliseconds() + 1000, token):
+        case Ok(scalar_guard):
+            print(sync.guard_get(scalar_guard))
+            print(sync.guard_set(scalar_guard, 11))
+            let scalar_unlocked = sync.unlock(scalar_guard)
+            match scalar_unlocked:
+                case Ok(value):
+                    print(value)
+                case Err(message):
+                    print(message)
+        case Err(message):
+            print(message)
+
+    let empty_once = sync.once_empty(0)
+    match sync.once_get(empty_once):
+        case Some(value):
+            print(value)
+        case None:
+            print("empty")
+    match sync.once_set(empty_once, 12):
+        case Ok(value):
+            print(value)
+        case Err(message):
+            print(message)
+    match sync.once_get(empty_once):
+        case Some(value):
+            print(value)
+        case None:
+            print("missing")
+
     let created = channel.bounded(["first"], 2)
     match created:
         case Ok(ch):
@@ -50,6 +81,28 @@ fn main() -> Int:
                     print(message)
             let received = channel.receive(receiver, time.monotonic_milliseconds() + 1000, token)
             match received:
+                case Ok(item):
+                    match item:
+                        case Some(value):
+                            print(value)
+                        case None:
+                            print("closed")
+                case Err(message):
+                    print(message)
+        case Err(message):
+            print(message)
+
+    let scalar_created = channel.unbounded([21])
+    match scalar_created:
+        case Ok(ch):
+            let sender = channel.sender(ch)
+            let receiver = channel.receiver(ch)
+            match channel.send(sender, 22, time.monotonic_milliseconds() + 1000, token):
+                case Ok(value):
+                    print(value)
+                case Err(message):
+                    print(message)
+            match channel.receive(receiver, time.monotonic_milliseconds() + 1000, token):
                 case Ok(item):
                     match item:
                         case Some(value):

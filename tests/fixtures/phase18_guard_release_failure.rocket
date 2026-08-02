@@ -1,0 +1,14 @@
+import std.cancel
+import std.sync
+import std.time
+
+fn main() -> Int:
+    let mutex = sync.mutex(1)
+    let token = cancel.token()
+    match sync.lock(mutex, time.monotonic_milliseconds() + 1000, token):
+        case Ok(guard):
+            let unlocked = sync.unlock(guard)
+            print(sync.guard_get(guard))
+        case Err(message):
+            print(message)
+    return 0

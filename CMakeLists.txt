@@ -268,6 +268,10 @@ set_tests_properties(phase14_raylib_adapter PROPERTIES LABELS "phase14;raylib;na
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
 add_test(NAME runtime COMMAND rocketc_runtime_tests)
+set_tests_properties(parser hir mir codegen runtime PROPERTIES LABELS "phase18")
+if(LLVM_FOUND)
+  set_tests_properties(llvm_codegen PROPERTIES LABELS "phase18;llvm")
+endif()
 
 add_executable(rocketc_stdlib_tests tests/stdlib_tests.cpp)
 target_link_libraries(rocketc_stdlib_tests PRIVATE rocket_runtime)
@@ -404,7 +408,7 @@ add_test(NAME cli_run_phase9_bootstrap_primitives
     -- first second)
 set_tests_properties(cli_run_phase9_bootstrap_primitives PROPERTIES
   PASS_REGULAR_EXPRESSION "Rocket[\r\n]+4[\r\n]+2")
-foreach(fixture async_join nested_await weak unique_buffer concurrency async_file async_socket async_cancel process task_group task_cancel thread)
+foreach(fixture async_join nested_await weak unique_buffer concurrency async_file async_socket async_cancel process task_group task_cancel thread structured_cleanup unsafe_local)
   add_test(NAME cli_check_phase18_${fixture}
     COMMAND rocketc check "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${fixture}.rocket")
   set_tests_properties(cli_check_phase18_${fixture} PROPERTIES
@@ -420,6 +424,13 @@ add_test(NAME cli_run_phase18_concurrency
 set_tests_properties(cli_run_phase18_concurrency PROPERTIES
   PASS_REGULAR_EXPRESSION "published" LABELS "phase18;concurrency;native" TIMEOUT 30
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+if(LLVM_FOUND)
+  add_test(NAME cli_emit_ir_phase18_scalar_concurrency
+    COMMAND rocketc emit-ir "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_concurrency.rocket")
+  set_tests_properties(cli_emit_ir_phase18_scalar_concurrency PROPERTIES
+    PASS_REGULAR_EXPRESSION "rocket_std_sync_once_empty_int"
+    LABELS "phase18;concurrency;llvm")
+endif()
 add_test(NAME cli_run_phase18_async_file
   COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_async_file.rocket")
 set_tests_properties(cli_run_phase18_async_file PROPERTIES
@@ -457,6 +468,11 @@ add_test(NAME cli_run_phase18_thread
 set_tests_properties(cli_run_phase18_thread PROPERTIES
   PASS_REGULAR_EXPRESSION "thread-result" LABELS "phase18;thread;native" TIMEOUT 30
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME cli_run_phase18_structured_cleanup
+  COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_structured_cleanup.rocket")
+set_tests_properties(cli_run_phase18_structured_cleanup PROPERTIES
+  PASS_REGULAR_EXPRESSION "scope-failed" LABELS "phase18;structured;cleanup;native"
+  TIMEOUT 30 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_test(NAME cli_run_phase18_example
   COMMAND rocketc run "${CMAKE_SOURCE_DIR}/examples/ownership_concurrency.rocket")
@@ -464,7 +480,7 @@ set_tests_properties(cli_run_phase18_example PROPERTIES
   PASS_REGULAR_EXPRESSION "41[\r\n]+3[\r\n]+42"
   LABELS "phase18;example;native" TIMEOUT 30
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
-foreach(failure await_context send async_result_send suspension unique_buffer_move scoped_escape)
+foreach(failure await_context send async_result_send suspension unique_buffer_move scoped_escape weak_share task_weak pointer_send guard_release task_reuse mutex_share capture_move transitive_move buffer_element_share)
   add_test(NAME cli_phase18_${failure}_failure
     COMMAND ${CMAKE_COMMAND}
       "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -514,7 +530,7 @@ add_test(NAME cli_self_hosted_check_package
 set_tests_properties(cli_self_hosted_check_package PROPERTIES
   PASS_REGULAR_EXPRESSION "check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler)
-foreach(fixture async_join nested_await weak unique_buffer concurrency async_file async_socket async_cancel process task_group task_cancel thread)
+foreach(fixture async_join nested_await weak unique_buffer concurrency async_file async_socket async_cancel process task_group task_cancel thread structured_cleanup unsafe_local)
   add_test(NAME cli_self_hosted_phase18_${fixture}
     COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${fixture}.rocket")
@@ -522,6 +538,17 @@ foreach(fixture async_join nested_await weak unique_buffer concurrency async_fil
     PASS_REGULAR_EXPRESSION "check succeeded"
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase18;selfhost")
+endforeach()
+foreach(failure await_context send async_result_send suspension unique_buffer_move scoped_escape weak_share task_weak pointer_send guard_release task_reuse mutex_share capture_move transitive_move buffer_element_share)
+  add_test(NAME cli_self_hosted_phase18_${failure}_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${failure}_failure.rocket"
+      "-DEXPECTED=R410"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
+  set_tests_properties(cli_self_hosted_phase18_${failure}_failure PROPERTIES
+    FIXTURES_REQUIRED self_hosted_compiler
+    LABELS "phase18;selfhost;negative")
 endforeach()
 add_test(NAME cli_self_hosted_fmt_package
   COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" fmt
@@ -914,6 +941,15 @@ if(LLVM_FOUND)
       "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/array_bounds.rocket"
       "-DEXPECTED=rocket runtime error: index 3 out of bounds for length 3"
       -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+
+  add_test(NAME cli_phase18_unique_buffer_bounds_failure
+    COMMAND ${CMAKE_COMMAND}
+      "-DROCKETC=$<TARGET_FILE:rocketc>"
+      "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_unique_buffer_bounds.rocket"
+      "-DEXPECTED=rocket runtime error: index 1 out of bounds for length 1"
+      -P "${CMAKE_SOURCE_DIR}/tests/expect_runtime_failure.cmake")
+  set_tests_properties(cli_phase18_unique_buffer_bounds_failure PROPERTIES
+    LABELS "phase18;ownership;bounds;native")
 
   add_test(NAME cli_slice_bounds_failure
     COMMAND ${CMAKE_COMMAND}

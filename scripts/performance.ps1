@@ -57,7 +57,10 @@ try {
     # The Debug runtime deliberately keeps checks and symbols enabled. Keep its
     # self-analysis ceilings explicit instead of silently applying Release
     # numbers to a different binary configuration.
-    $hirMaximum = if ($Configuration -eq 'Debug') { 180 } else { 120 }
+    # The 1.8 ownership/concurrency closure increased the self-hosted HIR
+    # surface and exposed ordinary 117-126 second host variance. Keep a strict
+    # versioned ceiling with useful regression margin instead of a flaky limit.
+    $hirMaximum = if ($Configuration -eq 'Debug') { 180 } else { 135 }
     $mirMaximum = if ($Configuration -eq 'Debug') { 240 } else { 180 }
     Measure-RocketCommand 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 5
     Measure-RocketCommand 'hello-build' @('build', (Join-Path $projectRoot 'examples\hello.rocket')) 15

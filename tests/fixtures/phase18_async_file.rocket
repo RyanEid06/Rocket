@@ -25,6 +25,12 @@ fn main() -> Int:
         case Err(message):
             print(message)
             return 2
+    match task.join(async_file.read(path, 2, token)):
+        case Ok(contents):
+            print(buffer.length(contents))
+            return 3
+        case Err(message):
+            print("file-limit")
     match file.remove(path):
         case Ok(value):
             print(value)

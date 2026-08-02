@@ -1,7 +1,14 @@
 import std.thread
+import std.task
 
 async fn compute(value: String) -> Result[String, String]:
     return Ok(value)
+
+async fn compute_int(value: Int) -> Result[Int, String]:
+    return Ok(value + 1)
+
+async fn join_transferred(worker: std.thread.Thread[Int]) -> Result[Int, String]:
+    return thread.join(worker)
 
 fn main() -> Int:
     match thread.spawn(compute("thread-result")):
@@ -15,4 +22,26 @@ fn main() -> Int:
         case Err(message):
             print(message)
             return 1
+    match thread.spawn(compute_int(41)):
+        case Ok(worker):
+            match thread.join(worker):
+                case Ok(value):
+                    print(value)
+                case Err(message):
+                    print(message)
+                    return 4
+        case Err(message):
+            print(message)
+            return 3
+    match thread.spawn(compute_int(9)):
+        case Ok(worker):
+            match task.join(join_transferred(worker)):
+                case Ok(value):
+                    print(value)
+                case Err(message):
+                    print(message)
+                    return 6
+        case Err(message):
+            print(message)
+            return 5
     return 0

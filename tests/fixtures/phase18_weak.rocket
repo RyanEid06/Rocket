@@ -3,6 +3,12 @@ import std.ownership
 struct Box:
     value: Int
 
+struct Node:
+    parent: Weak[Node]
+
+fn observe_node(value: Node) -> Weak[Node]:
+    return ownership.downgrade(value)
+
 fn expired_box() -> Weak[Box]:
     let box = Box(7)
     return ownership.downgrade(box)

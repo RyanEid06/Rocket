@@ -130,14 +130,20 @@ struct RuntimeCancellation {
 
 thread_local RuntimeCancellation* currentTaskCancellation = nullptr;
 
+struct RuntimeStoredValue {
+  std::uint64_t bits = 0;
+};
+
 RocketAggregate* runtimeError(std::string_view message);
+RocketAggregate* runtimeOkBool(bool value);
 bool cancellationObserved(RuntimeCancellation* token);
 bool operationCancellationObserved(RuntimeCancellation* token);
 
 struct RuntimeMutex {
   AllocationHeader header;
   std::timed_mutex mutex;
-  void* value = nullptr;
+  RuntimeStoredValue value;
+  std::uint32_t elementKind = ROCKET_ELEMENT_MANAGED;
 };
 
 struct RuntimeGuard {
@@ -163,7 +169,9 @@ struct RuntimeAtomicInt {
 struct RuntimeOnce {
   AllocationHeader header;
   std::mutex mutex;
-  void* value = nullptr;
+  RuntimeStoredValue value;
+  std::uint32_t elementKind = ROCKET_ELEMENT_MANAGED;
+  bool initialized = false;
 };
 
 struct RuntimeChannel {
@@ -171,7 +179,8 @@ struct RuntimeChannel {
   std::mutex mutex;
   std::condition_variable readable;
   std::condition_variable writable;
-  std::deque<void*> values;
+  std::deque<RuntimeStoredValue> values;
+  std::uint32_t elementKind = ROCKET_ELEMENT_MANAGED;
   std::uint64_t capacity = 0;
   std::uint64_t maximum = 0;
   std::uint64_t senders = 0;
@@ -618,6 +627,44 @@ void releaseWeakReference(AllocationHeader* header) {
   }
 }
 
+bool managedElementKind(std::uint32_t elementKind) {
+  return elementKind == ROCKET_ELEMENT_STRING ||
+         elementKind == ROCKET_ELEMENT_MANAGED;
+}
+
+RuntimeStoredValue storedPointer(void* value) {
+  return {static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(value))};
+}
+
+void* storedPointer(RuntimeStoredValue value) {
+  return reinterpret_cast<void*>(static_cast<std::uintptr_t>(value.bits));
+}
+
+RuntimeStoredValue storedFloat(double value) {
+  RuntimeStoredValue stored;
+  static_assert(sizeof(stored.bits) == sizeof(value));
+  std::memcpy(&stored.bits, &value, sizeof(value));
+  return stored;
+}
+
+double storedFloat(RuntimeStoredValue value) {
+  double result = 0;
+  std::memcpy(&result, &value.bits, sizeof(result));
+  return result;
+}
+
+void promoteStored(std::uint32_t elementKind, RuntimeStoredValue value) {
+  if (managedElementKind(elementKind)) rocket_rt_promote(storedPointer(value));
+}
+
+void retainStored(std::uint32_t elementKind, RuntimeStoredValue value) {
+  if (managedElementKind(elementKind)) rocket_rt_retain(storedPointer(value));
+}
+
+void releaseStored(std::uint32_t elementKind, RuntimeStoredValue value) {
+  if (managedElementKind(elementKind)) rocket_rt_release(storedPointer(value));
+}
+
 void promoteObject(void* object);
 
 void promoteChildren(AllocationHeader* header) {
@@ -656,7 +703,7 @@ void promoteChildren(AllocationHeader* header) {
   case ObjectMutex: {
     auto* mutex = reinterpret_cast<RuntimeMutex*>(header);
     std::lock_guard lock(mutex->mutex);
-    promoteObject(mutex->value);
+    promoteStored(mutex->elementKind, mutex->value);
     break;
   }
   case ObjectGuard:
@@ -665,13 +712,14 @@ void promoteChildren(AllocationHeader* header) {
   case ObjectOnce: {
     auto* once = reinterpret_cast<RuntimeOnce*>(header);
     std::lock_guard lock(once->mutex);
-    promoteObject(once->value);
+    if (once->initialized) promoteStored(once->elementKind, once->value);
     break;
   }
   case ObjectChannel: {
     auto* channel = reinterpret_cast<RuntimeChannel*>(header);
     std::lock_guard lock(channel->mutex);
-    for (void* value : channel->values) promoteObject(value);
+    for (RuntimeStoredValue value : channel->values)
+      promoteStored(channel->elementKind, value);
     break;
   }
   case ObjectChannelEndpoint:
@@ -760,8 +808,8 @@ void destroyCancellation(AllocationHeader* header) {
 
 void destroyMutex(AllocationHeader* header) {
   auto* mutex = reinterpret_cast<RuntimeMutex*>(header);
-  rocket_rt_release(mutex->value);
-  mutex->value = nullptr;
+  releaseStored(mutex->elementKind, mutex->value);
+  mutex->value = {};
   liveAllocations.fetch_sub(1, std::memory_order_relaxed);
 }
 
@@ -786,14 +834,16 @@ void destroyAtomicInt(AllocationHeader*) {
 
 void destroyOnce(AllocationHeader* header) {
   auto* once = reinterpret_cast<RuntimeOnce*>(header);
-  rocket_rt_release(once->value);
-  once->value = nullptr;
+  if (once->initialized) releaseStored(once->elementKind, once->value);
+  once->value = {};
+  once->initialized = false;
   liveAllocations.fetch_sub(1, std::memory_order_relaxed);
 }
 
 void destroyChannel(AllocationHeader* header) {
   auto* channel = reinterpret_cast<RuntimeChannel*>(header);
-  for (void* value : channel->values) rocket_rt_release(value);
+  for (RuntimeStoredValue value : channel->values)
+    releaseStored(channel->elementKind, value);
   channel->values.clear();
   liveAllocations.fetch_sub(1, std::memory_order_relaxed);
 }
@@ -851,9 +901,11 @@ void destroyThread(AllocationHeader* header) {
 
 class TaskExecutor {
 public:
-  TaskExecutor() {
+  explicit TaskExecutor(unsigned requestedWorkers = 0) {
     const unsigned detected = std::thread::hardware_concurrency();
-    const unsigned count = (std::max)(1U, (std::min)(detected == 0 ? 4U : detected, 64U));
+    const unsigned available = detected == 0 ? 4U : detected;
+    const unsigned requested = requestedWorkers == 0 ? available : requestedWorkers;
+    const unsigned count = (std::max)(1U, (std::min)(requested, 64U));
     workers_.reserve(count);
     for (unsigned index = 0; index < count; ++index)
       workers_.emplace_back([this] { workerLoop(); });
@@ -958,6 +1010,30 @@ TaskExecutor& taskExecutor() {
   return executor;
 }
 
+RuntimeTask* spawnOnExecutor(void* opaqueEntry, void* context,
+                             TaskExecutor& executor) {
+  if (!opaqueEntry || !context)
+    runtimeFailure("task spawn received an invalid entry or context");
+  auto* task = new (std::nothrow) RuntimeTask;
+  if (!task) runtimeFailure("out of memory while allocating Task");
+  task->header = {1, 0, 1, destroyTask, ObjectTask, 0};
+  task->entry = reinterpret_cast<TaskEntry>(opaqueEntry);
+  task->context = context;
+  task->result = nullptr;
+  task->state = TaskState::Queued;
+  task->executorReleased = false;
+  task->cancellation = reinterpret_cast<RuntimeCancellation*>(rocket_std_cancel_token());
+  liveAllocations.fetch_add(1, std::memory_order_relaxed);
+  promoteObject(task);
+  rocket_rt_retain(task); // executor ownership
+  executor.enqueue(task);
+  return task;
+}
+
+void* executorLifecycleEntry(void*) {
+  return runtimeOkBool(true);
+}
+
 RocketString* runtimeString(std::string_view value) {
   return rocket_rt_string_new(reinterpret_cast<const std::uint8_t*>(value.data()),
                               static_cast<std::uint64_t>(value.size()));
@@ -967,6 +1043,79 @@ RocketAggregate* runtimeManagedVariant(std::uint32_t tag, void* value) {
   RocketAggregate* result = rocket_rt_aggregate_new(tag, value ? 1 : 0, value ? 1 : 0);
   if (value) rocket_rt_aggregate_set_managed(result, 0, value);
   return result;
+}
+
+RocketAggregate* runtimeStoredVariant(std::uint32_t tag,
+                                      std::uint32_t elementKind,
+                                      RuntimeStoredValue value) {
+  RocketAggregate* result = rocket_rt_aggregate_new(
+      tag, 1, managedElementKind(elementKind) ? 1 : 0);
+  switch (elementKind) {
+  case ROCKET_ELEMENT_INT:
+    rocket_rt_aggregate_set_int(result, 0, static_cast<std::int64_t>(value.bits));
+    break;
+  case ROCKET_ELEMENT_FLOAT:
+    rocket_rt_aggregate_set_float(result, 0, storedFloat(value));
+    break;
+  case ROCKET_ELEMENT_BOOL:
+    rocket_rt_aggregate_set_bool(result, 0, value.bits != 0 ? 1 : 0);
+    break;
+  case ROCKET_ELEMENT_CHAR:
+    rocket_rt_aggregate_set_char(result, 0, static_cast<std::uint8_t>(value.bits));
+    break;
+  case ROCKET_ELEMENT_STRING:
+  case ROCKET_ELEMENT_MANAGED:
+    rocket_rt_aggregate_set_managed(result, 0, storedPointer(value));
+    break;
+  default:
+    runtimeFailure("invalid synchronized value kind");
+  }
+  return result;
+}
+
+RuntimeStoredValue arrayStoredValue(RuntimeArray* array, std::uint64_t index) {
+  switch (array->elementKind) {
+  case ROCKET_ELEMENT_INT:
+    return {static_cast<std::uint64_t>(
+        static_cast<std::int64_t*>(array->elements)[index])};
+  case ROCKET_ELEMENT_FLOAT:
+    return storedFloat(static_cast<double*>(array->elements)[index]);
+  case ROCKET_ELEMENT_BOOL:
+  case ROCKET_ELEMENT_CHAR:
+    return {static_cast<std::uint8_t*>(array->elements)[index]};
+  case ROCKET_ELEMENT_STRING:
+  case ROCKET_ELEMENT_MANAGED:
+    return storedPointer(static_cast<void**>(array->elements)[index]);
+  default:
+    runtimeFailure("invalid synchronized Array element kind");
+  }
+}
+
+void setArrayStored(RocketArray* array, std::int64_t index,
+                    std::uint32_t elementKind, RuntimeStoredValue value) {
+  switch (elementKind) {
+  case ROCKET_ELEMENT_INT:
+    rocket_rt_array_set_int(array, index, static_cast<std::int64_t>(value.bits));
+    break;
+  case ROCKET_ELEMENT_FLOAT:
+    rocket_rt_array_set_float(array, index, storedFloat(value));
+    break;
+  case ROCKET_ELEMENT_BOOL:
+    rocket_rt_array_set_bool(array, index, value.bits != 0 ? 1 : 0);
+    break;
+  case ROCKET_ELEMENT_CHAR:
+    rocket_rt_array_set_char(array, index, static_cast<std::uint8_t>(value.bits));
+    break;
+  case ROCKET_ELEMENT_STRING:
+    rocket_rt_array_set_string(array, index,
+        reinterpret_cast<RocketString*>(storedPointer(value)));
+    break;
+  case ROCKET_ELEMENT_MANAGED:
+    rocket_rt_array_set_managed(array, index, storedPointer(value));
+    break;
+  default:
+    runtimeFailure("invalid synchronized Array element kind");
+  }
 }
 
 RocketAggregate* runtimeBoolVariant(std::uint32_t tag, bool value) {
@@ -1037,6 +1186,38 @@ std::wstring runtimeQuoteWindowsArgument(const std::wstring& argument) {
   result.push_back(L'\"');
   return result;
 }
+
+bool waitOverlappedFile(HANDLE file, OVERLAPPED& overlapped,
+                        RuntimeCancellation* token, DWORD& transferred,
+                        std::string& error) {
+  while (true) {
+    if (operationCancellationObserved(token)) {
+      CancelIoEx(file, &overlapped);
+      WaitForSingleObject(overlapped.hEvent, INFINITE);
+      DWORD ignored = 0;
+      GetOverlappedResult(file, &overlapped, &ignored, FALSE);
+      error = "operation cancelled";
+      return false;
+    }
+    const DWORD waited = WaitForSingleObject(overlapped.hEvent, 2);
+    if (waited == WAIT_TIMEOUT) continue;
+    if (waited != WAIT_OBJECT_0) {
+      error = "asynchronous file event wait failed (Windows error " +
+              std::to_string(GetLastError()) + ")";
+      return false;
+    }
+    if (!GetOverlappedResult(file, &overlapped, &transferred, FALSE)) {
+      const DWORD status = GetLastError();
+      if (status == ERROR_OPERATION_ABORTED && operationCancellationObserved(token))
+        error = "operation cancelled";
+      else
+        error = "asynchronous file operation failed (Windows error " +
+                std::to_string(status) + ")";
+      return false;
+    }
+    return true;
+  }
+}
 #endif
 
 template <typename Predicate>
@@ -1090,21 +1271,68 @@ void* timerTaskEntry(void* opaque) {
   auto* context = reinterpret_cast<RocketAggregate*>(opaque);
   const std::int64_t deadline = rocket_rt_aggregate_get_int(context, 0);
   auto* token = checkedCancellation(rocket_rt_aggregate_get_managed(context, 1));
-  while (true) {
+  RocketAggregate* result = nullptr;
+#ifdef _WIN32
+  HANDLE timer = CreateWaitableTimerExW(
+      nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+  if (!timer) timer = CreateWaitableTimerW(nullptr, TRUE, nullptr);
+  if (!timer) {
+    result = runtimeError("could not create Windows waitable timer (Windows error " +
+                          std::to_string(GetLastError()) + ")");
+  }
+  while (timer && !result) {
     if (operationCancellationObserved(token)) {
-      RocketAggregate* result = runtimeError("operation cancelled");
-      rocket_rt_release(token);
-      return result;
+      CancelWaitableTimer(timer);
+      result = runtimeError("operation cancelled");
+      break;
     }
     const std::int64_t now = monotonicMilliseconds();
     if (now >= deadline) {
-      RocketAggregate* result = runtimeOkBool(true);
-      rocket_rt_release(token);
-      return result;
+      result = runtimeOkBool(true);
+      break;
+    }
+    LARGE_INTEGER due{};
+    const std::int64_t remaining = (std::min)(deadline - now,
+                                              std::int64_t{86400000});
+    due.QuadPart = -remaining * 10000;
+    if (!SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE)) {
+      result = runtimeError("could not arm Windows waitable timer (Windows error " +
+                            std::to_string(GetLastError()) + ")");
+      break;
+    }
+    while (!result) {
+      if (operationCancellationObserved(token)) {
+        CancelWaitableTimer(timer);
+        result = runtimeError("operation cancelled");
+        break;
+      }
+      const DWORD waited = WaitForSingleObject(timer, 2);
+      if (waited == WAIT_OBJECT_0) break;
+      if (waited != WAIT_TIMEOUT) {
+        result = runtimeError("Windows waitable timer failed (Windows error " +
+                              std::to_string(GetLastError()) + ")");
+        break;
+      }
+    }
+  }
+  if (timer) CloseHandle(timer);
+#else
+  while (true) {
+    if (operationCancellationObserved(token)) {
+      result = runtimeError("operation cancelled");
+      break;
+    }
+    const std::int64_t now = monotonicMilliseconds();
+    if (now >= deadline) {
+      result = runtimeOkBool(true);
+      break;
     }
     std::this_thread::sleep_for(
         std::chrono::milliseconds((std::min)(std::int64_t{2}, deadline - now)));
   }
+#endif
+  rocket_rt_release(token);
+  return result;
 }
 
 void* asyncFileReadEntry(void* opaque) {
@@ -1116,6 +1344,77 @@ void* asyncFileReadEntry(void* opaque) {
   if (operationCancellationObserved(token)) {
     result = runtimeError("operation cancelled");
   } else {
+#ifdef _WIN32
+    const std::wstring nativePath = runtimeWide(std::string_view(
+        reinterpret_cast<const char*>(rocket_rt_string_bytes(path)),
+        static_cast<std::size_t>(rocket_rt_string_byte_length(path))));
+    HANDLE file = nativePath.empty() ? INVALID_HANDLE_VALUE : CreateFileW(
+        nativePath.c_str(), GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+      result = runtimeError("could not open file for asynchronous reading (Windows error " +
+                            std::to_string(GetLastError()) + ")");
+    } else {
+      LARGE_INTEGER fileSize{};
+      if (!GetFileSizeEx(file, &fileSize) || fileSize.QuadPart < 0) {
+        result = runtimeError("could not determine asynchronous file size (Windows error " +
+                              std::to_string(GetLastError()) + ")");
+      } else if (fileSize.QuadPart > maximum) {
+        result = runtimeError("asynchronous file read exceeds its maximum byte count");
+      } else {
+        const std::uint64_t size = static_cast<std::uint64_t>(fileSize.QuadPart);
+        RocketArray* array = rocket_rt_array_new(ROCKET_ELEMENT_CHAR, size);
+        auto* runtimeArray = reinterpret_cast<RuntimeArray*>(array);
+        HANDLE event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        if (!event) {
+          result = runtimeError("could not create asynchronous file event (Windows error " +
+                                std::to_string(GetLastError()) + ")");
+        } else {
+          std::uint64_t offset = 0;
+          std::string operationError;
+          while (offset < size && operationError.empty()) {
+            if (operationCancellationObserved(token)) {
+              operationError = "operation cancelled";
+              break;
+            }
+            const DWORD requested = static_cast<DWORD>((std::min)(
+                std::uint64_t{65536}, size - offset));
+            OVERLAPPED overlapped{};
+            overlapped.Offset = static_cast<DWORD>(offset & 0xffffffffU);
+            overlapped.OffsetHigh = static_cast<DWORD>(offset >> 32U);
+            overlapped.hEvent = event;
+            ResetEvent(event);
+            DWORD transferred = 0;
+            const BOOL immediate = ReadFile(
+                file, static_cast<std::uint8_t*>(runtimeArray->elements) + offset,
+                requested, &transferred, &overlapped);
+            if (!immediate) {
+              const DWORD status = GetLastError();
+              if (status != ERROR_IO_PENDING) {
+                operationError = "asynchronous file read failed (Windows error " +
+                                 std::to_string(status) + ")";
+                break;
+              }
+              if (!waitOverlappedFile(file, overlapped, token, transferred,
+                                      operationError))
+                break;
+            }
+            if (transferred == 0 || transferred > requested) {
+              operationError = "asynchronous file read reached EOF before completion";
+              break;
+            }
+            offset += transferred;
+          }
+          if (!operationError.empty()) result = runtimeError(operationError);
+          else result = runtimeManagedVariant(0, array);
+          CloseHandle(event);
+        }
+        rocket_rt_release(array);
+      }
+      CloseHandle(file);
+    }
+#else
     try {
       const auto* bytes = rocket_rt_string_bytes(path);
       const auto length = static_cast<std::size_t>(rocket_rt_string_byte_length(path));
@@ -1156,6 +1455,7 @@ void* asyncFileReadEntry(void* opaque) {
     } catch (const std::exception& error) {
       result = runtimeError(error.what());
     }
+#endif
   }
   rocket_rt_release(token);
   rocket_rt_release(path);
@@ -1172,6 +1472,78 @@ void* asyncFileWriteEntry(void* opaque) {
   if (operationCancellationObserved(token)) {
     result = runtimeError("operation cancelled");
   } else {
+#ifdef _WIN32
+    RuntimeArray* bytes = checkedArray(buffer);
+    if (bytes->elementKind != ROCKET_ELEMENT_CHAR) {
+      result = runtimeError("asynchronous file writes require UniqueBuffer[Char]");
+    } else {
+      const std::wstring nativePath = runtimeWide(std::string_view(
+          reinterpret_cast<const char*>(rocket_rt_string_bytes(path)),
+          static_cast<std::size_t>(rocket_rt_string_byte_length(path))));
+      HANDLE file = nativePath.empty() ? INVALID_HANDLE_VALUE : CreateFileW(
+          nativePath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+          append ? OPEN_ALWAYS : CREATE_ALWAYS,
+          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
+      if (file == INVALID_HANDLE_VALUE) {
+        result = runtimeError("could not open file for asynchronous writing (Windows error " +
+                              std::to_string(GetLastError()) + ")");
+      } else {
+        LARGE_INTEGER initialOffset{};
+        if (append && !GetFileSizeEx(file, &initialOffset)) {
+          result = runtimeError("could not determine asynchronous append offset (Windows error " +
+                                std::to_string(GetLastError()) + ")");
+        } else {
+          HANDLE event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+          if (!event) {
+            result = runtimeError("could not create asynchronous file event (Windows error " +
+                                  std::to_string(GetLastError()) + ")");
+          } else {
+            std::uint64_t offset = 0;
+            std::string operationError;
+            while (offset < bytes->length && operationError.empty()) {
+              if (operationCancellationObserved(token)) {
+                operationError = "operation cancelled";
+                break;
+              }
+              const DWORD requested = static_cast<DWORD>((std::min)(
+                  std::uint64_t{65536}, bytes->length - offset));
+              const std::uint64_t fileOffset =
+                  static_cast<std::uint64_t>(initialOffset.QuadPart) + offset;
+              OVERLAPPED overlapped{};
+              overlapped.Offset = static_cast<DWORD>(fileOffset & 0xffffffffU);
+              overlapped.OffsetHigh = static_cast<DWORD>(fileOffset >> 32U);
+              overlapped.hEvent = event;
+              ResetEvent(event);
+              DWORD transferred = 0;
+              const BOOL immediate = WriteFile(
+                  file, static_cast<const std::uint8_t*>(bytes->elements) + offset,
+                  requested, &transferred, &overlapped);
+              if (!immediate) {
+                const DWORD status = GetLastError();
+                if (status != ERROR_IO_PENDING) {
+                  operationError = "asynchronous file write failed (Windows error " +
+                                   std::to_string(status) + ")";
+                  break;
+                }
+                if (!waitOverlappedFile(file, overlapped, token, transferred,
+                                        operationError))
+                  break;
+              }
+              if (transferred == 0 || transferred > requested) {
+                operationError = "asynchronous file write made no progress";
+                break;
+              }
+              offset += transferred;
+            }
+            result = operationError.empty() ? runtimeOkBool(true)
+                                            : runtimeError(operationError);
+            CloseHandle(event);
+          }
+        }
+        CloseHandle(file);
+      }
+    }
+#else
     try {
       RuntimeArray* bytes = checkedArray(buffer);
       if (bytes->elementKind != ROCKET_ELEMENT_CHAR) {
@@ -1206,6 +1578,7 @@ void* asyncFileWriteEntry(void* opaque) {
     } catch (const std::exception& error) {
       result = runtimeError(error.what());
     }
+#endif
   }
   rocket_rt_release(token);
   rocket_rt_release(buffer);
@@ -1558,22 +1931,29 @@ std::uint8_t rocket_rt_weak_expired(RocketWeak* opaque) {
 }
 
 RocketTask* rocket_rt_task_spawn(void* opaqueEntry, void* context) {
-  if (!opaqueEntry || !context)
-    runtimeFailure("task spawn received an invalid entry or context");
-  auto* task = new (std::nothrow) RuntimeTask;
-  if (!task) runtimeFailure("out of memory while allocating Task");
-  task->header = {1, 0, 1, destroyTask, ObjectTask, 0};
-  task->entry = reinterpret_cast<TaskEntry>(opaqueEntry);
-  task->context = context;
-  task->result = nullptr;
-  task->state = TaskState::Queued;
-  task->executorReleased = false;
-  task->cancellation = reinterpret_cast<RuntimeCancellation*>(rocket_std_cancel_token());
-  liveAllocations.fetch_add(1, std::memory_order_relaxed);
-  promoteObject(task);
-  rocket_rt_retain(task); // executor ownership
-  taskExecutor().enqueue(task);
-  return reinterpret_cast<RocketTask*>(task);
+  return reinterpret_cast<RocketTask*>(
+      spawnOnExecutor(opaqueEntry, context, taskExecutor()));
+}
+
+std::uint8_t rocket_rt_debug_executor_cycles(std::int64_t cycles) {
+  if (cycles < 0 || cycles > 10000) return 0;
+  for (std::int64_t index = 0; index < cycles; ++index) {
+    RuntimeTask* task = nullptr;
+    {
+      TaskExecutor executor(1);
+      RocketAggregate* context = rocket_rt_aggregate_new(0, 0, 0);
+      task = spawnOnExecutor(reinterpret_cast<void*>(&executorLifecycleEntry),
+                             context, executor);
+    }
+    auto* result = reinterpret_cast<RocketAggregate*>(
+        rocket_rt_task_await(reinterpret_cast<RocketTask*>(task)));
+    const bool completed = rocket_rt_aggregate_tag(result) == 0 &&
+                           rocket_rt_aggregate_get_bool(result, 0) != 0;
+    rocket_rt_release(result);
+    rocket_rt_release(task);
+    if (!completed) return 0;
+  }
+  return 1;
 }
 
 RocketTask* rocket_rt_task_ready(void* result) {
@@ -1677,6 +2057,18 @@ RocketTaskGroup* rocket_std_task_group_string(RocketArray* tasks) {
 RocketTaskGroup* rocket_std_task_group_managed(RocketArray* tasks) {
   return taskGroupWithKind(tasks, ROCKET_ELEMENT_MANAGED);
 }
+RocketTaskGroup* rocket_std_task_group_int(RocketArray* tasks) {
+  return taskGroupWithKind(tasks, ROCKET_ELEMENT_INT);
+}
+RocketTaskGroup* rocket_std_task_group_float(RocketArray* tasks) {
+  return taskGroupWithKind(tasks, ROCKET_ELEMENT_FLOAT);
+}
+RocketTaskGroup* rocket_std_task_group_bool(RocketArray* tasks) {
+  return taskGroupWithKind(tasks, ROCKET_ELEMENT_BOOL);
+}
+RocketTaskGroup* rocket_std_task_group_char(RocketArray* tasks) {
+  return taskGroupWithKind(tasks, ROCKET_ELEMENT_CHAR);
+}
 
 RocketAggregate* rocket_std_task_group_join(RocketTaskGroup* opaque) {
   auto* group = reinterpret_cast<RuntimeTaskGroup*>(opaque);
@@ -1685,7 +2077,7 @@ RocketAggregate* rocket_std_task_group_join(RocketTaskGroup* opaque) {
   std::lock_guard lock(group->mutex);
   if (group->joined) return runtimeError("TaskGroup was already joined");
   group->joined = true;
-  std::vector<void*> successes;
+  std::vector<RuntimeStoredValue> successes;
   RocketAggregate* firstError = nullptr;
   for (RuntimeTask* task : group->tasks) {
     if (firstError)
@@ -1693,7 +2085,27 @@ RocketAggregate* rocket_std_task_group_join(RocketTaskGroup* opaque) {
     auto* result = reinterpret_cast<RocketAggregate*>(
         rocket_rt_task_await(reinterpret_cast<RocketTask*>(task)));
     if (rocket_rt_aggregate_tag(result) == 0 && !firstError) {
-      void* value = rocket_rt_aggregate_get_managed(result, 0);
+      RuntimeStoredValue value;
+      switch (group->elementKind) {
+      case ROCKET_ELEMENT_INT:
+        value.bits = static_cast<std::uint64_t>(rocket_rt_aggregate_get_int(result, 0));
+        break;
+      case ROCKET_ELEMENT_FLOAT:
+        value = storedFloat(rocket_rt_aggregate_get_float(result, 0));
+        break;
+      case ROCKET_ELEMENT_BOOL:
+        value.bits = rocket_rt_aggregate_get_bool(result, 0);
+        break;
+      case ROCKET_ELEMENT_CHAR:
+        value.bits = rocket_rt_aggregate_get_char(result, 0);
+        break;
+      case ROCKET_ELEMENT_STRING:
+      case ROCKET_ELEMENT_MANAGED:
+        value = storedPointer(rocket_rt_aggregate_get_managed(result, 0));
+        break;
+      default:
+        runtimeFailure("TaskGroup result kind is invalid");
+      }
       successes.push_back(value);
     } else if (!firstError) {
       firstError = result;
@@ -1702,17 +2114,15 @@ RocketAggregate* rocket_std_task_group_join(RocketTaskGroup* opaque) {
     rocket_rt_release(result);
   }
   if (firstError) {
-    for (void* value : successes) rocket_rt_release(value);
+    for (RuntimeStoredValue value : successes)
+      releaseStored(group->elementKind, value);
     return firstError;
   }
   RocketArray* values = rocket_rt_array_new(group->elementKind, successes.size());
   for (std::size_t index = 0; index < successes.size(); ++index) {
-    if (group->elementKind == ROCKET_ELEMENT_STRING)
-      rocket_rt_array_set_string(values, static_cast<std::int64_t>(index),
-                                 reinterpret_cast<RocketString*>(successes[index]));
-    else
-      rocket_rt_array_set_managed(values, static_cast<std::int64_t>(index), successes[index]);
-    rocket_rt_release(successes[index]);
+    setArrayStored(values, static_cast<std::int64_t>(index), group->elementKind,
+                   successes[index]);
+    releaseStored(group->elementKind, successes[index]);
   }
   RocketAggregate* result = runtimeManagedVariant(0, values);
   rocket_rt_release(values);
@@ -2092,16 +2502,42 @@ RocketTask* rocket_std_async_process_run(RocketString* program,
   return rocket_rt_task_spawn(reinterpret_cast<void*>(&asyncProcessRunEntry), context);
 }
 
-RocketMutex* rocket_std_sync_mutex(void* value) {
-  if (!value) runtimeFailure("sync.mutex requires a managed value");
+RocketMutex* syncMutexStored(std::uint32_t elementKind, RuntimeStoredValue value) {
+  if (managedElementKind(elementKind) && !storedPointer(value))
+    runtimeFailure("sync.mutex requires a non-null managed value");
   auto* mutex = new (std::nothrow) RuntimeMutex;
   if (!mutex) runtimeFailure("out of memory while allocating Mutex");
   mutex->header = {1, 0, 1, destroyMutex, ObjectMutex, 0};
   mutex->value = value;
-  rocket_rt_retain(value);
+  mutex->elementKind = elementKind;
+  promoteStored(elementKind, value);
+  retainStored(elementKind, value);
   liveAllocations.fetch_add(1, std::memory_order_relaxed);
   promoteObject(mutex);
   return reinterpret_cast<RocketMutex*>(mutex);
+}
+
+RocketMutex* rocket_std_sync_mutex(void* value) {
+  return syncMutexStored(ROCKET_ELEMENT_MANAGED, storedPointer(value));
+}
+RocketMutex* rocket_std_sync_mutex_managed(void* value) {
+  return rocket_std_sync_mutex(value);
+}
+RocketMutex* rocket_std_sync_mutex_string(RocketString* value) {
+  return syncMutexStored(ROCKET_ELEMENT_STRING, storedPointer(value));
+}
+RocketMutex* rocket_std_sync_mutex_int(std::int64_t value) {
+  return syncMutexStored(ROCKET_ELEMENT_INT,
+                         {static_cast<std::uint64_t>(value)});
+}
+RocketMutex* rocket_std_sync_mutex_float(double value) {
+  return syncMutexStored(ROCKET_ELEMENT_FLOAT, storedFloat(value));
+}
+RocketMutex* rocket_std_sync_mutex_bool(std::uint8_t value) {
+  return syncMutexStored(ROCKET_ELEMENT_BOOL, {value != 0 ? 1U : 0U});
+}
+RocketMutex* rocket_std_sync_mutex_char(std::uint8_t value) {
+  return syncMutexStored(ROCKET_ELEMENT_CHAR, {value});
 }
 
 RocketAggregate* rocket_std_sync_lock(RocketMutex* opaque, std::int64_t deadline,
@@ -2135,23 +2571,79 @@ RocketAggregate* rocket_std_sync_lock(RocketMutex* opaque, std::int64_t deadline
   return result;
 }
 
-void* rocket_std_sync_guard_get(RocketGuard* opaque) {
+RuntimeGuard* checkedLiveGuard(RocketGuard* opaque) {
   auto* guard = reinterpret_cast<RuntimeGuard*>(opaque);
   if (!guard || guard->header.objectKind != ObjectGuard || !guard->locked)
     runtimeFailure("sync.guard_get received an inactive LockGuard");
-  rocket_rt_retain(guard->owner->value);
+  return guard;
+}
+
+RuntimeStoredValue guardStored(RocketGuard* opaque, std::uint32_t elementKind) {
+  RuntimeGuard* guard = checkedLiveGuard(opaque);
+  if (guard->owner->elementKind != elementKind)
+    runtimeFailure("sync.guard_get value kind mismatch");
+  retainStored(elementKind, guard->owner->value);
   return guard->owner->value;
 }
 
-std::uint8_t rocket_std_sync_guard_set(RocketGuard* opaque, void* value) {
-  auto* guard = reinterpret_cast<RuntimeGuard*>(opaque);
-  if (!guard || guard->header.objectKind != ObjectGuard || !guard->locked || !value)
-    runtimeFailure("sync.guard_set received an invalid value or LockGuard");
-  promoteObject(value);
-  rocket_rt_retain(value);
-  rocket_rt_release(guard->owner->value);
+void* rocket_std_sync_guard_get(RocketGuard* opaque) {
+  return storedPointer(guardStored(opaque, ROCKET_ELEMENT_MANAGED));
+}
+void* rocket_std_sync_guard_get_managed(RocketGuard* opaque) {
+  return rocket_std_sync_guard_get(opaque);
+}
+RocketString* rocket_std_sync_guard_get_string(RocketGuard* opaque) {
+  return reinterpret_cast<RocketString*>(
+      storedPointer(guardStored(opaque, ROCKET_ELEMENT_STRING)));
+}
+std::int64_t rocket_std_sync_guard_get_int(RocketGuard* opaque) {
+  return static_cast<std::int64_t>(guardStored(opaque, ROCKET_ELEMENT_INT).bits);
+}
+double rocket_std_sync_guard_get_float(RocketGuard* opaque) {
+  return storedFloat(guardStored(opaque, ROCKET_ELEMENT_FLOAT));
+}
+std::uint8_t rocket_std_sync_guard_get_bool(RocketGuard* opaque) {
+  return guardStored(opaque, ROCKET_ELEMENT_BOOL).bits != 0 ? 1 : 0;
+}
+std::uint8_t rocket_std_sync_guard_get_char(RocketGuard* opaque) {
+  return static_cast<std::uint8_t>(guardStored(opaque, ROCKET_ELEMENT_CHAR).bits);
+}
+
+std::uint8_t guardSetStored(RocketGuard* opaque, std::uint32_t elementKind,
+                            RuntimeStoredValue value) {
+  RuntimeGuard* guard = checkedLiveGuard(opaque);
+  if (guard->owner->elementKind != elementKind ||
+      (managedElementKind(elementKind) && !storedPointer(value)))
+    runtimeFailure("sync.guard_set value kind mismatch");
+  promoteStored(elementKind, value);
+  retainStored(elementKind, value);
+  releaseStored(elementKind, guard->owner->value);
   guard->owner->value = value;
   return 1;
+}
+
+std::uint8_t rocket_std_sync_guard_set(RocketGuard* opaque, void* value) {
+  return guardSetStored(opaque, ROCKET_ELEMENT_MANAGED, storedPointer(value));
+}
+std::uint8_t rocket_std_sync_guard_set_managed(RocketGuard* opaque, void* value) {
+  return rocket_std_sync_guard_set(opaque, value);
+}
+std::uint8_t rocket_std_sync_guard_set_string(RocketGuard* opaque,
+                                              RocketString* value) {
+  return guardSetStored(opaque, ROCKET_ELEMENT_STRING, storedPointer(value));
+}
+std::uint8_t rocket_std_sync_guard_set_int(RocketGuard* opaque, std::int64_t value) {
+  return guardSetStored(opaque, ROCKET_ELEMENT_INT,
+                        {static_cast<std::uint64_t>(value)});
+}
+std::uint8_t rocket_std_sync_guard_set_float(RocketGuard* opaque, double value) {
+  return guardSetStored(opaque, ROCKET_ELEMENT_FLOAT, storedFloat(value));
+}
+std::uint8_t rocket_std_sync_guard_set_bool(RocketGuard* opaque, std::uint8_t value) {
+  return guardSetStored(opaque, ROCKET_ELEMENT_BOOL, {value != 0 ? 1U : 0U});
+}
+std::uint8_t rocket_std_sync_guard_set_char(RocketGuard* opaque, std::uint8_t value) {
+  return guardSetStored(opaque, ROCKET_ELEMENT_CHAR, {value});
 }
 
 RocketAggregate* rocket_std_sync_unlock(RocketGuard* opaque) {
@@ -2255,45 +2747,144 @@ std::uint8_t rocket_std_sync_atomic_compare_exchange(RocketAtomicInt* value,
              : 0;
 }
 
-RocketOnce* rocket_std_sync_once(void* value) {
-  if (!value) runtimeFailure("sync.once requires a managed initial value");
+RocketOnce* syncOnceStored(std::uint32_t elementKind, RuntimeStoredValue value,
+                           bool initialized) {
+  if (initialized && managedElementKind(elementKind) && !storedPointer(value))
+    runtimeFailure("sync.once requires a non-null managed initial value");
   auto* once = new (std::nothrow) RuntimeOnce;
   if (!once) runtimeFailure("out of memory while allocating Once");
   once->header = {1, 0, 1, destroyOnce, ObjectOnce, 0};
   once->value = value;
-  rocket_rt_retain(value);
+  once->elementKind = elementKind;
+  once->initialized = initialized;
+  if (initialized) {
+    promoteStored(elementKind, value);
+    retainStored(elementKind, value);
+  }
   liveAllocations.fetch_add(1, std::memory_order_relaxed);
   promoteObject(once);
   return reinterpret_cast<RocketOnce*>(once);
 }
 
-RocketAggregate* rocket_std_sync_once_set(RocketOnce* opaque, void* value) {
+RocketOnce* rocket_std_sync_once(void* value) {
+  return syncOnceStored(ROCKET_ELEMENT_MANAGED, storedPointer(value), true);
+}
+RocketOnce* rocket_std_sync_once_managed(void* value) {
+  return rocket_std_sync_once(value);
+}
+RocketOnce* rocket_std_sync_once_string(RocketString* value) {
+  return syncOnceStored(ROCKET_ELEMENT_STRING, storedPointer(value), true);
+}
+RocketOnce* rocket_std_sync_once_int(std::int64_t value) {
+  return syncOnceStored(ROCKET_ELEMENT_INT, {static_cast<std::uint64_t>(value)}, true);
+}
+RocketOnce* rocket_std_sync_once_float(double value) {
+  return syncOnceStored(ROCKET_ELEMENT_FLOAT, storedFloat(value), true);
+}
+RocketOnce* rocket_std_sync_once_bool(std::uint8_t value) {
+  return syncOnceStored(ROCKET_ELEMENT_BOOL, {value != 0 ? 1U : 0U}, true);
+}
+RocketOnce* rocket_std_sync_once_char(std::uint8_t value) {
+  return syncOnceStored(ROCKET_ELEMENT_CHAR, {value}, true);
+}
+
+RocketOnce* rocket_std_sync_once_empty(void*) {
+  return syncOnceStored(ROCKET_ELEMENT_MANAGED, {}, false);
+}
+RocketOnce* rocket_std_sync_once_empty_managed(void* witness) {
+  return rocket_std_sync_once_empty(witness);
+}
+RocketOnce* rocket_std_sync_once_empty_string(RocketString*) {
+  return syncOnceStored(ROCKET_ELEMENT_STRING, {}, false);
+}
+RocketOnce* rocket_std_sync_once_empty_int(std::int64_t) {
+  return syncOnceStored(ROCKET_ELEMENT_INT, {}, false);
+}
+RocketOnce* rocket_std_sync_once_empty_float(double) {
+  return syncOnceStored(ROCKET_ELEMENT_FLOAT, {}, false);
+}
+RocketOnce* rocket_std_sync_once_empty_bool(std::uint8_t) {
+  return syncOnceStored(ROCKET_ELEMENT_BOOL, {}, false);
+}
+RocketOnce* rocket_std_sync_once_empty_char(std::uint8_t) {
+  return syncOnceStored(ROCKET_ELEMENT_CHAR, {}, false);
+}
+
+RocketAggregate* onceSetStored(RocketOnce* opaque, std::uint32_t elementKind,
+                               RuntimeStoredValue value) {
   auto* once = reinterpret_cast<RuntimeOnce*>(opaque);
-  if (!once || once->header.objectKind != ObjectOnce || !value)
+  if (!once || once->header.objectKind != ObjectOnce ||
+      once->elementKind != elementKind ||
+      (managedElementKind(elementKind) && !storedPointer(value)))
     runtimeFailure("sync.once_set received an invalid Once or value");
   std::lock_guard lock(once->mutex);
-  if (once->value) return runtimeOkBool(false);
-  promoteObject(value);
-  rocket_rt_retain(value);
+  if (once->initialized) return runtimeOkBool(false);
+  promoteStored(elementKind, value);
+  retainStored(elementKind, value);
   once->value = value;
+  once->initialized = true;
   return runtimeOkBool(true);
 }
 
-RocketAggregate* rocket_std_sync_once_get(RocketOnce* opaque) {
+RocketAggregate* rocket_std_sync_once_set(RocketOnce* opaque, void* value) {
+  return onceSetStored(opaque, ROCKET_ELEMENT_MANAGED, storedPointer(value));
+}
+RocketAggregate* rocket_std_sync_once_set_managed(RocketOnce* opaque, void* value) {
+  return rocket_std_sync_once_set(opaque, value);
+}
+RocketAggregate* rocket_std_sync_once_set_string(RocketOnce* opaque,
+                                                 RocketString* value) {
+  return onceSetStored(opaque, ROCKET_ELEMENT_STRING, storedPointer(value));
+}
+RocketAggregate* rocket_std_sync_once_set_int(RocketOnce* opaque, std::int64_t value) {
+  return onceSetStored(opaque, ROCKET_ELEMENT_INT,
+                       {static_cast<std::uint64_t>(value)});
+}
+RocketAggregate* rocket_std_sync_once_set_float(RocketOnce* opaque, double value) {
+  return onceSetStored(opaque, ROCKET_ELEMENT_FLOAT, storedFloat(value));
+}
+RocketAggregate* rocket_std_sync_once_set_bool(RocketOnce* opaque, std::uint8_t value) {
+  return onceSetStored(opaque, ROCKET_ELEMENT_BOOL, {value != 0 ? 1U : 0U});
+}
+RocketAggregate* rocket_std_sync_once_set_char(RocketOnce* opaque, std::uint8_t value) {
+  return onceSetStored(opaque, ROCKET_ELEMENT_CHAR, {value});
+}
+
+RocketAggregate* onceGetStored(RocketOnce* opaque, std::uint32_t elementKind) {
   auto* once = reinterpret_cast<RuntimeOnce*>(opaque);
-  if (!once || once->header.objectKind != ObjectOnce)
+  if (!once || once->header.objectKind != ObjectOnce ||
+      once->elementKind != elementKind)
     runtimeFailure("sync.once_get received an invalid Once");
   std::lock_guard lock(once->mutex);
-  return once->value ? runtimeManagedVariant(0, once->value)
-                     : runtimeManagedVariant(1, nullptr);
+  return once->initialized ? runtimeStoredVariant(0, elementKind, once->value)
+                           : rocket_rt_aggregate_new(1, 0, 0);
+}
+
+RocketAggregate* rocket_std_sync_once_get(RocketOnce* opaque) {
+  return onceGetStored(opaque, ROCKET_ELEMENT_MANAGED);
+}
+RocketAggregate* rocket_std_sync_once_get_managed(RocketOnce* opaque) {
+  return rocket_std_sync_once_get(opaque);
+}
+RocketAggregate* rocket_std_sync_once_get_string(RocketOnce* opaque) {
+  return onceGetStored(opaque, ROCKET_ELEMENT_STRING);
+}
+RocketAggregate* rocket_std_sync_once_get_int(RocketOnce* opaque) {
+  return onceGetStored(opaque, ROCKET_ELEMENT_INT);
+}
+RocketAggregate* rocket_std_sync_once_get_float(RocketOnce* opaque) {
+  return onceGetStored(opaque, ROCKET_ELEMENT_FLOAT);
+}
+RocketAggregate* rocket_std_sync_once_get_bool(RocketOnce* opaque) {
+  return onceGetStored(opaque, ROCKET_ELEMENT_BOOL);
+}
+RocketAggregate* rocket_std_sync_once_get_char(RocketOnce* opaque) {
+  return onceGetStored(opaque, ROCKET_ELEMENT_CHAR);
 }
 
 RocketAggregate* makeChannel(RocketArray* initial, std::uint64_t capacity,
                              std::uint64_t maximum) {
   RuntimeArray* initialValues = checkedArray(initial);
-  if (initialValues->elementKind != ROCKET_ELEMENT_STRING &&
-      initialValues->elementKind != ROCKET_ELEMENT_MANAGED)
-    return runtimeError("channels currently require managed element values");
   if (initialValues->length > maximum)
     return runtimeError("initial channel values exceed channel capacity");
   auto* channel = new (std::nothrow) RuntimeChannel;
@@ -2301,13 +2892,14 @@ RocketAggregate* makeChannel(RocketArray* initial, std::uint64_t capacity,
   channel->header = {1, 0, 1, destroyChannel, ObjectChannel, 0};
   channel->capacity = capacity;
   channel->maximum = maximum;
+  channel->elementKind = initialValues->elementKind;
   channel->senders = 0;
   channel->receivers = 0;
-  auto** values = static_cast<void**>(initialValues->elements);
   for (std::uint64_t index = 0; index < initialValues->length; ++index) {
-    promoteObject(values[index]);
-    rocket_rt_retain(values[index]);
-    channel->values.push_back(values[index]);
+    RuntimeStoredValue value = arrayStoredValue(initialValues, index);
+    promoteStored(channel->elementKind, value);
+    retainStored(channel->elementKind, value);
+    channel->values.push_back(value);
   }
   liveAllocations.fetch_add(1, std::memory_order_relaxed);
   auto* sender = newEndpoint(channel, true);
@@ -2357,13 +2949,18 @@ RocketReceiver* rocket_std_channel_clone_receiver(RocketReceiver* opaque) {
   return reinterpret_cast<RocketReceiver*>(newEndpoint(endpoint->channel, false));
 }
 
-RocketAggregate* rocket_std_channel_send(RocketSender* opaque, void* value,
-                                         std::int64_t deadline,
-                                         RocketCancellation* opaqueToken) {
+RocketAggregate* channelSendStored(RocketSender* opaque,
+                                   std::uint32_t elementKind,
+                                   RuntimeStoredValue value,
+                                   std::int64_t deadline,
+                                   RocketCancellation* opaqueToken) {
   RuntimeChannelEndpoint* endpoint = checkedEndpoint(opaque, true);
   RuntimeCancellation* token = checkedCancellation(opaqueToken);
-  if (!value) runtimeFailure("channel.send requires a managed value");
+  if (managedElementKind(elementKind) && !storedPointer(value))
+    runtimeFailure("channel.send requires a non-null managed value");
   RuntimeChannel* channel = endpoint->channel;
+  if (channel->elementKind != elementKind)
+    runtimeFailure("channel.send value kind mismatch");
   std::unique_lock lock(channel->mutex);
   const auto ready = [&] {
     return endpoint->open.load(std::memory_order_acquire) == 0 ||
@@ -2375,12 +2972,60 @@ RocketAggregate* rocket_std_channel_send(RocketSender* opaque, void* value,
   if (endpoint->open.load(std::memory_order_acquire) == 0)
     return runtimeError("Sender is closed");
   if (channel->receivers == 0) return runtimeError("channel receivers disconnected");
-  promoteObject(value);
-  rocket_rt_retain(value);
+  promoteStored(elementKind, value);
+  retainStored(elementKind, value);
   channel->values.push_back(value);
   lock.unlock();
   channel->readable.notify_one();
   return runtimeOkBool(true);
+}
+
+RocketAggregate* rocket_std_channel_send(RocketSender* sender, void* value,
+                                         std::int64_t deadline,
+                                         RocketCancellation* token) {
+  RuntimeChannelEndpoint* endpoint = checkedEndpoint(sender, true);
+  if (!managedElementKind(endpoint->channel->elementKind))
+    runtimeFailure("legacy channel.send requires a managed channel value");
+  return channelSendStored(sender, endpoint->channel->elementKind,
+                           storedPointer(value), deadline, token);
+}
+RocketAggregate* rocket_std_channel_send_managed(RocketSender* sender, void* value,
+                                                 std::int64_t deadline,
+                                                 RocketCancellation* token) {
+  return rocket_std_channel_send(sender, value, deadline, token);
+}
+RocketAggregate* rocket_std_channel_send_string(RocketSender* sender,
+                                                RocketString* value,
+                                                std::int64_t deadline,
+                                                RocketCancellation* token) {
+  return channelSendStored(sender, ROCKET_ELEMENT_STRING, storedPointer(value),
+                           deadline, token);
+}
+RocketAggregate* rocket_std_channel_send_int(RocketSender* sender,
+                                             std::int64_t value,
+                                             std::int64_t deadline,
+                                             RocketCancellation* token) {
+  return channelSendStored(sender, ROCKET_ELEMENT_INT,
+                           {static_cast<std::uint64_t>(value)}, deadline, token);
+}
+RocketAggregate* rocket_std_channel_send_float(RocketSender* sender, double value,
+                                               std::int64_t deadline,
+                                               RocketCancellation* token) {
+  return channelSendStored(sender, ROCKET_ELEMENT_FLOAT, storedFloat(value),
+                           deadline, token);
+}
+RocketAggregate* rocket_std_channel_send_bool(RocketSender* sender,
+                                              std::uint8_t value,
+                                              std::int64_t deadline,
+                                              RocketCancellation* token) {
+  return channelSendStored(sender, ROCKET_ELEMENT_BOOL, {value != 0 ? 1U : 0U},
+                           deadline, token);
+}
+RocketAggregate* rocket_std_channel_send_char(RocketSender* sender,
+                                              std::uint8_t value,
+                                              std::int64_t deadline,
+                                              RocketCancellation* token) {
+  return channelSendStored(sender, ROCKET_ELEMENT_CHAR, {value}, deadline, token);
 }
 
 RocketAggregate* rocket_std_channel_receive(RocketReceiver* opaque,
@@ -2403,10 +3048,10 @@ RocketAggregate* rocket_std_channel_receive(RocketReceiver* opaque,
   if (channel->values.empty()) {
     option = runtimeManagedVariant(1, nullptr);
   } else {
-    void* value = channel->values.front();
+    RuntimeStoredValue value = channel->values.front();
     channel->values.pop_front();
-    option = runtimeManagedVariant(0, value);
-    rocket_rt_release(value);
+    option = runtimeStoredVariant(0, channel->elementKind, value);
+    releaseStored(channel->elementKind, value);
   }
   lock.unlock();
   channel->writable.notify_one();

@@ -1,0 +1,6 @@
+import std.buffer
+
+fn main() -> Int:
+    let values = buffer.thaw([1])
+    print(buffer.get(values, 1))
+    return 0

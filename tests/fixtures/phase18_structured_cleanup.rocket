@@ -1,0 +1,33 @@
+import std.async_time
+import std.cancel
+import std.task
+
+async fn delayed(value: Int) -> Result[Int, String]:
+    let token = cancel.current()
+    match await async_time.sleep(1000, token):
+        case Ok(ready):
+            return Ok(value)
+        case Err(message):
+            return Err(message)
+
+fn failure() -> Result[Int, String]:
+    return Err("scope-failed")
+
+fn inner_scope() -> Result[Int, String]:
+    let inner = task.group([delayed(1), delayed(2)])
+    let value = failure()?
+    return Ok(value)
+
+fn outer_scope() -> Result[Int, String]:
+    let outer = task.group([delayed(3), delayed(4)])
+    let value = inner_scope()?
+    return Ok(value)
+
+fn main() -> Int:
+    match outer_scope():
+        case Ok(value):
+            print(value)
+            return 1
+        case Err(message):
+            print(message)
+    return 0

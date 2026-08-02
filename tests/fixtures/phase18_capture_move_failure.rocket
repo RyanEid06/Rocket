@@ -1,0 +1,6 @@
+import std.buffer
+
+fn main() -> Int:
+    let values = buffer.thaw([1, 2, 3])
+    let callback = fn() -> Int => buffer.length(values)
+    return 0

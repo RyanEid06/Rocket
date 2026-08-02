@@ -300,6 +300,7 @@ struct LowerState:
     current_async: Bool
     moved_symbols: Array[Int]
     borrowing_unique: Bool
+    move_analysis_enabled: Bool
 
 struct SymbolResult:
     symbol: Int
@@ -1394,6 +1395,8 @@ fn intrinsic_task_cancel() -> Int:
     return 220
 fn intrinsic_task_group_cancel() -> Int:
     return 221
+fn intrinsic_sync_once_empty() -> Int:
+    return 222
 
 fn mir_constant() -> Int:
     return 0
@@ -2656,40 +2659,40 @@ fn parse_source(source: String) -> ParseResult:
     return parse_tokens(lexed.tokens, lexed.diagnostics)
 
 fn state_symbols(state: LowerState, symbols: Array[HirSymbol]) -> LowerState:
-    return LowerState(state.module, symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_module(state: LowerState, module: AstModule) -> LowerState:
-    return LowerState(module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_functions(state: LowerState, functions: Array[HirFunction]) -> LowerState:
-    return LowerState(state.module, state.symbols, functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_bindings(state: LowerState, bindings: Array[ScopeBinding]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_depth(state: LowerState, depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_function_context(state: LowerState, return_type: String, loop_depth: Int, substitutions: Substitutions, current_async: Bool) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, return_type, loop_depth, state.unsafe_depth, substitutions, state.pending, state.specializations, state.diagnostics, current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, return_type, loop_depth, state.unsafe_depth, substitutions, state.pending, state.specializations, state.diagnostics, current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_loop_depth(state: LowerState, loop_depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_unsafe_depth(state: LowerState, unsafe_depth: Int) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_pending(state: LowerState, pending: Array[PendingSpecialization]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_specializations(state: LowerState, specializations: Array[Specialization]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, specializations, state.diagnostics, state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_moved_symbols(state: LowerState, moved_symbols: Array[Int]) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn state_borrowing_unique(state: LowerState, borrowing_unique: Bool) -> LowerState:
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, state.diagnostics, state.current_async, state.moved_symbols, borrowing_unique, state.move_analysis_enabled)
 
 fn contains_symbol(symbols: Array[Int], symbol: Int) -> Bool:
     for index in 0..collections.length(symbols):
@@ -2699,11 +2702,11 @@ fn contains_symbol(symbols: Array[Int], symbol: Int) -> Bool:
 
 fn lower_error(state: LowerState, line: Int, column: Int, message: String) -> LowerState:
     let diagnostic = make_diagnostic("R4001", line, column, message)
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic), state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic), state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn lower_issue(state: LowerState, code: String, line: Int, column: Int, message: String) -> LowerState:
     let diagnostic = make_diagnostic(code, line, column, message)
-    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic), state.current_async, state.moved_symbols, state.borrowing_unique)
+    return LowerState(state.module, state.symbols, state.functions, state.bindings, state.depth, state.return_type, state.loop_depth, state.unsafe_depth, state.substitutions, state.pending, state.specializations, append(state.diagnostics, diagnostic), state.current_async, state.moved_symbols, state.borrowing_unique, state.move_analysis_enabled)
 
 fn add_hir_symbol(state: LowerState, kind: Int, name: String, type_name: String, mutable_binding: Bool, parameter_types: Array[String], intrinsic: Int) -> SymbolResult:
     let id = collections.length(state.symbols)
@@ -3790,6 +3793,8 @@ fn standard_signature(name: String) -> StandardSignature:
         return StandardSignature(true, [], ["std.sync.AtomicInt", "Int", "Int"], "Bool", intrinsic_sync_atomic_compare_exchange())
     if name == "std.sync.once":
         return StandardSignature(true, ["T"], ["T"], "std.sync.Once[T]", intrinsic_sync_once())
+    if name == "std.sync.once_empty":
+        return StandardSignature(true, ["T"], ["T"], "std.sync.Once[T]", intrinsic_sync_once_empty())
     if name == "std.sync.once_set":
         return StandardSignature(true, ["T"], ["std.sync.Once[T]", "T"], "Result[Bool, String]", intrinsic_sync_once_set())
     if name == "std.sync.once_get":
@@ -3828,8 +3833,8 @@ fn find_enum_index(module: AstModule, name: String) -> Int:
             return index
     return -1
 
-fn structurally_transferable(module: AstModule, type_name: String, sharing: Bool, depth: Int) -> Bool:
-    if depth > 64 or type_name == "<invalid>":
+fn structurally_transferable_seen(module: AstModule, type_name: String, sharing: Bool, visiting: Array[String]) -> Bool:
+    if type_name == "<invalid>":
         return false
     if type_name == "Int" or type_name == "Float" or type_name == "Bool" or type_name == "Char" or type_name == "Unit" or type_name == "String":
         return true
@@ -3840,17 +3845,26 @@ fn structurally_transferable(module: AstModule, type_name: String, sharing: Bool
         return true
     if base == "std.sync.LockGuard":
         return false
+    var key = string.concat("send:", type_name)
+    if sharing:
+        key = string.concat("share:", type_name)
+    for index in 0..collections.length(visiting):
+        if visiting[index] == key:
+            return true
+    let next_visiting = append(visiting, key)
     let arguments = type_arguments(type_name)
     if base == "UniqueBuffer":
         if sharing or collections.length(arguments) != 1:
             return false
-        return structurally_transferable(module, arguments[0], false, depth + 1)
+        return structurally_transferable_seen(module, arguments[0], true, next_visiting)
     if base == "Array" or base == "Slice":
-        return collections.length(arguments) == 1 and structurally_transferable(module, arguments[0], sharing, depth + 1)
+        return collections.length(arguments) == 1 and structurally_transferable_seen(module, arguments[0], sharing, next_visiting)
     if base == "Weak":
-        return collections.length(arguments) == 1 and structurally_transferable(module, arguments[0], true, depth + 1)
+        return collections.length(arguments) == 1 and structurally_transferable_seen(module, arguments[0], true, next_visiting)
     if base == "Task":
-        return collections.length(arguments) == 1 and structurally_transferable(module, arguments[0], false, depth + 1)
+        return not sharing and collections.length(arguments) == 1 and structurally_transferable_seen(module, arguments[0], false, next_visiting)
+    if base == "std.thread.Thread":
+        return not sharing and collections.length(arguments) == 1 and structurally_transferable_seen(module, arguments[0], false, next_visiting)
     let structure_index = find_struct_index(module, base)
     if structure_index >= 0:
         let declaration = module.structs[structure_index]
@@ -3859,7 +3873,7 @@ fn structurally_transferable(module: AstModule, type_name: String, sharing: Bool
         var substitutions = Substitutions([], [])
         substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), type_name, declaration.type_parameters, substitutions)
         for field_index in 0..collections.length(declaration.fields):
-            if not structurally_transferable(module, substitute_type(declaration.fields[field_index].type_name, substitutions), sharing, depth + 1):
+            if not structurally_transferable_seen(module, substitute_type(declaration.fields[field_index].type_name, substitutions), sharing, next_visiting):
                 return false
         return true
     let enum_index = find_enum_index(module, base)
@@ -3869,16 +3883,98 @@ fn structurally_transferable(module: AstModule, type_name: String, sharing: Bool
         substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), type_name, declaration.type_parameters, substitutions)
         for variant_index in 0..collections.length(declaration.variants):
             for payload_index in 0..collections.length(declaration.variants[variant_index].payload_types):
-                if not structurally_transferable(module, substitute_type(declaration.variants[variant_index].payload_types[payload_index], substitutions), sharing, depth + 1):
+                if not structurally_transferable_seen(module, substitute_type(declaration.variants[variant_index].payload_types[payload_index], substitutions), sharing, next_visiting):
                     return false
         return true
     return false
 
 fn is_send_type(module: AstModule, type_name: String) -> Bool:
-    return structurally_transferable(module, type_name, false, 0)
+    var visiting: Array[String] = []
+    return structurally_transferable_seen(module, type_name, false, visiting)
 
 fn is_share_type(module: AstModule, type_name: String) -> Bool:
-    return structurally_transferable(module, type_name, true, 0)
+    var visiting: Array[String] = []
+    return structurally_transferable_seen(module, type_name, true, visiting)
+
+fn is_move_only_type_seen(module: AstModule, type_name: String, visiting: Array[String]) -> Bool:
+    let base = type_base(type_name)
+    if base == "UniqueBuffer" or base == "Task" or base == "std.sync.LockGuard" or base == "std.task.TaskGroup" or base == "std.thread.Thread":
+        return true
+    if type_name == "<invalid>" or base == "Int" or base == "Float" or base == "Bool" or base == "Char" or base == "Unit" or base == "String" or base == "Weak" or base == "Pointer" or base == "std.string.Builder" or base == "std.cancel.CancellationToken" or base == "std.sync.Mutex" or base == "std.sync.Event" or base == "std.sync.AtomicInt" or base == "std.sync.Once" or base == "std.channel.Channel" or base == "std.channel.Sender" or base == "std.channel.Receiver":
+        return false
+    let arguments = type_arguments(type_name)
+    if base == "Array" or base == "Slice" or base == "Option" or base == "Result":
+        for argument_index in 0..collections.length(arguments):
+            if is_move_only_type_seen(module, arguments[argument_index], visiting):
+                return true
+        return false
+    var already_visiting = false
+    for visit_index in 0..collections.length(visiting):
+        if visiting[visit_index] == type_name:
+            already_visiting = true
+    if already_visiting:
+        return false
+    let next_visiting = append(visiting, type_name)
+    let structure_index = find_struct_index(module, base)
+    if structure_index >= 0:
+        let declaration = module.structs[structure_index]
+        var substitutions = Substitutions([], [])
+        substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), type_name, declaration.type_parameters, substitutions)
+        for field_index in 0..collections.length(declaration.fields):
+            if is_move_only_type_seen(module, substitute_type(declaration.fields[field_index].type_name, substitutions), next_visiting):
+                return true
+        return false
+    let enum_index = find_enum_index(module, base)
+    if enum_index >= 0:
+        let declaration = module.enums[enum_index]
+        var substitutions = Substitutions([], [])
+        substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), type_name, declaration.type_parameters, substitutions)
+        for variant_index in 0..collections.length(declaration.variants):
+            for payload_index in 0..collections.length(declaration.variants[variant_index].payload_types):
+                if is_move_only_type_seen(module, substitute_type(declaration.variants[variant_index].payload_types[payload_index], substitutions), next_visiting):
+                    return true
+    return false
+
+fn is_move_only_type(module: AstModule, type_name: String) -> Bool:
+    var visiting: Array[String] = []
+    return is_move_only_type_seen(module, type_name, visiting)
+
+fn type_spelling_may_move(type_name: String) -> Bool:
+    return string.contains(type_name, "UniqueBuffer[") or string.contains(type_name, "Task[") or string.contains(type_name, "std.sync.LockGuard[") or string.contains(type_name, "std.task.TaskGroup[") or string.contains(type_name, "std.thread.Thread[")
+
+fn module_may_move(module: AstModule) -> Bool:
+    for import_index in 0..collections.length(module.imports):
+        let name = module.imports[import_index].name
+        if name == "std.buffer" or name == "std.task" or name == "std.thread" or name == "std.sync" or string.starts_with(name, "std.async_"):
+            return true
+    for struct_index in 0..collections.length(module.structs):
+        let declaration = module.structs[struct_index]
+        for field_index in 0..collections.length(declaration.fields):
+            if type_spelling_may_move(declaration.fields[field_index].type_name):
+                return true
+    for enum_index in 0..collections.length(module.enums):
+        let declaration = module.enums[enum_index]
+        for variant_index in 0..collections.length(declaration.variants):
+            for payload_index in 0..collections.length(declaration.variants[variant_index].payload_types):
+                if type_spelling_may_move(declaration.variants[variant_index].payload_types[payload_index]):
+                    return true
+    for trait_index in 0..collections.length(module.traits):
+        let declaration = module.traits[trait_index]
+        for method_index in 0..collections.length(declaration.methods):
+            let method = declaration.methods[method_index]
+            if type_spelling_may_move(method.result_type):
+                return true
+            for parameter_index in 0..collections.length(method.parameters):
+                if type_spelling_may_move(method.parameters[parameter_index].type_name):
+                    return true
+    for function_index in 0..collections.length(module.functions):
+        let function = module.functions[function_index]
+        if function.asynchronous or type_spelling_may_move(function.result_type):
+            return true
+        for parameter_index in 0..collections.length(function.parameters):
+            if type_spelling_may_move(function.parameters[parameter_index].type_name):
+                return true
+    return false
 
 fn find_function_index(module: AstModule, name: String) -> Int:
     for index in 0..collections.length(module.functions):
@@ -3972,7 +4068,7 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
             if not contains_type_parameter(candidate, signature.type_parameters):
                 expected = candidate
         var argument_state = next
-        let borrows_buffer = index == 0 and(signature.intrinsic == intrinsic_buffer_length() or signature.intrinsic == intrinsic_buffer_capacity() or signature.intrinsic == intrinsic_buffer_get() or signature.intrinsic == intrinsic_sync_guard_get() or signature.intrinsic == intrinsic_sync_guard_set() or signature.intrinsic == intrinsic_task_group_cancel() or signature.intrinsic == intrinsic_thread_is_complete())
+        let borrows_buffer = index == 0 and(signature.intrinsic == intrinsic_buffer_length() or signature.intrinsic == intrinsic_buffer_capacity() or signature.intrinsic == intrinsic_buffer_get() or signature.intrinsic == intrinsic_sync_guard_get() or signature.intrinsic == intrinsic_sync_guard_set() or signature.intrinsic == intrinsic_task_is_complete() or signature.intrinsic == intrinsic_task_cancel() or signature.intrinsic == intrinsic_task_group_cancel() or signature.intrinsic == intrinsic_thread_is_complete())
         if borrows_buffer:
             argument_state = state_borrowing_unique(argument_state, true)
         let lowered = lower_hir_expression(argument_state, arguments[index], expected)
@@ -4002,10 +4098,13 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
             next = lower_error(next, expression.line, expression.column, "collection equality requires Int, Float, Bool, Char, or String")
     if signature.intrinsic == intrinsic_ownership_downgrade() and not is_share_type(next.module, substitution_value(substitutions, "T")):
         next = lower_issue(next, "R4102", expression.line, expression.column, "Weak targets must satisfy Share")
-    if signature.intrinsic == intrinsic_sync_mutex() or signature.intrinsic == intrinsic_sync_once() or signature.intrinsic == intrinsic_channel_bounded() or signature.intrinsic == intrinsic_channel_unbounded() or signature.intrinsic == intrinsic_channel_send() or signature.intrinsic == intrinsic_task_group() or signature.intrinsic == intrinsic_thread_spawn():
+    if signature.intrinsic == intrinsic_sync_mutex() or signature.intrinsic == intrinsic_sync_once() or signature.intrinsic == intrinsic_sync_once_empty() or signature.intrinsic == intrinsic_channel_bounded() or signature.intrinsic == intrinsic_channel_unbounded() or signature.intrinsic == intrinsic_channel_send() or signature.intrinsic == intrinsic_task_group() or signature.intrinsic == intrinsic_thread_spawn():
         let transferred = substitution_value(substitutions, "T")
-        if not is_send_type(next.module, transferred) or not managed_type(transferred):
-            next = lower_issue(next, "R4101", expression.line, expression.column, "synchronized storage requires a managed Send value")
+        let share_value = signature.intrinsic == intrinsic_sync_mutex() or signature.intrinsic == intrinsic_sync_once() or signature.intrinsic == intrinsic_sync_once_empty()
+        if(share_value and not is_share_type(next.module, transferred)) or(not share_value and not is_send_type(next.module, transferred)):
+            next = lower_issue(next, "R4101", expression.line, expression.column, "concurrency boundary value does not satisfy Send/Share")
+    if signature.intrinsic == intrinsic_buffer_thaw() and not is_share_type(next.module, substitution_value(substitutions, "T")):
+        next = lower_issue(next, "R4101", expression.line, expression.column, "UniqueBuffer element type does not satisfy Share")
     var key = name
     if collections.length(signature.type_parameters) > 0:
         key = specialization_key(name, substitutions, signature.type_parameters)
@@ -4421,12 +4520,12 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
             let next = lower_error(state, expression.line, expression.column, string.concat("undefined name '", string.concat(expression.text, "'")))
             return HirExprResult(hir_expression(expression.kind, expression.text, "<invalid>", [], -1, -1, expression), next)
         var next = state
-        let symbol_base = type_base(state.symbols[symbol].type_name)
-        if(symbol_base == "UniqueBuffer" or symbol_base == "std.sync.LockGuard" or symbol_base == "std.task.TaskGroup" or symbol_base == "std.thread.Thread") and not state.borrowing_unique:
+        if state.move_analysis_enabled and is_move_only_type(state.module, state.symbols[symbol].type_name):
             if contains_symbol(state.moved_symbols, symbol):
                 next = lower_issue(next, "R4103", expression.line, expression.column, string.concat("move-only value '", string.concat(expression.text, "' was already consumed")))
             else:
-                next = state_moved_symbols(next, append(next.moved_symbols, symbol))
+                if not state.borrowing_unique:
+                    next = state_moved_symbols(next, append(next.moved_symbols, symbol))
         return HirExprResult(hir_expression(expression.kind, expression.text, state.symbols[symbol].type_name, [], symbol, -1, expression), next)
     if expression.kind == expr_lambda():
         var parameter_names: Array[String] = []
@@ -4444,8 +4543,11 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         let closure_name = string.concat("$closure.", string.from_int(collections.length(state.module.structs)))
         var fields: Array[AstTypeField] = []
         var captured_values: Array[HirExpr] = []
+        var capture_state = state
         for index in 0..collections.length(captures):
             let symbol = captures[index].symbol
+            if capture_state.move_analysis_enabled and is_move_only_type(capture_state.module, capture_state.symbols[symbol].type_name):
+                capture_state = lower_issue(capture_state, "R4103", expression.line, expression.column, string.concat("move-only value '", string.concat(captures[index].name, "' cannot be captured by a reusable closure")))
             fields = append(fields, AstTypeField(captures[index].name, state.symbols[symbol].type_name, expression.line, expression.column))
             captured_values = append(captured_values, hir_expression(expr_name(), captures[index].name, state.symbols[symbol].type_name, [], symbol, -1, expression))
         let closure = AstStructDecl(closure_name, false, [], fields, representation_rocket(), [], "", closure_name, expression.line, expression.column)
@@ -4457,7 +4559,7 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         let callable = AstFunction(callable_name, false, [], collections.concat([self_parameter], parameters), result_type, [returned], closure_name, "", false, false, false, false, callable_name, [], expression.line, expression.column, false)
         var module = state.module
         module = AstModule(module.imports, append(module.structs, closure), module.enums, module.traits, append(module.functions, callable))
-        var next = state_module(state, module)
+        var next = state_module(capture_state, module)
         let added = add_hir_symbol(next, symbol_function(), callable_name, result_type, false, collections.concat([closure_name], parameter_types), intrinsic_none())
         next = state_pending(added.state, append(added.state.pending, PendingSpecialization(collections.length(module.functions) - 1, added.symbol, state.substitutions)))
         return HirExprResult(hir_expression(expr_call(), "$struct", closure_name, captured_values, -1, 0, expression), next)
@@ -4843,7 +4945,7 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], librar
     let http_request_type = AstStructDecl("std.http.Request", true, [], [AstTypeField("method", "String", 1, 1), AstTypeField("path", "String", 1, 1), AstTypeField("body", "std.collections.ByteBuffer", 1, 1)], representation_rocket(), [], "", "std.http.Request", 1, 1)
     let builtins = [pop_type, removal_type, tuple2_type, tuple3_type, map_type, set_type, queue_type, stack_type, buffer_type, http_response_type, http_request_type]
     let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.traits, module.functions)
-    var state = LowerState(complete_module, [], [], [], 0, "", 0, 0, Substitutions([], []), [], [], parser_diagnostics, false, [], false)
+    var state = LowerState(complete_module, [], [], [], 0, "", 0, 0, Substitutions([], []), [], [], parser_diagnostics, false, [], false, module_may_move(complete_module))
     let print_symbol = add_hir_symbol(state, symbol_builtin(), "print", "Unit", false, [], intrinsic_print())
     state = print_symbol.state
     var function_symbols: Array[Int] = []
@@ -6138,6 +6240,8 @@ fn intrinsic_runtime_name(intrinsic: Int) -> String:
         return "@rocket_std_thread_is_complete"
     if intrinsic == intrinsic_task_cancel():
         return "@rocket_std_task_cancel"
+    if intrinsic == intrinsic_sync_once_empty():
+        return "@rocket_std_sync_once_empty"
     return ""
 
 fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
@@ -6421,10 +6525,25 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare i64 @rocket_std_async_time_remaining(i64)")
     emit_llvm_line(builder, "declare ptr @rocket_std_async_time_sleep(i64, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_async_time_sleep_until(i64, ptr)")
-    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex_managed(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex_string(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex_int(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex_float(double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex_bool(i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_mutex_char(i8)")
     emit_llvm_line(builder, "declare ptr @rocket_std_sync_lock(ptr, i64, ptr)")
-    emit_llvm_line(builder, "declare ptr @rocket_std_sync_guard_get(ptr)")
-    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_guard_get_managed(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_guard_get_string(ptr)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_sync_guard_get_int(ptr)")
+    emit_llvm_line(builder, "declare double @rocket_std_sync_guard_get_float(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_get_bool(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_get_char(ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set_managed(ptr, ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set_int(ptr, i64)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set_float(ptr, double)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare i8 @rocket_std_sync_guard_set_char(ptr, i8)")
     emit_llvm_line(builder, "declare ptr @rocket_std_sync_unlock(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_sync_event(i8, i8)")
     emit_llvm_line(builder, "declare i8 @rocket_std_sync_event_set(ptr)")
@@ -6435,22 +6554,52 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare void @rocket_std_sync_atomic_store(ptr, i64)")
     emit_llvm_line(builder, "declare i64 @rocket_std_sync_atomic_fetch_add(ptr, i64)")
     emit_llvm_line(builder, "declare i8 @rocket_std_sync_atomic_compare_exchange(ptr, i64, i64)")
-    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once(ptr)")
-    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set(ptr, ptr)")
-    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_managed(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_string(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_int(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_float(double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_bool(i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_char(i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_empty_managed(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_empty_string(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_empty_int(i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_empty_float(double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_empty_bool(i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_empty_char(i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set_managed(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set_string(ptr, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set_int(ptr, i64)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set_float(ptr, double)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set_bool(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_set_char(ptr, i8)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get_managed(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get_string(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get_int(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get_float(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get_bool(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_sync_once_get_char(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_bounded(ptr, i64)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_unbounded(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_sender(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_receiver(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_clone_sender(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_clone_receiver(ptr)")
-    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send(ptr, ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send_managed(ptr, ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send_string(ptr, ptr, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send_int(ptr, i64, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send_float(ptr, double, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send_bool(ptr, i8, i64, ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_channel_send_char(ptr, i8, i64, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_receive(ptr, i64, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_close_sender(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_channel_close_receiver(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_async_file_read(ptr, i64, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_async_file_write(ptr, ptr, i8, ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_task_group(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group_int(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group_float(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group_bool(ptr)")
+    emit_llvm_line(builder, "declare ptr @rocket_std_task_group_char(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_task_group_string(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_task_group_managed(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_task_group_join(ptr)")
@@ -6616,6 +6765,14 @@ fn emit_call_llvm(builder: std.string.Builder, module: MirModule, instruction: M
             runtime_name = string.concat(runtime_name, llvm_value_suffix(collection_element_type(values[0].type_name)))
         if symbol.intrinsic == intrinsic_task_group():
             runtime_name = string.concat(runtime_name, llvm_value_suffix(collection_element_type(instruction.type_name)))
+        if symbol.intrinsic == intrinsic_sync_mutex() or symbol.intrinsic == intrinsic_sync_once() or symbol.intrinsic == intrinsic_sync_once_empty():
+            runtime_name = string.concat(runtime_name, llvm_value_suffix(values[0].type_name))
+        if symbol.intrinsic == intrinsic_sync_guard_get():
+            runtime_name = string.concat(runtime_name, llvm_value_suffix(instruction.type_name))
+        if symbol.intrinsic == intrinsic_sync_guard_set() or symbol.intrinsic == intrinsic_sync_once_set() or symbol.intrinsic == intrinsic_channel_send():
+            runtime_name = string.concat(runtime_name, llvm_value_suffix(values[1].type_name))
+        if symbol.intrinsic == intrinsic_sync_once_get():
+            runtime_name = string.concat(runtime_name, llvm_value_suffix(type_arguments(instruction.type_name)[0]))
         if instruction.type_name == "Unit":
             emit_llvm_line(builder, string.concat("  call void ", string.concat(runtime_name, string.concat("(", string.concat(collections.join(arguments, ", "), ")")))))
             return LlvmValue("0", "Unit")

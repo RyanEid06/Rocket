@@ -1,0 +1,10 @@
+import std.task
+
+async fn produce() -> Result[Int, String]:
+    return Ok(42)
+
+fn main() -> Int:
+    let pending = produce()
+    let first = task.join(pending)
+    let second = task.join(pending)
+    return 0

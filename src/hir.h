@@ -244,6 +244,7 @@ enum class Intrinsic {
   ThreadIsComplete,
   TaskCancel,
   TaskGroupCancel,
+  SyncOnceEmpty,
 };
 
 struct HirSymbol {
@@ -670,6 +671,7 @@ private:
                              std::vector<LambdaCapture>& captures) const;
   bool isSendType(const Type& type) const;
   bool isShareType(const Type& type) const;
+  bool isMoveOnlyType(const Type& type) const;
   void diagnoseAsyncArguments(
       const std::vector<std::unique_ptr<HirExpr>>& arguments,
       const Location& location) const;

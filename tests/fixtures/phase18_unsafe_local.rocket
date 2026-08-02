@@ -1,0 +1,6 @@
+extern fn native_race_pointer() -> Pointer[Int]
+
+fn main() -> Int:
+    unsafe:
+        let pointer = native_race_pointer()
+    return 0

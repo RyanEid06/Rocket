@@ -685,6 +685,7 @@ void HirLowerer::registerStandardLibrary() {
   add("std.sync.atomic_compare_exchange", {atomicInt, Type::Int, Type::Int},
       Type::Bool, Intrinsic::SyncAtomicCompareExchange);
   add("std.sync.once", {t}, onceT, Intrinsic::SyncOnce, {"T"});
+  add("std.sync.once_empty", {t}, onceT, Intrinsic::SyncOnceEmpty, {"T"});
   add("std.sync.once_set", {onceT, t}, result(Type::Bool), Intrinsic::SyncOnceSet,
       {"T"});
   add("std.sync.once_get", {onceT}, Type{TypeKind::Enum, "Option", {t}},
@@ -1920,8 +1921,12 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
       diagnostics_.error(location,
                          "collection equality requires Int, Float, Bool, Char, or String");
     if (definition.intrinsic == Intrinsic::OwnershipDowngrade &&
-        inferred.contains("T") && weakType(inferred.at("T")) == Type::Invalid)
-      diagnostics_.error(location, "Weak requires an identity-bearing managed target");
+        inferred.contains("T") &&
+        (weakType(inferred.at("T")) == Type::Invalid ||
+         !isShareType(inferred.at("T"))))
+      diagnostics_.error(location,
+                         "Weak targets must be identity-bearing Share values",
+                         DiagnosticCode::ShareConstraint);
     SymbolId callee = InvalidSymbol;
     if (auto found = specializations_.find(key); found != specializations_.end()) {
       callee = found->second;
@@ -2093,15 +2098,14 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       return std::make_unique<HirNameExpr>(expression.location, Type::Invalid, symbol);
     }
     const Type& symbolType = hir_.symbol(symbol).type;
-    const bool moveOnly = isUniqueBufferType(symbolType) ||
-                          symbolType.declaration == "std.sync.LockGuard" ||
-                          symbolType.declaration == "std.task.TaskGroup" ||
-                          symbolType.declaration == "std.thread.Thread";
-    if (borrowUniqueDepth_ == 0 && moveOnly) {
-      if (!movedSymbols_.insert(symbol).second)
+    const bool moveOnly = isMoveOnlyType(symbolType);
+    if (moveOnly) {
+      if (movedSymbols_.contains(symbol))
         diagnostics_.error(expression.location,
                            "move-only value '" + name + "' was already consumed",
                            DiagnosticCode::MoveOnly);
+      else if (borrowUniqueDepth_ == 0)
+        movedSymbols_.insert(symbol);
     }
     return std::make_unique<HirNameExpr>(expression.location, hir_.symbol(symbol).type, symbol);
   }
@@ -2332,6 +2336,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
              definition.intrinsic == Intrinsic::BufferGet ||
              definition.intrinsic == Intrinsic::SyncGuardGet ||
              definition.intrinsic == Intrinsic::SyncGuardSet ||
+             definition.intrinsic == Intrinsic::TaskIsComplete ||
+             definition.intrinsic == Intrinsic::TaskCancel ||
              definition.intrinsic == Intrinsic::TaskGroupCancel ||
              definition.intrinsic == Intrinsic::ThreadIsComplete);
         if (borrowsBuffer) ++borrowUniqueDepth_;
@@ -2398,12 +2404,16 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                              "collection equality requires Int, Float, Bool, Char, or String");
       }
       if (definition.intrinsic == Intrinsic::OwnershipDowngrade &&
-          inferred.contains("T") && weakType(inferred.at("T")) == Type::Invalid)
+          inferred.contains("T") &&
+          (weakType(inferred.at("T")) == Type::Invalid ||
+           !isShareType(inferred.at("T"))))
         diagnostics_.error(expression.location,
-                            "Weak requires an identity-bearing managed target");
+                           "Weak targets must be identity-bearing Share values",
+                           DiagnosticCode::ShareConstraint);
       const bool concurrencyValue =
           definition.intrinsic == Intrinsic::SyncMutex ||
           definition.intrinsic == Intrinsic::SyncOnce ||
+          definition.intrinsic == Intrinsic::SyncOnceEmpty ||
           definition.intrinsic == Intrinsic::ChannelBounded ||
           definition.intrinsic == Intrinsic::ChannelUnbounded ||
           definition.intrinsic == Intrinsic::ChannelSend ||
@@ -2411,16 +2421,24 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
           definition.intrinsic == Intrinsic::ThreadSpawn;
       if (concurrencyValue && inferred.contains("T")) {
         const Type& transferred = inferred.at("T");
-        if (!isSendType(transferred))
+        const bool shareValue =
+            definition.intrinsic == Intrinsic::SyncMutex ||
+            definition.intrinsic == Intrinsic::SyncOnce ||
+            definition.intrinsic == Intrinsic::SyncOnceEmpty;
+        if ((shareValue && !isShareType(transferred)) ||
+            (!shareValue && !isSendType(transferred)))
           diagnostics_.error(expression.location,
                              "concurrency boundary type " + typeName(transferred) +
-                                 " does not satisfy Send",
-                             DiagnosticCode::SendConstraint);
-        if (!isManagedType(transferred))
-          diagnostics_.error(expression.location,
-                             "Rocket 1.8 synchronized storage requires a managed value type",
+                                 (shareValue ? " does not satisfy Share"
+                                            : " does not satisfy Send"),
                              DiagnosticCode::SendConstraint);
       }
+      if (definition.intrinsic == Intrinsic::BufferThaw &&
+          inferred.contains("T") && !isShareType(inferred.at("T")))
+        diagnostics_.error(expression.location,
+                           "UniqueBuffer element type " + typeName(inferred.at("T")) +
+                               " does not satisfy Share",
+                           DiagnosticCode::SendConstraint);
       SymbolId callee = InvalidSymbol;
       if (auto found = specializations_.find(key); found != specializations_.end()) {
         callee = found->second;
@@ -2697,9 +2715,16 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     declaration.name = closureName;
     declaration.location = lambda.location;
     declaration.builtin = true;
-    for (const auto& capture : captures)
+    for (const auto& capture : captures) {
+      if (isMoveOnlyType(hir_.symbol(capture.source).type))
+        diagnostics_.error(
+            lambda.location,
+            "move-only value '" + capture.name +
+                "' cannot be captured by a reusable closure",
+            DiagnosticCode::MoveOnly);
       declaration.fields.push_back({capture.name, hir_.symbol(capture.source).type,
                                     lambda.location});
+    }
     const std::uint32_t declarationIndex =
         static_cast<std::uint32_t>(hir_.typeDeclarations.size());
     typeDeclarations_.emplace(closureName, declarationIndex);
@@ -2744,11 +2769,13 @@ bool HirLowerer::isSendType(const Type& root) const {
     if (isArrayType(type) || isSliceType(type))
       return type.arguments.size() == 1 && check(type.arguments[0], sharing);
     if (isUniqueBufferType(type))
-      return !sharing && type.arguments.size() == 1 && check(type.arguments[0], false);
+      return !sharing && type.arguments.size() == 1 && check(type.arguments[0], true);
     if (isWeakType(type))
       return type.arguments.size() == 1 && check(type.arguments[0], true);
     if (isTaskType(type))
-      return type.arguments.size() == 1 && check(type.arguments[0], false);
+      return !sharing && type.arguments.size() == 1 && check(type.arguments[0], false);
+    if (type.declaration == "std.thread.Thread")
+      return !sharing && type.arguments.size() == 1 && check(type.arguments[0], false);
     if (type.declaration == "std.cancel.CancellationToken" ||
         type.declaration == "std.sync.Mutex" ||
         type.declaration == "std.sync.Event" ||
@@ -2791,8 +2818,8 @@ bool HirLowerer::isShareType(const Type& root) const {
       return true;
     if (isArrayType(type) || isSliceType(type) || isWeakType(type))
       return type.arguments.size() == 1 && check(type.arguments[0]);
-    if (isTaskType(type))
-      return type.arguments.size() == 1 && isSendType(type.arguments[0]);
+    if (isTaskType(type)) return false;
+    if (type.declaration == "std.thread.Thread") return false;
     if (type.declaration == "std.cancel.CancellationToken" ||
         type.declaration == "std.sync.Mutex" ||
         type.declaration == "std.sync.Event" ||
@@ -2824,6 +2851,49 @@ bool HirLowerer::isShareType(const Type& root) const {
         accepted = accepted && check(substitute(payload, substitutions));
     visiting.erase(key);
     return accepted;
+  };
+  return check(root);
+}
+
+bool HirLowerer::isMoveOnlyType(const Type& root) const {
+  std::unordered_set<std::string> visiting;
+  std::function<bool(const Type&)> check = [&](const Type& type) {
+    if (type == Type::Invalid) return false;
+    if (isUniqueBufferType(type) || isTaskType(type) ||
+        type.declaration == "std.sync.LockGuard" ||
+        type.declaration == "std.task.TaskGroup" ||
+        type.declaration == "std.thread.Thread")
+      return true;
+    if (isArrayType(type) || isSliceType(type) ||
+        ((type.declaration == "Option" || type.declaration == "Result") &&
+         !type.arguments.empty())) {
+      for (const Type& argument : type.arguments)
+        if (check(argument)) return true;
+      return false;
+    }
+    if (type.kind != TypeKind::Struct && type.kind != TypeKind::Enum)
+      return false;
+    const std::string key = typeName(type);
+    if (!visiting.insert(key).second) return false;
+    const std::uint32_t declarationIndex = findTypeDeclaration(type);
+    if (declarationIndex == static_cast<std::uint32_t>(-1)) {
+      visiting.erase(key);
+      return false;
+    }
+    const auto& declaration = hir_.typeDeclarations[declarationIndex];
+    Substitutions substitutions;
+    for (std::size_t index = 0;
+         index < declaration.typeParameters.size() && index < type.arguments.size();
+         ++index)
+      substitutions.emplace(declaration.typeParameters[index], type.arguments[index]);
+    bool moveOnly = false;
+    for (const auto& field : declaration.fields)
+      moveOnly = moveOnly || check(substitute(field.type, substitutions));
+    for (const auto& variant : declaration.variants)
+      for (const Type& payload : variant.payloadTypes)
+        moveOnly = moveOnly || check(substitute(payload, substitutions));
+    visiting.erase(key);
+    return moveOnly;
   };
   return check(root);
 }

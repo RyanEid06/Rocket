@@ -483,7 +483,8 @@ v1 or smuggling unrestricted execution into manifests.
 **Accepted for Rocket 1.8.** Safe Rocket prevents strong ownership cycles and
 data races by construction. `Weak[T]` supplies explicit non-owning back links
 with atomic all-or-nothing upgrade. `UniqueBuffer[T]` is move-only mutation
-authority that may cross a thread only when `T` is `Send`. `Send` and `Share`
+authority, requires shareable elements so repeated reads remain owned, and may
+cross a thread. `Send` and `Share`
 are compiler-derived structural properties; native pointers, opaque native
 handles, callbacks, and mutable builders receive neither property. Lock guards
 and task groups are move-only scoped values that cannot escape. Stable
@@ -496,8 +497,9 @@ to atomic ownership. Atomic retain is relaxed, final release is release/acquire,
 and weak upgrade is acquire compare/exchange. Promotion is idempotent, does not
 traverse weak edges, and does not change source identity or value semantics.
 
-An `async fn` must return `Result[T, String]`; calling it returns `Task[T]`, and
-prefix `await` produces `Result[T, String]`. The implementation uses a bounded
+An `async fn` must return `Result[T, String]`; calling it returns an affine
+`Task[T]`, and prefix `await` consumes that task to produce
+`Result[T, String]`. Task status and cancellation borrow. The implementation uses a bounded
 stackful worker representation. Await is explicit in HIR/MIR; a worker awaiting
 same-executor work pumps ready tasks, while ordinary MIR ownership keeps every
 managed local alive across that logical suspension. This preserves the existing
@@ -508,11 +510,25 @@ Dedicated thread handles, one bounded default pool, structured task groups,
 FIFO channels, mutex guards,
 events, sequentially consistent integer atomics, once cells, cancellation
 tokens, monotonic deadlines, and timers use synchronized managed handles. All
-queues are bounded. Group destruction cancels and joins children; default-pool
+queues have explicit limits: bounded channels use their requested capacity and
+the intentionally unbounded channel fails at 1,048,576 pending values. Mutexes
+and repeatably readable once cells accept `Share` payloads; an empty
+once cell permits exactly one concurrent initializer. Group destruction cancels and joins children; default-pool
 destruction drains queued work and joins workers; dropping an unjoined thread
 joins it. The Windows asynchronous file/socket/process/timer surface uses that
-bounded worker service and never creates an unbounded thread per operation.
-It is deliberately worker-blocking rather than IOCP-overlapped, and process
-tasks inherit standard streams instead of capturing output in Rocket 1.8.
+bounded worker service plus overlapped file events, Winsock readiness, waitable
+timers, and process-handle waits; it never creates an unbounded thread per
+operation. Socket/process coordination is deliberately worker-blocking rather
+than a general IOCP dispatcher, and process tasks inherit standard streams
+instead of capturing output in Rocket 1.8.
 Synchronous Rocket 1.5 APIs remain compatible. The complete API, failure,
 memory-ordering, cancellation, and race contract is in `CONCURRENCY.md`.
+
+The Rocket-written compiler enables the recursive affine-move analysis only
+for modules whose imports or declarations can produce move-only values. This
+keeps stage0/self-hosted semantics equivalent while avoiding an unnecessary
+whole-body ownership walk when compiling the compiler itself. The Release HIR
+self-check has observed 117-126 second host variance; its versioned ceiling is
+135 seconds. This is regression margin, not a performance-improvement claim,
+and it does not waive the final-source performance rerun recorded in
+`PROJECT_CONTEXT.md`.

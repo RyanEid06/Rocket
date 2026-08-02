@@ -12,6 +12,7 @@ async fn delayed(value: String) -> Result[String, String]:
 
 fn main() -> Int:
     let sleeper = delayed("late")
+    print(task.is_complete(sleeper))
     print(task.cancel(sleeper))
     match task.join(sleeper):
         case Ok(value):
@@ -19,8 +20,6 @@ fn main() -> Int:
             return 1
         case Err(message):
             print(message)
-    print(task.cancel(sleeper))
-
     let first = delayed("first")
     let second = delayed("second")
     let group = task.group([first, second])

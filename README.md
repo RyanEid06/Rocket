@@ -2,10 +2,13 @@
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
-Rocket is complete through the 1.8 ownership, concurrency, and asynchronous-I/O
-release, including the Rocket 1.6 package ecosystem and 1.7 tooling. Phases 19 and 20 must pass the
-[master roadmap](docs/ROADMAP.md) before the separate casino application may
-begin.
+Rocket's 1.8 ownership, concurrency, and asynchronous-I/O implementation is
+complete on top of the Rocket 1.6 package ecosystem and 1.7 tooling. The exact
+final-source release-validation reruns still outstanding are recorded in
+[`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) and
+[`PHASE_18_AUDIT.md`](docs/PHASE_18_AUDIT.md); no final artifact is claimed yet.
+Phases 19 and 20 must pass the [master roadmap](docs/ROADMAP.md) before the
+separate casino application may begin.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
@@ -31,7 +34,8 @@ available only as the reproducible stage0 fallback when LLVM is explicitly disab
   atomic ARC publication, and stable concurrency diagnostics
 - `async fn`, prefix `await`, bounded tasks, dedicated thread handles,
   structured task groups, cancellation, monotonic timers, channels, mutexes,
-  events, atomics, once publication, and bounded asynchronous I/O work
+  events, atomics, seeded/exactly-once publication, and bounded Windows-event
+  asynchronous I/O work
 - Package-relative `import` modules with explicit `pub` visibility
 - Editor-neutral `rocket-lsp` Protocol 1.0 semantic tooling with incremental
   multi-package analysis, unsaved overlays, navigation, refactoring, semantic

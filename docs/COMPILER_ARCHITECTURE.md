@@ -416,8 +416,12 @@ pipeline and ordinary optimized compilation remain unchanged.
 
 HIR derives `Send`/`Share` recursively through concrete nominal declarations,
 closure capture structs, collections, weak references, and runtime handles.
+Recursive weak-backed models use a visited-type fixed point in both compilers.
 Native pointers/handles/callbacks and mutable builders fail both properties.
-The lowerer tracks move-only locals and rejects copies/use-after-move. It also
+The lowerer derives move-only status transitively through arrays, slices,
+options, results, structs, and enums, then rejects copies/use-after-move. Tasks
+are affine: join/await and thread/group transfer consume them, while status and
+cancellation borrow. Reusable closures reject move-only captures. The lowerer also
 rejects scoped guards/groups in return types, aggregate fields, escaping
 captures, and cross-thread frames.
 
@@ -428,18 +432,21 @@ fields, calls the ordinary body, and completes the runtime task. The stage0 C++
 backend emits the equivalent typed closure. Await lowers to the versioned task
 outcome ABI and returns the same Result representation used by `?`.
 
-The runtime executor has a bounded queue and fixed workers. A worker awaiting
+The runtime executor has a bounded queue and fixed workers. Its implementation
+is directly stress-constructed and destroyed for 1,000 queued-work cycles in
+the runtime suite. A worker awaiting
 same-executor work pumps ready tasks, so nested awaits do not require an
 unbounded worker supply. Ordinary MIR locals stay on the worker stack and retain
 managed values across the logical suspension. Task groups own child tasks in
 spawn order and their destructors cancel and join remaining children.
 
-The Windows async surface submits timers and file/socket/process requests to the
-same bounded default executor used by async functions. File work advances in
-64 KiB chunks, socket calls reuse the finite-timeout Windows socket layer, and
-process waits poll a child handle in 10 ms slices so cancellation/deadline
-cleanup owns the child through termination. This design is bounded
-worker-blocking, not IOCP-overlapped, and never creates an unbounded I/O thread
-per request. `CONCURRENCY.md` defines the public ordering, cancellation,
-partial-I/O, shutdown, deliberate process-capture limitation, and resource
-limits.
+The Windows async surface submits timer and file/socket/process coordination to
+the same bounded default executor used by async functions. File transfers use
+overlapped handles, per-operation events, `GetOverlappedResult`, and
+`CancelIoEx` in 64 KiB chunks. Socket calls reuse nonblocking Winsock readiness,
+timers use waitable timers, and process work waits on a child handle so
+cancellation/deadline cleanup owns the child through termination. Socket and
+process coordination is bounded-worker blocking rather than a general IOCP
+dispatcher, and no operation creates an unbounded I/O thread per request.
+`CONCURRENCY.md` defines ordering, cancellation, partial-I/O, shutdown, the
+deliberate process-capture limitation, and resource limits.
