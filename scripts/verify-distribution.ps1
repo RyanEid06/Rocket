@@ -44,6 +44,9 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'examples\hello.rocket') -Destina
 $phase11Source = Join-Path $work 'phase11_map_set_tuple.rocket'
 Copy-Item -LiteralPath (Join-Path $projectRoot 'tests\fixtures\phase11_map_set_tuple.rocket') `
     -Destination $phase11Source
+$phase18Source = Join-Path $work 'ownership_concurrency.rocket'
+Copy-Item -LiteralPath (Join-Path $projectRoot 'examples\ownership_concurrency.rocket') `
+    -Destination $phase18Source
 
 $savedEnvironment = @{
     ROCKET_CLANG = $env:ROCKET_CLANG
@@ -101,6 +104,13 @@ try {
         if ($LASTEXITCODE -ne 0 -or
             ($phase11Output -join "`n") -notmatch '4567693929835203094') {
             throw "Relocated compiler Phase 11 run failed: $($phase11Output -join ' ')"
+        }
+        & $compiler check $phase18Source
+        if ($LASTEXITCODE -ne 0) { throw 'Relocated compiler Phase 18 check failed.' }
+        $phase18Output = & $compiler run $phase18Source 2>&1
+        if ($LASTEXITCODE -ne 0 -or
+            ($phase18Output -join "`n") -notmatch '41[\r\n]+3[\r\n]+42') {
+            throw "Relocated compiler Phase 18 run failed: $($phase18Output -join ' ')"
         }
 
         $nativeProgram = Join-Path $work '.rocketc\main.exe'

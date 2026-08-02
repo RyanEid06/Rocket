@@ -463,7 +463,11 @@ operate in substantial codebases.
 - Exact report and distribution hashes, timings, and deliberate limitations are
   recorded in `PROJECT_CONTEXT.md`.
 
-### Phase 18 - Rocket 1.8: robust ownership, concurrency, and asynchronous I/O - Implementation complete; validation follow-up
+### Phase 18 - Rocket 1.8: robust ownership, concurrency, and asynchronous I/O - Completed
+
+**Status:** Completed on 2026-08-02. The final-source release matrix,
+deterministic bootstrap, conformance, performance, self-contained package, and
+sanitized relocation all passed.
 
 **Purpose:** Support responsive applications and parallel services while keeping
 Rocket's default programming model understandable and safe.
@@ -494,19 +498,18 @@ Rocket's default programming model understandable and safe.
 
 **Acceptance evidence:**
 
-- The expanded pre-final-gating LLVM Debug/Release matrices passed 210/210,
-  LLVM-disabled stage0 Debug/Release passed 165/165, and the focused Phase 18
-  selection passed 78/78 twice, including compiler, runtime stress, native,
-  and self-hosted checks. Direct final-source compiler and ownership parity
-  checks also passed.
-- The most recent completed pre-final-gating bootstrap produced byte-identical
-  stage2/stage3 LLVM IR at SHA-256
-  `4c4491f28fe9013e151f88147fbce6d921e3fd90d39c343428726f6e2681c315`.
-- Final-source full matrices, bootstrap/conformance hashes, the updated
-  performance budget, and package/relocation must be rerun. Exact observed
-  timings, failures, and the reason the upload preceded those reruns are
-  recorded in `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`; no stale artifact
-  is presented as the final Rocket 1.8 package.
+- Final-source LLVM Debug/Release passed 210/210; LLVM-disabled stage0
+  Debug/Release passed 165/165; and the focused Phase 18 selection passed 78/78
+  twice, including compiler, runtime stress, native, and self-hosted checks.
+- The strengthened bootstrap proved all 14 positive and 15 negative Phase 18
+  fixtures agree across stage0-stage3 and produced byte-identical stage2/stage3
+  LLVM IR at SHA-256
+  `d2bb814269f3c05fd823b21e6ab0e6b908fcca99f37d28d5fd1130a50d01ba23`.
+- Release conformance passed 90/90 and all 11 performance budgets passed.
+  Self-contained packaging and sanitized relocation passed, including a
+  relocated Phase 18 ownership/concurrency program. Exact timings, report
+  hashes, package metadata, and deliberate limits are recorded in
+  `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`.
 
 ### Phase 19 - Rocket 1.9: multi-platform compiler and runtime
 

@@ -2,11 +2,12 @@
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
-Rocket's 1.8 ownership, concurrency, and asynchronous-I/O implementation is
-complete on top of the Rocket 1.6 package ecosystem and 1.7 tooling. The exact
-final-source release-validation reruns still outstanding are recorded in
+Rocket 1.8 ownership, concurrency, and asynchronous I/O is officially complete
+on top of the Rocket 1.6 package ecosystem and 1.7 tooling. The final-source
+release matrices, deterministic bootstrap, conformance, performance, package,
+and sanitized relocation all pass; exact evidence is recorded in
 [`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) and
-[`PHASE_18_AUDIT.md`](docs/PHASE_18_AUDIT.md); no final artifact is claimed yet.
+[`PHASE_18_AUDIT.md`](docs/PHASE_18_AUDIT.md).
 Phases 19 and 20 must pass the [master roadmap](docs/ROADMAP.md) before the
 separate casino application may begin.
 

@@ -49,3 +49,11 @@ and sanitized relocation all pass. Stage2 and stage3 compiler IR must be byte
 identical. Exact commands, counts, timings, hashes, and remaining limitations
 belong in `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`; this document must not
 claim unobserved results.
+
+## Validation status
+
+Rocket 1.8 completed this gate on 2026-08-02. The final-source LLVM and
+LLVM-disabled matrices, repeated focused Phase 18 suite, strengthened
+stage0-through-stage3 parity bootstrap, conformance, performance, packaging,
+and sanitized relocation all passed. `PROJECT_CONTEXT.md` and
+`PHASE_18_AUDIT.md` contain the exact observed counts, timings, and hashes.

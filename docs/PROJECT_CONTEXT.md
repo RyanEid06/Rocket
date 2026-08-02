@@ -741,7 +741,7 @@ Known limitations remain those in the implementation-state list above; no langua
   parity regression.
 
 **Phase 18 - Rocket 1.8 robust ownership, concurrency, and asynchronous I/O
-(implementation complete; final-source validation follow-up required)**
+(completed 2026-08-02)**
 
 - Specified the complete safe surface in `CONCURRENCY.md`, `SPEC.md`,
   `STDLIB.md`, decision D032, the R4101-R4106 diagnostic catalog, the 1.8 syntax
@@ -793,32 +793,51 @@ Known limitations remain those in the implementation-state list above; no langua
   negative diagnostic, stage0, and self-hosted fixture coverage is included.
 - Dependency verification passed with Git 2.47.1, CMake 3.31.6-msvc6, Ninja
   1.13.1, Clang/LLVM 22.1.6, MSVC 19.44.35228 x64, and raylib 6.0.
-- The expanded pre-final-gating matrices passed: pinned LLVM Debug and Release
-  each passed 210/210 in 981.42 and 327.25 seconds; LLVM-disabled stage0 Debug
-  and Release passed 165/165 in 660.21 and 643.91 seconds; and the focused
-  Phase 18 suite passed 78/78 twice in 37.36 and 37.29 seconds. The focused
-  selection is 77 `phase18`-labelled tests plus its self-host compiler setup.
-  These results preceded the final self-host move-analysis gate and performance
-  ceiling edits and therefore are regression evidence, not final-source gate
-  claims. A final-source Debug rerun was started, then stopped at the owner's
-  request to upload the work.
-- Direct final-source checks passed: `rocketc check compiler`; four positive
-  self-host ownership/async fixtures; and six self-host negative fixtures for
-  affine tasks, mutex payload sharing, reusable move capture, transitive moves,
-  buffer element sharing, and weak tasks, all with R410 diagnostics.
-- The most recent completed pre-final-gating bootstrap passed in 1247.4 seconds
-  with byte-identical stage2/stage3 LLVM IR at SHA-256
-  `4c4491f28fe9013e151f88147fbce6d921e3fd90d39c343428726f6e2681c315`.
-  Conformance passed 90/90 in 26.3 seconds on that source. The final-source
-  bootstrap, conformance, and reproducibility hashes were not rerun.
-- The compiler-HIR performance check measured 122.511, 125.714, and 122.920
-  seconds and failed the former 120-second ceiling. Measurements across the
-  remediation were 117-126 seconds, so the versioned Release ceiling is now a
-  bounded 135 seconds. The updated 11-budget suite has not been rerun and no
-  performance improvement is claimed.
-- A package and sanitized relocation run succeeded before the final ownership
-  remediation, but its archive and bootstrap hashes are stale. No final-source
-  package, relocation result, or package hash is claimed.
+- Final-source dependency verification passed with Git 2.54.0.windows.1,
+  CMake 4.3.2, Ninja 1.13.1, Clang/LLVM 22.1.6, MSVC 19.51.36252 x64, and
+  raylib 6.0. The verifier now rejects any native tool that exits nonzero.
+- Final-source pinned LLVM Debug and Release passed 210/210 tests in 481.59 and
+  133.59 seconds of CTest time (528.3 and 176.0 seconds end-to-end).
+  LLVM-disabled stage0 Debug and Release passed 165/165 in 392.80 and 349.03
+  seconds of CTest time (410.2 and 387.8 seconds end-to-end).
+- The focused Phase 18 Release selection passed 78/78 twice in 24.35 and 24.20
+  seconds (26.2 and 26.0 seconds end-to-end). It contains 77 `phase18`-labelled
+  tests plus the self-host compiler fixture dependency; every wait-oriented
+  native test retains a finite CTest timeout.
+- The strengthened deterministic Release bootstrap passed in 489.4 seconds.
+  Stage0, stage1, stage2, and stage3 agreed on all 14 positive and 15 negative
+  Phase 18 fixtures. Stage2 and stage3 canonical LLVM IR are byte-identical at
+  SHA-256 `d2bb814269f3c05fd823b21e6ab0e6b908fcca99f37d28d5fd1130a50d01ba23`.
+  In that standalone bootstrap, stage1/stage2/stage3 executable hashes were
+  respectively
+  `070d2dfba2c27e01f90675b5ae998e51466ea9147e4b64ad0c17d28afeb0f18a`,
+  `4c8e09a965eafd347f4be4f4656fd958acb5d5b9febad5c5d24bd2ae1ed9ad2b`,
+  and `013f20d9dd6c3612dc1d3eceb79cd91bfc918ccdad35f61fda5b7e187439a2bc`;
+  and its bootstrap `SHA256SUMS.txt` was
+  `c1a42db7de91fb2812e0ae8fd5a9b60e17ddc912035de2e00c5fddfa1d2b72f8`.
+- Release conformance passed 90/90 in 29.3 seconds; report SHA-256 is
+  `0e98a67c23332df7311059828172288f1f8bb61af0c426dcaa9d69da30b04d8c`.
+- All 11 Release performance gates passed in 98.4 seconds end-to-end:
+  hello check/build 0.009/0.181 seconds; compiler HIR/MIR 43.937/50.155;
+  native check/build 0.133/0.351; raylib check/build 0.082/0.534; and Phase 18
+  concurrency check, async build, and task-group build 0.020/0.186/0.172.
+  Report SHA-256 is
+  `22007e4ca181623b360c1b9f2d90a5e9a9b648933d2880b74d15827dce610780`.
+- Final self-contained packaging and sanitized relocation passed in 496.4
+  seconds. The relocated
+  compiler discovered only bundled tools, compiled and ran Rocket 1.0/1.1 and
+  Phase 18 programs, exercised debug/coverage and locked-offline Phase 16 use,
+  and produced the ownership/concurrency output `41`, `3`, `42`. The final
+  `rocket-1.8.0-windows-x64.zip` is 268,864,815 bytes at SHA-256
+  `0311bb7f305d6e2d3c23eb18ba34040cb9267261fd5a52fe31e9dba3c3cb4576`.
+  Its 913-entry `SHA256SUMS.txt` is
+  `79ca17067d58585421d4867b1f2af01d65783895bad1eb55375a0bf9c71423d6`;
+  the package-run `BOOTSTRAP_SHA256SUMS.txt` is
+  `f089af554078ebd0b558773036701b92626628fefdf76a2d9cd9f849b5792d93`.
+- Validation found no compiler, runtime, ownership, concurrency, cancellation,
+  lifetime, or asynchronous-I/O defect. It found and fixed three release-gate
+  defects: native tool exit statuses were ignored, bootstrap lacked explicit
+  Phase 18 stage parity, and sanitized relocation lacked Phase 18 execution.
 - Deliberate Rocket 1.8 limits: Windows is the only async backend; file transfer
   is overlapped but socket/process coordination does not use a general IOCP
   dispatcher; process tasks inherit standard streams and return only an exit
@@ -826,18 +845,12 @@ Known limitations remain those in the implementation-state list above; no langua
   existing task array rather than dynamic spawn; and strong cycles still leak
   unless a programmer makes at least one back edge weak. These are explicit
   contracts, not hidden claims of process capture, user-created pools, dynamic
-  groups, tracing collection, or multi-platform event support. Final-source
-  Debug/Release, stage0, bootstrap, conformance, performance, and package/
-  relocation reruns remain required before the exact acceptance matrix may be
-  described as passed.
+  groups, tracing collection, or multi-platform event support.
 
 ## Current next task
 
-**Finish the Rocket 1.8 final-source validation follow-up: rerun pinned LLVM
-Debug/Release, LLVM-disabled stage0 Debug/Release, focused Phase 18, bootstrap,
-conformance, the updated performance suite, and package/relocation; then record
-fresh hashes. Do not begin Phase 19, Phase 20, or casino implementation without
-an explicit owner instruction. Preserve the C++ stage0 and every Rocket
+**Rocket 1.8 is complete. Await explicit owner direction before beginning
+Phase 19, Phase 20, or casino work. Preserve the C++ stage0 and every Rocket
 1.0-1.8 compatibility, tooling, ownership, and concurrency contract.**
 
 ## New-chat prompt

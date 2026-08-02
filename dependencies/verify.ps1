@@ -18,12 +18,17 @@ foreach ($check in $checks) {
         # Some native tools, notably cl.exe, print their version banner to stderr.
         # Capture it without allowing Windows PowerShell to promote it to a terminating error.
         $ErrorActionPreference = 'Continue'
-        $firstLine = & $check.Command @($check.Args) 2>&1 |
+        $output = & $check.Command @($check.Args) 2>&1
+        $status = $LASTEXITCODE
+        $firstLine = $output |
             ForEach-Object { $_.ToString() } |
             Select-Object -First 1
     }
     finally {
         $ErrorActionPreference = $savedErrorActionPreference
+    }
+    if ($status -ne 0) {
+        throw "$($check.Name) version check failed with status $status`: $firstLine"
     }
     Write-Host ('{0,-12} {1}' -f ($check.Name + ':'), $firstLine)
 }

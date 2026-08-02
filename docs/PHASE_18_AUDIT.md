@@ -55,32 +55,34 @@ or Phase 20 work.
 | Cancellation state transitions | Before start, active waits/I/O, parent-child propagation, after immutable completion, and contended event/channel/process paths. |
 | Async files/sockets/processes/timers | Native fixtures plus conformance and relocated-package execution cover every shipped Windows async family, partial results, close/shutdown, deadlines, cancellation, and limits. |
 | Scheduler startup/shutdown | 512-task contention and 1,000 constructions of the real one-worker executor, each with queued outstanding work followed by drain and join. |
-| Compiler parity and determinism | Fifteen negative and fourteen positive Phase 18 fixtures run through C++ and self-hosted checks. The most recent completed bootstrap produced byte-identical Release stage2/stage3 LLVM IR; a final-source bootstrap rerun remains outstanding as recorded below. |
+| Compiler parity and determinism | Fifteen negative and fourteen positive Phase 18 fixtures pass through stage0, stage1, stage2, and stage3. The final-source bootstrap produced byte-identical Release stage2/stage3 LLVM IR. |
 
 ## Observed validation
 
-All commands ran from the repository root with the pinned toolchain. Results
-marked *pre-final-gating* were observed before the last self-host move-analysis
-gate and performance-budget documentation edits. They remain useful regression
-evidence, but they are not represented as final-source acceptance results.
+All commands ran from the repository root against the final source with the
+pinned Windows x64 toolchain.
 
 | Command | Observed result |
 | --- | --- |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\dependencies\verify.ps1` | Passed: Git 2.47.1.windows.2, CMake 3.31.6-msvc6, Ninja 1.13.1, Clang/LLVM 22.1.6, MSVC 19.44.35228 x64, raylib 6.0. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Configuration Debug` | *Pre-final-gating:* passed 210/210 in 981.42 seconds. A final-source rerun was started and then explicitly stopped to perform the requested GitHub upload; it is not counted as passed. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Configuration Release` | *Pre-final-gating:* passed 210/210 in 327.25 seconds. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Debug` | *Pre-final-gating:* passed 165/165 in 660.21 seconds. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Release` | *Pre-final-gating:* passed 165/165 in 643.91 seconds. |
-| Pinned-environment `ctest --test-dir out/build/windows-release -C Release -L phase18 --output-on-failure` | *Pre-final-gating:* passed 78/78 twice in 37.36 and 37.29 seconds. The selection is 77 labelled tests plus its self-host compiler fixture dependency. |
-| Direct final-source compiler parity | Passed `rocketc check compiler`; the self-hosted compiler accepted the task-cancel, task-group, async-file, and unique-buffer positives and rejected task reuse, non-shareable mutex payload, reusable move capture, transitive aggregate move, non-shareable buffer element, and weak task negatives with R410 diagnostics. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1 -Configuration Release` | *Pre-final-gating:* passed in 1247.4 seconds; stage2/stage3 LLVM IR SHA-256 was `4c4491f28fe9013e151f88147fbce6d921e3fd90d39c343428726f6e2681c315`. A final-source bootstrap and hash comparison were not rerun. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\conformance.ps1 -Configuration Release` | *Pre-final-gating:* passed 90/90 in 26.3 seconds. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\performance.ps1 -Configuration Release` | The exact final-source gate was not passed. Repeated compiler-HIR measurements of 122.511, 125.714, and 122.920 seconds exceeded the former 120-second ceiling. The versioned Release ceiling is now 135 seconds to cover measured 117-126 second host variance, but the suite has not been rerun against that ceiling. No performance improvement is claimed. |
-| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compiler.ps1 -Configuration Release` | A pre-remediation package/relocation run passed, but its archive and bootstrap hashes are stale after the ownership corrections and are not final Phase 18 artifacts. The final-source package gate was not rerun. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\dependencies\verify.ps1` | Passed: Git 2.54.0.windows.1, CMake 4.3.2, Ninja 1.13.1, Clang/LLVM 22.1.6, MSVC 19.51.36252 x64, raylib 6.0. The fixed verifier requires every native version command to exit zero. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Configuration Debug` | Passed 210/210 in 481.59 seconds CTest time; 528.3 seconds end-to-end. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Configuration Release` | Passed 210/210 in 133.59 seconds CTest time; 176.0 seconds end-to-end. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Debug` | Passed 165/165 in 392.80 seconds CTest time; 410.2 seconds end-to-end. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Release` | Passed 165/165 in 349.03 seconds CTest time; 387.8 seconds end-to-end. |
+| Pinned-environment `ctest --test-dir out/build/windows-release -C Release -L phase18 --output-on-failure` | Passed 78/78 twice in 24.35 and 24.20 seconds CTest time (26.2 and 26.0 seconds end-to-end). The selection is 77 labelled tests plus its self-host compiler fixture dependency. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1 -Configuration Release` | Passed in 489.4 seconds. Stage0-stage3 agreed on all 14 positive and 15 negative Phase 18 fixtures. Stage2/stage3 IR is byte-identical at SHA-256 `d2bb814269f3c05fd823b21e6ab0e6b908fcca99f37d28d5fd1130a50d01ba23`; checksum-file SHA-256 is `c1a42db7de91fb2812e0ae8fd5a9b60e17ddc912035de2e00c5fddfa1d2b72f8`. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\conformance.ps1 -Configuration Release` | Passed 90/90 in 29.3 seconds; report SHA-256 `0e98a67c23332df7311059828172288f1f8bb61af0c426dcaa9d69da30b04d8c`. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\performance.ps1 -Configuration Release` | Passed all 11 budgets in 98.4 seconds end-to-end. Measurements were 0.009, 0.181, 43.937, 50.155, 0.133, 0.351, 0.082, 0.534, 0.020, 0.186, and 0.172 seconds; report SHA-256 `22007e4ca181623b360c1b9f2d90a5e9a9b648933d2880b74d15827dce610780`. |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compiler.ps1 -Configuration Release` | Passed in 496.4 seconds: final Release rebuild, bootstrap, self-contained packaging, checksums, and sanitized relocation, including relocated Phase 18 compilation/execution. `rocket-1.8.0-windows-x64.zip` is 268,864,815 bytes at SHA-256 `0311bb7f305d6e2d3c23eb18ba34040cb9267261fd5a52fe31e9dba3c3cb4576`; its 913-entry checksum file is `79ca17067d58585421d4867b1f2af01d65783895bad1eb55375a0bf9c71423d6`, and packaged bootstrap checksum-file SHA-256 is `f089af554078ebd0b558773036701b92626628fefdf76a2d9cd9f849b5792d93`. |
 
 Generated `out`, dependency, compiler `.rocketc`, fixture `.rocketc`, and
-example `.rocketc` trees remain ignored. No final-source package hash is
-recorded because no such package was produced.
+example `.rocketc` trees remain ignored.
+
+Validation found no compiler/runtime defect. Three genuine validation bugs were
+fixed: tool version commands could fail without failing dependency verification;
+bootstrap did not explicitly compare the full Phase 18 positive/negative set
+across all four stages; and sanitized relocation did not compile and execute a
+Phase 18 program.
 
 ## Deliberate limitations
 
@@ -92,10 +94,5 @@ recorded because no such package was produced.
   finite existing task array rather than dynamic spawning.
 - Strong cycles require an explicit weak back edge; Rocket 1.8 has no tracing
   collector.
-- The Release compiler HIR self-check has measured 117-126 second host variance.
-  Its 135-second ceiling is intentionally generous but bounded; the updated
-  performance gate still requires a final-source rerun.
-- Final-source Debug/Release, stage0, bootstrap, conformance, performance, and
-  package/relocation reruns remain validation follow-up. The implementation is
-  checked in so the work is not lost, but these gates must not be reported as
-  passed until they are run and observed.
+- The Release compiler HIR self-check retains the bounded 135-second ceiling;
+  the final observed measurement was 43.937 seconds.

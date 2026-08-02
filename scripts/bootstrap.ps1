@@ -144,6 +144,64 @@ foreach ($compiler in $stage1, $stage2, $stage3) {
     }
 }
 
+$phase18PositiveFixtures = @(
+    'async_join'
+    'nested_await'
+    'weak'
+    'unique_buffer'
+    'concurrency'
+    'async_file'
+    'async_socket'
+    'async_cancel'
+    'process'
+    'task_group'
+    'task_cancel'
+    'thread'
+    'structured_cleanup'
+    'unsafe_local'
+)
+$phase18NegativeFixtures = @(
+    'await_context'
+    'send'
+    'async_result_send'
+    'suspension'
+    'unique_buffer_move'
+    'scoped_escape'
+    'weak_share'
+    'task_weak'
+    'pointer_send'
+    'guard_release'
+    'task_reuse'
+    'mutex_share'
+    'capture_move'
+    'transitive_move'
+    'buffer_element_share'
+)
+$phase18Compilers = @($stage0, $stage1, $stage2, $stage3)
+foreach ($compiler in $phase18Compilers) {
+    foreach ($fixture in $phase18PositiveFixtures) {
+        & $compiler check (Join-Path $fixtures "phase18_$fixture.rocket")
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    foreach ($fixture in $phase18NegativeFixtures) {
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $failureOutput = & $compiler check `
+                (Join-Path $fixtures "phase18_${fixture}_failure.rocket") 2>&1
+            $failureStatus = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
+        if ($failureOutput) {
+            Write-Host ($failureOutput -join [Environment]::NewLine)
+        }
+        if ($failureStatus -ne 1 -or ($failureOutput -join "`n") -notmatch 'R410') {
+            throw "Phase 18 negative fixture '$fixture' disagreed in $compiler."
+        }
+    }
+}
+
 foreach ($source in $conformanceSources) {
     & $stage3 run $source
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -264,6 +322,7 @@ $report = @(
     "stage2.ll  $stage2Hash"
     "stage3.ll  $stage3Hash"
     "deterministic  true"
+    "phase18_parity  true"
 )
 Set-Content -LiteralPath (Join-Path $bootstrapRoot 'SHA256SUMS.txt') `
     -Value $report -Encoding ascii
