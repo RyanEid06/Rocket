@@ -4,8 +4,9 @@ Rocket is a beginner-friendly, statically typed language for native command-line
 
 Rocket 2.0 security, performance, compatibility, and trust work is complete on
 the cumulative Rocket 1.0-1.8 language. Phase 19 portability is deliberately
-deferred, so Windows x64 remains the only supported target. Exact validation
-evidence is recorded in
+deferred, so Windows x64 remains the only supported target. The 2.0 milestone
+is frozen; further language features require a new, explicitly scoped effort.
+Exact validation evidence is recorded in
 [`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) and
 [`PHASE_20_AUDIT.md`](docs/PHASE_20_AUDIT.md). Independent production adoption
 remains an ongoing maturity signal rather than an unverified repository claim.

@@ -8,10 +8,13 @@ Read this file at the start of every new Rocket chat. Update it after completing
 - **Compiler:** `rocketc`
 - **Source extension:** `.rocket`
 - **Primary target:** Windows x64
-- **Goal:** Maintain the completed, beginner-friendly, statically typed,
-  LLVM-native Rocket 2.0 Windows x64 language while gathering real adoption
-  feedback; the deferred multi-platform Phase 19 remains available for later.
-- **Possible casino goal after Rocket 2.0:** A separate local, single-player, play-money desktop application may be planned only after the language-maturity roadmap is accepted, unless the user explicitly reprioritizes it.
+- **Goal:** Preserve the completed and frozen, beginner-friendly, statically
+  typed, LLVM-native Rocket 2.0 Windows x64 language. Phase 19 portability is
+  explicitly deferred and remains available for a later owner-directed effort.
+- **Possible casino goal after Rocket 2.0:** A separate local, single-player,
+  play-money desktop application may be planned after the owner's final
+  post-Rocket step and explicit direction. No casino implementation belongs to
+  the frozen Rocket 2.0 milestone.
 
 ## Locked decisions
 
@@ -917,10 +920,11 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Rocket 2.0 and the requested language-maturity project are complete on the
-supported Windows x64 target. Phase 19 remains explicitly deferred for later.
-Await owner direction for Rocket 2.0 maintenance, external adoption feedback,
-the deferred portability phase, or a separately scoped post-Rocket project.**
+**Rocket 2.0 and the requested language-maturity project are complete and
+frozen on the supported Windows x64 target. Phase 19 remains explicitly
+deferred for later. Do not begin further Rocket feature work or the casino
+project without new owner direction. The immediate next task is the owner's
+separately specified final post-Rocket step.**
 
 ## New-chat prompt
 

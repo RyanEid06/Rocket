@@ -1,5 +1,9 @@
 # Rocket Master Roadmap
 
+**Final status (2026-08-02):** Rocket 2.0 is complete and frozen on Windows
+x64. Phase 19 remains deferred for later. This roadmap is closed; any further
+Rocket work or separate casino project requires new owner direction.
+
 ## Long-term objective
 
 Rocket will grow from its completed, self-hosted 1.0 foundation into a credible,
@@ -40,9 +44,9 @@ validation.
    and release engineering as part of the language product rather than optional
    extras.
 6. Do not begin the casino product during this roadmap. Raylib is used as a real
-   interoperability and graphics validation project in Phase 14. A casino may be
-   planned separately only after Rocket 2.0 is accepted, unless the user
-   explicitly changes this decision.
+   interoperability and graphics validation project in Phase 14. Rocket 2.0 is
+   now accepted and frozen; a casino remains a separate project that begins
+   only after the owner's final post-Rocket step and explicit direction.
 
 ## Completed foundation
 
