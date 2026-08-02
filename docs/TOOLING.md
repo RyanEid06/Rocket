@@ -231,6 +231,13 @@ project; its CMake Targets View exposes `rocket_demo_check`,
 `rocket_demo_run`, and `rocket_demo_test`. These run the actual compiler against
 `examples/visualstudio_demo`.
 
+`open-visualstudio.ps1` copies the tracked
+`editors/visualstudio/launch.vs.json` template into Visual Studio's ignored
+`.vs` workspace state. Leave `rocketc.exe` selected beside the green Run button
+and start it for a direct IDE run with the correct package argument and working
+directory. The demo's final output line is recursive `fibonacci(10)`, which
+prints `55`.
+
 Visual Studio's repository extension remains syntax/task focused. Editors that
 connect to `rocket-lsp` receive semantic completion, navigation, rename,
 references, and live Rocket diagnostics, while native debugging uses the

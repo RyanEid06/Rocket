@@ -917,6 +917,11 @@ Known limitations remain those in the implementation-state list above; no langua
   mirrored in `PHASE_20_AUDIT.md`. No external
   production user or official certificate signature is claimed without
   external evidence; adoption remains post-release maintenance input.
+- Post-freeze Visual Studio Community 2026 handoff is complete: the existing
+  Rocket VSIX recognizes `.rocket` source, `open-visualstudio.ps1` installs the
+  portable launch profile into ignored workspace state, and the recursive
+  `examples/visualstudio_demo` run was visibly validated in the IDE with final
+  output `55` and exit code `0`.
 
 ## Current next task
 

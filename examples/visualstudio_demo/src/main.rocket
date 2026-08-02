@@ -7,6 +7,11 @@ struct Player:
 fn doubled(value: Int) -> Int:
     return value * 2
 
+fn fibonacci(value: Int) -> Int:
+    if value < 2:
+        return value
+    return fibonacci(value - 1) + fibonacci(value - 2)
+
 fn main() -> Int:
     let scores = [7, 11, 24]
     var total = 0
@@ -19,4 +24,5 @@ fn main() -> Int:
     print(collections.length(scores))
     print(player.score)
     print(doubled(player.score))
+    print(fibonacci(10))
     return 0

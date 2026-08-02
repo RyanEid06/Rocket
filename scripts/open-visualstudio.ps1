@@ -12,6 +12,15 @@ $env:ROCKET_MSVC_LIBRARIAN = $env:ROCKET_MSVC_LIBRARIAN.Replace('\', '/')
 $env:ROCKET_MSVC_LINKER = $env:ROCKET_MSVC_LINKER.Replace('\', '/')
 $env:LLVM_DIR = $env:LLVM_DIR.Replace('\', '/')
 
+# Visual Studio 2026 stores solutionless-workspace launch configuration under
+# the ignored .vs directory. Keep the source-controlled template elsewhere and
+# refresh the local copy on every supported launch.
+$visualStudioState = Join-Path $projectRoot '.vs'
+$launchTemplate = Join-Path $projectRoot 'editors\visualstudio\launch.vs.json'
+$launchConfiguration = Join-Path $visualStudioState 'launch.vs.json'
+New-Item -ItemType Directory -Path $visualStudioState -Force | Out-Null
+Copy-Item -LiteralPath $launchTemplate -Destination $launchConfiguration -Force
+
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $visualStudioRoot = & $vswhere -latest -products * -property installationPath
 if (-not $visualStudioRoot) {
