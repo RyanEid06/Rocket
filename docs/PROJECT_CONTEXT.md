@@ -133,13 +133,17 @@ Implemented:
   monotonic timers/deadlines, `async fn`/`await`, and bounded-worker Windows
   asynchronous file, socket, and process APIs, with matching C++ stage0 and
   Rocket-written compiler behavior.
+- The Rocket 2.0 Windows x64 freeze boundary and measurable hardening gates are
+  defined in `RELEASE_2_0_FREEZE.md` and decision D033. This is a contract only;
+  no Phase 20 validation is claimed by it.
 
 Not implemented yet:
 
 - Broader native calling conventions, dynamic native loading, the full raylib
-  surface, non-Windows targets, and the
-  Rocket 2.0 security/performance/compatibility release gates. No casino
-  implementation has begun.
+  surface, and Rocket 2.0 security/performance/compatibility release-gate
+  execution. Phase 19 non-Windows targets, target triples, ARM64, and
+  cross-compilation are explicitly deferred until after Rocket 2.0 rather than
+  completed. No casino implementation has begun.
 
 ## Canonical build commands
 
@@ -182,11 +186,13 @@ Build output is in `out/build/windows-debug` and `out/build/windows-release`. Th
     documentation tools, native debugging, profiling, benchmarking, and coverage.
 18. Add robust ownership and concurrency: weak references, cycle handling,
     thread-sharing rules, tasks, channels, structured concurrency, and async I/O.
-19. Add target triples, Linux and macOS support, ARM64, supported cross-
-    compilation paths, and multi-platform release validation.
-20. Freeze Rocket 2.0 after security hardening, fuzzing, performance work,
-    compatibility validation, signed reproducible releases, complete learning
-    material, and sustained external application use.
+19. **Deferred until after Rocket 2.0:** add target triples, Linux and macOS
+    support, ARM64, supported cross-compilation paths, and multi-platform
+    release validation.
+20. Freeze Rocket 2.0 on Windows x64 after the security hardening, fuzzing,
+    sanitizer/fault-injection, performance, compatibility, signed reproducible
+    release, documentation, and sustained external-application gates defined in
+    `RELEASE_2_0_FREEZE.md`.
 
 ## Definition of the completed self-hosting gate
 
@@ -847,11 +853,29 @@ Known limitations remain those in the implementation-state list above; no langua
   contracts, not hidden claims of process capture, user-created pools, dynamic
   groups, tracing collection, or multi-platform event support.
 
+**Phase 20 - Rocket 2.0 Windows x64 freeze-contract definition (recorded;
+hardening and validation pending)**
+
+- Recorded decision D033: Phase 19 portability is deferred until after Rocket
+  2.0. It is not completed, cancelled, or included in the Rocket 2.0 scope.
+  Rocket 2.0's supported platform is Windows x64 only.
+- Added `RELEASE_2_0_FREEZE.md` as the authoritative freeze boundary for the
+  accumulated Rocket 1.0-1.8 grammar, type-system, ownership/concurrency,
+  standard-library, runtime ABI v1, C FFI, package, diagnostics, formatter,
+  CLI, tooling-protocol, and compatibility contracts.
+- Defined measurable pending gates for fuzzing, Windows sanitizer runs,
+  fault injection, compatibility, performance, reproducibility, packaging,
+  signing, documentation, security process, and at least two release
+  candidates. This work does not claim any gate has been executed or passed.
+
 ## Current next task
 
-**Rocket 1.8 is complete. Await explicit owner direction before beginning
-Phase 19, Phase 20, or casino work. Preserve the C++ stage0 and every Rocket
-1.0-1.8 compatibility, tooling, ownership, and concurrency contract.**
+**Phase 20's Windows x64 freeze contract is defined, but its hardening and
+release gates are pending. Execute only the documented Phase 20 validation and
+remediation work after explicit owner direction. Do not begin Phase 19,
+additional-platform work, casino work, or new language features. Preserve the
+C++ stage0 and every Rocket 1.0-1.8 compatibility, tooling, ownership, and
+concurrency contract.**
 
 ## New-chat prompt
 

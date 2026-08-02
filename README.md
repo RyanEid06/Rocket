@@ -11,6 +11,10 @@ and sanitized relocation all pass; exact evidence is recorded in
 Phases 19 and 20 must pass the [master roadmap](docs/ROADMAP.md) before the
 separate casino application may begin.
 
+Phase 19 portability is explicitly deferred until after Rocket 2.0. Rocket 2.0
+will support Windows x64 only; its frozen contracts and still-pending hardening
+gates are defined in the [Rocket 2.0 freeze contract](docs/RELEASE_2_0_FREEZE.md).
+
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
 optimized Windows x64 executables. Its linked ABI-v1 runtime provides ARC,
@@ -113,6 +117,7 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [ownership and concurrency contract](docs/CONCURRENCY.md),
 [Rocket 1.8 migration guide](docs/MIGRATION_1_8.md),
 [Rocket 1.8 release contract](docs/RELEASE_1_8.md),
+[Rocket 2.0 freeze contract](docs/RELEASE_2_0_FREEZE.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
 Rocket 1.8 extends runtime ABI v1 additively. Thread-confined values retain cheap

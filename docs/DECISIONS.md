@@ -532,3 +532,23 @@ self-check has observed 117-126 second host variance; its versioned ceiling is
 135 seconds. This is regression margin, not a performance-improvement claim,
 and it does not waive the final-source performance rerun recorded in
 `PROJECT_CONTEXT.md`.
+
+## D033 - Defer portability; freeze Rocket 2.0 on Windows x64
+
+**Accepted for Rocket 2.0 planning.** Phase 19 portability is deferred until
+after Rocket 2.0. It is not complete, cancelled, or a source of implied support
+in the 2.0 release. Rocket 2.0 supports Windows x64 only, using the
+repository-pinned MSVC, Windows SDK, Ninja, and LLVM/Clang/LLD toolchain plus
+the self-contained package built from it. Linux, macOS, ARM64, target triples,
+cross-compilation, and portability abstractions remain Phase 19 work and must
+not be implemented during Phase 20.
+
+Phase 20 therefore hardens and freezes the accumulated Rocket 1.0-1.8 Windows
+x64 contracts rather than adding language/platform surface. The exact grammar,
+type-system, ownership/concurrency, standard-library, runtime ABI v1, C FFI,
+package, diagnostic, formatter, CLI, tooling-protocol, compatibility,
+reproducibility, signing, documentation, and release-candidate requirements
+are authoritative in `RELEASE_2_0_FREEZE.md`. The C++20 compiler remains the
+reproducible stage0 and stage0/self-hosted agreement remains mandatory. This
+decision records scope and gates only; it does not claim that Phase 20 is
+complete or that any new hardening validation has run.

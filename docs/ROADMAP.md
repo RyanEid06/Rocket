@@ -511,7 +511,12 @@ Rocket's default programming model understandable and safe.
   hashes, package metadata, and deliberate limits are recorded in
   `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`.
 
-### Phase 19 - Rocket 1.9: multi-platform compiler and runtime
+### Phase 19 - Rocket 1.9: multi-platform compiler and runtime - Deferred until after Rocket 2.0
+
+**Status:** Deferred by decision D033. This phase is neither completed nor part
+of the Rocket 2.0 release scope. Do not implement its target triples,
+additional platforms, cross-compilation, or portability abstractions before the
+Rocket 2.0 release is accepted.
 
 **Purpose:** Make Rocket a portable language rather than a Windows-only tool.
 
@@ -538,10 +543,16 @@ Rocket's default programming model understandable and safe.
 - Published compiler packages install and run without requiring an unrelated
   system compiler toolchain.
 
-### Phase 20 - Rocket 2.0: security, performance, compatibility, and trust
+### Phase 20 - Rocket 2.0: security, performance, compatibility, and trust - Contract defined; validation pending
 
 **Purpose:** Turn the accumulated language platform into a stable major release
 that external developers can reasonably adopt and maintain.
+
+**Supported platform:** Windows x64 only. Rocket 2.0 deliberately freezes the
+current Windows x64 surface; Phase 19 portability remains deferred until after
+2.0. The authoritative scope, frozen contracts, and measurable acceptance gates
+are in [RELEASE_2_0_FREEZE.md](RELEASE_2_0_FREEZE.md). Defining that contract
+does not mark Phase 20 complete or any gate passed.
 
 **Hardening and release work:**
 
@@ -565,8 +576,9 @@ that external developers can reasonably adopt and maintain.
 
 **Acceptance gate:**
 
-- All supported targets pass clean-machine bootstrap, conformance, performance,
-  fuzzing, package, FFI, debugger, and application release gates.
+- Windows x64 passes clean-machine bootstrap, conformance, performance,
+  fuzzing, package, FFI, debugger, application, signing, and release-candidate
+  gates defined in `RELEASE_2_0_FREEZE.md`.
 - Compatibility and security policies are operational, not aspirational.
 - Rocket 2.0 is used successfully by developers other than its original authors
   for substantial maintained software.
