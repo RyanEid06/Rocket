@@ -1,9 +1,17 @@
-# Rocket Package and Registry Contract 1.6
+# Rocket Package and Registry Contract 2.0
 
 Rocket 1.6 makes third-party source selection reproducible and treats registry,
 archive, credential, advisory, and native-input handling as security boundaries.
 This contract is additive to the Rocket 1.0 package layout and does not change
-runtime ABI v1.
+runtime ABI v1. Rocket 2.0 freezes this package/registry contract and adds only
+bounded input processing and the local artifact cache described below.
+
+`rocket.toml` is limited to 1 MiB, 64 KiB per line, 4,096 entries, and 1,024
+dependencies. Rocket source discovery is limited to 4,096 files and 64 MiB.
+Package `build`/`run` may reuse `rocket-build-cache-1` only after hashing the
+compiler, runtime, complete non-generated package tree, target/options, output,
+dependency identities, and native inputs. This acceleration is local and never
+weakens lock, registry, archive, or cache-integrity verification.
 
 ## Package identities and manifests
 

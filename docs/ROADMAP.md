@@ -511,7 +511,12 @@ Rocket's default programming model understandable and safe.
   hashes, package metadata, and deliberate limits are recorded in
   `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`.
 
-### Phase 19 - Rocket 1.9: multi-platform compiler and runtime
+### Phase 19 - Rocket 1.9: multi-platform compiler and runtime - Deferred
+
+**Status:** Deferred by owner direction on 2026-08-02. The work below remains
+valid future portability scope, but it is not a dependency of the accepted
+Windows x64 Rocket 2.0 technical release and no Phase 19 implementation was
+performed as part of Phase 20.
 
 **Purpose:** Make Rocket a portable language rather than a Windows-only tool.
 
@@ -538,10 +543,12 @@ Rocket's default programming model understandable and safe.
 - Published compiler packages install and run without requiring an unrelated
   system compiler toolchain.
 
-### Phase 20 - Rocket 2.0: security, performance, compatibility, and trust
+### Phase 20 - Rocket 2.0: security, performance, compatibility, and trust - Completed
 
-**Purpose:** Turn the accumulated language platform into a stable major release
-that external developers can reasonably adopt and maintain.
+**Completed 2026-08-02.** Owner direction accepted the technical Windows x64
+release while Phase 19 remains deferred. Rocket 2.0 freezes the cumulative
+Rocket 1.0-1.8 source, ownership, standard-library, package, tooling, runtime
+ABI v1, and FFI contracts without adding grammar.
 
 **Hardening and release work:**
 
@@ -560,16 +567,25 @@ that external developers can reasonably adopt and maintain.
 - Publish a language book, standard-library documentation, FFI guide, package
   author guide, tooling guide, migration guide, and governance/contribution
   process.
-- Recruit external users, resolve adoption feedback, and require multiple
-  independently maintained production projects before declaring 2.0 mature.
+- Continue recruiting external users and resolving adoption feedback as ongoing
+  release maintenance. Independent production usage remains a maturity signal;
+  it is not represented as observed evidence by this repository-only phase.
 
 **Acceptance gate:**
 
-- All supported targets pass clean-machine bootstrap, conformance, performance,
-  fuzzing, package, FFI, debugger, and application release gates.
-- Compatibility and security policies are operational, not aspirational.
-- Rocket 2.0 is used successfully by developers other than its original authors
-  for substantial maintained software.
+- The supported Windows x64 target passes bootstrap, conformance, performance,
+  hardening, package, FFI, debugger, compatibility, and application gates.
+- Bounded inputs, deterministic fuzzing, parser recovery, crash minimization,
+  sanitizer presets, a conservative content cache, parallel package-build
+  validation, and 16-package application validation are executable tests.
+- Official stable packaging requires a clean tree and supplied signing
+  certificate; emits provenance, checksums and a detached signature; proves
+  deterministic archive reproduction; and verifies sanitized relocation.
+- `SECURITY.md`, `CONTRIBUTING.md`, the Rocket book, 2.0 release/migration/syntax
+  documents, FFI guide, package-author guide, and existing full reference guides
+  make security and compatibility policies operational.
+- Exact observed commands, counts, limitations, and hashes are recorded in
+  `PROJECT_CONTEXT.md` and `PHASE_20_AUDIT.md`; no external adoption is claimed.
 
 ## Required implementation path for every new feature
 

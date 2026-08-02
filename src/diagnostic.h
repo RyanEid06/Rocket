@@ -12,6 +12,7 @@ namespace rocket {
 enum class DiagnosticCode {
   Lexical = 1001,
   Indentation = 1002,
+  ResourceLimit = 1003,
   Syntax = 2001,
   ModuleNotFound = 3001,
   ImportCycle = 3002,

@@ -2,7 +2,8 @@
 
 The `Rdddd` format and original categories were frozen for Rocket 1.0. The
 catalog has since grown additively for native interoperability, the Rocket
-1.6 package ecosystem, and Rocket 1.8 concurrency without changing existing
+1.6 package ecosystem, Rocket 1.8 concurrency, and Rocket 2.0 bounded-input
+hardening without changing existing
 code identities.
 
 Compiler diagnostics use the stable shape:
@@ -21,6 +22,7 @@ Manifest and tooling errors without a source position use
 | --- | --- | --- |
 | `R1001` | Lexical | Invalid character, literal, or escape |
 | `R1002` | Indentation | Tab indentation or a non-four-space block |
+| `R1003` | Resource limit | Source, overlay, module graph, or other frontend input exceeds a documented bound |
 | `R2001` | Syntax | Missing or unexpected grammar token |
 | `R3001` | Module not found | Imported source cannot be read |
 | `R3002` | Import cycle | Recursive source-module dependency |

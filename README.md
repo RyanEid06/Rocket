@@ -1,15 +1,14 @@
-# Rocket 1.8
+# Rocket 2.0
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
-Rocket 1.8 ownership, concurrency, and asynchronous I/O is officially complete
-on top of the Rocket 1.6 package ecosystem and 1.7 tooling. The final-source
-release matrices, deterministic bootstrap, conformance, performance, package,
-and sanitized relocation all pass; exact evidence is recorded in
+Rocket 2.0 security, performance, compatibility, and trust work is complete on
+the cumulative Rocket 1.0-1.8 language. Phase 19 portability is deliberately
+deferred, so Windows x64 remains the only supported target. Exact validation
+evidence is recorded in
 [`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) and
-[`PHASE_18_AUDIT.md`](docs/PHASE_18_AUDIT.md).
-Phases 19 and 20 must pass the [master roadmap](docs/ROADMAP.md) before the
-separate casino application may begin.
+[`PHASE_20_AUDIT.md`](docs/PHASE_20_AUDIT.md). Independent production adoption
+remains an ongoing maturity signal rather than an unverified repository claim.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
@@ -110,17 +109,20 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [Rocket 1.4 syntax](docs/ROCKET_1_4_SYNTAX_DICTIONARY.md),
 [Rocket 1.5 library dictionary](docs/ROCKET_1_5_SYNTAX_DICTIONARY.md),
 [Rocket 1.8 syntax](docs/ROCKET_1_8_SYNTAX_DICTIONARY.md),
+[Rocket 2.0 syntax freeze](docs/ROCKET_2_0_SYNTAX_DICTIONARY.md),
 [ownership and concurrency contract](docs/CONCURRENCY.md),
-[Rocket 1.8 migration guide](docs/MIGRATION_1_8.md),
-[Rocket 1.8 release contract](docs/RELEASE_1_8.md),
+[the Rocket book](docs/BOOK.md), [FFI guide](docs/FFI_GUIDE.md),
+[package author guide](docs/PACKAGE_AUTHOR_GUIDE.md),
+[Rocket 2.0 migration guide](docs/MIGRATION_2_0.md),
+[Rocket 2.0 release contract](docs/RELEASE_2_0.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
-Rocket 1.8 extends runtime ABI v1 additively. Thread-confined values retain cheap
+Rocket 2.0 freezes runtime ABI v1. Thread-confined values retain cheap
 plain ARC; checked publication promotes a complete managed graph to atomic ARC.
 The compiler rejects unsafe transfers, move reuse, scoped-handle escape, and
 invalid suspension with stable `R4101`-`R4106` diagnostics.
 
-## Rocket 1.8 release
+## Rocket 2.0 release
 
 Build the checksummed, relocation-tested, self-contained Windows x64 archive:
 
@@ -130,7 +132,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compil
 
 The package uses the Rocket-written stage3 compiler and includes the runtime,
 pinned Clang/LLD, compiler-rt resources, and native static link libraries. See
-[the Rocket 1.8 release contract](docs/RELEASE_1_8.md),
+[the Rocket 2.0 release contract](docs/RELEASE_2_0.md),
 [the tooling guide](docs/TOOLING.md), [language-server contract](docs/LANGUAGE_SERVER.md),
 and [project context](docs/PROJECT_CONTEXT.md) for compatibility, limitations,
 and the complete validation matrix.

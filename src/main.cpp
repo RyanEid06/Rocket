@@ -8,6 +8,7 @@
 #include "package_docs.h"
 #include "package_registry.h"
 #include "platform_credentials.h"
+#include "platform_crypto.h"
 #include "parser.h"
 #include "sema.h"
 #ifdef ROCKETC_HAS_LLVM
@@ -36,6 +37,7 @@ namespace fs = std::filesystem;
 namespace {
 
 fs::path compilerDirectory;
+fs::path compilerExecutable;
 bool machineReadable = false;
 
 std::string jsonEscape(const std::string& value);
@@ -292,6 +294,7 @@ struct CommandTarget {
   std::vector<std::string> nativeLibraries;
   std::vector<fs::path> nativeLibrarySearch;
   std::vector<rocket::PackageDependencyRoot> dependencyRoots;
+  bool packageTarget = false;
 };
 
 bool writeFile(const fs::path& path, const std::string& contents);
@@ -319,7 +322,7 @@ std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string
     return CommandTarget{package->entry, package->root, package->root,
                          package->outputKind, package->outputName, package->name,
                          std::move(nativeLibraries), std::move(nativeSearch),
-                         std::move(dependencyRoots)};
+                         std::move(dependencyRoots), true};
   }
   if (!fs::is_regular_file(absolute)) {
     error = "source path does not exist: '" + absolute.string() + "'";
@@ -331,7 +334,95 @@ std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string
   }
   return CommandTarget{absolute, absolute.parent_path(), absolute.parent_path(),
                        rocket::PackageOutputKind::Executable,
-                       absolute.stem().string(), absolute.stem().string(), {}, {}, {}};
+                       absolute.stem().string(), absolute.stem().string(), {}, {}, {},
+                       false};
+}
+
+const char* artifactExtension(rocket::PackageOutputKind kind) {
+  if (kind == rocket::PackageOutputKind::StaticLibrary) return ".lib";
+  if (kind == rocket::PackageOutputKind::DynamicLibrary) return ".dll";
+  return ".exe";
+}
+
+fs::path artifactPath(const CommandTarget& target) {
+  return target.artifactRoot / ".rocketc" /
+         (target.outputName + artifactExtension(target.outputKind));
+}
+
+fs::path buildCacheMarker(const CommandTarget& target) {
+  return target.artifactRoot / ".rocketc" /
+         (target.outputName + ".rocket-build-cache-1");
+}
+
+bool fileSha256(const fs::path& path, std::string& digest) {
+  std::string bytes;
+  std::string error;
+  return readFile(path, bytes) &&
+         rocket::platform_crypto::sha256(bytes, digest, error);
+}
+
+std::optional<std::string> buildCacheKey(const CommandTarget& target,
+                                         bool optimize) {
+  if (!target.packageTarget) return std::nullopt;
+  std::string sourceChecksum;
+  std::string error;
+  if (!rocket::packageSourceChecksum(target.packageRoot, sourceChecksum, error))
+    return std::nullopt;
+  std::string compilerChecksum;
+  if (!fileSha256(compilerExecutable, compilerChecksum)) return std::nullopt;
+  std::ostringstream material;
+  material << "rocket-build-cache-1\n"
+           << "compiler-version=" ROCKETC_VERSION "\n"
+           << "compiler-sha256=" << compilerChecksum << "\n"
+           << "source-sha256=" << sourceChecksum << "\n"
+           << "target=windows-x64\n"
+           << "optimized=" << (optimize ? "true" : "false") << "\n"
+           << "output-kind=" << static_cast<int>(target.outputKind) << "\n"
+           << "output-name=" << target.outputName << "\n";
+#ifdef ROCKETC_HAS_LLVM
+  std::string runtimeChecksum;
+  if (!fileSha256(runtimeLibraryPath(), runtimeChecksum)) return std::nullopt;
+  material << "runtime-sha256=" << runtimeChecksum << "\n";
+#else
+  material << "backend=stage0-cpp\n";
+#endif
+  for (const auto& dependency : target.dependencyRoots)
+    material << "dependency=" << dependency.identity << "\n";
+  for (const auto& search : target.nativeLibrarySearch)
+    material << "native-search=" << search.generic_string() << "\n";
+  for (const auto& library : target.nativeLibraries)
+    material << "native-library=" << library << "\n";
+  std::string key;
+  if (!rocket::platform_crypto::sha256(material.str(), key, error))
+    return std::nullopt;
+  return key;
+}
+
+bool buildCacheHit(const CommandTarget& target, const std::string& key) {
+  if (!fs::is_regular_file(artifactPath(target))) return false;
+  if (target.outputKind != rocket::PackageOutputKind::Executable &&
+      !fs::is_regular_file(target.artifactRoot / ".rocketc" /
+                           (target.outputName + ".h")))
+    return false;
+  std::string marker;
+  if (!readFile(buildCacheMarker(target), marker)) return false;
+  while (!marker.empty() && (marker.back() == '\n' || marker.back() == '\r'))
+    marker.pop_back();
+  return marker == key;
+}
+
+void announceCachedBuild(const std::string& command,
+                         const CommandTarget& target, bool optimize) {
+  const fs::path artifact = artifactPath(target);
+  if (machineReadable && command == "build") {
+    std::cout << "{\"schema\":\"rocket-message-1\",\"reason\":\"build-finished\","
+                 "\"command\":\"build\",\"success\":true,\"artifact\":\""
+              << jsonEscape(artifact.generic_string())
+              << "\",\"optimized\":" << (optimize ? "true" : "false")
+              << ",\"cache\":\"hit\"}\n";
+  } else if (!machineReadable) {
+    std::cout << "built " << artifact.string() << " (cache hit)\n";
+  }
 }
 
 int executeCompiler(const std::string& command, const CommandTarget& target,
@@ -340,6 +431,21 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
                     const fs::path& headerOutput = {}, bool optimize = true,
                     bool coverage = false, bool profiling = false) {
   const bool library = target.outputKind != rocket::PackageOutputKind::Executable;
+  std::optional<std::string> cacheKey;
+  if ((command == "build" || command == "run") && !coverage && !profiling) {
+    cacheKey = buildCacheKey(target, optimize);
+    if (cacheKey && buildCacheHit(target, *cacheKey)) {
+      announceCachedBuild(command, target, optimize);
+      if (command == "build") return 0;
+      if (library) {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "run requires an executable package");
+        return 2;
+      }
+      return invokeExecutable(artifactPath(target), programArguments,
+                              machineReadable);
+    }
+  }
   Compilation compilation = compileFrontend(target.source, target.packageRoot,
                                             library, target.dependencyRoots);
   if (compilation.diagnostics.hasErrors()) {
@@ -412,11 +518,7 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
   }
 
   const fs::path objectPath = artifactDirectory / (target.outputName + ".obj");
-  const char* extension = target.outputKind == rocket::PackageOutputKind::Executable
-                              ? ".exe"
-                          : target.outputKind == rocket::PackageOutputKind::StaticLibrary
-                              ? ".lib"
-                              : ".dll";
+  const char* extension = artifactExtension(target.outputKind);
   const fs::path executablePath = artifactDirectory / (target.outputName + extension);
   std::string error;
   if (!rocket::emitLlvmFile(*compilation.mir, optimize,
@@ -504,11 +606,7 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
     std::cout << assembly;
     return 0;
   }
-  const char* extension = target.outputKind == rocket::PackageOutputKind::Executable
-                              ? ".exe"
-                          : target.outputKind == rocket::PackageOutputKind::StaticLibrary
-                              ? ".lib"
-                              : ".dll";
+  const char* extension = artifactExtension(target.outputKind);
   const fs::path executablePath = artifactDirectory / (target.outputName + extension);
   if (compileBootstrap(generatedPath, executablePath, false, target.outputKind,
                        target.nativeLibrarySearch, target.nativeLibraries) != 0)
@@ -526,6 +624,8 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
       return 1;
     }
   }
+  if (cacheKey)
+    writeFile(buildCacheMarker(target), *cacheKey + "\n");
   if (announceBuild && !machineReadable)
     std::cout << "built " << executablePath.string() << '\n';
 #ifndef ROCKETC_HAS_LLVM
@@ -903,7 +1003,8 @@ void usage() {
 } // namespace
 
 int main(int argc, char** argv) {
-  compilerDirectory = fs::absolute(argv[0]).parent_path().lexically_normal();
+  compilerExecutable = fs::absolute(argv[0]).lexically_normal();
+  compilerDirectory = compilerExecutable.parent_path();
   const fs::path installedStandardLibrary =
       (compilerDirectory.parent_path() / "stdlib").lexically_normal();
   if (fs::is_directory(installedStandardLibrary))

@@ -194,5 +194,11 @@ int main() {
     rocket::test::expect(binding.initializer->kind == rocket::ExprKind::Await,
                          "await has a dedicated prefix-expression AST node", failures);
   }
+
+  rocket::Diagnostics indentationDiagnostics;
+  rocket::test::parse("    return 0\n", indentationDiagnostics);
+  rocket::test::expect(indentationDiagnostics.hasErrors(),
+                       "stray top-level indentation is rejected without stalling recovery",
+                       failures);
   return rocket::test::finish(failures, "parser");
 }

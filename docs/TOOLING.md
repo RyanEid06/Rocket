@@ -1,10 +1,17 @@
-# Rocket Tooling and Packages through Rocket 1.8
+# Rocket Tooling and Packages 2.0
 
-Rocket 1.8 retains the Rocket 1.6 package ecosystem and Rocket 1.7
+Rocket 2.0 retains the Rocket 1.6 package ecosystem and Rocket 1.7
 language-server and developer-tooling contracts. Its ownership, concurrency,
 and asynchronous-I/O additions require no new editor protocol or manifest
 syntax; `CONCURRENCY.md`, `STDLIB.md`, and `MIGRATION_1_8.md` document the new
 source APIs and diagnostics.
+
+For package targets, `build` and `run` reuse a `rocket-build-cache-1` artifact
+only when compiler, runtime, target, options, dependency/native configuration,
+and sorted package bytes match. Cache hits are reported in text and as
+`"cache":"hit"` in `rocket-message-1` build output. Standalone source does not
+use this cache. Independent compiler processes may build separate packages in
+parallel; a single compilation remains deterministic and single-process.
 
 ## Create and use a package
 

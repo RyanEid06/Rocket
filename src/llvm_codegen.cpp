@@ -230,7 +230,7 @@ private:
       if (!symbol.location.file.empty()) { first = symbol.location; break; }
     auto* file = debugFile(first);
     compileUnit_ = debugBuilder_->createCompileUnit(
-        llvm::dwarf::DW_LANG_C_plus_plus, file, "Rocket compiler 1.8.0",
+        llvm::dwarf::DW_LANG_C_plus_plus, file, "Rocket compiler 2.0.0",
         optimize, optimize ? "-O2" : "-O0", 0);
     module_->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
                            llvm::DEBUG_METADATA_VERSION);

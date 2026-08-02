@@ -1,12 +1,31 @@
 cmake_minimum_required(VERSION 3.25)
-project(Rocket VERSION 1.8.0 LANGUAGES C CXX)
+project(Rocket VERSION 2.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+option(ROCKETC_ENABLE_SANITIZERS
+  "Enable AddressSanitizer (and UndefinedBehaviorSanitizer where available)" OFF)
 if(MSVC)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  if(ROCKETC_ENABLE_SANITIZERS)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  else()
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  endif()
   add_compile_options(/EHsc)
+endif()
+
+if(ROCKETC_ENABLE_SANITIZERS)
+  if(MSVC)
+    foreach(flag_variable CMAKE_C_FLAGS_DEBUG CMAKE_CXX_FLAGS_DEBUG)
+      string(REPLACE "/RTC1" "" ${flag_variable} "${${flag_variable}}")
+    endforeach()
+    add_compile_options(/fsanitize=address /Zi)
+    add_link_options(/INCREMENTAL:NO)
+  else()
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+  endif()
 endif()
 
 option(ROCKETC_ENABLE_LLVM "Enable the production LLVM backend when LLVM is installed" ON)
@@ -55,7 +74,11 @@ set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
 add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
 set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
-set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_RAYLIB_PACKAGE}/.rocketc/native")
+if(ROCKETC_ENABLE_SANITIZERS)
+  set(ROCKET_RAYLIB_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/sanitized-native/raylib")
+else()
+  set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_RAYLIB_PACKAGE}/.rocketc/native")
+endif()
 set_target_properties(raylib PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_RAYLIB_NATIVE_OUTPUT}"
   MSVC_RUNTIME_LIBRARY "MultiThreaded")
@@ -79,9 +102,14 @@ endif()
 
 add_library(rocket_phase13_native STATIC tests/native/phase13_native.cpp)
 target_include_directories(rocket_phase13_native PUBLIC tests/native)
-set_target_properties(rocket_phase13_native PROPERTIES
-  ARCHIVE_OUTPUT_DIRECTORY
+if(ROCKETC_ENABLE_SANITIZERS)
+  set(ROCKET_PHASE13_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/sanitized-native/phase13")
+else()
+  set(ROCKET_PHASE13_NATIVE_OUTPUT
     "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package/.rocketc/native")
+endif()
+set_target_properties(rocket_phase13_native PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_PHASE13_NATIVE_OUTPUT}")
 
 add_library(rocketc_core
   src/lexer.cpp
@@ -255,6 +283,8 @@ add_rocketc_test(language_server)
 add_rocketc_test(formatter)
 add_rocketc_test(package)
 add_rocketc_test(native)
+add_rocketc_test(hardening)
+set_tests_properties(hardening PROPERTIES LABELS "phase20;hardening;fuzz")
 
 add_executable(rocket_phase14_raylib_adapter_tests
   tests/native/phase14_raylib_adapter_tests.cpp)
@@ -580,9 +610,45 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 1.8.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 2.0.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
+
+add_test(NAME phase20_build_cache
+  COMMAND ${CMAKE_COMMAND}
+    "-DCOMPILER=$<TARGET_FILE:rocketc>"
+    "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package"
+    "-DWORK=${CMAKE_BINARY_DIR}/phase20-build-cache"
+    -P "${CMAKE_SOURCE_DIR}/tests/phase20_build_cache_test.cmake")
+set_tests_properties(phase20_build_cache PROPERTIES
+  LABELS "phase20;cache;compatibility" TIMEOUT 90)
+
+add_test(NAME phase20_crash_minimizer
+  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+    "${CMAKE_SOURCE_DIR}/scripts/minimize-crash.ps1"
+    -Compiler $<TARGET_FILE:rocketc>
+    -InputPath "${CMAKE_SOURCE_DIR}/tests/fixtures/phase20_minimize.rocket"
+    -OutputPath "${CMAKE_BINARY_DIR}/phase20-minimized.rocket"
+    -ExpectedExitCode 1 -MatchText "R2001")
+set_tests_properties(phase20_crash_minimizer PROPERTIES
+  LABELS "phase20;hardening;minimizer" TIMEOUT 60)
+
+add_test(NAME phase20_compatibility
+  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+    "${CMAKE_SOURCE_DIR}/scripts/compatibility.ps1"
+    -Compiler $<TARGET_FILE:rocketc> -Configuration $<CONFIG>)
+set_tests_properties(phase20_compatibility PROPERTIES
+  LABELS "phase20;compatibility" TIMEOUT 120)
+
+if(LLVM_FOUND)
+  add_test(NAME phase20_application_validation
+    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+      "${CMAKE_SOURCE_DIR}/scripts/application-validation.ps1"
+      -Compiler $<TARGET_FILE:rocketc> -Configuration $<CONFIG>
+      -PackageCount 16 -Iterations 3)
+  set_tests_properties(phase20_application_validation PROPERTIES
+    LABELS "phase20;application;performance" TIMEOUT 240)
+endif()
 add_test(NAME cli_phase8_invalid_manifest
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1122,5 +1188,8 @@ endif()
 # inert variable to the complete test set prevents stale sibling build trees
 # from influencing Debug/Release fixture order.
 get_property(ROCKET_CONFIGURED_TESTS DIRECTORY PROPERTY TESTS)
+set_property(TEST lexer parser sema hir mir diagnostics language_server
+  formatter package native runtime stdlib APPEND PROPERTY LABELS
+  "phase20;hardening")
 set_tests_properties(${ROCKET_CONFIGURED_TESTS} PROPERTIES
   ENVIRONMENT "ROCKET_STAGE0=$<TARGET_FILE:rocketc>")

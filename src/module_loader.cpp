@@ -16,13 +16,29 @@ namespace rocket {
 namespace {
 
 std::filesystem::path standardLibraryRoot = ROCKETC_STDLIB_SOURCE_PATH;
+constexpr std::uintmax_t MaximumSourceFileBytes = 4U * 1024U * 1024U;
+constexpr std::size_t MaximumProjectSourceBytes = 64U * 1024U * 1024U;
+constexpr std::size_t MaximumProjectModules = 4096U;
+constexpr std::size_t MaximumImportDepth = 64U;
 
-bool readSourceFile(const std::filesystem::path& path, std::string& source) {
+bool readSourceFile(const std::filesystem::path& path, std::string& source,
+                    std::string& error) {
+  std::error_code sizeError;
+  const std::uintmax_t size = std::filesystem::file_size(path, sizeError);
+  if (!sizeError && size > MaximumSourceFileBytes) {
+    error = "source file exceeds the 4 MiB limit";
+    return false;
+  }
   std::ifstream input(path, std::ios::binary);
   if (!input) return false;
   std::ostringstream buffer;
   buffer << input.rdbuf();
   source = buffer.str();
+  if (source.size() > MaximumSourceFileBytes) {
+    error = "source file exceeds the 4 MiB limit";
+    source.clear();
+    return false;
+  }
   return true;
 }
 
@@ -71,7 +87,7 @@ public:
 
   std::optional<Module> load() {
     if (!loadOne("", rootPath_, {rootPath_.string(), 1, 1}, packageRoot_, "",
-                 rootDependencies_))
+                 rootDependencies_, 0))
       return std::nullopt;
     buildIndexes();
     for (auto& [name, module] : modules_) rewrite(module);
@@ -94,24 +110,31 @@ public:
   }
 
 private:
-  bool readSource(const std::filesystem::path& path, std::string& source) const {
+  bool readSource(const std::filesystem::path& path, std::string& source,
+                  std::string& error) const {
     const auto normalized = std::filesystem::absolute(path).lexically_normal();
     if (overlays_ != nullptr) {
       const auto found = overlays_->find(normalized);
       if (found != overlays_->end()) {
+        if (found->second.size() > MaximumSourceFileBytes) {
+          error = "source overlay exceeds the 4 MiB limit";
+          return false;
+        }
         source = found->second;
         return true;
       }
     }
-    return readSourceFile(normalized, source);
+    return readSourceFile(normalized, source, error);
   }
 
   bool loadOne(const std::string& name, const std::filesystem::path& path,
                const Location& importLocation,
                const std::filesystem::path& ownerRoot,
                const std::string& ownerPrefix,
-               const std::unordered_set<std::string>& allowedDependencies) {
-    const int state = states_[name];
+               const std::unordered_set<std::string>& allowedDependencies,
+               std::size_t depth) {
+    const auto foundState = states_.find(name);
+    const int state = foundState == states_.end() ? 0 : foundState->second;
     if (state == 2) return true;
     if (state == 1) {
       diagnostics_.error(importLocation,
@@ -120,15 +143,41 @@ private:
                          DiagnosticCode::ImportCycle);
       return false;
     }
+    if (depth >= MaximumImportDepth) {
+      diagnostics_.error(importLocation,
+                         "import nesting exceeds the 64-level limit",
+                         DiagnosticCode::ResourceLimit);
+      return false;
+    }
+    if (states_.size() >= MaximumProjectModules) {
+      diagnostics_.error(importLocation,
+                         "module graph exceeds the 4096-file limit",
+                         DiagnosticCode::ResourceLimit);
+      return false;
+    }
     states_[name] = 1;
     std::string source;
-    if (!readSource(path, source)) {
-      diagnostics_.error(importLocation, "could not read imported module '" +
-                                               (name.empty() ? path.string() : name) + "'",
-                         DiagnosticCode::ModuleNotFound);
+    std::string readError;
+    if (!readSource(path, source, readError)) {
+      diagnostics_.error(
+          importLocation,
+          readError.empty()
+              ? "could not read imported module '" +
+                    (name.empty() ? path.string() : name) + "'"
+              : readError + " in '" + path.string() + "'",
+          readError.empty() ? DiagnosticCode::ModuleNotFound
+                            : DiagnosticCode::ResourceLimit);
       states_[name] = 2;
       return false;
     }
+    if (sourceBytes_ > MaximumProjectSourceBytes - source.size()) {
+      diagnostics_.error(importLocation,
+                         "module graph exceeds the 64 MiB source limit",
+                         DiagnosticCode::ResourceLimit);
+      states_[name] = 2;
+      return false;
+    }
+    sourceBytes_ += source.size();
     Lexer lexer(path.string(), std::move(source), diagnostics_);
     auto tokens = lexer.lex();
     Parser parser(tokens, diagnostics_);
@@ -143,7 +192,7 @@ private:
         module.importTargets[import.name] = import.name;
         valid = loadOne(import.name,
                         (standardLibraryRoot / "std/testing.rocket").lexically_normal(),
-                        import.location, standardLibraryRoot, "std", {}) && valid;
+                        import.location, standardLibraryRoot, "std", {}, depth + 1) && valid;
         continue;
       }
       if (import.name.rfind("std.", 0) == 0) continue;
@@ -209,7 +258,7 @@ private:
       module.importTargets[import.name] = importedName;
       valid = loadOne(importedName, importedPath.lexically_normal(), import.location,
                       importedOwnerRoot, importedOwnerPrefix,
-                      importedAllowed) && valid;
+                      importedAllowed, depth + 1) && valid;
     }
     states_[name] = 2;
     order_.push_back(name);
@@ -597,6 +646,7 @@ private:
   std::map<std::string, LoadedModule> modules_;
   std::unordered_map<std::string, int> states_;
   std::vector<std::string> order_;
+  std::size_t sourceBytes_ = 0;
 };
 
 } // namespace

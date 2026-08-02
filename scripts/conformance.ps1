@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
 $fixtures = Join-Path $projectRoot 'tests\fixtures'
 $reportDirectory = Join-Path $projectRoot 'out\conformance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-1.8-$configurationName.txt"
+$reportPath = Join-Path $reportDirectory "rocket-2.0-$configurationName.txt"
 $env:ROCKET_STAGE0 = Join-Path $projectRoot "out\build\windows-$configurationName\rocketc.exe"
 $results = [System.Collections.Generic.List[string]]::new()
 
@@ -46,7 +46,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 1\.8\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 2\.0\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -163,7 +163,7 @@ Invoke-ConformanceCase 'remove-bounds' @('run', (Join-Path $fixtures 'phase11_re
 Invoke-ConformanceCase 'checked-overflow' @('run', (Join-Path $fixtures 'int_overflow.rocket')) 101 'Int arithmetic overflow'
 
 $header = @(
-    'Rocket 1.8 conformance report'
+    'Rocket 2.0 conformance report'
     "compiler  $Compiler"
     "sha256  $((Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant())"
     "configuration  $Configuration"
@@ -171,4 +171,4 @@ $header = @(
     ''
 )
 Set-Content -LiteralPath $reportPath -Value ($header + $results) -Encoding utf8
-Write-Output "Rocket 1.8 conformance passed: $($results.Count) cases ($reportPath)"
+Write-Output "Rocket 2.0 conformance passed: $($results.Count) cases ($reportPath)"

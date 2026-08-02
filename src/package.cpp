@@ -48,6 +48,13 @@ bool package_detail::commitCacheTransaction(
 
 namespace {
 
+constexpr std::uintmax_t MaximumManifestBytes = 1024U * 1024U;
+constexpr std::size_t MaximumManifestLineBytes = 64U * 1024U;
+constexpr std::size_t MaximumManifestEntries = 4096U;
+constexpr std::size_t MaximumManifestDependencies = 1024U;
+constexpr std::size_t MaximumDiscoveredSources = 4096U;
+constexpr std::uintmax_t MaximumDiscoveredSourceBytes = 64U * 1024U * 1024U;
+
 std::string trim(std::string value) {
   const std::size_t first = value.find_first_not_of(" \t\r\n");
   if (first == std::string::npos) return {};
@@ -399,6 +406,13 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
   const std::filesystem::path supplied = std::filesystem::absolute(path).lexically_normal();
   const std::filesystem::path manifest =
       supplied.filename() == "rocket.toml" ? supplied : supplied / "rocket.toml";
+  std::error_code manifestSizeError;
+  const std::uintmax_t manifestSize =
+      std::filesystem::file_size(manifest, manifestSizeError);
+  if (!manifestSizeError && manifestSize > MaximumManifestBytes) {
+    error = manifest.string() + ": manifest exceeds the 1 MiB limit";
+    return {};
+  }
   std::ifstream input(manifest, std::ios::binary);
   if (!input) { error = "could not read package manifest '" + manifest.string() + "'"; return {}; }
 
@@ -413,6 +427,11 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
   int lineNumber = 0;
   while (std::getline(input, line)) {
     ++lineNumber;
+    if (line.size() > MaximumManifestLineBytes) {
+      error = manifest.string() + ":" + std::to_string(lineNumber) +
+              ": manifest line exceeds the 64 KiB limit";
+      return {};
+    }
     const std::string clean = trim(withoutComment(line));
     if (clean.empty()) continue;
     if (clean.front() == '[' && clean.back() == ']') {
@@ -445,6 +464,10 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
               ": duplicate manifest key '" + qualified + "'";
       return {};
     }
+    if (seen.size() > MaximumManifestEntries) {
+      error = manifest.string() + ": manifest exceeds the 4096-entry limit";
+      return {};
+    }
     if (qualified == "package.name") package.name = value;
     else if (qualified == "package.namespace") package.namespaceName = value;
     else if (qualified == "package.version") package.version = value;
@@ -461,6 +484,10 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
         return {};
       }
       package.dependencies.push_back(std::move(dependency));
+      if (package.dependencies.size() > MaximumManifestDependencies) {
+        error = manifest.string() + ": manifest exceeds the 1024-dependency limit";
+        return {};
+      }
     }
     else if (qualified == "test.directory") package.tests = value;
     else if (qualified == "build.kind") {
@@ -615,6 +642,7 @@ std::vector<std::filesystem::path> rocketSources(const std::filesystem::path& pa
     return {};
   }
   std::vector<std::filesystem::path> result;
+  std::uintmax_t totalBytes = 0;
   std::error_code filesystemError;
   std::filesystem::recursive_directory_iterator iterator(
       absolute, std::filesystem::directory_options::skip_permission_denied, filesystemError);
@@ -624,6 +652,20 @@ std::vector<std::filesystem::path> rocketSources(const std::filesystem::path& pa
     if (iterator->is_directory() && ignoredDirectory(iterator->path())) {
       iterator.disable_recursion_pending();
     } else if (iterator->is_regular_file() && iterator->path().extension() == ".rocket") {
+      const std::uintmax_t size = iterator->file_size(filesystemError);
+      if (filesystemError) {
+        error = filesystemError.message();
+        return {};
+      }
+      if (result.size() >= MaximumDiscoveredSources) {
+        error = "source discovery exceeds the 4096-file limit";
+        return {};
+      }
+      if (size > MaximumDiscoveredSourceBytes - totalBytes) {
+        error = "source discovery exceeds the 64 MiB limit";
+        return {};
+      }
+      totalBytes += size;
       result.push_back(iterator->path().lexically_normal());
     }
     iterator.increment(filesystemError);

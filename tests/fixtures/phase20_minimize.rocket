@@ -1,0 +1,11 @@
+fn unused() -> Int:
+    let first = 1
+    let second = 2
+    return first + second
+
+fn broken() -> Int:
+    let value =
+    return 0
+
+fn main() -> Int:
+    return unused()

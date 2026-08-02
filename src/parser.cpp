@@ -32,6 +32,17 @@ Module Parser::parseModule() {
   Module module;
   skipNewlines();
   while (!at(TokenKind::End)) {
+    // A malformed indentation stream can expose a stray indentation token at
+    // module scope. Consume it here so top-level error recovery always makes
+    // progress instead of repeatedly synchronizing at the same Dedent token.
+    if (at(TokenKind::Indent) || at(TokenKind::Dedent)) {
+      diagnostics_.error(current().location,
+                         "unexpected indentation at top level",
+                         DiagnosticCode::Syntax);
+      ++index_;
+      skipNewlines();
+      continue;
+    }
     if (match(TokenKind::KwImport)) {
       const Token start = previous();
       const Token first = consume(TokenKind::Identifier, "expected module name after 'import'");

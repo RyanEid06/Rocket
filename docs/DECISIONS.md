@@ -532,3 +532,34 @@ self-check has observed 117-126 second host variance; its versioned ceiling is
 135 seconds. This is regression margin, not a performance-improvement claim,
 and it does not waive the final-source performance rerun recorded in
 `PROJECT_CONTEXT.md`.
+
+## D033 - Windows x64 Rocket 2.0 freeze with deferred portability
+
+**Accepted for Rocket 2.0.** By owner direction, Phase 19 multi-platform work is
+deferred for later and Phase 20 completes against the one currently supported
+target, Windows x64. Rocket 2.0 adds no grammar or type-system feature. It
+freezes the cumulative Rocket 1.0-1.8 grammar, ownership/concurrency model,
+standard library, package and lock formats, tool protocols, Windows x64 C FFI,
+and runtime ABI v1. The C++ compiler remains permanent reproducible stage0.
+
+Hardening is explicit and bounded: a source or overlay is limited to 4 MiB, a
+module graph to 4,096 files, 64 MiB, and 64 nested imports, a manifest to 1 MiB and 64 KiB per line,
+and manifest/source discovery counts have documented ceilings. `R1003` records
+frontend resource refusal. Deterministic generation, malformed inputs,
+sanitizers, crash minimization, compatibility fixtures, and large application
+tests are repeatable gates. A parser hang discovered by this gate was fixed by
+making stray top-level indentation recovery consume input.
+
+`rocket-build-cache-1` is a conservative whole-package content cache shared by
+stage0 and the Rocket-written compiler. It keys compiler/runtime hashes,
+package bytes, target/options/output, dependency identities, and native inputs.
+It does not weaken locked dependency validation, affect bootstrap determinism,
+or pretend that the merged frontend is a per-module incremental compiler.
+Separate package builds are safe to execute concurrently.
+
+Only a clean-tree, certificate-supplied stable build may be marked official.
+Official packaging signs binaries and checksum metadata, records provenance,
+recreates the fixed-timestamp archive twice, and verifies relocation. External
+adoption is a continuing maturity/maintenance signal that cannot be fabricated
+by repository tests; owner acceptance completes the technical Phase 20 gate
+without claiming independent production users.

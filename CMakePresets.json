@@ -35,11 +35,22 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "windows-asan",
+      "inherits": "windows-base",
+      "displayName": "Windows x64 AddressSanitizer",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ROCKETC_ENABLE_SANITIZERS": "ON",
+        "ROCKETC_ENABLE_LLVM": "OFF"
+      }
     }
   ],
   "buildPresets": [
     { "name": "windows-debug", "configurePreset": "windows-debug" },
-    { "name": "windows-release", "configurePreset": "windows-release" }
+    { "name": "windows-release", "configurePreset": "windows-release" },
+    { "name": "windows-asan", "configurePreset": "windows-asan" }
   ],
   "testPresets": [
     {
@@ -50,6 +61,11 @@
     {
       "name": "windows-release",
       "configurePreset": "windows-release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "windows-asan",
+      "configurePreset": "windows-asan",
       "output": { "outputOnFailure": true }
     }
   ]

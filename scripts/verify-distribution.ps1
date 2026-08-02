@@ -12,6 +12,8 @@ $languageServer = Join-Path $package 'bin\rocket-lsp.exe'
 $librarian = Join-Path $package 'bin\llvm-lib.exe'
 $workParent = Join-Path $projectRoot 'out\distribution-test'
 $work = Join-Path $workParent 'relocated-working-directory'
+$provenancePath = Join-Path $package 'RELEASE-PROVENANCE.json'
+$checksumPath = Join-Path $package 'SHA256SUMS.txt'
 
 if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
     throw "Distribution compiler does not exist: $compiler"
@@ -22,9 +24,83 @@ if (-not (Test-Path -LiteralPath $languageServer -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $librarian -PathType Leaf)) {
     throw "Distribution librarian does not exist: $librarian"
 }
-foreach ($tool in 'debugging.ps1', 'tooling.ps1', 'repl-prototype.ps1') {
+foreach ($tool in 'debugging.ps1', 'tooling.ps1', 'repl-prototype.ps1',
+        'compatibility.ps1', 'hardening.ps1', 'minimize-crash.ps1',
+        'application-validation.ps1') {
     if (-not (Test-Path -LiteralPath (Join-Path $package "tools\$tool") -PathType Leaf)) {
         throw "Distribution Phase 17 tool is missing: $tool"
+    }
+}
+foreach ($requiredDocument in 'SECURITY.md', 'CONTRIBUTING.md', 'PACKAGE.md',
+        'RELEASE-PROVENANCE.json', 'SHA256SUMS.txt') {
+    if (-not (Test-Path -LiteralPath (Join-Path $package $requiredDocument) -PathType Leaf)) {
+        throw "Distribution release metadata is missing: $requiredDocument"
+    }
+}
+
+$provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
+if ($provenance.schema -ne 'rocket-release-provenance-1' -or
+    $provenance.version -ne '2.0.0' -or
+    $provenance.target -ne 'windows-x64' -or
+    $provenance.runtime_abi -ne 1) {
+    throw 'Distribution release provenance is invalid or incompatible.'
+}
+if ($provenance.compiler_sha256 -ne
+    (Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash.ToLowerInvariant()) {
+    throw 'Distribution compiler does not match release provenance.'
+}
+
+$covered = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase)
+foreach ($line in (Get-Content -LiteralPath $checksumPath)) {
+    if ($line -notmatch '^([0-9a-f]{64})  (.+)$') {
+        throw "Malformed checksum record: $line"
+    }
+    $relative = $Matches[2].Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+    $coveredPath = [System.IO.Path]::GetFullPath((Join-Path $package $relative))
+    if (-not $coveredPath.StartsWith(
+            $package + [System.IO.Path]::DirectorySeparatorChar,
+            [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-Path -LiteralPath $coveredPath -PathType Leaf) -or
+        -not $covered.Add($coveredPath)) {
+        throw "Unsafe, missing, or duplicate checksum path: $relative"
+    }
+    $actual = (Get-FileHash -LiteralPath $coveredPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $Matches[1]) {
+        throw "Checksum mismatch: $relative"
+    }
+}
+$expectedCovered = @(Get-ChildItem -LiteralPath $package -Recurse -File |
+    Where-Object { $_.Name -ne 'SHA256SUMS.txt' -and
+        $_.Name -ne 'SHA256SUMS.txt.p7s' })
+if ($covered.Count -ne $expectedCovered.Count) {
+    throw "Checksum coverage is incomplete: $($covered.Count) of $($expectedCovered.Count) files."
+}
+
+$signaturePath = Join-Path $package 'SHA256SUMS.txt.p7s'
+if ($provenance.signed) {
+    if (-not (Test-Path -LiteralPath $signaturePath -PathType Leaf)) {
+        throw 'Signed release provenance is missing the detached checksum signature.'
+    }
+    Add-Type -AssemblyName System.Security
+    $content = [System.Security.Cryptography.Pkcs.ContentInfo]::new(
+        [System.IO.File]::ReadAllBytes($checksumPath))
+    $signed = [System.Security.Cryptography.Pkcs.SignedCms]::new($content, $true)
+    $signed.Decode([System.IO.File]::ReadAllBytes($signaturePath))
+    $signed.CheckSignature($true)
+} elseif (Test-Path -LiteralPath $signaturePath) {
+    throw 'Unsigned provenance cannot contain an unexplained checksum signature.'
+}
+if ($provenance.official) {
+    if ($provenance.channel -ne 'stable' -or -not $provenance.signed -or
+        $provenance.working_tree -ne 'clean') {
+        throw 'Official release provenance must be stable, signed, and clean.'
+    }
+    foreach ($signedFile in $compiler, $languageServer,
+            (Join-Path $package 'stage0\rocketc-stage0.exe')) {
+        if ((Get-AuthenticodeSignature -LiteralPath $signedFile).Status -ne 'Valid') {
+            throw "Official release binary signature is not trusted: $signedFile"
+        }
     }
 }
 $resolvedOut = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'out'))
@@ -69,7 +145,7 @@ try {
     Push-Location $work
     try {
         $version = & $compiler --version
-        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 1.8.0') {
+        if ($LASTEXITCODE -ne 0 -or ($version -join "`n") -ne 'rocketc 2.0.0') {
             throw "Relocated compiler version check failed: $($version -join ' ')"
         }
         $languageServerVersion = & $languageServer --version
@@ -147,4 +223,4 @@ try {
     $env:PATH = $savedEnvironment.PATH
 }
 
-Write-Output "Rocket 1.8 distribution relocation and package test passed: $package"
+Write-Output "Rocket 2.0 distribution relocation and package test passed: $package"

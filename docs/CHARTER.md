@@ -26,14 +26,15 @@ substantial maintained software.
 
 Rocket 1.0 intentionally targeted Windows x64 and excluded classes,
 concurrency, macros, a package manager, JIT compilation, and semantic IDE
-features. That surface remains the frozen compatibility baseline, not a claim
-that later compatible 1.x releases cannot add libraries or tooling. Rocket 1.7
-is the latest completed milestone and includes the Rocket 1.6 package ecosystem;
-concurrency and additional platforms remain roadmap work.
+features. That surface remains the compatibility baseline, not a claim that
+later compatible releases cannot add libraries or tooling. Rocket 2.0 freezes
+the cumulative Rocket 1.0-1.8 language, ownership, package, tooling, runtime ABI
+v1, and Windows x64 FFI contracts. Additional platforms remain deferred Phase
+19 work.
 
 The C++20 compiler remains the permanent reproducible `stage0`, runtime ABI v1
-remains compatible throughout Rocket 1.x, and incompatible language changes
-require the Rocket 2.0 process. The full language-maturity roadmap through 2.0
-comes before work on the separate casino application.
+remains the frozen Rocket 2.x ABI, and incompatible language changes require a
+new major-version decision and migration plan. The owner accepted Phase 20's
+technical Windows x64 release without claiming unobserved external adoption.
 
 The confirmed public names are **Rocket** for the language, `rocketc` for the compiler, and `.rocket` for source files.

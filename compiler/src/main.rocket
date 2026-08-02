@@ -1,4 +1,6 @@
 import std.collections
+import std.binary
+import std.crypto
 import std.file
 import std.path
 import std.process
@@ -206,6 +208,7 @@ struct ProgramLoadState:
     diagnostics: Array[Diagnostic]
     loaded_paths: Array[String]
     active_paths: Array[String]
+    source_bytes: Int
 
 struct HirSymbol:
     id: Int
@@ -455,6 +458,11 @@ struct ToolchainInfo:
 struct NativeBuildResult:
     status: Int
     executable: String
+
+struct BuildHashResult:
+    valid: Bool
+    entries: Array[String]
+    error: String
 
 struct BindingParameterResult:
     valid: Bool
@@ -3185,13 +3193,16 @@ fn merge_ast_modules(left: AstModule, right: AstModule) -> AstModule:
     return AstModule(collections.concat(left.imports, right.imports), collections.concat(left.structs, right.structs), collections.concat(left.enums, right.enums), collections.concat(left.traits, right.traits), collections.concat(left.functions, right.functions))
 
 fn load_state_module(state: ProgramLoadState, module: AstModule) -> ProgramLoadState:
-    return ProgramLoadState(module, state.diagnostics, state.loaded_paths, state.active_paths)
+    return ProgramLoadState(module, state.diagnostics, state.loaded_paths, state.active_paths, state.source_bytes)
 
 fn load_state_diagnostics(state: ProgramLoadState, diagnostics: Array[Diagnostic]) -> ProgramLoadState:
-    return ProgramLoadState(state.module, diagnostics, state.loaded_paths, state.active_paths)
+    return ProgramLoadState(state.module, diagnostics, state.loaded_paths, state.active_paths, state.source_bytes)
 
 fn load_state_paths(state: ProgramLoadState, loaded_paths: Array[String], active_paths: Array[String]) -> ProgramLoadState:
-    return ProgramLoadState(state.module, state.diagnostics, loaded_paths, active_paths)
+    return ProgramLoadState(state.module, state.diagnostics, loaded_paths, active_paths, state.source_bytes)
+
+fn load_state_source_bytes(state: ProgramLoadState, source_bytes: Int) -> ProgramLoadState:
+    return ProgramLoadState(state.module, state.diagnostics, state.loaded_paths, state.active_paths, source_bytes)
 
 fn diagnose_import_aliases(state: ProgramLoadState, imports: Array[AstImport]) -> ProgramLoadState:
     var next = state
@@ -3209,40 +3220,52 @@ fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name
         return load_state_diagnostics(state, append(state.diagnostics, make_diagnostic("R3002", 1, 1, string.concat("import cycle detected at '", string.concat(normalized, "'")))))
     if contains_string(state.loaded_paths, normalized):
         return state
+    if collections.length(state.active_paths) >= 64:
+        return load_state_diagnostics(state, append(state.diagnostics, make_diagnostic("R1003", 1, 1, "import nesting exceeds the 64-level limit")))
+    if collections.length(state.loaded_paths) + collections.length(state.active_paths) >= 4096:
+        return load_state_diagnostics(state, append(state.diagnostics, make_diagnostic("R1003", 1, 1, "module graph exceeds the 4096-file limit")))
     var next = load_state_paths(state, state.loaded_paths, append(state.active_paths, normalized))
     let loaded = file.read_text(normalized)
     match loaded:
         case Err(error):
             next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", 1, 1, string.concat("cannot read module '", string.concat(normalized, string.concat("': ", error))))))
         case Ok(source):
-            let parsed = parse_source(source)
-            next = load_state_diagnostics(next, collections.concat(next.diagnostics, parsed.diagnostics))
-            next = diagnose_import_aliases(next, parsed.module.imports)
-            for index in 0..collections.length(parsed.module.imports):
-                let imported = parsed.module.imports[index]
-                if imported.name == "std.testing":
-                    let standard_path = standard_module_path(imported.name)
-                    if standard_path == "":
-                        next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", imported.line, imported.column, "cannot locate bundled standard module 'std.testing'")))
-                    else:
-                        next = load_program_module(next, standard_path, imported.name, module_root)
+            let bytes = string.byte_length(source)
+            if bytes > 4194304:
+                next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R1003", 1, 1, "source file exceeds the 4 MiB limit")))
+            else:
+                if next.source_bytes > 67108864 - bytes:
+                    next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R1003", 1, 1, "module graph exceeds the 64 MiB source limit")))
                 else:
-                    if not string.starts_with(imported.name, "std."):
-                        let imported_path = resolve_import_path(module_root, normalized, imported.name)
-                        if not imported_path.valid:
-                            var code = "R3001"
-                            if imported_path.matched:
-                                code = "R3005"
-                            next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic(code, imported.line, imported.column, string.concat("dependency import is absent from the exact locked graph or cache: '", string.concat(imported.name, "'")))))
+                    next = load_state_source_bytes(next, next.source_bytes + bytes)
+                    let parsed = parse_source(source)
+                    next = load_state_diagnostics(next, collections.concat(next.diagnostics, parsed.diagnostics))
+                    next = diagnose_import_aliases(next, parsed.module.imports)
+                    for index in 0..collections.length(parsed.module.imports):
+                        let imported = parsed.module.imports[index]
+                        if imported.name == "std.testing":
+                            let standard_path = standard_module_path(imported.name)
+                            if standard_path == "":
+                                next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", imported.line, imported.column, "cannot locate bundled standard module 'std.testing'")))
+                            else:
+                                next = load_program_module(next, standard_path, imported.name, module_root)
                         else:
-                            next = load_program_module(next, imported_path.path, import_alias(imported.name), module_root)
-            next = load_state_module(next, merge_ast_modules(next.module, map_imported_module(parsed.module, prefix_name)))
+                            if not string.starts_with(imported.name, "std."):
+                                let imported_path = resolve_import_path(module_root, normalized, imported.name)
+                                if not imported_path.valid:
+                                    var code = "R3001"
+                                    if imported_path.matched:
+                                        code = "R3005"
+                                    next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic(code, imported.line, imported.column, string.concat("dependency import is absent from the exact locked graph or cache: '", string.concat(imported.name, "'")))))
+                                else:
+                                    next = load_program_module(next, imported_path.path, import_alias(imported.name), module_root)
+                    next = load_state_module(next, merge_ast_modules(next.module, map_imported_module(parsed.module, prefix_name)))
     return load_state_paths(next, append(next.loaded_paths, normalized), prefix(next.active_paths, collections.length(next.active_paths) - 1))
 
 fn parse_program(source_path: String) -> ParseResult:
     let empty = AstModule([], [], [], [], [])
     let normalized = std.path.normalize(source_path)
-    let loaded = load_program_module(ProgramLoadState(empty, [], [], []), normalized, "", module_root_for_source(normalized))
+    let loaded = load_program_module(ProgramLoadState(empty, [], [], [], 0), normalized, "", module_root_for_source(normalized))
     return ParseResult(loaded.module, loaded.diagnostics)
 
 fn is_array_type(type_name: String) -> Bool:
@@ -7254,6 +7277,15 @@ fn manifest_value(source: String, section: String, key: String) -> String:
                     return string.slice(raw, 1, string.byte_length(raw) - 1)
     return ""
 
+fn manifest_resource_error(source: String) -> String:
+    if string.byte_length(source) > 1048576:
+        return "rocket.toml exceeds the 1 MiB limit"
+    let lines = string.split(source, "\n")
+    for index in 0..collections.length(lines):
+        if string.byte_length(lines[index]) > 65536:
+            return "rocket.toml contains a line above the 64 KiB limit"
+    return ""
+
 fn manifest_list(source: String, section: String, key: String) -> Array[String]:
     let raw = manifest_value(source, section, key)
     var values: Array[String] = []
@@ -7282,6 +7314,9 @@ fn resolve_package(input: String) -> PackageInfo:
         case Err(error):
             return PackageInfo(false, normalized, "", "", "", output_executable(), "", [], [], [], string.concat("cannot read rocket.toml: ", error))
         case Ok(source):
+            let resource_error = manifest_resource_error(source)
+            if resource_error != "":
+                return PackageInfo(false, normalized, "", "", "", output_executable(), "", [], [], [], resource_error)
             let package_name = manifest_value(source, "package", "name")
             let version = manifest_value(source, "package", "version")
             let entry_relative = manifest_value(source, "package", "entry")
@@ -7744,6 +7779,125 @@ fn direct_process(program: String, arguments: Array[String]) -> Int:
             print(string.concat("rocketc: error[R5002]: ", error))
             return 1
 
+fn ignored_build_entry(name: String) -> Bool:
+    return name == ".git" or name == ".rocketc" or name == "out" or name == "build" or name == "dependencies" or name == "node_modules"
+
+fn collect_build_hashes(root: String, relative: String) -> BuildHashResult:
+    var current = root
+    if relative != "":
+        current = std.path.join(root, relative)
+    let listed = file.list(current)
+    match listed:
+        case Ok(names):
+            var entries: Array[String] = []
+            for index in 0..collections.length(names):
+                let name = names[index]
+                if relative == "" and ignored_build_entry(name):
+                    continue
+                var child = name
+                if relative != "":
+                    child = std.path.join(relative, name)
+                let nested = collect_build_hashes(root, child)
+                if not nested.valid:
+                    return nested
+                entries = collections.concat(entries, nested.entries)
+            return BuildHashResult(true, entries, "")
+        case Err(list_error):
+            let loaded = file.read_binary(current)
+            match loaded:
+                case Err(read_error):
+                    return BuildHashResult(false, [], string.concat(list_error, string.concat(": ", read_error)))
+                case Ok(bytes):
+                    let hashed = crypto.sha256(bytes)
+                    match hashed:
+                        case Err(hash_error):
+                            return BuildHashResult(false, [], hash_error)
+                        case Ok(digest):
+                            return BuildHashResult(true, [string.concat(relative, string.concat("=", digest))], "")
+
+fn hash_build_text(value: String) -> String:
+    let hashed = crypto.sha256(binary.from_string(value))
+    match hashed:
+        case Ok(digest):
+            return digest
+        case Err(error):
+            return ""
+
+fn hash_build_file(path_value: String) -> String:
+    let loaded = file.read_binary(path_value)
+    match loaded:
+        case Err(error):
+            return ""
+        case Ok(bytes):
+            let hashed = crypto.sha256(bytes)
+            match hashed:
+                case Ok(digest):
+                    return digest
+                case Err(error):
+                    return ""
+
+fn output_extension(output_kind: Int) -> String:
+    if output_kind == output_static_library():
+        return ".lib"
+    if output_kind == output_dynamic_library():
+        return ".dll"
+    return ".exe"
+
+fn package_artifact_path(package: PackageInfo) -> String:
+    return std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, output_extension(package.output_kind)))
+
+fn package_cache_marker(package: PackageInfo) -> String:
+    return std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, ".rocket-build-cache-1"))
+
+fn build_cache_key(package: PackageInfo) -> String:
+    if not file.exists(std.path.join(package.root, "rocket.toml")):
+        return ""
+    let sources = collect_build_hashes(package.root, "")
+    if not sources.valid:
+        return ""
+    let source_digest = hash_build_text(collections.join(sources.entries, "\n"))
+    if source_digest == "":
+        return ""
+    let executable = process.executable_path()
+    var compiler_digest = ""
+    match executable:
+        case Ok(path_value):
+            compiler_digest = hash_build_file(path_value)
+        case Err(error):
+            return ""
+    let toolchain = locate_toolchain()
+    if not toolchain.valid:
+        return ""
+    let runtime_digest = hash_build_file(toolchain.runtime)
+    if compiler_digest == "" or runtime_digest == "":
+        return ""
+    let material = string.builder()
+    string.builder_append(material, "rocket-build-cache-1\n")
+    string.builder_append(material, "compiler-version=2.0.0\n")
+    string.builder_append(material, string.concat("compiler-sha256=", string.concat(compiler_digest, "\n")))
+    string.builder_append(material, string.concat("source-sha256=", string.concat(source_digest, "\n")))
+    string.builder_append(material, "target=windows-x64\noptimized=true\n")
+    string.builder_append(material, string.concat("output-kind=", string.concat(string.from_int(package.output_kind), "\n")))
+    string.builder_append(material, string.concat("output-name=", string.concat(package.output_name, "\n")))
+    string.builder_append(material, string.concat("runtime-sha256=", string.concat(runtime_digest, "\n")))
+    for index in 0..collections.length(package.native_library_search):
+        string.builder_append(material, string.concat("native-search=", string.concat(package.native_library_search[index], "\n")))
+    for index in 0..collections.length(package.native_libraries):
+        string.builder_append(material, string.concat("native-library=", string.concat(package.native_libraries[index], "\n")))
+    return hash_build_text(string.builder_finish(material))
+
+fn package_build_cache_hit(package: PackageInfo, key: String) -> Bool:
+    if key == "" or not file.exists(package_artifact_path(package)):
+        return false
+    if package.output_kind != output_executable() and not file.exists(std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, ".h"))):
+        return false
+    let loaded = file.read_text(package_cache_marker(package))
+    match loaded:
+        case Ok(value):
+            return string.trim(value) == key
+        case Err(error):
+            return false
+
 fn native_library_arguments(package: PackageInfo) -> Array[String]:
     var result: Array[String] = []
     for index in 0..collections.length(package.native_libraries):
@@ -7833,12 +7987,24 @@ fn build_command(input: String) -> NativeBuildResult:
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
         return NativeBuildResult(1, "")
+    let cache_key = build_cache_key(package)
+    if package_build_cache_hit(package, cache_key):
+        let artifact = package_artifact_path(package)
+        print(string.concat("built ", string.concat(artifact, " (cache hit)")))
+        return NativeBuildResult(0, artifact)
     let result = build_native_source_with_package(package, package.entry, std.path.join(package.root, ".rocketc"), package.output_name, package.output_kind)
     if result.status == 0:
         if package.output_kind != output_executable():
             let header = std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, ".h"))
             if emit_header_command(input, header) != 0:
                 return NativeBuildResult(1, result.executable)
+        if cache_key != "":
+            let cached = file.write_text(package_cache_marker(package), string.concat(cache_key, "\n"))
+            match cached:
+                case Ok(success):
+                    let ignored = success
+                case Err(error):
+                    let ignored = error
         print(string.concat("built ", result.executable))
     return result
 
@@ -8232,7 +8398,7 @@ fn verify_package_graph(input: String) -> Int:
             return 1
 
 fn print_help() -> Unit:
-    print("Rocket compiler 1.8.0")
+    print("Rocket compiler 2.0.0")
     print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|coverage|profile|benchmark|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path>        build .rocketc/main.exe")
@@ -8286,7 +8452,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 1.8.0")
+        print("rocketc 2.0.0")
         return 0
     if collections.length(arguments) > 0 and contains_string(["coverage", "profile", "benchmark"], arguments[0]):
         return forward_package_command(arguments)

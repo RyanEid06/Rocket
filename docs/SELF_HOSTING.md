@@ -2,7 +2,7 @@
 
 Phase 9 established the permanent self-hosting gate: the compiler implementation
 under `compiler/` is Rocket source and the following chain succeeds on Windows
-x64. Every later completed 1.x milestone must continue to pass the same gate:
+x64. Rocket 2.0 continues to pass the same gate:
 
 ```text
 C++ stage0 -> Rocket stage1 -> Rocket stage2 -> Rocket stage3
@@ -118,3 +118,8 @@ executor through captured aggregate contexts and compiler-generated entry
 thunks. Bootstrap conformance includes ownership, buffer, task, group, thread,
 cancellation, file, socket, and process fixtures; the stage2/stage3 IR equality
 check remains the release authority.
+
+Rocket 2.0 adds no compiler-only language feature. Stage0 and the Rocket-written
+compiler enforce the same source/manifest resource bounds and conservative
+package artifact-cache contract. The cache is outside the bootstrap authority:
+clean stage directories and byte-identical stage2/stage3 IR remain mandatory.

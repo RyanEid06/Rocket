@@ -1,9 +1,10 @@
-# Rocket Standard Library through Rocket 1.8
+# Rocket Standard Library 2.0
 
 The stable library combines typed host-backed modules with bundled ordinary
 Rocket source modules, including the Rocket 1.2 dot-call additions, the
 unchanged Rocket 1.3 native boundary, the completed Rocket 1.5 production
-library, and Rocket 1.8 concurrency and asynchronous I/O. Import a module by
+library, and Rocket 1.8 concurrency and asynchronous I/O. Rocket 2.0 freezes
+these signatures and their runtime ABI v1 mappings. Import a module by
 its stable name; no downloaded dependency is
 required:
 

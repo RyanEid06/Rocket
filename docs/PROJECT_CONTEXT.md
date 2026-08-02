@@ -8,7 +8,9 @@ Read this file at the start of every new Rocket chat. Update it after completing
 - **Compiler:** `rocketc`
 - **Source extension:** `.rocket`
 - **Primary target:** Windows x64
-- **Goal:** Grow the beginner-friendly, statically typed, LLVM-native Rocket 1.0 foundation into a credible, well-respected general-purpose native language with practical collections, scalable abstractions, native interoperability, production libraries, packages, professional tooling, safe concurrency, and multiple platforms.
+- **Goal:** Maintain the completed, beginner-friendly, statically typed,
+  LLVM-native Rocket 2.0 Windows x64 language while gathering real adoption
+  feedback; the deferred multi-platform Phase 19 remains available for later.
 - **Possible casino goal after Rocket 2.0:** A separate local, single-player, play-money desktop application may be planned only after the language-maturity roadmap is accepted, unless the user explicitly reprioritizes it.
 
 ## Locked decisions
@@ -29,9 +31,10 @@ Read this file at the start of every new Rocket chat. Update it after completing
 
 ## Current implementation state
 
-Rocket 1.5 standard-library, Rocket 1.6 package ecosystem, Rocket 1.7
-professional developer experience, and Rocket 1.8 ownership/concurrency release
-are complete on the self-hosted Rocket 1.4 foundation. The production `rocketc` is written in Rocket,
+Rocket 2.0 security, performance, compatibility, and trust work is complete on
+the Rocket 1.5 standard library, Rocket 1.6 package ecosystem, Rocket 1.7
+professional tooling, and Rocket 1.8 ownership/concurrency release. Phase 19
+multi-platform work is explicitly deferred. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -133,13 +136,20 @@ Implemented:
   monotonic timers/deadlines, `async fn`/`await`, and bounded-worker Windows
   asynchronous file, socket, and process APIs, with matching C++ stage0 and
   Rocket-written compiler behavior.
+- Rocket 2.0 frozen Windows x64 contracts; bounded source, module, manifest, and
+  package processing; deterministic frontend/package fuzzing; parser recovery
+  and crash minimization; sanitizer presets; conservative content-addressed
+  package artifact reuse; parallel package-build and large dependency-graph
+  validation; 1.0-1.8 compatibility gates; signed, provenanced, checksummed,
+  reproducible release tooling; security/governance policy; and complete book,
+  migration, FFI, package-author, syntax, and release documentation.
 
 Not implemented yet:
 
 - Broader native calling conventions, dynamic native loading, the full raylib
-  surface, non-Windows targets, and the
-  Rocket 2.0 security/performance/compatibility release gates. No casino
-  implementation has begun.
+  surface, and deferred Phase 19 non-Windows targets. Independent external
+  production use is not yet evidenced in this repository and remains an
+  ongoing maturity signal. No casino implementation has begun.
 
 ## Canonical build commands
 
@@ -182,11 +192,13 @@ Build output is in `out/build/windows-debug` and `out/build/windows-release`. Th
     documentation tools, native debugging, profiling, benchmarking, and coverage.
 18. Add robust ownership and concurrency: weak references, cycle handling,
     thread-sharing rules, tasks, channels, structured concurrency, and async I/O.
-19. Add target triples, Linux and macOS support, ARM64, supported cross-
-    compilation paths, and multi-platform release validation.
-20. Freeze Rocket 2.0 after security hardening, fuzzing, performance work,
-    compatibility validation, signed reproducible releases, complete learning
-    material, and sustained external application use.
+19. Deferred by owner direction: add target triples, Linux and macOS support,
+    ARM64, supported cross-compilation paths, and multi-platform validation if
+    and when portability work resumes.
+20. Completed: freeze Rocket 2.0 with bounded-input hardening, fuzzing,
+    sanitizer/minimization workflows, caching and scale validation,
+    compatibility tests, signed reproducible release tooling, and complete
+    learning/governance material. External use continues as post-release signal.
 
 ## Definition of the completed self-hosting gate
 
@@ -847,11 +859,68 @@ Known limitations remain those in the implementation-state list above; no langua
   contracts, not hidden claims of process capture, user-created pools, dynamic
   groups, tracing collection, or multi-platform event support.
 
+**Phase 20 - Rocket 2.0 security, performance, compatibility, and trust
+(completed 2026-08-02; Phase 19 deferred)**
+
+- Recorded owner decision D033: Windows x64 remains the only supported target,
+  runtime ABI v1 and the cumulative Rocket 1.0-1.8 surface are frozen for 2.x,
+  C++ stage0 remains permanent, and Phase 19 portability is retained for later.
+- Added deterministic `R1003` limits for 4 MiB sources/overlays, 4,096-module,
+  64 MiB, and 64-level import graphs, 1 MiB manifests, 64 KiB manifest lines, 4,096 entries,
+  1,024 dependencies, and bounded source discovery in both compilers.
+- Added deterministic lexer/parser/MIR/manifest generation and malformed-input
+  hardening. It found a real parser recovery hang on a stray top-level dedent;
+  recovery now consumes indentation tokens and has a focused regression.
+  Added MSVC AddressSanitizer configuration for the LLVM-disabled stage0,
+  frontend, and runtime (the pinned prebuilt LLVM libraries remain in the
+  normal matrices), resource-exhaustion tests, and a deterministic line-based
+  compiler-reproducer minimizer.
+- Added conservative `rocket-build-cache-1` package artifact reuse in stage0
+  and the Rocket-written compiler. The key covers exact package bytes,
+  compiler/runtime hashes, target/options/product, dependency identities, and
+  native inputs. Tests prove initial miss, unchanged hit, source invalidation,
+  rebuilt hit, and cached execution. Independent package processes are also
+  validated concurrently.
+- Added a compatibility matrix over representative 1.0-1.8 source/package/tool
+  contracts and 2.0 versioning. Added a generated 16-package dependency chain,
+  repeated cached execution, two parallel package builds, four raylib headless
+  tests, and the ownership/concurrency reference application.
+- Added release channels, clean-tree official-release policy, Authenticode
+  binary signing, detached CMS checksum signing, `RELEASE-PROVENANCE.json`,
+  complete checksum verification, fixed-timestamp deterministic ZIP creation,
+  double-build archive comparison, and sanitized relocation verification.
+  Local development artifacts remain explicitly unsigned/non-official.
+- Published `SECURITY.md`, `CONTRIBUTING.md`, the Rocket book, Rocket 2.0 syntax
+  freeze/release/migration contracts, FFI guide, package-author guide, and
+  updated specifications, tooling, package, self-hosting, diagnostics, charter,
+  roadmap, README, and decision journal.
+- Final LLVM Debug/Release matrices passed 215/215 in 482.97/152.99 seconds of
+  CTest time. LLVM-disabled stage0 Debug/Release passed 169/169 in
+  446.79/397.05 seconds. MSVC AddressSanitizer passed 16/16 and optimized
+  Phase 20 passed 17/17, each using 2,000 deterministic frontend and 256
+  manifest cases.
+- Final-source deterministic Release bootstrap passed stage0-stage3 parity;
+  stage2/stage3 IR is byte-identical at SHA-256
+  `a538c9fbe6762072e2d6fb131ce827e997346db7c8e4b48488877e366d0b2b84`.
+  Release conformance passed 90/90 and all 11 performance budgets passed.
+- Final 64-level-bound local unsigned/non-official packaging passed the
+  215-test rebuild, bootstrap, checksum verification, sanitized relocation,
+  and double-archive reproduction in 608.4 seconds. The external
+  268,906,612-byte `rocket-2.0.0-windows-x64.zip` SHA-256 is
+  `6896b8f6a883dc5bfa17c4f92b76fb272a40dad18b42e2db0403c92c70751220`;
+  its 927-entry checksum-file SHA-256 is
+  `97c16627e460fec855a1546422dc8286ca26ae50c3b0ad916c16e0de70d4e3f2`.
+- Final validation evidence, report hashes, and deliberate limitations are
+  mirrored in `PHASE_20_AUDIT.md`. No external
+  production user or official certificate signature is claimed without
+  external evidence; adoption remains post-release maintenance input.
+
 ## Current next task
 
-**Rocket 1.8 is complete. Await explicit owner direction before beginning
-Phase 19, Phase 20, or casino work. Preserve the C++ stage0 and every Rocket
-1.0-1.8 compatibility, tooling, ownership, and concurrency contract.**
+**Rocket 2.0 and the requested language-maturity project are complete on the
+supported Windows x64 target. Phase 19 remains explicitly deferred for later.
+Await owner direction for Rocket 2.0 maintenance, external adoption feedback,
+the deferred portability phase, or a separately scoped post-Rocket project.**
 
 ## New-chat prompt
 
