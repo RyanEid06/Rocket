@@ -29,6 +29,41 @@ Absolute checkout directories are intentionally excluded from Rocket DI files
 (`rocket:\source` is used) so debug information does not invalidate reproducible
 native artifacts. The sidecar performs workspace resolution instead.
 
+## Visual Studio Community 2026
+
+The repository's version-2 VSIX connects this editor-neutral contract to Visual
+Studio's native Windows debugger. **Debug Rocket Project** discovers the active
+package (or standalone source), builds it with `--debug`, and refuses to launch
+unless the expected `.exe`, adjacent `.pdb`, and adjacent
+`.rocket.map.json` all exist. Every sidecar source is resolved and checked
+before `IVsDebugger4` launches the native-only engine. The Rocket Output pane
+shows the executable, PDB, sidecar, and each logical-to-workspace source mapping.
+
+The extension creates the Rocket executable itself with `CREATE_SUSPENDED`,
+`CREATE_NO_WINDOW`, an inherited environment, and redirected output/error
+pipes. It then asks `IVsDebugger4` to attach the native-only engine to that
+process ID before resuming the primary thread. The extension recognizes and
+continues only the attach-generated `ntdll` break, leaving Rocket source
+breakpoints stopped. Consequently the native engine never takes Visual Studio's
+console/terminal launch path, and program output remains in the Rocket Output
+pane. Existing Rocket source breakpoints bind
+through the CodeView file/line records; ordinary Visual Studio stepping, Call
+Stack, Threads, and Locals windows consume the native records described above.
+Stop ends both the native-debug session and the hidden process. The extension
+does not claim values that the PDB does not represent, and optimized builds can
+still have unavailable or folded locals.
+
+The no-terminal contract also means the VSIX debug workflow is non-interactive:
+stdin is connected to `NUL`, while stdout and stderr are captured in Visual
+Studio. Program arguments and application-level file or GUI input remain
+available.
+
+The frozen Rocket 2.0 DI contract stores `path.filename()` under
+`rocket:\source`. Consequently, two compiled source files that have the same
+basename cannot be mapped unambiguously even though the sidecar retains both
+absolute sources. The VSIX detects this case and reports it before launch. No
+compiler or language contract is changed to implement the IDE integration.
+
 Run `scripts/debugging.ps1`. It builds the same multi-function fixture both
 optimized and unoptimized, checks PDB source/file/line/function/variable
 records with pinned `llvm-pdbutil`, verifies both sidecar modes, validates a

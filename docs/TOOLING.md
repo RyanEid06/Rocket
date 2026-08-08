@@ -209,39 +209,74 @@ navigation, rename, semantic tokens, and code actions.
 
 ## Visual Studio 2026
 
-The supported Windows IDE is the purple Visual Studio Community 2026. Build and
-install the repository-owned language extension once:
+The supported Windows IDE is Visual Studio Community 2026 on Windows x64. The
+repository-owned `Rocket.Language.VisualStudio` VSIX preserves its original
+extension identity and now supplies a VSPackage plus an LSP MEF component.
+Build and install or upgrade it with:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\package-visualstudio-extension.ps1
 ```
 
-Open `out/visualstudio/Rocket.Language.VisualStudio.vsix`, then start the IDE
-with Rocket's pinned build environment:
+The build restores only pinned Visual Studio SDK build tools and .NET Framework
+reference assemblies under ignored `out/visualstudio/packages`, locates the
+installed 18.x Community instance with `vswhere`, and produces
+`out/visualstudio/Rocket.Language.VisualStudio.vsix`. The package validation is:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\test-visualstudio-extension.ps1
+```
+
+Open the VSIX, then start the repository with Rocket's pinned environment:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\open-visualstudio.ps1
 ```
 
-The extension recognizes `.rocket` files and supplies syntax coloring,
-comments, brackets, and indentation. Visual Studio loads the repository's CMake
-project; its CMake Targets View exposes `rocket_demo_check`,
-`rocket_demo_run`, and `rocket_demo_test`. These run the actual compiler against
-`examples/visualstudio_demo`.
+The **Extensions > Rocket** menu and context-sensitive standard toolbar provide
+Build, Run, Test, Stop, and Debug commands. The active target is the nearest ancestor
+`rocket.toml`; without one, the active `.rocket` file is a standalone target.
+Compiler and application processes use hidden-window startup, redirected
+streams, and a kill-on-close Windows job. The dedicated Rocket Output pane
+receives build, test, ordinary program, environment-validation, and language
+server logs. `rocket-message-1` diagnostics populate Visual Studio's Error List
+with stable codes and navigable paths/locations.
+
+Tools are discovered from repository-relative outputs, a sibling executable,
+environment variables, `PATH`, or optional user settings under
+**Tools > Options > Rocket**. With pinned-environment loading enabled,
+`dependencies/activate.ps1` runs in a hidden process and its environment is
+forwarded directly; no discovered machine path is written into the project or
+VSIX.
+
+The MEF language client starts `rocket-lsp.exe` with redirected standard I/O
+for `.rocket` content. Visual Studio consumes the server's negotiated
+completion, hover/signatures, definitions, references, rename, symbols,
+semantic tokens, formatting/code actions, incremental synchronization, and
+live diagnostics.
+
+Debug performs an unoptimized compiler build, requires the matching executable,
+PDB, and `rocket-source-map-1` sidecar, validates each mapped source, creates
+the program suspended with `CREATE_NO_WINDOW` and redirected streams, attaches
+Visual Studio's native-only Windows debugger by process ID, automatically
+continues only the attach-generated `ntdll` break, and then stops normally on
+Rocket source breakpoints.
+The CodeView contract provides source breakpoints, stepping, native Rocket call
+frames, and locals where represented. The frozen reproducible record uses
+source basenames; compiled sources with duplicate basenames are rejected as
+ambiguous before launch. Optimized CLI builds can fold or omit locals.
 
 `open-visualstudio.ps1` copies the tracked
 `editors/visualstudio/launch.vs.json` template into Visual Studio's ignored
-`.vs` workspace state. Leave `rocketc.exe` selected beside the green Run button
-and start it for a direct IDE run with the correct package argument and working
-directory. The demo's final output line is recursive `fibonacci(10)`, which
-prints `55`.
-
-Visual Studio's repository extension remains syntax/task focused. Editors that
-connect to `rocket-lsp` receive semantic completion, navigation, rename,
-references, and live Rocket diagnostics, while native debugging uses the
-editor-neutral CodeView/PDB and `rocket-source-map-1` workflow in
+`.vs` workspace state. CMake Targets View continues to expose
+`rocket_demo_check`, `rocket_demo_run`, and `rocket_demo_test`, and CMake exposes
+`rocket_visualstudio_extension`. These scripts/targets are reproducible
+fallback automation; installed VSIX commands do not depend on `.vs` state.
+Complete installation, usage, troubleshooting, and limitations are in
+`editors/visualstudio/README.md`; the debugger contract remains in
 `docs/DEBUGGING.md`.
 
 ## Rocket 1.7 professional tooling

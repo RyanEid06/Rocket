@@ -1,0 +1,49 @@
+<Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{13E0FB5C-C1A7-4E12-953F-4D676A6C36A4}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Rocket.VisualStudio.CoreTests</AssemblyName>
+    <BaseOutputPath>$(MSBuildProjectDirectory)\..\..\..\..\out\visualstudio\tests\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\..\..\..\..\out\visualstudio\obj\Rocket.VisualStudio.CoreTests\</BaseIntermediateOutputPath>
+    <RestorePackagesPath>$(MSBuildProjectDirectory)\..\..\..\..\out\visualstudio\packages</RestorePackagesPath>
+    <RootNamespace>Rocket.VisualStudio.CoreTests</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>$(BaseOutputPath)Debug\</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)Debug\</IntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>$(BaseOutputPath)Release\</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)Release\</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net472" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Web.Extensions" />
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketManifest.cs"><Link>Core\RocketManifest.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketMessage.cs"><Link>Core\RocketMessage.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketMessageParser.cs"><Link>Core\RocketMessageParser.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketSourceMap.cs"><Link>Core\RocketSourceMap.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketDebugLaunchOptions.cs"><Link>Core\RocketDebugLaunchOptions.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketTarget.cs"><Link>Core\RocketTarget.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketTargetDiscovery.cs"><Link>Core\RocketTargetDiscovery.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\RocketToolLocator.cs"><Link>Core\RocketToolLocator.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\Core\WindowsCommandLine.cs"><Link>Core\WindowsCommandLine.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\RocketDebugProcess.cs"><Link>RocketDebugProcess.cs</Link></Compile>
+    <Compile Include="..\..\src\Rocket.VisualStudio\RocketProcessRunner.cs"><Link>RocketProcessRunner.cs</Link></Compile>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

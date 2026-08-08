@@ -80,9 +80,10 @@ Implemented:
 - Validated `rocket.toml` packages, package-root imports, ignored package
   artifacts, deterministic source/test discovery, ordinary-program native tests,
   an idempotent comment-preserving formatter, and stable `Rdddd` diagnostics.
-- VS Code syntax/language/snippet/problem-matcher support, Visual Studio 2026
-  `.rocket` recognition and CMake check/run/test targets, and a checksummed
-  relocatable Windows x64 developer-package workflow.
+- VS Code syntax/language/snippet/problem-matcher support; full Visual Studio
+  Community 2026 GUI commands, Output, Error List, LSP, and native-debug
+  integration; CMake fallback targets; and a checksummed relocatable Windows
+  x64 developer-package workflow.
 - Checked signed Int literals and arithmetic, including overflow and
   division-by-zero diagnostics.
 - Isolated MIR-to-C++ stage0 backend that remains buildable when LLVM is disabled.
@@ -917,19 +918,84 @@ Known limitations remain those in the implementation-state list above; no langua
   mirrored in `PHASE_20_AUDIT.md`. No external
   production user or official certificate signature is claimed without
   external evidence; adoption remains post-release maintenance input.
-- Post-freeze Visual Studio Community 2026 handoff is complete: the existing
-  Rocket VSIX recognizes `.rocket` source, `open-visualstudio.ps1` installs the
-  portable launch profile into ignored workspace state, and the recursive
-  `examples/visualstudio_demo` run was visibly validated in the IDE with final
-  output `55` and exit code `0`.
+- Post-freeze Visual Studio Community 2026 integration now upgrades the existing
+  `Rocket.Language.VisualStudio` identity to a real version-2 VSPackage/MEF
+  VSIX. Context-sensitive GUI Build/Run/Test/Stop/Debug commands discover the
+  nearest package or a standalone source, run hidden redirected process trees,
+  write to a dedicated Rocket Output pane, and translate `rocket-message-1`
+  diagnostics into navigable Error List tasks. Tools > Options contains
+  portable compiler/LSP/environment/argument settings.
+- The VSIX connects `.rocket` content to the existing `rocket-lsp` process and
+  launches the native Visual Studio debugger only after validating the Rocket
+  executable, PDB, and source map. It preserves the frozen Rocket 2.0 compiler,
+  runtime, stage0, LSP, CodeView, and sidecar contracts; Phase 19 remains
+  deferred and no casino work is included.
+- Focused extension tests cover package/standalone discovery, JSON diagnostics
+  and summaries, source maps, Windows argument parsing, and hidden redirected
+  processes. VSIX inspection preserves identity/version/assets and rejects
+  embedded checkout paths. The installed Community 2026 instance contains
+  version 2.0.3 with both the generated VSPackage and LSP MEF assets. Existing
+  CMake targets and Visual Studio launch scripts remain fallback automation.
+- Post-integration Debug and Release matrices passed 215/215 in 465.59 and
+  139.49 seconds of CTest time. The final focused VSIX suite passed 26/26. The
+  final package rebuild SHA-256 is
+  `599caa26c31ef4621a801e474d8aaade5f9b9f700a132a0385c1252f82410153`;
+  its VSPackage DLL SHA-256 is
+  `ebf45bb18bf138253bdc87060c1ba3aca7ca9a4a44d50b77d33e09143f7b513b`.
+  The GUI-accepted installation was built from the same 2.0.3 source state;
+  its installed DLL SHA-256 is
+  `4741a6a64db8d0d5050f0cc090e7a89724b21bad65ad89e00d432466f12ebc2c`.
+  Visual Studio ActivityLog recorded a clean begin/end load for
+  `RocketPackage` with no Rocket-specific warning or error. The recursive demo
+  backend built, printed `55` plus the preserved local demo edit, passed 1/1
+  tests, and produced an unoptimized PDB containing `fibonacci`, line records,
+  and locals.
+- Fixed GUI environment validation passing the active `.rocket` file as a
+  process working directory. Validation now resolves a repository root or real
+  directory before launching `rocketc --version` and `rocket-lsp --version`;
+  focused tests cover both active-file and active-directory inputs, and the
+  corrected installed command returns normally against the real demo.
+- The final installed VSPackage enumerated all seven Rocket commands in a real
+  Visual Studio 18 automation host. Build, Run, and Test each entered and left
+  the extension's active-command state against `examples/visualstudio_demo`;
+  the expected failing immutable-assignment build also completed after its
+  structured diagnostic path ran. A normal VSIX-loaded `.rocket` session
+  started `rocket-lsp.exe` as a child process, and the server exited with its
+  Visual Studio host. Headless hosts now avoid activating Output/Error List UI
+  while normal interactive windows retain automatic pane/task display.
+- Owner-assisted visible GUI acceptance completed in Visual Studio Community
+  2026 on 2026-08-08 against `examples/visualstudio_demo`. **Extensions >
+  Rocket** exposed all seven commands. Environment validation found
+  `rocketc 2.0.0` and `rocket-lsp 1.0.0`; GUI Build succeeded, GUI Run printed
+  `Rocket pilot`, `3`, `42`, `84`, recursive Fibonacci `55`, and the preserved
+  local `YoWassupCookie` edit in the Rocket pane; GUI Test passed 1/1.
+- A temporary invalid edit produced live squiggles and structured `R2001`
+  Error List rows with `main.rocket` line numbers. Double-clicking an entry
+  selected line 29, and removing the temporary lines returned the document and
+  Error List to clean state. LSP initialization was visible, and hover displayed
+  `fn fibonacci(value: Int) -> Int`.
+- Native GUI debugging initially exposed a real defect: Visual Studio's console
+  launch flags opened an external Windows Terminal. VSIX 2.0.2 replaced that
+  path with a hidden suspended process, redirected streams, and native attach;
+  2.0.3 also recognizes and automatically continues only the attach-generated
+  `ntdll` break. Final one-click Debug opened no external terminal and stopped
+  directly at `main.rocket` line 13. Locals displayed `value = 10`, Call Stack
+  displayed `fibonacci` and `main`, F11 entered a second recursive `fibonacci`
+  frame at line 10, and **Stop Rocket** returned Visual Studio to design mode
+  with `main.exe` gone. Rocket source breakpoints are never auto-continued.
+- Deliberate VSIX boundary: terminal-free Run/Debug does not offer interactive
+  console stdin. Run has no console, and the hidden Debug process reads from
+  `NUL`; stdout/stderr, program arguments, and application-level file or GUI
+  input remain supported.
 
 ## Current next task
 
-**Rocket 2.0 and the requested language-maturity project are complete and
-frozen on the supported Windows x64 target. Phase 19 remains explicitly
-deferred for later. Do not begin further Rocket feature work or the casino
-project without new owner direction. The immediate next task is the owner's
-separately specified final post-Rocket step.**
+**Rocket 2.0 and its Visual Studio Community 2026 integration are complete on
+the supported Windows x64 target. Phase 19 remains explicitly deferred.
+Complete only validation or maintenance explicitly requested by the owner; do
+not begin new language features or the casino project without new owner
+direction. Treat Visual Studio extension 2.0.3, its reproducible CMake/script
+fallbacks, and the preserved owner demo edit as the current repository state.**
 
 ## New-chat prompt
 

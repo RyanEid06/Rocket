@@ -88,3 +88,29 @@ Code extension is a separate consumer and its transport/provider tests live in
 Protocol 1.0 deliberately remains LSP rather than a Rocket-specific editor
 protocol. New fields and custom `rocket/*` methods must be additive and bounded;
 breaking behavior requires a new protocol version.
+
+## Visual Studio Community 2026 client
+
+The repository VSIX exports a `Rocket` content type for `.rocket` documents and
+an `ILanguageClient` MEF component. Visual Studio starts the same
+`rocket-lsp.exe` described above with standard input/output/error redirected and
+with hidden-window process creation. The active repository's pinned environment
+is loaded in a separate hidden process when that option is enabled. Server
+stderr is prefixed with `[LSP]` in the dedicated Rocket Output pane; stdout is
+reserved exclusively for LSP framing.
+
+The client does not duplicate or reinterpret semantic operations. Completion,
+hover, signatures, definitions, references, prepare-rename/rename, document and
+workspace symbols, semantic tokens, code actions, whole-document formatting,
+incremental synchronization, and published live diagnostics remain implemented
+by `rocket-lsp` and negotiated through Visual Studio's LSP client. TextMate
+syntax highlighting remains available if the server executable cannot be
+located.
+
+Tool discovery is portable: the client checks the Rocket options page,
+`ROCKET_LANGUAGE_SERVER`, a sibling of the selected compiler, repository-relative
+Debug/Release outputs, and `PATH`. It does not store a checkout path in the
+VSIX. Run **Extensions > Rocket > Validate Rocket Environment** and inspect `[LSP]` output
+when activation fails. Focused VSIX tests validate package discovery and the
+language-client asset; the editor-neutral LSP protocol suite remains the source
+of truth for every semantic capability.

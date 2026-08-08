@@ -1,0 +1,155 @@
+<Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A0A28DC2-59AB-44A3-9EBB-E951CA92A8EF}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Rocket.VisualStudio</RootNamespace>
+    <AssemblyName>Rocket.VisualStudio</AssemblyName>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.3.0</FileVersion>
+    <Version>2.0.3</Version>
+    <Platforms>AnyCPU;x64</Platforms>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <UseCodebase>true</UseCodebase>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <VsixType>v3</VsixType>
+    <IsVsixProject>true</IsVsixProject>
+    <DeployExtension>false</DeployExtension>
+    <BaseOutputPath>$(MSBuildProjectDirectory)\..\..\..\..\out\visualstudio\build\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\..\..\..\..\out\visualstudio\obj\Rocket.VisualStudio\</BaseIntermediateOutputPath>
+    <RestorePackagesPath>$(MSBuildProjectDirectory)\..\..\..\..\out\visualstudio\packages</RestorePackagesPath>
+    <VsixSourceManifestPath>$(MSBuildProjectDirectory)\..\..\source.extension.vsixmanifest</VsixSourceManifestPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>$(BaseOutputPath)Debug\</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)Debug\</IntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>$(BaseOutputPath)Release\</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)Release\</IntermediateOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net472" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2120" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Core\RocketManifest.cs" />
+    <Compile Include="Core\RocketMessage.cs" />
+    <Compile Include="Core\RocketMessageParser.cs" />
+    <Compile Include="Core\RocketSourceMap.cs" />
+    <Compile Include="Core\RocketDebugLaunchOptions.cs" />
+    <Compile Include="Core\RocketTarget.cs" />
+    <Compile Include="Core\RocketTargetDiscovery.cs" />
+    <Compile Include="Core\RocketToolLocator.cs" />
+    <Compile Include="Core\WindowsCommandLine.cs" />
+    <Compile Include="PackageIds.cs" />
+    <Compile Include="RocketDebugProcess.cs" />
+    <Compile Include="RocketDebugger.cs" />
+    <Compile Include="RocketEnvironmentLoader.cs" />
+    <Compile Include="RocketErrorList.cs" />
+    <Compile Include="RocketLanguageClient.cs" />
+    <Compile Include="RocketOptionsPage.cs" />
+    <Compile Include="RocketOutputPane.cs" />
+    <Compile Include="RocketPackage.cs" />
+    <Compile Include="RocketProcessRunner.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Design" />
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="envdte">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\envdte.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="envdte80">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\envdte80.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Interop">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.Interop.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.OLE.Interop">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.OLE.Interop.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.15.0">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.Shell.15.0.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Framework">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.Shell.Framework.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Interop">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.Shell.Interop.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Text.Data">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\CommonExtensions\Microsoft\Editor\Microsoft.VisualStudio.Text.Data.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.CoreUtility">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\CommonExtensions\Microsoft\Editor\Microsoft.VisualStudio.CoreUtility.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Threading">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.Threading.17.x\Microsoft.VisualStudio.Threading.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Utilities">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\Microsoft.VisualStudio.Utilities.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.LanguageServer.Client">
+      <HintPath>$(VisualStudioInstallDir)\Common7\IDE\CommonExtensions\Microsoft\LanguageServer\Microsoft.VisualStudio.LanguageServer.Client.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\source.extension.vsixmanifest">
+      <Link>source.extension.vsixmanifest</Link>
+    </None>
+    <VSCTCompile Include="Menus.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+    <Content Include="..\..\Rocket.pkgdef">
+      <Link>Rocket.pkgdef</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="..\..\..\vscode\language-configuration.json">
+      <Link>language-configuration.json</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="..\..\..\vscode\syntaxes\rocket.tmLanguage.json">
+      <Link>Grammars\rocket.tmLanguage.json</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+  </ItemGroup>
+  <Target Name="ValidateVisualStudioInstallDir" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(VisualStudioInstallDir)' == ''" Text="VisualStudioInstallDir must point to a Visual Studio 2026 installation. Use scripts/package-visualstudio-extension.ps1." />
+    <Error Condition="!Exists('$(VisualStudioInstallDir)\Common7\IDE\devenv.exe')" Text="VisualStudioInstallDir does not contain Common7\IDE\devenv.exe." />
+  </Target>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
+</Project>

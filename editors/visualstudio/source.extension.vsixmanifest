@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+<PackageManifest Version="2.0.0"
+                 xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"
+                 xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="Rocket.Language.VisualStudio" Version="1.0.0" Language="en-US" Publisher="Rocket" />
+    <Identity Id="Rocket.Language.VisualStudio" Version="2.0.3" Language="en-US" Publisher="Rocket" />
     <DisplayName>Rocket Language</DisplayName>
-    <Description xml:space="preserve">Rocket language recognition, TextMate syntax coloring, comments, brackets, and indentation for Visual Studio 2026.</Description>
+    <Description xml:space="preserve">Rocket build, run, test, structured diagnostics, language-server features, and native debugging for Visual Studio 2026.</Description>
     <MoreInfo>https://github.com/RyanEid06/Rocket</MoreInfo>
     <Tags>Rocket,language,TextMate,native,LLVM</Tags>
   </Metadata>
@@ -12,7 +14,12 @@
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
   </Installation>
+  <Prerequisites>
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[18.0,19.0)" DisplayName="Visual Studio core editor" />
+  </Prerequisites>
   <Assets>
     <Asset Type="Microsoft.VisualStudio.VsPackage" Path="Rocket.pkgdef" />
+    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="Rocket.VisualStudio" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="Rocket.VisualStudio" Path="|%CurrentProject%|" />
   </Assets>
 </PackageManifest>

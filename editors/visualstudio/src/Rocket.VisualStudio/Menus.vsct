@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+
+  <Commands package="guidRocketPackage">
+    <Menus>
+      <Menu guid="guidRocketCommandSet" id="RocketMenu" priority="0x700" type="Menu">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_MM_TOOLSADDINS" />
+        <Strings>
+          <ButtonText>Rocket</ButtonText>
+          <CommandName>Rocket</CommandName>
+        </Strings>
+      </Menu>
+      <Menu guid="guidRocketCommandSet" id="RocketToolbar" priority="0x700" type="Toolbar">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_TOOL_MAINMENU" />
+        <Strings>
+          <ButtonText>Rocket</ButtonText>
+          <CommandName>Rocket</CommandName>
+        </Strings>
+      </Menu>
+    </Menus>
+
+    <Groups>
+      <Group guid="guidRocketCommandSet" id="RocketCommandGroup" priority="0x0100">
+        <Parent guid="guidRocketCommandSet" id="RocketMenu" />
+      </Group>
+      <Group guid="guidRocketCommandSet" id="RocketToolbarGroup" priority="0x0100">
+        <Parent guid="guidRocketCommandSet" id="RocketToolbar" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidRocketCommandSet" id="BuildCommand" priority="0x0100" type="Button">
+        <Parent guid="guidRocketCommandSet" id="RocketCommandGroup" />
+        <Icon guid="ImageCatalogGuid" id="BuildSolution" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings><ButtonText>Build Rocket Project</ButtonText><CommandName>Rocket.Build</CommandName></Strings>
+      </Button>
+      <Button guid="guidRocketCommandSet" id="RunCommand" priority="0x0200" type="Button">
+        <Parent guid="guidRocketCommandSet" id="RocketCommandGroup" />
+        <Icon guid="ImageCatalogGuid" id="Run" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings><ButtonText>Run Rocket Project</ButtonText><CommandName>Rocket.Run</CommandName></Strings>
+      </Button>
+      <Button guid="guidRocketCommandSet" id="TestCommand" priority="0x0300" type="Button">
+        <Parent guid="guidRocketCommandSet" id="RocketCommandGroup" />
+        <Icon guid="ImageCatalogGuid" id="RunTest" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings><ButtonText>Test Rocket Project</ButtonText><CommandName>Rocket.Test</CommandName></Strings>
+      </Button>
+      <Button guid="guidRocketCommandSet" id="StopCommand" priority="0x0400" type="Button">
+        <Parent guid="guidRocketCommandSet" id="RocketCommandGroup" />
+        <Icon guid="ImageCatalogGuid" id="Stop" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings><ButtonText>Stop Rocket</ButtonText><CommandName>Rocket.Stop</CommandName></Strings>
+      </Button>
+      <Button guid="guidRocketCommandSet" id="DebugCommand" priority="0x0500" type="Button">
+        <Parent guid="guidRocketCommandSet" id="RocketCommandGroup" />
+        <Icon guid="ImageCatalogGuid" id="DebugSelection" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings><ButtonText>Debug Rocket Project</ButtonText><CommandName>Rocket.Debug</CommandName></Strings>
+      </Button>
+      <Button guid="guidRocketCommandSet" id="ValidateCommand" priority="0x0700" type="Button">
+        <Parent guid="guidRocketCommandSet" id="RocketCommandGroup" />
+        <Icon guid="ImageCatalogGuid" id="StatusOK" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Validate Rocket Environment</ButtonText><CommandName>Rocket.ValidateEnvironment</CommandName></Strings>
+      </Button>
+      <Button guid="guidRocketCommandSet" id="OptionsCommand" priority="0x0800" type="Button">
+        <Parent guid="guidRocketCommandSet" id="RocketCommandGroup" />
+        <Icon guid="ImageCatalogGuid" id="Settings" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings><ButtonText>Rocket Options</ButtonText><CommandName>Rocket.Options</CommandName></Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+
+  <CommandPlacements>
+    <CommandPlacement guid="guidRocketCommandSet" id="BuildCommand" priority="0x0100">
+      <Parent guid="guidRocketCommandSet" id="RocketToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="RunCommand" priority="0x0200">
+      <Parent guid="guidRocketCommandSet" id="RocketToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="TestCommand" priority="0x0300">
+      <Parent guid="guidRocketCommandSet" id="RocketToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="StopCommand" priority="0x0400">
+      <Parent guid="guidRocketCommandSet" id="RocketToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="DebugCommand" priority="0x0500">
+      <Parent guid="guidRocketCommandSet" id="RocketToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="BuildCommand" priority="0x028F">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_BUILD_SOLUTION" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="RunCommand" priority="0x0158">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_RUN_START" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="StopCommand" priority="0x0159">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_RUN_START" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="DebugCommand" priority="0x015A">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_RUN_START" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="BuildCommand" priority="0x0180">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_TOOLSB_RUNBUILD" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="RunCommand" priority="0x0181">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_TOOLSB_RUNBUILD" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="TestCommand" priority="0x0182">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_TOOLSB_RUNBUILD" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="StopCommand" priority="0x0183">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_TOOLSB_RUNBUILD" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidRocketCommandSet" id="DebugCommand" priority="0x0184">
+      <Parent guid="guidSHLMainMenu" id="IDG_VS_TOOLSB_RUNBUILD" />
+    </CommandPlacement>
+  </CommandPlacements>
+
+  <Symbols>
+    <GuidSymbol name="guidRocketPackage" value="{AF73AAB0-8E72-43C7-959B-EC59016FB30D}" />
+    <GuidSymbol name="guidRocketCommandSet" value="{5D1BE1D7-213A-45EA-965F-2F73AE68AA23}">
+      <IDSymbol name="RocketMenu" value="0x1000" />
+      <IDSymbol name="RocketToolbar" value="0x1001" />
+      <IDSymbol name="RocketCommandGroup" value="0x1100" />
+      <IDSymbol name="RocketToolbarGroup" value="0x1101" />
+      <IDSymbol name="BuildCommand" value="0x0100" />
+      <IDSymbol name="RunCommand" value="0x0101" />
+      <IDSymbol name="TestCommand" value="0x0102" />
+      <IDSymbol name="StopCommand" value="0x0103" />
+      <IDSymbol name="DebugCommand" value="0x0104" />
+      <IDSymbol name="ValidateCommand" value="0x0105" />
+      <IDSymbol name="OptionsCommand" value="0x0106" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

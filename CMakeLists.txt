@@ -262,6 +262,12 @@ add_custom_target(rocket_demo_test
   USES_TERMINAL
   COMMENT "Testing the Rocket Visual Studio demo")
 
+add_custom_target(rocket_visualstudio_extension
+  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+          -File "${CMAKE_SOURCE_DIR}/scripts/package-visualstudio-extension.ps1"
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  COMMENT "Packaging the Rocket Visual Studio 2026 extension")
+
 enable_testing()
 function(add_rocketc_test name)
   add_executable(rocketc_${name}_tests tests/${name}_tests.cpp)

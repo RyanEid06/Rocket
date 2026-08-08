@@ -11,3 +11,6 @@
 *.obj
 *.s
 *.ll
+
+# Local out-of-scope application prototype; Rocket remains the language repository.
+/Blackjack-v1/

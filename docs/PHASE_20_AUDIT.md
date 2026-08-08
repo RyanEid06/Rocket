@@ -5,6 +5,12 @@ Phase 20 is complete for Rocket 2.0 on its supported Windows x64 target. Phase
 claim Linux, macOS, ARM64, cross-compilation, official certificate signing, or
 independent production adoption.
 
+Post-audit note (2026-08-08): the compatible Visual Studio Community 2026 VSIX
+integration was completed after the Phase 20 language freeze. It consumes the
+frozen compiler, LSP, diagnostics, CodeView, and source-map contracts and does
+not alter the Phase 20 results below. Its evidence is recorded in
+`PROJECT_CONTEXT.md` and `editors/visualstudio/README.md`.
+
 ## Contract and implementation mapping
 
 | Requirement | Implementation and evidence |

@@ -25,4 +25,5 @@ fn main() -> Int:
     print(player.score)
     print(doubled(player.score))
     print(fibonacci(10))
+    print("YoWassupCookie")
     return 0

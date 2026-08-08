@@ -1,8 +1,10 @@
 # Rocket Master Roadmap
 
-**Final status (2026-08-02):** Rocket 2.0 is complete and frozen on Windows
-x64. Phase 19 remains deferred for later. This roadmap is closed; any further
-Rocket work or separate casino project requires new owner direction.
+**Final status (updated 2026-08-08):** Rocket 2.0 is complete and frozen on
+Windows x64. Phase 19 remains deferred for later. The compatible post-freeze
+Visual Studio Community 2026 integration is also complete. This language
+roadmap is closed; any further Rocket work or separate casino project requires
+new owner direction.
 
 ## Long-term objective
 
@@ -590,6 +592,36 @@ ABI v1, and FFI contracts without adding grammar.
   make security and compatibility policies operational.
 - Exact observed commands, counts, limitations, and hashes are recorded in
   `PROJECT_CONTEXT.md` and `PHASE_20_AUDIT.md`; no external adoption is claimed.
+
+## Post-roadmap tooling maintenance
+
+### Visual Studio Community 2026 integration - Completed
+
+**Completed 2026-08-08.** `Rocket.Language.VisualStudio` 2.0.3 upgrades the
+existing extension identity without changing Rocket 2.0 source, compiler,
+runtime ABI, stage0, LSP, CodeView, or source-map contracts.
+
+- Context-sensitive GUI Build, Run, Test, Stop, and Debug commands discover the
+  nearest `rocket.toml` or treat an active `.rocket` file as standalone.
+- Compiler, environment, application, and debuggee processes use hidden-window
+  execution and redirected streams. Build and program output remains inside
+  Visual Studio, and native Debug opens no external terminal.
+- `rocket-message-1` diagnostics populate navigable Error List entries, and the
+  existing `rocket-lsp` server supplies completion, hover, navigation,
+  references, rename, symbols, semantic tokens, formatting, and live
+  diagnostics.
+- The native debugger consumes Rocket's existing executable, CodeView PDB, and
+  `rocket-source-map-1` artifacts for breakpoints, stepping, call stacks, and
+  represented locals. The final GUI pass stopped directly in recursive
+  `fibonacci`, displayed `value = 10`, stepped into a second recursive frame,
+  and stopped the hidden process normally.
+- Focused extension tests passed 26/26; portable VSIX inspection rejects
+  checkout-specific paths. Existing scripts and CMake targets remain fallback
+  automation.
+
+This is a compatible tooling patch, not Phase 19 or a new language phase. The
+terminal-free workflow is non-interactive for console stdin; arguments,
+stdout/stderr, files, GUI input, and networking remain available.
 
 ## Required implementation path for every new feature
 

@@ -40,7 +40,8 @@ available only as the reproducible stage0 fallback when LLVM is explicitly disab
 - Package-relative `import` modules with explicit `pub` visibility
 - Editor-neutral `rocket-lsp` Protocol 1.0 semantic tooling with incremental
   multi-package analysis, unsaved overlays, navigation, refactoring, semantic
-  tokens, and dependency-free VS Code plus independent Node.js clients
+  tokens, a full Visual Studio Community 2026 client, and dependency-free VS
+  Code plus independent Node.js clients
 - Typed `std` modules for strings, collections, binary buffers and buffered I/O,
   Unicode, safe regular expressions, cryptography, networking and HTTP,
   calendars, logging, CLI/config parsing, compression, safe archives, SQLite,
@@ -65,9 +66,19 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\bootstrap.ps1 
 
 The scripts activate the Microsoft x64 build environment and use the pinned Ninja and LLVM installation. Build output is written to `out/build/windows-debug` and `out/build/windows-release`.
 
-For the purple Visual Studio Community 2026, install the repository-owned Rocket
-extension and launch the project with the pinned toolchain environment as
-described in the [tooling guide](docs/TOOLING.md#visual-studio-2026).
+For the purple Visual Studio Community 2026, build and install the
+repository-owned `Rocket.Language.VisualStudio` 2.0.3 extension. It provides
+normal GUI Build, Run, Test, Stop, and Debug commands; nearest-package and
+standalone-file discovery; hidden redirected execution; a Rocket Output pane;
+navigable Error List diagnostics; the existing LSP feature set; and native
+CodeView/PDB debugging without an external terminal. Setup, validation, and
+honest limitations are documented in the
+[Visual Studio guide](editors/visualstudio/README.md) and
+[tooling reference](docs/TOOLING.md#visual-studio-2026).
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-visualstudio-extension.ps1
+```
 
 Then try:
 

@@ -16,6 +16,22 @@ Compatible 2.x patches may clarify diagnostics, repair defects, improve
 performance, and add libraries or tooling without invalidating that surface.
 Incompatible changes require a new major-version decision and migration plan.
 
+## Compatible post-release tooling
+
+`Rocket.Language.VisualStudio` 2.0.3 is a compatible post-freeze tooling patch.
+It connects Visual Studio Community 2026 to the already frozen compiler CLI,
+`rocket-message-1`, `rocket-lsp` Protocol 1.0, CodeView/PDB, and
+`rocket-source-map-1` contracts. It adds GUI Build/Run/Test/Stop/Debug,
+hidden redirected execution, Rocket Output, navigable Error List diagnostics,
+semantic editor features, and native debugging without changing Rocket source,
+runtime ABI v1, package formats, stage0, or the production compiler.
+
+The extension remains Windows x64-specific, matching the supported Rocket 2.0
+target. Its no-terminal Run/Debug workflow does not provide interactive console
+stdin; application arguments, captured stdout/stderr, files, GUI input, and
+networking remain supported. Exact GUI and package evidence is recorded in
+`PROJECT_CONTEXT.md`.
+
 ## Hardening and scale contract
 
 - A source file or editor overlay is at most 4 MiB; one module graph is at most

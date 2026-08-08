@@ -36,5 +36,8 @@ The C++20 compiler remains the permanent reproducible `stage0`, runtime ABI v1
 remains the frozen Rocket 2.x ABI, and incompatible language changes require a
 new major-version decision and migration plan. The owner accepted Phase 20's
 technical Windows x64 release without claiming unobserved external adoption.
+Compatible editor and tooling integrations may consume the frozen CLI, LSP,
+diagnostic, CodeView, and source-map contracts without reopening the language
+roadmap; the completed Visual Studio Community 2026 VSIX follows this rule.
 
 The confirmed public names are **Rocket** for the language, `rocketc` for the compiler, and `.rocket` for source files.
