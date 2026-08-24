@@ -115,12 +115,29 @@ def extract_single_root(archive: Path, destination: Path) -> None:
 
 def install(package: dict[str, object], marker: str) -> None:
     destination = INSTALLED / str(package["installDirectory"])
-    if (destination / marker).is_file():
+    marker_path = destination / marker
+    if marker_path.is_file():
+        ensure_executable_marker(marker_path, marker)
         print(f"already installed {destination.name}")
         return
     extract_single_root(download(package), destination)
-    if not (destination / marker).is_file():
+    marker_path = destination / marker
+    if not marker_path.is_file():
         raise SystemExit(f"archive did not install expected {marker}")
+    ensure_executable_marker(marker_path, marker)
+
+
+def ensure_executable_marker(marker_path: Path, marker: str) -> None:
+    """Restore the POSIX execute bit lost by Python's ZIP extraction.
+
+    Ninja's Windows archive contains an `.exe`, while the Linux and macOS
+    archives contain a bare `ninja` executable. `zipfile.extractall` does not
+    preserve Unix mode bits, so restored Actions caches repair the marker before
+    any workflow attempts to execute it.
+    """
+    if marker != "ninja":
+        return
+    marker_path.chmod(marker_path.stat().st_mode | 0o111)
 
 
 def main() -> int:

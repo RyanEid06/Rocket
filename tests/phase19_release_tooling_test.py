@@ -88,6 +88,15 @@ def main() -> int:
         and runtime_library_initialization < windows_branch,
         "package provenance runtime-library list is not initialized for Windows",
     )
+    dependency_bootstrap_source = (root / "dependencies" / "bootstrap.py").read_text()
+    check(
+        "ensure_executable_marker(marker_path, marker)" in dependency_bootstrap_source,
+        "POSIX Ninja installs do not restore executable mode after ZIP extraction",
+    )
+    check(
+        "marker_path.chmod(marker_path.stat().st_mode | 0o111)" in dependency_bootstrap_source,
+        "POSIX Ninja executable-mode restoration is not deterministic",
+    )
     sample = work / "sample-sdk"
     (sample / "bin").mkdir(parents=True)
     (sample / "bin" / "rocketc").write_text("compiler\n", encoding="utf-8")
