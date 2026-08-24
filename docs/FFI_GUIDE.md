@@ -33,7 +33,7 @@ exposing its handle or symbol lookup to safe Rocket.
    wrapper in native, negative, sanitizer, and relocation tests.
 
 Static Rocket libraries require consumers to link the matching target runtime
-(`rocket_runtime.lib` on Windows and `rocket_runtime.a` on Linux/macOS);
+(`rocket_runtime.lib` on Windows and `librocket_runtime.a` on Linux/macOS);
 dynamic Rocket libraries embed the runtime. ABI v1 is frozen for Rocket 2.x.
 The suffixes are `.dll/.lib` on Windows, `.so/.a` on Linux, and `.dylib/.a` on
 macOS. See `SPEC.md`, `TOOLING.md`, and `COMPILER_ARCHITECTURE.md` for the

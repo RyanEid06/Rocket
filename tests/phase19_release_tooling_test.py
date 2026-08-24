@@ -74,11 +74,23 @@ def main() -> int:
         "brew --prefix curl" not in workflow,
         "macOS workflow must use Apple system libcurl and trust integration",
     )
+    check(
+        "librocket_runtime.a" in workflow,
+        "POSIX native workflow does not use CMake's librocket_runtime archive name",
+    )
+    check(
+        "ROCKET_HOST_CXX_COMPILER=$(xcrun --find clang++)" in workflow,
+        "macOS workflow does not use Xcode's matching C++ toolchain",
+    )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
     bootstrap_tool = load("phase19_bootstrap", root / "scripts" / "phase19_bootstrap.py")
     cross_tool = load("phase19_cross_sdk", root / "scripts" / "phase19_cross_sdk.py")
     package_tree_source = inspect.getsource(package_tool.package_tree)
+    check(
+        "else f\"librocket_runtime{runtime_suffix}\"" in package_tree_source,
+        "POSIX package lookup does not use CMake's librocket_runtime archive name",
+    )
     runtime_library_initialization = package_tree_source.find(
         "bundled_runtime_libraries: list[str] = []"
     )

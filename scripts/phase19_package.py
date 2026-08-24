@@ -345,9 +345,12 @@ def package_tree(arguments: argparse.Namespace) -> tuple[Path, dict[str, object]
     language_server = require_file(
         build / f"rocket-lsp{executable_suffix}", "language server"
     )
-    runtime = require_file(
-        build / f"rocket_runtime{runtime_suffix}", "runtime library"
+    runtime_name = (
+        f"rocket_runtime{runtime_suffix}"
+        if arguments.target == "windows-x64"
+        else f"librocket_runtime{runtime_suffix}"
     )
+    runtime = require_file(build / runtime_name, "runtime library")
     stage3 = require_file(
         bootstrap / f"stage3{executable_suffix}", "stage3 compiler"
     )

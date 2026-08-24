@@ -83,15 +83,18 @@ jobs:
           echo "$GITHUB_WORKSPACE/dependencies/installed/ninja-1.13.1" >> "$GITHUB_PATH"
           echo "$llvm/bin" >> "$GITHUB_PATH"
           echo "LLVM_DIR=$llvm/lib/cmake/llvm" >> "$GITHUB_ENV"
-          echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
-          echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
-          echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
           if [[ "${{ matrix.target }}" == macos-* ]]; then
-            # Keep the pinned LLVM driver but use Xcode's matching system
-            # linker and libc++ runtime; ld64.lld omits the required runtime
-            # symbols with the macOS SDK headers on the arm64 runner.
+            # The downloaded LLVM libraries are used by the backend, while
+            # Xcode owns the compatible macOS C++ headers, runtime, archiver,
+            # and linker for native host tools.
+            echo "ROCKET_HOST_C_COMPILER=$(xcrun --find clang)" >> "$GITHUB_ENV"
+            echo "ROCKET_HOST_CXX_COMPILER=$(xcrun --find clang++)" >> "$GITHUB_ENV"
+            echo "ROCKET_HOST_AR=$(xcrun --find ar)" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_LINKER=$(xcrun --find ld)" >> "$GITHUB_ENV"
           else
+            echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
+            echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
+            echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
           fi
 
@@ -187,7 +190,7 @@ jobs:
         run: |
           input="out/phase19/cross-input/${{ matrix.target }}"
           mkdir -p "$input"
-          cp "out/phase19/build/phase19-${{ matrix.target }}-release/rocket_runtime.a" "$input/rocket_runtime.a"
+          cp "out/phase19/build/phase19-${{ matrix.target }}-release/librocket_runtime.a" "$input/librocket_runtime.a"
           python scripts/phase19_export_linux_sysroot.py \
             --target "${{ matrix.target }}" --output "$input/sysroot"
           printf 'target=%s\n' "${{ matrix.target }}" > "$input/INPUT.txt"
@@ -229,7 +232,7 @@ jobs:
             extra+=(--library-directory "$(brew --prefix openssl@3)/lib")
           fi
           python scripts/phase19_bootstrap.py --target "${{ matrix.target }}" --configuration Release \
-            --stage0 "$build/rocketc" --runtime "$build/rocket_runtime.a" \
+            --stage0 "$build/rocketc" --runtime "$build/librocket_runtime.a" \
             --clang dependencies/installed/llvm-22.1.6/bin/clang \
             --librarian dependencies/installed/llvm-22.1.6/bin/llvm-ar \
             --native-library-root "$build/native/${{ matrix.target }}" \
@@ -386,7 +389,7 @@ jobs:
           $sdk = "out/phase19/cross-sdk/$pair"
           python scripts/phase19_cross_sdk.py --target '${{ matrix.target }}' `
             --host-llvm-root dependencies/installed/llvm-22.1.6 `
-            --target-runtime "$input/rocket_runtime.a" --sysroot "$input/sysroot" `
+            --target-runtime "$input/librocket_runtime.a" --sysroot "$input/sysroot" `
             --output $sdk
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:ROCKET_ARTIFACT_ROOT = "out/phase19/cross-build/$pair"
@@ -407,7 +410,7 @@ jobs:
           input='out/phase19/cross-input/${{ matrix.target }}'
           sdk="out/phase19/cross-sdk/$pair"
           extra=()
-          runtime="$input/rocket_runtime.a"
+          runtime="$input/librocket_runtime.a"
           if [[ '${{ matrix.target }}' == 'windows-x64' ]]; then
             runtime="$input/rocket_runtime.lib"
             extra+=(--windows-library-directory "$input/lib/msvc")
