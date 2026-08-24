@@ -329,8 +329,12 @@ private:
     llvm::TargetOptions options;
     const std::string cpu =
         target_.architecture == TargetArchitecture::X64 ? "x86-64" : "generic";
+    const std::optional<llvm::Reloc::Model> relocationModel =
+        target_.operatingSystem == TargetOperatingSystem::Windows
+            ? std::nullopt
+            : std::optional<llvm::Reloc::Model>(llvm::Reloc::PIC_);
     targetMachine_.reset(target->createTargetMachine(
-        triple, cpu, "", options, std::nullopt, std::nullopt,
+        triple, cpu, "", options, relocationModel, std::nullopt,
         llvm::CodeGenOptLevel::Default));
     if (!targetMachine_) {
       error = "LLVM could not create a target machine for " + triple.str();
