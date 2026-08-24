@@ -91,10 +91,12 @@ if(NOT WIN32)
     find_library(ROCKET_SECURITY_FRAMEWORK Security REQUIRED)
     find_library(ROCKET_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
     # The pinned LLVM compiler is required to link the downloaded LLVM 22
-    # archives, but it does not automatically add the Apple C++ runtime when
-    # CMake invokes the linker directly.  Keep the SDK library explicit and
-    # transitive for every native Rocket binary.
-    find_library(ROCKET_CXX_STANDARD_LIBRARY c++ REQUIRED)
+    # archives.  Its libc++ headers use the matching LLVM ABI, so link the
+    # matching libc++ supplied by that toolchain instead of Xcode's older one.
+    set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")
+    if(NOT EXISTS "${ROCKET_CXX_STANDARD_LIBRARY}")
+      find_library(ROCKET_CXX_STANDARD_LIBRARY c++ REQUIRED)
+    endif()
     list(APPEND ROCKET_POSIX_PLATFORM_LIBRARIES
       "${ROCKET_SECURITY_FRAMEWORK}" "${ROCKET_COREFOUNDATION_FRAMEWORK}"
       "${ROCKET_CXX_STANDARD_LIBRARY}")

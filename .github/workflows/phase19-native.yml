@@ -85,12 +85,15 @@ jobs:
           echo "LLVM_DIR=$llvm/lib/cmake/llvm" >> "$GITHUB_ENV"
           if [[ "${{ matrix.target }}" == macos-* ]]; then
             # Apple ld cannot read the LLVM 22 bitcode embedded in the pinned
-            # LLVM archives.  Use the matching LLVM 22 compiler/linker, while
-            # CMake explicitly links the Apple libc++ SDK runtime.
+            # LLVM archives.  Use the matching LLVM 22 compiler/linker and
+            # libc++, rather than mixing its C++ headers with Xcode's libc++.
+            cxx_runtime="$llvm/lib/libc++.dylib"
+            test -f "$cxx_runtime"
             echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_LINKER=$llvm/bin/ld64.lld" >> "$GITHUB_ENV"
+            echo "ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime" >> "$GITHUB_ENV"
           else
             echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"

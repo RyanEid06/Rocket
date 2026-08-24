@@ -82,6 +82,10 @@ def main() -> int:
         "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" in workflow,
         "macOS workflow does not use the LLVM 22 linker-compatible C++ toolchain",
     )
+    check(
+        'ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime' in workflow,
+        "macOS workflow does not select the libc++ matching the pinned LLVM headers",
+    )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
     bootstrap_tool = load("phase19_bootstrap", root / "scripts" / "phase19_bootstrap.py")
@@ -97,8 +101,15 @@ def main() -> int:
     )
     cmake = (root / "CMakeLists.txt").read_text()
     check(
-        "find_library(ROCKET_CXX_STANDARD_LIBRARY c++ REQUIRED)" in cmake,
-        "macOS CMake configuration does not explicitly link the Apple C++ runtime",
+        'set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")' in cmake,
+        "macOS CMake configuration does not honor the pinned LLVM libc++ runtime",
+    )
+    wrapper_source = package_tool.wrapper("rocketc", "rocketc.bin")
+    for value in ("ROCKET_CLANG", "ROCKET_LIBRARIAN", "ROCKET_RUNTIME"):
+        check(value in wrapper_source, f"relocated POSIX SDK wrapper omits {value}")
+    check(
+        "$rocket_sdk_root/bin/clang" in wrapper_source,
+        "stage0 and production wrappers do not share the SDK-local clang path",
     )
     runtime_library_initialization = package_tree_source.find(
         "bundled_runtime_libraries: list[str] = []"

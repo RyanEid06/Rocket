@@ -249,6 +249,13 @@ else
     LD_LIBRARY_PATH="$rocket_sdk_root/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"
     export LD_LIBRARY_PATH
 fi
+# Supply only SDK-relative defaults.  A caller may still explicitly override
+# any of these tools, while an ordinary relocated SDK never depends on a
+# developer-shell toolchain discovery path.
+: "${{ROCKET_CLANG:=$rocket_sdk_root/bin/clang}}"
+: "${{ROCKET_LIBRARIAN:=$rocket_sdk_root/bin/llvm-ar}}"
+: "${{ROCKET_RUNTIME:=$rocket_sdk_root/lib/rocket_runtime.a}}"
+export ROCKET_CLANG ROCKET_LIBRARIAN ROCKET_RUNTIME
 exec "$rocket_tool_directory/{real_name}" "$@"
 """
 
