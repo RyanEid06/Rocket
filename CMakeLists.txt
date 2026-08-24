@@ -5,6 +5,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(APPLE)
+  # The checksum-pinned LLVM driver is intentionally used for compilation, but
+  # its libc++ selection must match the active Xcode SDK and system linker.
+  add_compile_options(-stdlib=libc++)
+  add_link_options(-stdlib=libc++)
+endif()
 
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" ROCKET_SYSTEM_PROCESSOR)
 if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8 AND

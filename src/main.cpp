@@ -349,12 +349,40 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
       arguments.push_back(search.string());
     }
     for (const auto& library : libraries) {
+#if defined(__APPLE__)
+      if (library.starts_with("framework:")) {
+        const std::string framework = library.substr(10);
+        if (framework.empty()) {
+          std::cerr << "rocketc: invalid macOS framework native input\n";
+          return 1;
+        }
+        arguments.push_back("-framework");
+        arguments.push_back(framework);
+        continue;
+      }
+#endif
       const fs::path value(library);
-      if (value.has_parent_path() || value.extension() == ".a" ||
-          value.extension() == ".so" || value.extension() == ".dylib")
+      bool resolved = false;
+      if (!value.has_parent_path()) {
+        for (const auto& search : librarySearch) {
+          const fs::path candidate = search / value;
+          if (fs::is_regular_file(candidate)) {
+            arguments.push_back(candidate.string());
+            resolved = true;
+            break;
+          }
+        }
+      }
+      if (resolved) continue;
+      if (value.has_parent_path()) {
         arguments.push_back(library);
-      else
+      } else if ((value.extension() == ".a" || value.extension() == ".so" ||
+                  value.extension() == ".dylib") &&
+                 value.stem().string().starts_with("lib")) {
+        arguments.push_back("-l" + value.stem().string().substr(3));
+      } else {
         arguments.push_back("-l" + value.stem().string());
+      }
     }
   }
 #endif

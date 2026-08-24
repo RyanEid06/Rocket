@@ -87,7 +87,10 @@ jobs:
           echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
           echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
           if [[ "${{ matrix.target }}" == macos-* ]]; then
-            echo "ROCKET_HOST_LINKER=$llvm/bin/ld64.lld" >> "$GITHUB_ENV"
+            # Keep the pinned LLVM driver but use Xcode's matching system
+            # linker and libc++ runtime; ld64.lld omits the required runtime
+            # symbols with the macOS SDK headers on the arm64 runner.
+            echo "ROCKET_HOST_LINKER=$(xcrun --find ld)" >> "$GITHUB_ENV"
           else
             echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
           fi

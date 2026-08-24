@@ -475,7 +475,12 @@ std::string BootstrapCodeGenerator::generate() const {
          "std::int64_t start, std::int64_t end) { "
          "if (start < 0 || end < start || end > values.length) rocket_bounds_error(); "
          "return {values.owner, values.offset + start, end - start}; }\n"
-         "#include \"stage0_stdlib.h\"\n\n";
+         "#include \"stage0_stdlib.h\"\n"
+         "#if defined(_WIN32)\n"
+         "#define ROCKET_EXPORT __declspec(dllexport)\n"
+         "#else\n"
+         "#define ROCKET_EXPORT __attribute__((visibility(\"default\")))\n"
+         "#endif\n\n";
   for (const auto& declaration : module_.typeDeclarations) {
     const Type type{declaration.kind == HirTypeDeclKind::NativeStruct
                         ? TypeKind::NativeStruct
@@ -571,7 +576,7 @@ std::string BootstrapCodeGenerator::generate() const {
 
   for (const auto& symbol : module_.symbols) {
     if (!symbol.nativeExport) continue;
-    out << "extern \"C\" __declspec(dllexport) " << nativeCppType(symbol.type)
+    out << "extern \"C\" ROCKET_EXPORT " << nativeCppType(symbol.type)
         << ' ' << symbol.nativeName << '(';
     for (std::size_t index = 0; index < symbol.parameterTypes.size(); ++index) {
       if (index) out << ", ";
@@ -820,7 +825,12 @@ void BootstrapCodeGenerator::emitOperand(std::ostream& out,
     return;
   }
   switch (operand.type.kind) {
-  case TypeKind::Int: out << operand.constant << "LL"; break;
+  case TypeKind::Int:
+    // std::int64_t is long on LP64 hosts and long long on Windows.  Preserve
+    // the Rocket Int type in template deduction and std::any payloads instead
+    // of letting the C++ literal spelling choose the host's long long type.
+    out << "static_cast<std::int64_t>(" << operand.constant << ')';
+    break;
   case TypeKind::Float: out << operand.constant; break;
   case TypeKind::Bool: out << operand.constant; break;
   case TypeKind::Char: out << '\'' << escapedCharacter(operand.constant) << '\''; break;
