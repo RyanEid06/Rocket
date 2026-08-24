@@ -107,10 +107,15 @@ int main() {
   std::filesystem::create_directories(native / "native/lib", errorCode);
   write(native / "src/library.rocket", "export fn answer() -> Int:\n    return 42\n");
   write(native / "native/api.h", "int64_t answer(void);\n");
+  rocket::TargetError nativeTargetError;
+  const auto nativeTarget = rocket::detectHostTarget(nativeTargetError);
+  const std::string nativeAlias = nativeTarget ? nativeTarget->alias : "windows-x64";
+  const std::string nativeLibrarySuffix = nativeTarget
+      ? rocket::targetArtifacts(*nativeTarget).staticLibrarySuffix : ".lib";
   write(native / "rocket.toml",
         "[package]\nname = \"native_package\"\nentry = \"src/library.rocket\"\n"
         "[build]\nkind = \"static-library\"\nname = \"native_math\"\n"
-        "[native.windows-x64]\nlibraries = \"first.lib; second.lib\"\n"
+        "[native." + nativeAlias + "]\nlibraries = \"first" + nativeLibrarySuffix + "; second" + nativeLibrarySuffix + "\"\n"
         "library-search = \"native/lib\"\nheaders = \"native/api.h\"\n");
   error.clear();
   auto nativePackage = rocket::loadPackage(native, error);
@@ -119,8 +124,8 @@ int main() {
           nativePackage->outputKind == rocket::PackageOutputKind::StaticLibrary &&
           nativePackage->outputName == "native_math" &&
           nativePackage->nativeLibraries.size() == 2 &&
-          nativePackage->nativeLibraries[0] == "first.lib" &&
-          nativePackage->nativeLibraries[1] == "second.lib" &&
+          nativePackage->nativeLibraries[0] == "first" + nativeLibrarySuffix &&
+          nativePackage->nativeLibraries[1] == "second" + nativeLibrarySuffix &&
           nativePackage->nativeLibrarySearch.size() == 1 &&
           nativePackage->nativeHeaders.size() == 1,
       "target-aware native inputs and library products load deterministically: " + error,
@@ -398,12 +403,12 @@ int main() {
   std::filesystem::create_directories(nativeDependency / "native", errorCode);
   write(nativeDependency / "src/main.rocket",
         "pub fn native_answer() -> Int:\n    return 42\n");
-  write(nativeDependency / "native/reviewed.lib", "reviewed native input\n");
+  write(nativeDependency / ("native/reviewed" + nativeLibrarySuffix), "reviewed native input\n");
   write(nativeDependency / "rocket.toml",
         "[package]\nname = \"native_dep\"\nnamespace = \"vendor\"\n"
         "version = \"1.0.0\"\nlicense = \"MIT\"\n"
-        "entry = \"src/main.rocket\"\n\n[native.windows-x64]\n"
-        "libraries = \"native/reviewed.lib\"\n");
+        "entry = \"src/main.rocket\"\n\n[native." + nativeAlias + "]\n"
+        "libraries = \"native/reviewed" + nativeLibrarySuffix + "\"\n");
   std::filesystem::create_directories(policy / "app/src", errorCode);
   write(policy / "app/src/main.rocket", "fn main() -> Int:\n    return 0\n");
   const std::string policyManifest =

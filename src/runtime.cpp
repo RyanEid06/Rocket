@@ -588,10 +588,11 @@ RocketArray* appendUniqueBuffer(RocketArray* buffer, Value value,
 }
 
 std::uint64_t strongReferenceCount(const AllocationHeader* header) {
-  const auto flags = std::atomic_ref<const std::uint32_t>(header->flags)
+  auto* mutableHeader = const_cast<AllocationHeader*>(header);
+  const auto flags = std::atomic_ref<std::uint32_t>(mutableHeader->flags)
                          .load(std::memory_order_acquire);
   if ((flags & AllocationShared) == 0) return header->references;
-  return std::atomic_ref<const std::uint64_t>(header->sharedReferences)
+  return std::atomic_ref<std::uint64_t>(mutableHeader->sharedReferences)
       .load(std::memory_order_relaxed);
 }
 

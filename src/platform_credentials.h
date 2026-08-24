@@ -186,7 +186,10 @@ inline bool load(std::string_view registry, std::string& token,
   std::ifstream input(path, std::ios::binary);
   token.assign(std::istreambuf_iterator<char>(input),
                std::istreambuf_iterator<char>());
-  if (!input.eof() || token.empty()) {
+  // istreambuf_iterator reads directly from the stream buffer. libstdc++ does
+  // not necessarily set eofbit when that iterator reaches EOF, unlike MSVC's
+  // implementation, so only an actual stream error invalidates this read.
+  if (input.bad() || token.empty()) {
     token.clear();
     error = "could not read the stored registry credential";
     return false;

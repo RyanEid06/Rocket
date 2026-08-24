@@ -181,9 +181,16 @@ int main() {
     std::string ir;
     rocket::test::expect(rocket::generateLlvmIr(*nativeMir, false, ir, error),
                          "native MIR lowers to LLVM IR: " + error, failures);
+    rocket::TargetError hostTargetError;
+    const auto hostTarget = rocket::detectHostTarget(hostTargetError);
+    const bool hostExport = hostTarget &&
+        (hostTarget->operatingSystem == rocket::TargetOperatingSystem::Windows
+             ? ir.find("define dllexport i64 @rocket_twice") != std::string::npos
+             : ir.find("define i64 @rocket_twice") != std::string::npos &&
+                   ir.find("define dllexport i64 @rocket_twice") == std::string::npos);
     rocket::test::expect(ir.find("declare i64 @native_apply(ptr, i64)") != std::string::npos &&
                              ir.find("define internal i64 @rocket_callback_") != std::string::npos &&
-                             ir.find("define dllexport i64 @rocket_twice") != std::string::npos,
+                             hostExport,
                          "LLVM emits stable C declarations, callback trampolines, and exports",
                          failures);
     rocket::TargetError targetError;
