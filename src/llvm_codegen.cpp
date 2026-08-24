@@ -45,8 +45,10 @@ std::string shortSymbolName(const std::string& name) {
 class ModuleLowerer {
 public:
   explicit ModuleLowerer(const MirModule& mir, bool debugInfo = false,
-                         bool coverage = false, bool profiling = false)
-      : mir_(mir), module_(std::make_unique<llvm::Module>("rocket", context_)),
+                         bool coverage = false, bool profiling = false,
+                         Target target = {})
+      : mir_(mir), target_(std::move(target)),
+        module_(std::make_unique<llvm::Module>("rocket", context_)),
         builder_(context_), functions_(mir.symbols.size(), nullptr),
         callbackWrappers_(mir.symbols.size(), nullptr),
         taskThunks_(mir.symbols.size(), nullptr),
@@ -230,13 +232,12 @@ private:
       if (!symbol.location.file.empty()) { first = symbol.location; break; }
     auto* file = debugFile(first);
     compileUnit_ = debugBuilder_->createCompileUnit(
-        llvm::dwarf::DW_LANG_C_plus_plus, file, "Rocket compiler 2.0.0",
+        llvm::dwarf::DW_LANG_C_plus_plus, file, "Rocket compiler 2.1.0",
         optimize, optimize ? "-O2" : "-O0", 0);
     module_->addModuleFlag(llvm::Module::Warning, "Debug Info Version",
                            llvm::DEBUG_METADATA_VERSION);
-#ifdef _WIN32
-    module_->addModuleFlag(llvm::Module::Warning, "CodeView", 1);
-#endif
+    if (target_.operatingSystem == TargetOperatingSystem::Windows)
+      module_->addModuleFlag(llvm::Module::Warning, "CodeView", 1);
   }
 
   llvm::DISubroutineType* debugFunctionType(const HirSymbol& symbol) {
@@ -300,15 +301,24 @@ private:
 
   bool createTargetMachine(std::string& error) {
     static const bool initialized = [] {
-      return llvm::InitializeNativeTarget() == 0 &&
-             llvm::InitializeNativeTargetAsmPrinter() == 0;
+      LLVMInitializeX86TargetInfo();
+      LLVMInitializeX86Target();
+      LLVMInitializeX86TargetMC();
+      LLVMInitializeX86AsmParser();
+      LLVMInitializeX86AsmPrinter();
+      LLVMInitializeAArch64TargetInfo();
+      LLVMInitializeAArch64Target();
+      LLVMInitializeAArch64TargetMC();
+      LLVMInitializeAArch64AsmParser();
+      LLVMInitializeAArch64AsmPrinter();
+      return true;
     }();
     if (!initialized) {
       error = "LLVM native target initialization failed";
       return false;
     }
 
-    const llvm::Triple triple(llvm::sys::getDefaultTargetTriple());
+    const llvm::Triple triple(llvm::Triple::normalize(target_.triple));
     std::string targetError;
     const llvm::Target* target = llvm::TargetRegistry::lookupTarget(triple, targetError);
     if (!target) {
@@ -317,8 +327,10 @@ private:
     }
 
     llvm::TargetOptions options;
+    const std::string cpu =
+        target_.architecture == TargetArchitecture::X64 ? "x86-64" : "generic";
     targetMachine_.reset(target->createTargetMachine(
-        triple, "x86-64", "", options, std::nullopt, std::nullopt,
+        triple, cpu, "", options, std::nullopt, std::nullopt,
         llvm::CodeGenOptLevel::Default));
     if (!targetMachine_) {
       error = "LLVM could not create a target machine for " + triple.str();
@@ -405,9 +417,8 @@ private:
       auto* wrapper = llvm::Function::Create(
           nativeFunctionType(symbol), llvm::Function::ExternalLinkage,
           symbol.nativeName, *module_);
-#ifdef _WIN32
-      wrapper->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
-#endif
+      if (target_.operatingSystem == TargetOperatingSystem::Windows)
+        wrapper->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
       auto* entry = llvm::BasicBlock::Create(context_, "entry", wrapper);
       builder_.SetInsertPoint(entry);
       std::vector<llvm::Value*> arguments;
@@ -1359,6 +1370,14 @@ private:
     case Intrinsic::TaskCancel: return "rocket_std_task_cancel";
     case Intrinsic::TaskGroupCancel: return "rocket_std_task_group_cancel";
     case Intrinsic::SyncOnceEmpty: return "rocket_std_sync_once_empty";
+    case Intrinsic::TargetAlias: return "rocket_std_target_alias";
+    case Intrinsic::TargetTriple: return "rocket_std_target_triple";
+    case Intrinsic::TargetOs: return "rocket_std_target_os";
+    case Intrinsic::TargetArchitecture: return "rocket_std_target_architecture";
+    case Intrinsic::TargetEnvironment: return "rocket_std_target_environment";
+    case Intrinsic::TargetPointerWidth: return "rocket_std_target_pointer_width";
+    case Intrinsic::TargetEndianness: return "rocket_std_target_endianness";
+    case Intrinsic::TargetHasFeature: return "rocket_std_target_has_feature";
     default: return nullptr;
     }
   }
@@ -1556,6 +1575,7 @@ private:
   }
 
   const MirModule& mir_;
+  Target target_;
   llvm::LLVMContext context_;
   std::unique_ptr<llvm::Module> module_;
   llvm::IRBuilder<> builder_;
@@ -1577,9 +1597,20 @@ private:
 
 bool generateLlvmIr(const MirModule& module, bool optimize, std::string& output,
                     std::string& error) {
+  TargetError targetError;
+  const auto host = detectHostTarget(targetError);
+  if (!host) {
+    error = targetError.message;
+    return false;
+  }
+  return generateLlvmIr(module, optimize, *host, output, error);
+}
+
+bool generateLlvmIr(const MirModule& module, bool optimize, const Target& target,
+                    std::string& output, std::string& error) {
   output.clear();
   error.clear();
-  ModuleLowerer lowerer(module);
+  ModuleLowerer lowerer(module, false, false, false, target);
   if (!lowerer.prepare(optimize, error)) return false;
   output = lowerer.ir();
   return true;
@@ -1588,8 +1619,22 @@ bool generateLlvmIr(const MirModule& module, bool optimize, std::string& output,
 bool emitLlvmFile(const MirModule& module, bool optimize, LlvmFileType fileType,
                   const std::filesystem::path& outputPath, std::string& error,
                   bool debugInfo, bool coverage, bool profiling) {
+  TargetError targetError;
+  const auto host = detectHostTarget(targetError);
+  if (!host) {
+    error = targetError.message;
+    return false;
+  }
+  return emitLlvmFile(module, optimize, fileType, *host, outputPath, error,
+                      debugInfo, coverage, profiling);
+}
+
+bool emitLlvmFile(const MirModule& module, bool optimize, LlvmFileType fileType,
+                  const Target& target,
+                  const std::filesystem::path& outputPath, std::string& error,
+                  bool debugInfo, bool coverage, bool profiling) {
   error.clear();
-  ModuleLowerer lowerer(module, debugInfo, coverage, profiling);
+  ModuleLowerer lowerer(module, debugInfo, coverage, profiling, target);
   if (!lowerer.prepare(optimize, error)) return false;
   return lowerer.emit(fileType, outputPath, error);
 }

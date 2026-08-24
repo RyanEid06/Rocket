@@ -1,13 +1,18 @@
 if(NOT DEFINED COMPILER OR NOT DEFINED SOURCE OR NOT DEFINED WORK)
   message(FATAL_ERROR "phase20 build-cache test requires COMPILER, SOURCE, and WORK")
 endif()
-
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 file(COPY "${SOURCE}/" DESTINATION "${WORK}")
 # The repository fixture may have ignored artifacts from an earlier matrix.
 # Cache tests must always begin from source-only package state.
 file(REMOVE_RECURSE "${WORK}/.rocketc")
+if(DEFINED ENV{ROCKET_ARTIFACT_ROOT} AND
+   NOT "$ENV{ROCKET_ARTIFACT_ROOT}" STREQUAL "")
+  # The isolated artifact identity is the manifest package name, not the
+  # fixture directory name.
+  file(REMOVE_RECURSE "$ENV{ROCKET_ARTIFACT_ROOT}/phase8_fixture")
+endif()
 
 function(run_build output_name)
   execute_process(
@@ -25,10 +30,21 @@ run_build(first)
 if(first MATCHES "cache hit")
   message(FATAL_ERROR "first package build unexpectedly hit a cache")
 endif()
+set(marker "$ENV{ROCKET_ARTIFACT_ROOT}/phase8_fixture/.rocketc/targets/$ENV{ROCKET_NATIVE_TARGET}/main.rocket-build-cache-1")
+if(NOT EXISTS "${marker}")
+  message(FATAL_ERROR
+    "initial package build did not write ${marker}\n${first}")
+endif()
+file(READ "${marker}" first_key)
+string(STRIP "${first_key}" first_key)
 
 run_build(second)
 if(NOT second MATCHES "cache hit")
-  message(FATAL_ERROR "unchanged package build did not hit rocket-build-cache-1")
+  file(READ "${marker}" second_key)
+  string(STRIP "${second_key}" second_key)
+  message(FATAL_ERROR
+    "unchanged package build did not hit rocket-build-cache-1\n"
+    "first key: ${first_key}\nsecond key: ${second_key}\n${second}")
 endif()
 
 file(APPEND "${WORK}/src/math.rocket" "# invalidate the conservative package key\n")

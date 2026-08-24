@@ -1,5 +1,5 @@
 if(NOT DEFINED STAGE0 OR NOT DEFINED SELFHOST OR NOT DEFINED HEADER OR
-   NOT DEFINED GENERATED OR NOT DEFINED WORK)
+   NOT DEFINED GENERATED OR NOT DEFINED VENDORED OR NOT DEFINED WORK)
   message(FATAL_ERROR "Phase 14 generation test is missing required arguments")
 endif()
 
@@ -22,7 +22,8 @@ if(NOT status EQUAL 0)
   message(FATAL_ERROR "self-hosted raylib binding generation failed: ${error}")
 endif()
 
-foreach(candidate IN ITEMS "${stage0_repeat}" "${selfhost}" "${GENERATED}")
+foreach(candidate IN ITEMS "${stage0_repeat}" "${selfhost}" "${GENERATED}"
+                           "${VENDORED}")
   execute_process(COMMAND "${CMAKE_COMMAND}" -E compare_files
                           "${stage0}" "${candidate}"
                   RESULT_VARIABLE comparison)

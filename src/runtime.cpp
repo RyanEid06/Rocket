@@ -26,6 +26,11 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#else
+#include <cerrno>
+#include <csignal>
+#include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 namespace {
@@ -1775,7 +1780,86 @@ void* asyncProcessRunEntry(void* opaque) {
       }
     }
 #else
-    result = runtimeError("async_process.run is only implemented on Windows x64");
+    std::vector<std::string> ownedArguments;
+    ownedArguments.emplace_back(
+        reinterpret_cast<const char*>(rocket_rt_string_bytes(program)),
+        static_cast<std::size_t>(rocket_rt_string_byte_length(program)));
+    if (ownedArguments.front().empty()) {
+      result = runtimeError("process program is empty or invalid UTF-8");
+    } else {
+      const std::uint64_t count = rocket_rt_collection_length(arguments);
+      ownedArguments.reserve(static_cast<std::size_t>(count) + 1);
+      for (std::uint64_t index = 0; index < count; ++index) {
+        RocketString* argument = rocket_rt_index_string(
+            arguments, static_cast<std::int64_t>(index));
+        ownedArguments.emplace_back(
+            reinterpret_cast<const char*>(rocket_rt_string_bytes(argument)),
+            static_cast<std::size_t>(rocket_rt_string_byte_length(argument)));
+        rocket_rt_release(argument);
+      }
+      std::vector<char*> nativeArguments;
+      nativeArguments.reserve(ownedArguments.size() + 1);
+      for (auto& argument : ownedArguments)
+        nativeArguments.push_back(argument.data());
+      nativeArguments.push_back(nullptr);
+      const pid_t child = ::fork();
+      if (child < 0) {
+        result = runtimeError("could not fork asynchronous process: " +
+                              std::string(std::strerror(errno)));
+      } else if (child == 0) {
+        ::setpgid(0, 0);
+        ::execvp(nativeArguments[0], nativeArguments.data());
+        _exit(errno == ENOENT ? 127 : 126);
+      } else {
+        ::setpgid(child, child);
+        int status = 0;
+        bool cancelled = false;
+        bool timedOut = false;
+        bool waitFailed = false;
+        while (true) {
+          const pid_t waited = ::waitpid(child, &status, WNOHANG);
+          if (waited == child) break;
+          if (waited < 0 && errno != EINTR) {
+            waitFailed = true;
+            break;
+          }
+          if (operationCancellationObserved(token)) {
+            cancelled = true;
+            break;
+          }
+          if (monotonicMilliseconds() >= deadline) {
+            timedOut = true;
+            break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        if (cancelled || timedOut || waitFailed) {
+          if (!waitFailed) ::kill(-child, SIGTERM);
+          const std::int64_t stopDeadline = monotonicMilliseconds() + 500;
+          while (::waitpid(child, &status, WNOHANG) == 0 &&
+                 monotonicMilliseconds() < stopDeadline)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+          if (::waitpid(child, &status, WNOHANG) == 0) {
+            ::kill(-child, SIGKILL);
+            while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+          }
+          result = runtimeError(
+              cancelled ? "operation cancelled"
+                        : timedOut ? "process deadline exceeded"
+                                   : "asynchronous process wait failed");
+        } else if (WIFEXITED(status)) {
+          RocketAggregate* completed = rocket_rt_aggregate_new(0, 1, 0);
+          rocket_rt_aggregate_set_int(completed, 0, WEXITSTATUS(status));
+          result = completed;
+        } else if (WIFSIGNALED(status)) {
+          RocketAggregate* completed = rocket_rt_aggregate_new(0, 1, 0);
+          rocket_rt_aggregate_set_int(completed, 0, 128 + WTERMSIG(status));
+          result = completed;
+        } else {
+          result = runtimeError("asynchronous process ended without an exit status");
+        }
+      }
+    }
 #endif
   }
   rocket_rt_release(token);

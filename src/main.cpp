@@ -11,6 +11,8 @@
 #include "platform_crypto.h"
 #include "parser.h"
 #include "sema.h"
+#include "target.h"
+#include "toolchain.h"
 #ifdef ROCKETC_HAS_LLVM
 #include "llvm_codegen.h"
 #endif
@@ -30,6 +32,14 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <cerrno>
+#include <cstring>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+#include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 namespace fs = std::filesystem;
@@ -39,6 +49,36 @@ namespace {
 fs::path compilerDirectory;
 fs::path compilerExecutable;
 bool machineReadable = false;
+
+fs::path currentExecutablePath(const char* fallback) {
+  try {
+#ifdef _WIN32
+    std::wstring buffer(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(
+        nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length > 0 && length < buffer.size()) {
+      buffer.resize(length);
+      return fs::path(buffer).lexically_normal();
+    }
+#elif defined(__linux__)
+    return fs::canonical("/proc/self/exe").lexically_normal();
+#elif defined(__APPLE__)
+    std::uint32_t length = 1024;
+    std::vector<char> buffer(length);
+    if (_NSGetExecutablePath(buffer.data(), &length) != 0) {
+      buffer.resize(length);
+      if (_NSGetExecutablePath(buffer.data(), &length) != 0) buffer.clear();
+    }
+    if (!buffer.empty())
+      return fs::canonical(buffer.data()).lexically_normal();
+#endif
+    if (fallback && *fallback)
+      return fs::absolute(fallback).lexically_normal();
+  } catch (const std::exception&) {
+    if (fallback) return fs::path(fallback).lexically_normal();
+  }
+  return {};
+}
 
 std::string jsonEscape(const std::string& value);
 bool writeDebugMap(const rocket::MirModule& module, const fs::path& path,
@@ -92,12 +132,13 @@ struct Compilation {
 };
 
 Compilation compileFrontend(const fs::path& path, const fs::path& packageRoot,
+                            const fs::path& targetSourceRoot,
                             bool library = false,
                             const std::vector<rocket::PackageDependencyRoot>&
                                 dependencyRoots = {}) {
   Compilation result;
-  auto loaded = rocket::loadModuleGraph(path, packageRoot, dependencyRoots,
-                                        result.diagnostics);
+  auto loaded = rocket::loadModuleGraph(path, packageRoot, targetSourceRoot,
+                                        dependencyRoots, result.diagnostics);
   if (loaded.has_value()) {
     result.module = std::move(*loaded);
     result.module.library = library;
@@ -129,8 +170,9 @@ bool writeGenerated(const fs::path& sourcePath, const fs::path& directory,
   return static_cast<bool>(output);
 }
 
-bool ensureArtifactDirectory(const fs::path& root, fs::path& directory) {
-  directory = root / ".rocketc";
+bool ensureArtifactDirectory(const fs::path& root, const rocket::Target& target,
+                             fs::path& directory) {
+  directory = root / ".rocketc" / "targets" / target.alias;
   std::error_code error;
   fs::create_directories(directory, error);
   return !error;
@@ -200,9 +242,39 @@ int invokeExecutable(const fs::path& executable, const std::vector<std::string>&
   CloseHandle(process.hProcess);
   return static_cast<int>(exitCode);
 #else
-  std::string command = quote(executable);
-  for (const auto& argument : arguments) command += " \"" + argument + "\"";
-  return std::system(command.c_str());
+  std::vector<std::string> ownedArguments;
+  ownedArguments.reserve(arguments.size() + 1);
+  ownedArguments.push_back(executable.string());
+  ownedArguments.insert(ownedArguments.end(), arguments.begin(), arguments.end());
+  std::vector<char*> nativeArguments;
+  nativeArguments.reserve(ownedArguments.size() + 1);
+  for (auto& argument : ownedArguments) nativeArguments.push_back(argument.data());
+  nativeArguments.push_back(nullptr);
+  const pid_t child = ::fork();
+  if (child < 0) {
+    std::cerr << "rocketc: could not fork " << executable.string() << ": "
+              << std::strerror(errno) << '\n';
+    return 1;
+  }
+  if (child == 0) {
+    if (redirectStdoutToStderr && ::dup2(STDERR_FILENO, STDOUT_FILENO) < 0)
+      _exit(126);
+    ::execvp(nativeArguments[0], nativeArguments.data());
+    _exit(errno == ENOENT ? 127 : 126);
+  }
+  int status = 0;
+  pid_t waited = -1;
+  do {
+    waited = ::waitpid(child, &status, 0);
+  } while (waited < 0 && errno == EINTR);
+  if (waited < 0) {
+    std::cerr << "rocketc: could not wait for " << executable.string() << ": "
+              << std::strerror(errno) << '\n';
+    return 1;
+  }
+  if (WIFEXITED(status)) return WEXITSTATUS(status);
+  if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+  return 1;
 #endif
 }
 
@@ -230,15 +302,24 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
     arguments.push_back("/Fe" + output.string());
   }
 #else
-  arguments = {"-std=c++20", "-O2", "-I", ROCKETC_SOURCE_INCLUDE_PATH};
+  arguments = {"-std=c++20", "-O2", "-DROCKET_HAS_CURL=1",
+               "-DROCKET_HAS_ICU=1", "-I", ROCKETC_SOURCE_INCLUDE_PATH};
   if (assembly) {
     arguments.push_back("-S");
     arguments.push_back("-masm=intel");
+  } else if (outputKind == rocket::PackageOutputKind::StaticLibrary) {
+    arguments.push_back("-c");
+  } else if (outputKind == rocket::PackageOutputKind::DynamicLibrary) {
+    arguments.push_back("-shared");
   }
+  fs::path compilerOutput = output;
+  if (outputKind == rocket::PackageOutputKind::StaticLibrary)
+    compilerOutput.replace_extension(".o");
   arguments.push_back("-o");
-  arguments.push_back(output.string());
+  arguments.push_back(compilerOutput.string());
 #endif
   arguments.push_back(source.string());
+#ifdef _MSC_VER
   if (!assembly && outputKind != rocket::PackageOutputKind::StaticLibrary) {
     arguments.push_back("/link");
     arguments.push_back("/Brepro");
@@ -248,39 +329,62 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
       arguments.push_back("/LIBPATH:" + search.string());
     for (const auto& library : libraries) arguments.push_back(library);
   }
+#else
+  if (!assembly && outputKind != rocket::PackageOutputKind::StaticLibrary) {
+#if defined(__APPLE__)
+    arguments.push_back("-Wl,-no_uuid");
+    for (const char* library : {"-lcurl", "-lcrypto", "-licuuc",
+                                "-licudata", "-pthread"})
+      arguments.emplace_back(library);
+    arguments.insert(arguments.end(), {"-framework", "Security",
+                                       "-framework", "CoreFoundation"});
+#elif defined(__linux__)
+    arguments.push_back("-Wl,--build-id=sha1");
+    for (const char* library : {"-lcurl", "-lcrypto", "-licuuc",
+                                "-licudata", "-pthread", "-ldl"})
+      arguments.emplace_back(library);
+#endif
+    for (const auto& search : librarySearch) {
+      arguments.push_back("-L");
+      arguments.push_back(search.string());
+    }
+    for (const auto& library : libraries) {
+      const fs::path value(library);
+      if (value.has_parent_path() || value.extension() == ".a" ||
+          value.extension() == ".so" || value.extension() == ".dylib")
+        arguments.push_back(library);
+      else
+        arguments.push_back("-l" + value.stem().string());
+    }
+  }
+#endif
   const int compiled = invokeExecutable(fs::path(ROCKETC_STAGE0_CXX_PATH), arguments);
   if (compiled != 0 || assembly ||
       outputKind != rocket::PackageOutputKind::StaticLibrary)
     return compiled;
   fs::path objectPath = output;
-  objectPath.replace_extension(".obj");
+  objectPath.replace_extension(
+#ifdef _MSC_VER
+      ".obj"
+#else
+      ".o"
+#endif
+  );
+#ifdef _MSC_VER
   return invokeExecutable(fs::path(ROCKETC_STAGE0_AR_PATH),
                           {"/nologo", "/Brepro", "/OUT:" + output.string(),
                            objectPath.string()});
+#else
+  return invokeExecutable(fs::path(ROCKETC_STAGE0_AR_PATH),
+                          {"rcsD", output.string(), objectPath.string()});
+#endif
 }
 
 #ifdef ROCKETC_HAS_LLVM
-fs::path clangDriverPath() {
-  const fs::path packaged = compilerDirectory / "toolchain/clang.exe";
-  if (fs::is_regular_file(packaged)) return packaged;
-  const fs::path distribution = compilerDirectory.parent_path() / "bin/clang.exe";
-  return fs::is_regular_file(distribution) ? distribution : fs::path(ROCKETC_CLANG_PATH);
-}
-
-fs::path runtimeLibraryPath() {
-  const fs::path packaged = compilerDirectory / "rocket_runtime.lib";
-  if (fs::is_regular_file(packaged)) return packaged;
-  const fs::path distribution = compilerDirectory.parent_path() / "lib/rocket_runtime.lib";
-  return fs::is_regular_file(distribution) ? distribution
-                                           : fs::path(ROCKETC_RUNTIME_LIBRARY_PATH);
-}
-
-fs::path llvmLibrarianPath() {
-  const fs::path packaged = compilerDirectory / "toolchain/llvm-lib.exe";
-  if (fs::is_regular_file(packaged)) return packaged;
-  fs::path path = clangDriverPath();
-  path.replace_filename("llvm-lib.exe");
-  return path;
+fs::path developmentLibrarianPath(const rocket::Target& target) {
+  return target.operatingSystem == rocket::TargetOperatingSystem::Windows
+             ? fs::path(ROCKETC_LLVM_LIB_PATH)
+             : fs::path(ROCKETC_LLVM_AR_PATH);
 }
 #endif
 
@@ -295,14 +399,36 @@ struct CommandTarget {
   std::vector<fs::path> nativeLibrarySearch;
   std::vector<rocket::PackageDependencyRoot> dependencyRoots;
   bool packageTarget = false;
+  rocket::Target compilationTarget;
+  fs::path targetSourceRoot;
+  std::optional<fs::path> targetSdkRoot;
 };
 
 bool writeFile(const fs::path& path, const std::string& contents);
 
-std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string& error) {
+fs::path selectedArtifactRoot(const fs::path& packageRoot,
+                              std::string identity) {
+  const char* configured = std::getenv("ROCKET_ARTIFACT_ROOT");
+  if (!configured || !*configured) return packageRoot;
+  for (char& value : identity) {
+    const bool safe = (value >= 'A' && value <= 'Z') ||
+                      (value >= 'a' && value <= 'z') ||
+                      (value >= '0' && value <= '9') || value == '_' ||
+                      value == '-';
+    if (!safe) value = '_';
+  }
+  if (identity.empty()) identity = "anonymous";
+  return (fs::absolute(fs::u8path(configured)).lexically_normal() / identity)
+      .lexically_normal();
+}
+
+std::optional<CommandTarget> resolveTarget(const fs::path& supplied,
+                                           const rocket::Target& target,
+                                           const std::optional<fs::path>& targetSdkRoot,
+                                           std::string& error) {
   const fs::path absolute = fs::absolute(supplied).lexically_normal();
   if (fs::is_directory(absolute) || absolute.filename() == "rocket.toml") {
-    auto package = rocket::loadPackage(absolute, error);
+    auto package = rocket::loadPackage(absolute, target, error);
     if (!package) return {};
     std::vector<rocket::PackageDependencyRoot> dependencyRoots;
     rocket::PackageLock lock;
@@ -311,6 +437,11 @@ std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string
       return {};
     auto nativeLibraries = package->nativeLibraries;
     auto nativeSearch = package->nativeLibrarySearch;
+    if (const char* root = std::getenv("ROCKET_NATIVE_LIBRARY_ROOT");
+        root && *root) {
+      const fs::path configured = fs::absolute(fs::u8path(root)).lexically_normal();
+      if (fs::is_directory(configured)) nativeSearch.push_back(configured);
+    }
     for (const auto& dependency : dependencyRoots) {
       nativeLibraries.insert(nativeLibraries.end(),
                              dependency.nativeLibraries.begin(),
@@ -319,10 +450,12 @@ std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string
                           dependency.nativeLibrarySearch.begin(),
                           dependency.nativeLibrarySearch.end());
     }
-    return CommandTarget{package->entry, package->root, package->root,
+    return CommandTarget{package->entry, package->root,
+                         selectedArtifactRoot(package->root, package->name),
                          package->outputKind, package->outputName, package->name,
                          std::move(nativeLibraries), std::move(nativeSearch),
-                         std::move(dependencyRoots), true};
+                         std::move(dependencyRoots), true, target,
+                         package->targetSourceRoot, targetSdkRoot};
   }
   if (!fs::is_regular_file(absolute)) {
     error = "source path does not exist: '" + absolute.string() + "'";
@@ -332,56 +465,133 @@ std::optional<CommandTarget> resolveTarget(const fs::path& supplied, std::string
     error = "source files must use the .rocket extension";
     return {};
   }
-  return CommandTarget{absolute, absolute.parent_path(), absolute.parent_path(),
+  return CommandTarget{absolute, absolute.parent_path(),
+                       selectedArtifactRoot(absolute.parent_path(),
+                                            absolute.stem().string()),
                        rocket::PackageOutputKind::Executable,
                        absolute.stem().string(), absolute.stem().string(), {}, {}, {},
-                       false};
+                       false, target, {}, targetSdkRoot};
 }
 
-const char* artifactExtension(rocket::PackageOutputKind kind) {
-  if (kind == rocket::PackageOutputKind::StaticLibrary) return ".lib";
-  if (kind == rocket::PackageOutputKind::DynamicLibrary) return ".dll";
-  return ".exe";
+std::optional<rocket::Target> selectCompilationTarget(
+    const std::optional<std::string>& requested) {
+  rocket::TargetError error;
+  auto target = requested ? rocket::parseTarget(*requested, error)
+                          : rocket::detectHostTarget(error);
+  if (!target) cliDiagnostic(error.code, error.message);
+  return target;
+}
+
+int inspectTarget(const std::optional<std::string>& requested, bool verbose) {
+  auto target = selectCompilationTarget(requested);
+  if (!target) return 2;
+  if (!verbose) {
+    std::cout << target->alias << '\n';
+    return 0;
+  }
+  rocket::TargetError hostError;
+  const auto host = rocket::detectHostTarget(hostError);
+  if (!host) {
+    cliDiagnostic(hostError.code, hostError.message);
+    return 2;
+  }
+  const auto features = rocket::targetFeatures(*target);
+  std::cout << "host: " << host->alias << '\n'
+            << "target: " << target->alias << '\n'
+            << "triple: " << target->triple << '\n'
+            << "os: "
+            << rocket::targetOperatingSystemName(target->operatingSystem) << '\n'
+            << "architecture: "
+            << rocket::targetArchitectureName(target->architecture) << '\n'
+            << "environment: "
+            << rocket::targetEnvironmentName(target->environment) << '\n'
+            << "pointer-width: " << target->pointerWidth << '\n'
+            << "endianness: " << rocket::targetEndiannessName(*target) << '\n'
+            << "features: ";
+  for (std::size_t index = 0; index < features.size(); ++index) {
+    if (index != 0) std::cout << ',';
+    std::cout << features[index];
+  }
+  std::cout << '\n'
+            << "native: "
+            << (rocket::isNativeTarget(*host, *target) ? "true" : "false")
+            << '\n'
+            << "cross-supported: "
+            << (rocket::supportsCrossCompilation(*host, *target) ? "true"
+                                                                  : "false")
+            << '\n';
+  return 0;
+}
+
+std::string artifactExtension(rocket::PackageOutputKind kind,
+                              const rocket::Target& target) {
+  const auto artifacts = rocket::targetArtifacts(target);
+  if (kind == rocket::PackageOutputKind::StaticLibrary)
+    return artifacts.staticLibrarySuffix;
+  if (kind == rocket::PackageOutputKind::DynamicLibrary)
+    return artifacts.dynamicLibrarySuffix;
+  return artifacts.executableSuffix;
 }
 
 fs::path artifactPath(const CommandTarget& target) {
-  return target.artifactRoot / ".rocketc" /
-         (target.outputName + artifactExtension(target.outputKind));
+  return target.artifactRoot / ".rocketc" / "targets" /
+         target.compilationTarget.alias /
+         (target.outputName +
+          artifactExtension(target.outputKind, target.compilationTarget));
+}
+
+fs::path artifactDirectory(const CommandTarget& target) {
+  return target.artifactRoot / ".rocketc" / "targets" /
+         target.compilationTarget.alias;
 }
 
 fs::path buildCacheMarker(const CommandTarget& target) {
-  return target.artifactRoot / ".rocketc" /
+  return artifactDirectory(target) /
          (target.outputName + ".rocket-build-cache-1");
 }
 
 bool fileSha256(const fs::path& path, std::string& digest) {
-  std::string bytes;
   std::string error;
-  return readFile(path, bytes) &&
-         rocket::platform_crypto::sha256(bytes, digest, error);
+  return rocket::platform_crypto::sha256File(path, digest, error);
 }
 
 std::optional<std::string> buildCacheKey(const CommandTarget& target,
-                                         bool optimize) {
+                                         bool optimize,
+                                         const fs::path& selectedRuntime = {}) {
+  const bool trace = [] {
+    const char* configured = std::getenv("ROCKET_CACHE_TRACE");
+    return configured && *configured;
+  }();
+  const auto unavailable = [&](const std::string& reason)
+      -> std::optional<std::string> {
+    if (trace) std::cerr << "rocket-build-cache-1: " << reason << '\n';
+    return std::nullopt;
+  };
   if (!target.packageTarget) return std::nullopt;
   std::string sourceChecksum;
   std::string error;
   if (!rocket::packageSourceChecksum(target.packageRoot, sourceChecksum, error))
-    return std::nullopt;
+    return unavailable("source checksum unavailable: " + error);
   std::string compilerChecksum;
-  if (!fileSha256(compilerExecutable, compilerChecksum)) return std::nullopt;
+  if (!fileSha256(compilerExecutable, compilerChecksum))
+    return unavailable("compiler checksum unavailable: " +
+                       compilerExecutable.string());
   std::ostringstream material;
   material << "rocket-build-cache-1\n"
            << "compiler-version=" ROCKETC_VERSION "\n"
            << "compiler-sha256=" << compilerChecksum << "\n"
            << "source-sha256=" << sourceChecksum << "\n"
-           << "target=windows-x64\n"
+           << "target=" << target.compilationTarget.alias << "\n"
+           << "triple=" << target.compilationTarget.triple << "\n"
            << "optimized=" << (optimize ? "true" : "false") << "\n"
            << "output-kind=" << static_cast<int>(target.outputKind) << "\n"
            << "output-name=" << target.outputName << "\n";
 #ifdef ROCKETC_HAS_LLVM
   std::string runtimeChecksum;
-  if (!fileSha256(runtimeLibraryPath(), runtimeChecksum)) return std::nullopt;
+  if (selectedRuntime.empty() ||
+      !fileSha256(selectedRuntime, runtimeChecksum))
+    return unavailable("runtime checksum unavailable: " +
+                       selectedRuntime.string());
   material << "runtime-sha256=" << runtimeChecksum << "\n";
 #else
   material << "backend=stage0-cpp\n";
@@ -394,14 +604,15 @@ std::optional<std::string> buildCacheKey(const CommandTarget& target,
     material << "native-library=" << library << "\n";
   std::string key;
   if (!rocket::platform_crypto::sha256(material.str(), key, error))
-    return std::nullopt;
+    return unavailable("key digest unavailable: " + error);
+  if (trace) std::cerr << "rocket-build-cache-1: key " << key << '\n';
   return key;
 }
 
 bool buildCacheHit(const CommandTarget& target, const std::string& key) {
   if (!fs::is_regular_file(artifactPath(target))) return false;
   if (target.outputKind != rocket::PackageOutputKind::Executable &&
-      !fs::is_regular_file(target.artifactRoot / ".rocketc" /
+      !fs::is_regular_file(artifactDirectory(target) /
                            (target.outputName + ".h")))
     return false;
   std::string marker;
@@ -431,9 +642,54 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
                     const fs::path& headerOutput = {}, bool optimize = true,
                     bool coverage = false, bool profiling = false) {
   const bool library = target.outputKind != rocket::PackageOutputKind::Executable;
+  rocket::TargetError hostError;
+  const auto host = rocket::detectHostTarget(hostError);
+  if (!host) {
+    cliDiagnostic(hostError.code, hostError.message);
+    return 2;
+  }
+  const bool native = rocket::isNativeTarget(*host, target.compilationTarget);
+  if (command == "run" && !native) {
+    cliDiagnostic(rocket::DiagnosticCode::HostTargetOperation,
+                  "cannot execute target '" + target.compilationTarget.alias +
+                      "' on host '" + host->alias + "'");
+    return 2;
+  }
+#ifdef ROCKETC_HAS_LLVM
+  std::optional<rocket::TargetToolchain> toolchain;
+  if (command == "build" || command == "run") {
+    rocket::TargetToolchain selected;
+    rocket::TargetError toolchainError;
+    const rocket::TargetToolchainRequest request{
+        *host, target.compilationTarget, compilerDirectory,
+        target.targetSdkRoot, fs::path(ROCKETC_CLANG_PATH),
+        developmentLibrarianPath(target.compilationTarget),
+        fs::path(ROCKETC_RUNTIME_LIBRARY_PATH)};
+    if (!rocket::discoverTargetToolchain(request, selected, toolchainError)) {
+      cliDiagnostic(toolchainError.code, toolchainError.message);
+      return 2;
+    }
+    toolchain = std::move(selected);
+  }
+#else
+  if (!native && command != "check" && command != "emit-header") {
+    cliDiagnostic(rocket::DiagnosticCode::HostTargetOperation,
+                  "the LLVM-disabled stage0 cannot produce target '" +
+                      target.compilationTarget.alias + "' from host '" +
+                      host->alias + "'");
+    return 2;
+  }
+#endif
   std::optional<std::string> cacheKey;
   if ((command == "build" || command == "run") && !coverage && !profiling) {
-    cacheKey = buildCacheKey(target, optimize);
+    cacheKey = buildCacheKey(
+        target, optimize,
+#ifdef ROCKETC_HAS_LLVM
+        toolchain ? toolchain->runtime : fs::path{}
+#else
+        {}
+#endif
+    );
     if (cacheKey && buildCacheHit(target, *cacheKey)) {
       announceCachedBuild(command, target, optimize);
       if (command == "build") return 0;
@@ -446,8 +702,9 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
                               machineReadable);
     }
   }
-  Compilation compilation = compileFrontend(target.source, target.packageRoot,
-                                            library, target.dependencyRoots);
+  Compilation compilation = compileFrontend(
+      target.source, target.packageRoot, target.targetSourceRoot, library,
+      target.dependencyRoots);
   if (compilation.diagnostics.hasErrors()) {
     printDiagnostics(compilation.diagnostics);
     return 1;
@@ -467,7 +724,8 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
 #ifdef ROCKETC_HAS_LLVM
     std::string ir;
     std::string error;
-    if (!rocket::generateLlvmIr(*compilation.mir, false, ir, error)) {
+    if (!rocket::generateLlvmIr(*compilation.mir, false,
+                                target.compilationTarget, ir, error)) {
       std::cerr << "rocketc: " << error << '\n';
       return 1;
     }
@@ -496,7 +754,8 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
   }
 
   fs::path artifactDirectory;
-  if (!ensureArtifactDirectory(target.artifactRoot, artifactDirectory)) {
+  if (!ensureArtifactDirectory(target.artifactRoot, target.compilationTarget,
+                               artifactDirectory)) {
     std::cerr << "rocketc: could not create artifact directory\n";
     return 1;
   }
@@ -507,6 +766,7 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
     std::string error;
     if (!rocket::emitLlvmFile(*compilation.mir, optimize,
                               rocket::LlvmFileType::Assembly,
+                              target.compilationTarget,
                               assemblyPath, error, true, coverage, profiling)) {
       std::cerr << "rocketc: " << error << '\n';
       return 1;
@@ -517,36 +777,86 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
     return 0;
   }
 
-  const fs::path objectPath = artifactDirectory / (target.outputName + ".obj");
-  const char* extension = artifactExtension(target.outputKind);
+  const auto artifactNames = rocket::targetArtifacts(target.compilationTarget);
+  const fs::path objectPath =
+      artifactDirectory / (target.outputName + artifactNames.objectSuffix);
+  const std::string extension =
+      artifactExtension(target.outputKind, target.compilationTarget);
   const fs::path executablePath = artifactDirectory / (target.outputName + extension);
   std::string error;
   if (!rocket::emitLlvmFile(*compilation.mir, optimize,
-                            rocket::LlvmFileType::Object, objectPath,
+                            rocket::LlvmFileType::Object,
+                            target.compilationTarget, objectPath,
                             error, true, coverage, profiling)) {
     std::cerr << "rocketc: " << error << '\n';
     return 1;
   }
   if (target.outputKind == rocket::PackageOutputKind::StaticLibrary) {
-    if (invokeExecutable(llvmLibrarianPath(),
-                         {"/OUT:" + executablePath.string(), objectPath.string()}) != 0)
+    if (!toolchain) {
+      cliDiagnostic(rocket::DiagnosticCode::TargetToolchain,
+                    "target librarian was not resolved");
+      return 2;
+    }
+    std::vector<std::string> librarianArguments;
+    if (target.compilationTarget.operatingSystem ==
+        rocket::TargetOperatingSystem::Windows) {
+      librarianArguments = {"/nologo",
+                            "/OUT:" + executablePath.string(),
+                            objectPath.string()};
+    } else {
+      librarianArguments = {"rcsD", executablePath.string(),
+                            objectPath.string()};
+    }
+    if (invokeExecutable(toolchain->librarian, librarianArguments) != 0)
       return 1;
   } else {
-    std::vector<std::string> linkArguments{objectPath.string(),
-                                           runtimeLibraryPath().string(),
-                                           "-fuse-ld=lld",
-                                           "-Wl,/Brepro"};
-    const fs::path distributionLibraries = compilerDirectory.parent_path() / "lib";
-    for (const char* directory : {"msvc", "ucrt", "um"}) {
-      const fs::path candidate = distributionLibraries / directory;
-      if (fs::is_directory(candidate)) {
-        linkArguments.push_back("-L");
-        linkArguments.push_back(candidate.string());
+    if (!toolchain) {
+      cliDiagnostic(rocket::DiagnosticCode::TargetToolchain,
+                    "target linker was not resolved");
+      return 2;
+    }
+    std::vector<std::string> linkArguments{
+        objectPath.string(), toolchain->runtime.string(),
+        "--target=" + target.compilationTarget.triple, "-fuse-ld=lld"};
+    if (!toolchain->sysroot.empty())
+      linkArguments.push_back("--sysroot=" + toolchain->sysroot.string());
+    if (target.compilationTarget.operatingSystem ==
+        rocket::TargetOperatingSystem::Windows) {
+      linkArguments.push_back("-Wl,/Brepro");
+      const fs::path pdbPath = artifactDirectory / (target.outputName + ".pdb");
+      linkArguments.push_back("-Wl,/DEBUG:FULL");
+      linkArguments.push_back("-Wl,/PDB:" + pdbPath.string());
+    } else if (target.compilationTarget.operatingSystem ==
+               rocket::TargetOperatingSystem::Linux) {
+      linkArguments.push_back("-Wl,--build-id=sha1");
+    } else {
+      linkArguments.push_back("-Wl,-no_uuid");
+    }
+    for (const auto& directory : toolchain->libraryDirectories) {
+      linkArguments.push_back("-L");
+      linkArguments.push_back(directory.string());
+      if (native && toolchain->installedSdk &&
+          target.compilationTarget.operatingSystem !=
+              rocket::TargetOperatingSystem::Windows) {
+        linkArguments.push_back("-Wl,-rpath," + directory.string());
       }
     }
-    const fs::path pdbPath = artifactDirectory / (target.outputName + ".pdb");
-    linkArguments.push_back("-Wl,/DEBUG:FULL");
-    linkArguments.push_back("-Wl,/PDB:" + pdbPath.string());
+    if (target.compilationTarget.operatingSystem ==
+        rocket::TargetOperatingSystem::Linux) {
+      for (const char* library : {"-lcurl", "-lcrypto", "-licuuc",
+                                  "-licudata", "-lpthread", "-ldl",
+                                  "-lstdc++", "-lm"})
+        linkArguments.emplace_back(library);
+    } else if (target.compilationTarget.operatingSystem ==
+               rocket::TargetOperatingSystem::MacOS) {
+      for (const char* library : {"-lcurl", "-lcrypto", "-licuuc",
+                                  "-licudata", "-lpthread", "-lc++",
+                                  "-lm"})
+        linkArguments.emplace_back(library);
+      linkArguments.insert(linkArguments.end(),
+                           {"-framework", "Security", "-framework",
+                            "CoreFoundation"});
+    }
     if (target.outputKind == rocket::PackageOutputKind::DynamicLibrary)
       linkArguments.push_back("-shared");
     for (const auto& search : target.nativeLibrarySearch) {
@@ -554,6 +864,25 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
       linkArguments.push_back(search.string());
     }
     for (const auto& library : target.nativeLibraries) {
+      if (target.compilationTarget.operatingSystem ==
+              rocket::TargetOperatingSystem::MacOS &&
+          library.starts_with("framework:")) {
+        const std::string framework = library.substr(10);
+        if (framework.empty() ||
+            !std::all_of(framework.begin(), framework.end(), [](char value) {
+              return (value >= 'A' && value <= 'Z') ||
+                     (value >= 'a' && value <= 'z') ||
+                     (value >= '0' && value <= '9') || value == '_';
+            })) {
+          cliDiagnostic(rocket::DiagnosticCode::TargetManifest,
+                        "invalid macOS framework native input '" + library +
+                            "'");
+          return 2;
+        }
+        linkArguments.push_back("-framework");
+        linkArguments.push_back(framework);
+        continue;
+      }
       const fs::path libraryPath(library);
       bool resolved = false;
       if (!libraryPath.has_parent_path()) {
@@ -567,15 +896,27 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
         }
       }
       if (!resolved) {
-        if (!libraryPath.has_parent_path() && libraryPath.extension() == ".lib")
+        if (!libraryPath.has_parent_path() &&
+            libraryPath.extension() == ".lib") {
           linkArguments.push_back("-l" + libraryPath.stem().string());
-        else
+        } else if (!libraryPath.has_parent_path() &&
+                   (libraryPath.extension() == ".a" ||
+                    libraryPath.extension() == ".so" ||
+                    libraryPath.extension() == ".dylib") &&
+                   libraryPath.stem().string().starts_with("lib")) {
+          linkArguments.push_back("-l" +
+                                  libraryPath.stem().string().substr(3));
+        } else if (!libraryPath.has_parent_path() &&
+                   libraryPath.extension().empty()) {
+          linkArguments.push_back("-l" + library);
+        } else {
           linkArguments.push_back(library);
+        }
       }
     }
     linkArguments.push_back("-o");
     linkArguments.push_back(executablePath.string());
-    if (invokeExecutable(clangDriverPath(), linkArguments) != 0) return 1;
+    if (invokeExecutable(toolchain->compiler, linkArguments) != 0) return 1;
   }
   const fs::path sourceMapPath = artifactDirectory /
       (target.outputName + ".rocket.map.json");
@@ -606,7 +947,8 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
     std::cout << assembly;
     return 0;
   }
-  const char* extension = artifactExtension(target.outputKind);
+  const std::string extension =
+      artifactExtension(target.outputKind, target.compilationTarget);
   const fs::path executablePath = artifactDirectory / (target.outputName + extension);
   if (compileBootstrap(generatedPath, executablePath, false, target.outputKind,
                        target.nativeLibrarySearch, target.nativeLibraries) != 0)
@@ -688,7 +1030,8 @@ int formatCommand(const fs::path& path, bool checkOnly) {
   return 0;
 }
 
-int testCommand(const fs::path& path, const std::string& filter) {
+int testCommand(const fs::path& path, const std::string& filter,
+                const rocket::Target& compilationTarget) {
   std::string error;
   std::vector<fs::path> tests;
   fs::path packageRoot;
@@ -696,25 +1039,43 @@ int testCommand(const fs::path& path, const std::string& filter) {
   std::vector<std::string> nativeLibraries;
   std::vector<fs::path> nativeLibrarySearch;
   std::vector<rocket::PackageDependencyRoot> dependencyRoots;
+  fs::path targetSourceRoot;
   const fs::path absolute = fs::absolute(path).lexically_normal();
   if (fs::is_regular_file(absolute) && absolute.extension() == ".rocket") {
     tests.push_back(absolute);
     packageRoot = absolute.parent_path();
-    artifactRoot = absolute.parent_path();
+    artifactRoot = selectedArtifactRoot(absolute.parent_path(),
+                                        absolute.stem().string());
   } else {
-    auto package = rocket::loadPackage(absolute, error);
+    auto package = rocket::loadPackage(absolute, compilationTarget, error);
     if (!package) { cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 2; }
     tests = rocket::packageTests(*package, error);
     if (!error.empty()) { cliDiagnostic(rocket::DiagnosticCode::Manifest, error); return 2; }
     packageRoot = package->root;
-    artifactRoot = package->root;
+    artifactRoot = selectedArtifactRoot(package->root, package->name);
     nativeLibraries = package->nativeLibraries;
     nativeLibrarySearch = package->nativeLibrarySearch;
+    if (const char* root = std::getenv("ROCKET_NATIVE_LIBRARY_ROOT");
+        root && *root) {
+      const fs::path configured =
+          fs::absolute(fs::u8path(root)).lexically_normal();
+      if (fs::is_directory(configured))
+        nativeLibrarySearch.push_back(configured);
+    }
+    targetSourceRoot = package->targetSourceRoot;
     rocket::PackageLock lock;
     if (!rocket::prepareLockedPackageDependencies(
             *package, false, dependencyRoots, lock, error)) {
       cliDiagnostic(rocket::DiagnosticCode::Manifest, error);
       return 2;
+    }
+    for (const auto& dependency : dependencyRoots) {
+      nativeLibraries.insert(nativeLibraries.end(),
+                             dependency.nativeLibraries.begin(),
+                             dependency.nativeLibraries.end());
+      nativeLibrarySearch.insert(nativeLibrarySearch.end(),
+                                 dependency.nativeLibrarySearch.begin(),
+                                 dependency.nativeLibrarySearch.end());
     }
   }
 
@@ -739,7 +1100,8 @@ int testCommand(const fs::path& path, const std::string& filter) {
                                rocket::PackageOutputKind::Executable,
                                test.stem().string(), test.stem().string(),
                                nativeLibraries, nativeLibrarySearch,
-                               dependencyRoots};
+                               dependencyRoots, false, compilationTarget,
+                               targetSourceRoot};
     const int buildStatus = executeCompiler("build", target, {}, false);
     if (buildStatus != 0) {
       ++failed;
@@ -753,9 +1115,8 @@ int testCommand(const fs::path& path, const std::string& filter) {
                   << " (build failed with exit " << buildStatus << ")\n";
       continue;
     }
-    const int status = invokeExecutable(
-        artifactRoot / ".rocketc" / (test.stem().string() + ".exe"), {},
-        machineReadable);
+    const int status =
+        invokeExecutable(artifactPath(target), {}, machineReadable);
     if (expectedFailure && status != 0) {
       ++expectedFailures;
       if (!machineReadable) std::cout << "XFAIL " << display.generic_string() << " (exit " << status << ")\n";
@@ -890,6 +1251,9 @@ bool writeDebugMap(const rocket::MirModule& module, const fs::path& path,
 }
 
 rocket::DiagnosticCode packageFailureCode(const std::string& error) {
+  if (error.find("target manifest") != std::string::npos ||
+      error.find("selected target") != std::string::npos)
+    return rocket::DiagnosticCode::TargetManifest;
   if (error.find("compromised") != std::string::npos ||
       error.find("yanked") != std::string::npos ||
       error.find("license policy") != std::string::npos ||
@@ -982,12 +1346,12 @@ void usage() {
   std::cerr
       << "Rocket compiler " ROCKETC_VERSION "\n"
          "usage:\n"
-         "  rocketc <check|build|run|emit-ir|emit-asm|emit-header> [file.rocket|package] [--debug] [--message-format=json] [-- arguments]\n"
-         "  rocketc <coverage|profile> [file.rocket|package] [--output report.json] [--debug] [-- arguments]\n"
-         "  rocketc benchmark [file.rocket|package] [--iterations count] [--output report.json]\n"
+         "  rocketc <check|build|run|emit-ir|emit-asm|emit-header> [file.rocket|package] [--target alias-or-triple] [--target-sdk directory] [--debug] [--message-format=json] [-- arguments]\n"
+         "  rocketc <coverage|profile> [file.rocket|package] [--target alias-or-triple] [--target-sdk directory] [--output report.json] [--debug] [-- arguments]\n"
+         "  rocketc benchmark [file.rocket|package] [--target alias-or-triple] [--target-sdk directory] [--iterations count] [--output report.json]\n"
          "  rocketc bind <header.h> [--output bindings.rocket]\n"
          "  rocketc fmt [file.rocket|directory] [--check]\n"
-         "  rocketc test [file.rocket|package] [--filter text]\n"
+         "  rocketc test [file.rocket|package] [--target alias-or-triple] [--filter text]\n"
          "  rocketc resolve [package] [--locked|--offline]\n"
          "  rocketc tree [package]\n"
          "  rocketc audit [package]\n"
@@ -997,13 +1361,14 @@ void usage() {
          "  rocketc publish [package]\n"
          "  rocketc registry <init|transfer|yank|revoke|advisory> ...\n"
          "  rocketc new <directory> [--name package-name]\n"
+         "  rocketc target [--target alias-or-triple] [--verbose]\n"
          "  rocketc --version\n";
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
-  compilerExecutable = fs::absolute(argv[0]).lexically_normal();
+  compilerExecutable = currentExecutablePath(argv[0]);
   compilerDirectory = compilerExecutable.parent_path();
   const fs::path installedStandardLibrary =
       (compilerDirectory.parent_path() / "stdlib").lexically_normal();
@@ -1017,6 +1382,22 @@ int main(int argc, char** argv) {
   if (command == "--version" || command == "version") {
     std::cout << "rocketc " ROCKETC_VERSION "\n";
     return 0;
+  }
+  if (command == "target") {
+    std::optional<std::string> requested;
+    bool verbose = false;
+    for (int index = 2; index < argc; ++index) {
+      const std::string argument = argv[index];
+      if (argument == "--verbose") verbose = true;
+      else if (argument == "--target" && index + 1 < argc)
+        requested = argv[++index];
+      else {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "unexpected target argument '" + argument + "'");
+        return 2;
+      }
+    }
+    return inspectTarget(requested, verbose);
   }
   if (command == "new") {
     if (argc < 3) { usage(); return 2; }
@@ -1052,7 +1433,7 @@ int main(int argc, char** argv) {
       cliDiagnostic(packageFailureCode(error), error);
       return 1;
     }
-    std::cout << "stored scoped registry credential in Windows Credential Manager\n";
+    std::cout << "stored scoped registry credential in the platform credential store\n";
     return 0;
   }
   if (command == "--verify-package-lock") {
@@ -1118,10 +1499,13 @@ int main(int argc, char** argv) {
     fs::path path = ".";
     bool pathSet = false;
     std::string filter;
+    std::optional<std::string> requestedTarget;
     for (int index = 2; index < argc; ++index) {
       const std::string argument = argv[index];
       if (argument == "--message-format=json") machineReadable = true;
       else if (argument == "--filter" && index + 1 < argc) filter = argv[++index];
+      else if (argument == "--target" && index + 1 < argc)
+        requestedTarget = argv[++index];
       else if (!pathSet) { path = argument; pathSet = true; }
       else {
         cliDiagnostic(rocket::DiagnosticCode::Tooling,
@@ -1129,7 +1513,21 @@ int main(int argc, char** argv) {
         return 2;
       }
     }
-    return testCommand(path, filter);
+    auto compilationTarget = selectCompilationTarget(requestedTarget);
+    if (!compilationTarget) return 2;
+    rocket::TargetError hostError;
+    const auto host = rocket::detectHostTarget(hostError);
+    if (!host) {
+      cliDiagnostic(hostError.code, hostError.message);
+      return 2;
+    }
+    if (!rocket::supportsNativeExecution(*host, *compilationTarget)) {
+      cliDiagnostic(rocket::DiagnosticCode::HostTargetOperation,
+                    "cannot execute target '" + compilationTarget->alias +
+                        "' tests on host '" + host->alias + "'");
+      return 2;
+    }
+    return testCommand(path, filter, *compilationTarget);
   }
   if (command == "resolve") {
     fs::path path = ".";
@@ -1225,9 +1623,75 @@ int main(int argc, char** argv) {
     usage(); return 2;
   }
 
-  const fs::path input = argc >= 3 ? fs::path(argv[2]) : fs::path(".");
+  fs::path input = ".";
+  bool inputSet = false;
+  std::vector<std::string> programArguments;
+  fs::path headerOutput;
+  fs::path toolingOutput;
+  std::optional<std::string> requestedTarget;
+  std::optional<fs::path> requestedTargetSdk;
+  bool optimize = true;
+  bool forwarding = false;
+  int benchmarkIterations = 10;
+  for (int index = 2; index < argc; ++index) {
+    const std::string argument = argv[index];
+    if (!forwarding && command == "emit-header" && argument == "--output" &&
+        index + 1 < argc) {
+      headerOutput = argv[++index];
+      continue;
+    }
+    if (!forwarding && (command == "coverage" || command == "profile" ||
+                        command == "benchmark") &&
+        argument == "--output" && index + 1 < argc) {
+      toolingOutput = argv[++index];
+      continue;
+    }
+    if (!forwarding && command == "benchmark" &&
+        argument == "--iterations" && index + 1 < argc) {
+      try { benchmarkIterations = std::stoi(argv[++index]); }
+      catch (...) { benchmarkIterations = 0; }
+      if (benchmarkIterations < 1 || benchmarkIterations > 1000) {
+        cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                      "benchmark iterations must be between 1 and 1000");
+        return 2;
+      }
+      continue;
+    }
+    if (!forwarding && argument == "--target" && index + 1 < argc) {
+      requestedTarget = argv[++index];
+      continue;
+    }
+    if (!forwarding && argument == "--target-sdk" && index + 1 < argc) {
+      requestedTargetSdk = fs::path(argv[++index]);
+      continue;
+    }
+    if (!forwarding && argument == "--debug" &&
+        (command == "build" || command == "run" || command == "emit-asm" ||
+         command == "coverage" || command == "profile")) {
+      optimize = false;
+      continue;
+    }
+    if (!forwarding && argument == "--message-format=json") {
+      machineReadable = true;
+      continue;
+    }
+    if (!forwarding && argument == "--") { forwarding = true; continue; }
+    if (forwarding) programArguments.emplace_back(argv[index]);
+    else if (!inputSet && !argument.starts_with("--")) {
+      input = argument;
+      inputSet = true;
+    }
+    else {
+      cliDiagnostic(rocket::DiagnosticCode::Tooling,
+                    "unexpected argument '" + argument + "'");
+      return 2;
+    }
+  }
+  auto compilationTarget = selectCompilationTarget(requestedTarget);
+  if (!compilationTarget) return 2;
   std::string error;
-  auto target = resolveTarget(input, error);
+  auto target = resolveTarget(input, *compilationTarget, requestedTargetSdk,
+                              error);
   if (!target) {
     const fs::path absolute = fs::absolute(input).lexically_normal();
     const auto classified = packageFailureCode(error);
@@ -1239,53 +1703,6 @@ int main(int argc, char** argv) {
                                 : rocket::DiagnosticCode::Tooling;
     cliDiagnostic(code, error); return 2;
   }
-  std::vector<std::string> programArguments;
-  fs::path headerOutput;
-  fs::path toolingOutput;
-  bool optimize = true;
-  bool forwarding = false;
-  int benchmarkIterations = 10;
-  for (int index = 3; index < argc; ++index) {
-    if (command == "emit-header" && index == 3 &&
-        std::string(argv[index]) == "--output" && index + 1 < argc) {
-      headerOutput = argv[++index];
-      continue;
-    }
-    if (!forwarding && (command == "coverage" || command == "profile" ||
-                        command == "benchmark") &&
-        std::string(argv[index]) == "--output" && index + 1 < argc) {
-      toolingOutput = argv[++index];
-      continue;
-    }
-    if (!forwarding && command == "benchmark" &&
-        std::string(argv[index]) == "--iterations" && index + 1 < argc) {
-      try { benchmarkIterations = std::stoi(argv[++index]); }
-      catch (...) { benchmarkIterations = 0; }
-      if (benchmarkIterations < 1 || benchmarkIterations > 1000) {
-        cliDiagnostic(rocket::DiagnosticCode::Tooling,
-                      "benchmark iterations must be between 1 and 1000");
-        return 2;
-      }
-      continue;
-    }
-    if (!forwarding && std::string(argv[index]) == "--debug" &&
-        (command == "build" || command == "run" || command == "emit-asm" ||
-         command == "coverage" || command == "profile")) {
-      optimize = false;
-      continue;
-    }
-    if (!forwarding && std::string(argv[index]) == "--message-format=json") {
-      machineReadable = true;
-      continue;
-    }
-    if (!forwarding && std::string(argv[index]) == "--") { forwarding = true; continue; }
-    if (forwarding) programArguments.emplace_back(argv[index]);
-    else {
-      cliDiagnostic(rocket::DiagnosticCode::Tooling,
-                    "unexpected argument '" + std::string(argv[index]) + "'");
-      return 2;
-    }
-  }
   if (command == "coverage" || command == "profile") {
     if (target->outputKind != rocket::PackageOutputKind::Executable) {
       cliDiagnostic(rocket::DiagnosticCode::Tooling,
@@ -1293,7 +1710,7 @@ int main(int argc, char** argv) {
       return 2;
     }
     if (toolingOutput.empty())
-      toolingOutput = target->artifactRoot / ".rocketc" /
+      toolingOutput = artifactDirectory(*target) /
                       (command == "coverage" ? "coverage.json" : "profile.json");
     toolingOutput = fs::absolute(toolingOutput).lexically_normal();
     std::error_code directoryError;
@@ -1306,12 +1723,17 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     _putenv_s(command == "coverage" ? "ROCKET_COVERAGE_FILE" : "ROCKET_PROFILE_FILE",
               toolingOutput.string().c_str());
+#else
+    setenv(command == "coverage" ? "ROCKET_COVERAGE_FILE" : "ROCKET_PROFILE_FILE",
+           toolingOutput.string().c_str(), 1);
 #endif
     const int status = executeCompiler("run", *target, programArguments, true,
                                        headerOutput, optimize,
                                        command == "coverage", command == "profile");
 #ifdef _WIN32
     _putenv_s(command == "coverage" ? "ROCKET_COVERAGE_FILE" : "ROCKET_PROFILE_FILE", "");
+#else
+    unsetenv(command == "coverage" ? "ROCKET_COVERAGE_FILE" : "ROCKET_PROFILE_FILE");
 #endif
     if (status == 0)
       std::cout << command << " report " << toolingOutput.string() << '\n';
@@ -1320,8 +1742,7 @@ int main(int argc, char** argv) {
   if (command == "benchmark") {
     const int built = executeCompiler("build", *target, {}, false, {}, true);
     if (built != 0) return built;
-    const fs::path executable = target->artifactRoot / ".rocketc" /
-                                (target->outputName + ".exe");
+    const fs::path executable = artifactPath(*target);
     std::vector<double> milliseconds;
     milliseconds.reserve(static_cast<std::size_t>(benchmarkIterations));
     for (int iteration = 0; iteration < benchmarkIterations; ++iteration) {
@@ -1333,7 +1754,7 @@ int main(int argc, char** argv) {
     }
     std::sort(milliseconds.begin(), milliseconds.end());
     if (toolingOutput.empty())
-      toolingOutput = target->artifactRoot / ".rocketc" / "benchmark.json";
+      toolingOutput = artifactDirectory(*target) / "benchmark.json";
     std::ostringstream report;
     report << "{\n  \"schema\": \"rocket-benchmark-1\",\n  \"iterations\": "
            << benchmarkIterations << ",\n  \"minimumMs\": " << milliseconds.front()

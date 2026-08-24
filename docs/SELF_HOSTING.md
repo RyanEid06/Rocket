@@ -123,3 +123,12 @@ Rocket 2.0 adds no compiler-only language feature. Stage0 and the Rocket-written
 compiler enforce the same source/manifest resource bounds and conservative
 package artifact-cache contract. The cache is outside the bootstrap authority:
 clean stage directories and byte-identical stage2/stage3 IR remain mandatory.
+
+Rocket 2.1 repeats the complete stage0 -> stage1 -> stage2 -> stage3 proof on
+each native Windows x64, Linux x64, Linux ARM64, and macOS ARM64 host. Both
+compiler implementations normalize the same target aliases/triples, select the
+same manifest overlay and native section, expose the same `std.target` values,
+emit the same target-qualified cache identity and artifacts, and report the
+same `R6001`-`R6005` categories. Native bootstrap uses only the packaged target
+SDK after installation. Cross-emitted IR or objects cannot substitute for a
+native bootstrap result; exact evidence belongs in `PHASE_19_AUDIT.md`.

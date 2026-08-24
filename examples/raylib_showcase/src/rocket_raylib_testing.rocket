@@ -1,4 +1,4 @@
-import generated.rocket_raylib_adapter
+import src.rocket_raylib_adapter
 
 # Test-only deterministic backend controls. Production application code imports
 # src.rocket_raylib instead; these functions never expose a native pointer.

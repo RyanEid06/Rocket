@@ -10,6 +10,10 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#define ROCKET_SQLITE_CALL __cdecl
+#else
+#include <dlfcn.h>
+#define ROCKET_SQLITE_CALL
 #endif
 
 struct sqlite3;
@@ -47,19 +51,20 @@ struct Api {
 #else
   void* library = nullptr;
 #endif
-  using Open = int(__cdecl*)(const char*, sqlite3**, int, const char*);
-  using Close = int(__cdecl*)(sqlite3*);
-  using ErrorMessage = const char*(__cdecl*)(sqlite3*);
-  using Prepare = int(__cdecl*)(sqlite3*, const char*, int, sqlite3_stmt**, const char**);
-  using BindCount = int(__cdecl*)(sqlite3_stmt*);
-  using BindText = int(__cdecl*)(sqlite3_stmt*, int, const char*, int, void(__cdecl*)(void*));
-  using Step = int(__cdecl*)(sqlite3_stmt*);
-  using ColumnCount = int(__cdecl*)(sqlite3_stmt*);
-  using ColumnText = const unsigned char*(__cdecl*)(sqlite3_stmt*, int);
-  using ColumnBytes = int(__cdecl*)(sqlite3_stmt*, int);
-  using Finalize = int(__cdecl*)(sqlite3_stmt*);
-  using Changes = int(__cdecl*)(sqlite3*);
-  using BusyTimeout = int(__cdecl*)(sqlite3*, int);
+  using Open = int(ROCKET_SQLITE_CALL*)(const char*, sqlite3**, int, const char*);
+  using Close = int(ROCKET_SQLITE_CALL*)(sqlite3*);
+  using ErrorMessage = const char*(ROCKET_SQLITE_CALL*)(sqlite3*);
+  using Prepare = int(ROCKET_SQLITE_CALL*)(sqlite3*, const char*, int, sqlite3_stmt**, const char**);
+  using BindCount = int(ROCKET_SQLITE_CALL*)(sqlite3_stmt*);
+  using BindText = int(ROCKET_SQLITE_CALL*)(sqlite3_stmt*, int, const char*, int,
+                                             void(ROCKET_SQLITE_CALL*)(void*));
+  using Step = int(ROCKET_SQLITE_CALL*)(sqlite3_stmt*);
+  using ColumnCount = int(ROCKET_SQLITE_CALL*)(sqlite3_stmt*);
+  using ColumnText = const unsigned char*(ROCKET_SQLITE_CALL*)(sqlite3_stmt*, int);
+  using ColumnBytes = int(ROCKET_SQLITE_CALL*)(sqlite3_stmt*, int);
+  using Finalize = int(ROCKET_SQLITE_CALL*)(sqlite3_stmt*);
+  using Changes = int(ROCKET_SQLITE_CALL*)(sqlite3*);
+  using BusyTimeout = int(ROCKET_SQLITE_CALL*)(sqlite3*, int);
   Open open = nullptr;
   Close close = nullptr;
   ErrorMessage errorMessage = nullptr;
@@ -79,6 +84,16 @@ struct Api {
     if (!library) return;
 #define ROCKET_SQLITE(NAME, MEMBER) \
     MEMBER = reinterpret_cast<decltype(MEMBER)>(GetProcAddress(library, NAME))
+#else
+    for (const char* name : {"libsqlite3.so.0", "libsqlite3.so",
+                             "libsqlite3.dylib"}) {
+      library = dlopen(name, RTLD_NOW | RTLD_LOCAL);
+      if (library) break;
+    }
+    if (!library) return;
+#define ROCKET_SQLITE(NAME, MEMBER) \
+    MEMBER = reinterpret_cast<decltype(MEMBER)>(dlsym(library, NAME))
+#endif
     ROCKET_SQLITE("sqlite3_open_v2", open);
     ROCKET_SQLITE("sqlite3_close", close);
     ROCKET_SQLITE("sqlite3_errmsg", errorMessage);
@@ -93,12 +108,13 @@ struct Api {
     ROCKET_SQLITE("sqlite3_changes", changes);
     ROCKET_SQLITE("sqlite3_busy_timeout", busyTimeout);
 #undef ROCKET_SQLITE
-#endif
   }
 
   ~Api() {
 #ifdef _WIN32
     if (library) FreeLibrary(library);
+#else
+    if (library) dlclose(library);
 #endif
   }
 
@@ -129,7 +145,7 @@ inline bool open(std::string_view path, sqlite3*& database, std::string& error) 
     return false;
   }
   if (!api().complete()) {
-    error = "Windows SQLite service is unavailable";
+    error = "SQLite service is unavailable";
     return false;
   }
   constexpr int openReadWrite = 0x00000002;
@@ -153,7 +169,7 @@ inline bool open(std::string_view path, sqlite3*& database, std::string& error) 
 }
 
 inline bool close(sqlite3* database, std::string& error) {
-  if (!api().complete()) { error = "Windows SQLite service is unavailable"; return false; }
+  if (!api().complete()) { error = "SQLite service is unavailable"; return false; }
   if (api().close(database) != 0) {
     error = databaseError(database, "could not close SQLite database");
     return false;
@@ -191,7 +207,8 @@ inline bool prepare(sqlite3* database, std::string_view sql,
     error = "SQLite parameter count does not match the statement";
     return false;
   }
-  auto transient = reinterpret_cast<void(__cdecl*)(void*)>(static_cast<std::intptr_t>(-1));
+  auto transient = reinterpret_cast<void(ROCKET_SQLITE_CALL*)(void*)>(
+      static_cast<std::intptr_t>(-1));
   for (std::size_t index = 0; index < parameters.size(); ++index) {
     if (parameters[index].size() > 16 * 1024 * 1024 ||
         api().bindText(statement, static_cast<int>(index + 1),
@@ -279,3 +296,5 @@ inline bool query(sqlite3* database, std::string_view sql,
 }
 
 } // namespace rocket::platform_sqlite
+
+#undef ROCKET_SQLITE_CALL

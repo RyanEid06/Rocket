@@ -2,6 +2,22 @@ if(NOT DEFINED ROCKETC OR NOT DEFINED WORK)
   message(FATAL_ERROR "Phase 16 ecosystem test is missing required arguments")
 endif()
 
+if(NOT DEFINED ENV{ROCKET_ARTIFACT_ROOT} OR
+   NOT DEFINED ENV{ROCKET_NATIVE_TARGET})
+  message(FATAL_ERROR "Phase 16 ecosystem test requires isolated artifact settings")
+endif()
+set(ARTIFACT_ROOT "$ENV{ROCKET_ARTIFACT_ROOT}")
+set(NATIVE_TARGET "$ENV{ROCKET_NATIVE_TARGET}")
+if(NATIVE_TARGET STREQUAL "windows-x64")
+  set(EXECUTABLE_SUFFIX ".exe")
+  set(STATIC_SUFFIX ".lib")
+  set(OBJECT_SUFFIX ".obj")
+else()
+  set(EXECUTABLE_SUFFIX "")
+  set(STATIC_SUFFIX ".a")
+  set(OBJECT_SUFFIX ".o")
+endif()
+
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}")
 set(REGISTRY "${WORK}/registry")
@@ -153,7 +169,9 @@ execute_process(COMMAND "${ROCKETC}" run "${WORK}/app"
 if(NOT STATUS EQUAL 0 OR NOT OUTPUT MATCHES "answer[\r\n]+42")
   message(FATAL_ERROR "transitive application run failed: ${OUTPUT}${ERROR}")
 endif()
-file(SHA256 "${WORK}/app/.rocketc/ecosystem_app.exe" ONLINE_HASH)
+set(APP_ARTIFACT
+  "${ARTIFACT_ROOT}/ecosystem_app/.rocketc/targets/${NATIVE_TARGET}/ecosystem_app${EXECUTABLE_SUFFIX}")
+file(SHA256 "${APP_ARTIFACT}" ONLINE_HASH)
 
 write_package("${WORK}/library" ecosystem_library 1.6.0
   "import math\n\npub fn library_answer() -> Int:\n    return math.answer()\n"
@@ -163,7 +181,7 @@ execute_process(COMMAND "${ROCKETC}" resolve "${WORK}/library"
 execute_process(COMMAND "${ROCKETC}" build "${WORK}/library"
   RESULT_VARIABLE BUILD_STATUS OUTPUT_VARIABLE BUILD_OUTPUT ERROR_VARIABLE BUILD_ERROR)
 if(NOT STATUS EQUAL 0 OR NOT BUILD_STATUS EQUAL 0 OR
-   NOT BUILD_OUTPUT MATCHES "ecosystem_library.lib")
+   NOT BUILD_OUTPUT MATCHES "ecosystem_library${STATIC_SUFFIX}")
   message(FATAL_ERROR "transitive library build failed: ${OUTPUT}${ERROR}${BUILD_OUTPUT}${BUILD_ERROR}")
 endif()
 
@@ -255,8 +273,9 @@ if(STATUS EQUAL 0 OR NOT ERROR MATCHES "credential is revoked")
   message(FATAL_ERROR "revoked credential remained usable: ${OUTPUT}${ERROR}")
 endif()
 
-file(REMOVE "${WORK}/app/.rocketc/ecosystem_app.exe")
-file(REMOVE "${WORK}/app/.rocketc/ecosystem_app.obj")
+file(REMOVE "${APP_ARTIFACT}")
+file(REMOVE
+  "${ARTIFACT_ROOT}/ecosystem_app/.rocketc/targets/${NATIVE_TARGET}/ecosystem_app${OBJECT_SUFFIX}")
 file(REMOVE_RECURSE "${REGISTRY}")
 execute_process(COMMAND "${ROCKETC}" resolve "${WORK}/app" --offline
   RESULT_VARIABLE STATUS OUTPUT_VARIABLE OUTPUT ERROR_VARIABLE ERROR)
@@ -268,7 +287,7 @@ execute_process(COMMAND "${ROCKETC}" build "${WORK}/app"
 if(NOT STATUS EQUAL 0)
   message(FATAL_ERROR "locked offline build failed: ${OUTPUT}${ERROR}")
 endif()
-file(SHA256 "${WORK}/app/.rocketc/ecosystem_app.exe" OFFLINE_HASH)
+file(SHA256 "${APP_ARTIFACT}" OFFLINE_HASH)
 if(NOT ONLINE_HASH STREQUAL OFFLINE_HASH)
   message(FATAL_ERROR "online and locked-offline artifacts differ")
 endif()

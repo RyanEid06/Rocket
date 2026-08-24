@@ -18,6 +18,8 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace rocket {
@@ -141,7 +143,7 @@ bool transactionalWrite(const std::filesystem::path& path,
 #ifdef _WIN32
   const auto process = static_cast<unsigned long>(GetCurrentProcessId());
 #else
-  const auto process = 0UL;
+  const auto process = static_cast<unsigned long>(::getpid());
 #endif
   const auto partial = path.parent_path() /
                        (path.filename().string() + ".partial-" +
@@ -194,8 +196,6 @@ bool transactionalWrite(const std::filesystem::path& path,
                                      MOVEFILE_WRITE_THROUGH) != 0;
   if (!moved) {
 #else
-  if (std::filesystem::exists(path, filesystemError))
-    std::filesystem::remove(path, filesystemError);
   std::filesystem::rename(partial, path, filesystemError);
   if (filesystemError) {
 #endif
@@ -455,7 +455,7 @@ bool extractArchive(const std::string& archiveBytes,
 #ifdef _WIN32
   const auto process = static_cast<unsigned long>(GetCurrentProcessId());
 #else
-  const auto process = 0UL;
+  const auto process = static_cast<unsigned long>(::getpid());
 #endif
   const auto archivePath = stagingRoot / ("package-" + std::to_string(process) + ".tar");
   const auto extracted = stagingRoot / ("source-" + std::to_string(process));

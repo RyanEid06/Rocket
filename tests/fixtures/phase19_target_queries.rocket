@@ -1,0 +1,21 @@
+import std.target
+
+fn main() -> Int:
+    let alias = target.alias()
+    if alias != "windows-x64" and alias != "linux-x64" and alias != "linux-arm64" and alias != "macos-arm64":
+        return 1
+    if alias == "windows-x64" and(target.triple() != "x86_64-pc-windows-msvc" or target.os() != "windows" or target.architecture() != "x64" or target.environment() != "msvc" or not target.has_feature("codeview") or not target.has_feature("sse2")):
+        return 2
+    if alias == "linux-x64" and(target.triple() != "x86_64-unknown-linux-gnu" or target.os() != "linux" or target.architecture() != "x64" or target.environment() != "gnu" or not target.has_feature("dwarf") or not target.has_feature("sse2")):
+        return 3
+    if alias == "linux-arm64" and(target.triple() != "aarch64-unknown-linux-gnu" or target.os() != "linux" or target.architecture() != "arm64" or target.environment() != "gnu" or not target.has_feature("dwarf") or not target.has_feature("neon")):
+        return 4
+    if alias == "macos-arm64" and(target.triple() != "arm64-apple-macosx" or target.os() != "macos" or target.architecture() != "arm64" or target.environment() != "apple" or not target.has_feature("dwarf") or not target.has_feature("neon")):
+        return 5
+    if target.pointer_width() != 64 or target.endianness() != "little":
+        return 6
+    if not target.has_feature("threads") or not target.has_feature("dynamic-libraries"):
+        return 7
+    if target.has_feature("unknown-feature"):
+        return 8
+    return 0

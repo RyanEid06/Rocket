@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Compiler = '',
-    [string]$OutputDirectory = ''
+    [string]$OutputDirectory = '',
+    [string]$TargetAlias = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,14 +15,38 @@ $Compiler = [IO.Path]::GetFullPath($Compiler)
 if (-not $OutputDirectory) {
     $OutputDirectory = Join-Path $projectRoot 'out\debugging'
 }
+if (-not $TargetAlias) {
+    $TargetAlias = if ($env:ROCKET_NATIVE_TARGET) {
+        $env:ROCKET_NATIVE_TARGET
+    } else {
+        'windows-x64'
+    }
+}
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
 }
 New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
 $pdbutil = Join-Path $projectRoot 'dependencies\installed\llvm-22.1.6\bin\llvm-pdbutil.exe'
 $source = Join-Path $projectRoot 'tests\fixtures\phase6_types.rocket'
-$artifact = Join-Path (Split-Path $source -Parent) '.rocketc'
+$artifactRoot = if ($env:ROCKET_ARTIFACT_ROOT) {
+    Join-Path ([IO.Path]::GetFullPath($env:ROCKET_ARTIFACT_ROOT)) 'phase6_types'
+} else {
+    Split-Path $source -Parent
+}
+$artifact = Join-Path (Join-Path (Join-Path $artifactRoot '.rocketc') 'targets') $TargetAlias
 $records = [Collections.Generic.List[object]]::new()
+function Get-Sha256 {
+    param([string]$Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString(
+            $algorithm.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
+}
 
 foreach ($configuration in @(
     @{ name = 'debug'; arguments = @('--debug'); optimized = $false },
@@ -54,9 +79,9 @@ foreach ($configuration in @(
     $records.Add([pscustomobject]@{
         configuration = $configuration.name
         optimized = $configuration.optimized
-        executable_sha256 = (Get-FileHash (Join-Path $caseDirectory 'phase6_types.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
-        pdb_sha256 = (Get-FileHash $pdb -Algorithm SHA256).Hash.ToLowerInvariant()
-        source_map_sha256 = (Get-FileHash $mapPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        executable_sha256 = Get-Sha256 -Path (Join-Path $caseDirectory 'phase6_types.exe')
+        pdb_sha256 = Get-Sha256 -Path $pdb
+        source_map_sha256 = Get-Sha256 -Path $mapPath
         functions = $map.functions.Count
     })
 }
@@ -67,7 +92,13 @@ $ErrorActionPreference = 'Continue'
 & $Compiler build $panicSource --debug *> $null
 $ErrorActionPreference = $savedPreference
 if ($LASTEXITCODE -ne 0) { throw 'panic-location fixture build failed' }
-$panicMap = Get-Content (Join-Path (Split-Path $panicSource -Parent) '.rocketc\int_overflow.rocket.map.json') -Raw
+$panicRoot = if ($env:ROCKET_ARTIFACT_ROOT) {
+    Join-Path ([IO.Path]::GetFullPath($env:ROCKET_ARTIFACT_ROOT)) 'int_overflow'
+} else {
+    Split-Path $panicSource -Parent
+}
+$panicArtifact = Join-Path (Join-Path (Join-Path $panicRoot '.rocketc') 'targets') $TargetAlias
+$panicMap = Get-Content (Join-Path $panicArtifact 'int_overflow.rocket.map.json') -Raw
 if ($panicMap -notmatch 'int_overflow\.rocket' -or $panicMap -notmatch '"line":') {
     throw 'panic source map lacks the failing Rocket location'
 }

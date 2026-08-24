@@ -5,6 +5,7 @@ catalog has since grown additively for native interoperability, the Rocket
 1.6 package ecosystem, Rocket 1.8 concurrency, and Rocket 2.0 bounded-input
 hardening without changing existing
 code identities.
+Rocket 2.1 adds the `R6000` target/configuration category.
 
 Compiler diagnostics use the stable shape:
 
@@ -47,6 +48,11 @@ Manifest and tooling errors without a source position use
 | `R5005` | Dependency audit | SPDX/license policy, yank policy, signed advisory, provenance, or compromised-package failure |
 | `R5006` | Package transport | HTTPS/Git timeout, redirect, TLS, immutable-object, or bounded-download failure |
 | `R5007` | Package capability | Implicit build script or unapproved native dependency capability |
+| `R6001` | Unknown target | Target alias or canonical triple is not recognized |
+| `R6002` | Unsupported target | Target is recognized but not a production-supported target |
+| `R6003` | Target toolchain | Required compiler, linker, sysroot, SDK, runtime, or selected native input is unavailable |
+| `R6004` | Host/target operation | Requested cross path or native execution on a different target is unsupported |
+| `R6005` | Target manifest | Target-conditioned source or native configuration is invalid or ambiguous |
 | `R9001` | Internal compiler | Verified compiler invariant failed |
 
 Runtime failures remain a separate `rocket runtime error:` stream and exit with

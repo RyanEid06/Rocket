@@ -1,4 +1,4 @@
-import generated.rocket_raylib_adapter
+import src.rocket_raylib_adapter
 import src.rocket_raylib_callbacks
 import std.string
 

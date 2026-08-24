@@ -335,6 +335,14 @@ const char* BootstrapCodeGenerator::standardFunctionName(Intrinsic intrinsic) {
   case Intrinsic::TaskCancel: return "rocket_std_task_cancel";
   case Intrinsic::TaskGroupCancel: return "rocket_std_task_group_cancel";
   case Intrinsic::SyncOnceEmpty: return "rocket_std_sync_once_empty";
+  case Intrinsic::TargetAlias: return "rocket_std_target_alias";
+  case Intrinsic::TargetTriple: return "rocket_std_target_triple";
+  case Intrinsic::TargetOs: return "rocket_std_target_os";
+  case Intrinsic::TargetArchitecture: return "rocket_std_target_architecture";
+  case Intrinsic::TargetEnvironment: return "rocket_std_target_environment";
+  case Intrinsic::TargetPointerWidth: return "rocket_std_target_pointer_width";
+  case Intrinsic::TargetEndianness: return "rocket_std_target_endianness";
+  case Intrinsic::TargetHasFeature: return "rocket_std_target_has_feature";
   default: return nullptr;
   }
 }

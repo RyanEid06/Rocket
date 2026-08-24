@@ -1,4 +1,4 @@
-# Rocket Standard Library 2.0
+# Rocket Standard Library 2.1
 
 The stable library combines typed host-backed modules with bundled ordinary
 Rocket source modules, including the Rocket 1.2 dot-call additions, the
@@ -419,6 +419,16 @@ order. `process.executable_path()` returns the normalized executable path as
 `time.monotonic_milliseconds()` reads a non-decreasing process clock suitable
 for durations. `time.sleep_milliseconds(value)` blocks for a non-negative
 duration and returns `Unit`.
+
+## `std.target` (Rocket 2.1)
+
+`target.alias()`, `target.triple()`, `target.os()`,
+`target.architecture()`, `target.environment()`, and `target.endianness()`
+return immutable compiler-provided strings for the selected compilation target.
+`target.pointer_width()` returns `64` for every Rocket 2.1 production target.
+`target.has_feature(name)` recognizes the stable baseline feature vocabulary in
+`TARGETS.md` and returns `false` for an unknown well-formed name. These calls do
+not inspect the running host or environment and are constant-foldable.
 
 ## Ownership and compatibility
 

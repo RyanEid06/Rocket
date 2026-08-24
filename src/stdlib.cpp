@@ -4,6 +4,7 @@
 #include "platform_datetime.h"
 #include "platform_compression.h"
 #include "platform_sqlite.h"
+#include "platform_unicode.h"
 #include "safe_regex.h"
 #include "safe_archive.h"
 
@@ -32,6 +33,14 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <cerrno>
+#include <cstring>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+#include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 namespace {
@@ -474,6 +483,36 @@ bool stringifyJson(RocketAggregate* value, std::string& output, std::size_t dept
 std::uint64_t randomState = 0x4d595df4d0f33173ULL;
 std::vector<std::string> processArguments;
 std::string processExecutablePath;
+
+std::string runningExecutablePath(const char* fallback) {
+  try {
+#ifdef _WIN32
+    std::wstring buffer(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(
+        nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length > 0 && length < buffer.size()) {
+      buffer.resize(length);
+      return pathString(std::filesystem::path(buffer));
+    }
+#elif defined(__linux__)
+    return pathString(std::filesystem::canonical("/proc/self/exe"));
+#elif defined(__APPLE__)
+    std::uint32_t length = 1024;
+    std::vector<char> buffer(length);
+    if (_NSGetExecutablePath(buffer.data(), &length) != 0) {
+      buffer.resize(length);
+      if (_NSGetExecutablePath(buffer.data(), &length) != 0) buffer.clear();
+    }
+    if (!buffer.empty())
+      return pathString(std::filesystem::canonical(buffer.data()));
+#endif
+    if (fallback && *fallback)
+      return pathString(std::filesystem::absolute(fallback).lexically_normal());
+  } catch (const std::exception&) {
+    if (fallback) return fallback;
+  }
+  return {};
+}
 
 std::uint64_t nextRandom() {
   std::uint64_t value = randomState;
@@ -2044,8 +2083,16 @@ RocketAggregate* rocket_std_unicode_normalize_nfc(RocketString* value) {
 #ifdef _WIN32
   return normalizeUnicode(value, NormalizationC);
 #else
-  (void)value;
-  return errorResult("Unicode normalization is currently supported on Windows x64 only");
+  std::string normalized;
+  std::string error;
+  if (!rocket::platform_unicode::normalize(
+          stringValue(value),
+          rocket::platform_unicode::NormalizationForm::Nfc, normalized, error))
+    return errorResult(error);
+  RocketString* text = makeString(normalized);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
 #endif
 }
 
@@ -2053,8 +2100,16 @@ RocketAggregate* rocket_std_unicode_normalize_nfd(RocketString* value) {
 #ifdef _WIN32
   return normalizeUnicode(value, NormalizationD);
 #else
-  (void)value;
-  return errorResult("Unicode normalization is currently supported on Windows x64 only");
+  std::string normalized;
+  std::string error;
+  if (!rocket::platform_unicode::normalize(
+          stringValue(value),
+          rocket::platform_unicode::NormalizationForm::Nfd, normalized, error))
+    return errorResult(error);
+  RocketString* text = makeString(normalized);
+  RocketAggregate* result = okManaged(text);
+  rocket_rt_release(text);
+  return result;
 #endif
 }
 
@@ -2169,11 +2224,16 @@ std::uint8_t rocket_std_crypto_constant_time_equal(RocketAggregate* left,
 
 RocketAggregate* rocket_std_crypto_verify_signed_file(RocketString* path) {
   const std::string utf8 = stringValue(path);
+#ifdef _WIN32
   const std::wstring wide = utf8ToWide(utf8);
   if (!utf8.empty() && wide.empty()) return errorResult("signed-file path is not valid UTF-8");
+  const std::filesystem::path nativePath(wide);
+#else
+  const std::filesystem::path nativePath = std::filesystem::u8path(utf8);
+#endif
   bool trusted = false;
   std::string error;
-  if (!rocket::platform_crypto::verifySignedFile(wide, trusted, error))
+  if (!rocket::platform_crypto::verifySignedFile(nativePath, trusted, error))
     return errorResult(error);
   return okBool(trusted);
 }
@@ -3051,8 +3111,41 @@ RocketAggregate* rocket_std_process_run(RocketString* program, RocketArray* argu
   CloseHandle(process.hProcess);
   return okInt(static_cast<std::int64_t>(exitCode));
 #else
-  (void)program; (void)arguments;
-  return errorResult("process.run is only implemented on Windows x64");
+  std::vector<std::string> ownedArguments;
+  ownedArguments.push_back(stringValue(program));
+  if (ownedArguments.front().empty())
+    return errorResult("process program is empty or invalid UTF-8");
+  const std::uint64_t count = rocket_rt_collection_length(arguments);
+  ownedArguments.reserve(static_cast<std::size_t>(count) + 1);
+  for (std::uint64_t index = 0; index < count; ++index) {
+    RocketString* argument = rocket_rt_index_string(
+        arguments, static_cast<std::int64_t>(index));
+    ownedArguments.push_back(stringValue(argument));
+    rocket_rt_release(argument);
+  }
+  std::vector<char*> nativeArguments;
+  nativeArguments.reserve(ownedArguments.size() + 1);
+  for (auto& argument : ownedArguments) nativeArguments.push_back(argument.data());
+  nativeArguments.push_back(nullptr);
+  const pid_t child = ::fork();
+  if (child < 0)
+    return errorResult("could not fork process: " +
+                       std::string(std::strerror(errno)));
+  if (child == 0) {
+    ::execvp(nativeArguments[0], nativeArguments.data());
+    _exit(errno == ENOENT ? 127 : 126);
+  }
+  int status = 0;
+  pid_t waited = -1;
+  do {
+    waited = ::waitpid(child, &status, 0);
+  } while (waited < 0 && errno == EINTR);
+  if (waited < 0)
+    return errorResult("could not wait for process: " +
+                       std::string(std::strerror(errno)));
+  if (WIFEXITED(status)) return okInt(WEXITSTATUS(status));
+  if (WIFSIGNALED(status)) return okInt(128 + WTERMSIG(status));
+  return errorResult("process ended without an exit status");
 #endif
 }
 
@@ -3060,14 +3153,8 @@ void rocket_std_process_set_arguments(std::int32_t count, const char* const* arg
   processArguments.clear();
   processExecutablePath.clear();
   if (!arguments) return;
-  if (count > 0 && arguments[0]) {
-    try {
-      processExecutablePath = pathString(
-          std::filesystem::absolute(std::filesystem::path(arguments[0])).lexically_normal());
-    } catch (const std::exception&) {
-      processExecutablePath = arguments[0];
-    }
-  }
+  if (count > 0 && arguments[0])
+    processExecutablePath = runningExecutablePath(arguments[0]);
   for (std::int32_t index = 1; index < count; ++index)
     processArguments.emplace_back(arguments[index] ? arguments[index] : "");
 }
@@ -3115,6 +3202,73 @@ RocketAggregate* rocket_std_process_working_directory() {
     rocket_rt_release(value);
     return result;
   } catch (const std::exception& error) { return errorResult(error.what()); }
+}
+
+namespace {
+
+struct NativeTargetValues {
+  const char* alias;
+  const char* triple;
+  const char* operatingSystem;
+  const char* architecture;
+  const char* environment;
+  const char* debugFormat;
+  const char* baselineFeature;
+};
+
+constexpr NativeTargetValues nativeTargetValues() {
+#if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
+  return {"windows-x64", "x86_64-pc-windows-msvc", "windows", "x64",
+          "msvc", "codeview", "sse2"};
+#elif defined(__linux__) && defined(__x86_64__)
+  return {"linux-x64", "x86_64-unknown-linux-gnu", "linux", "x64", "gnu",
+          "dwarf", "sse2"};
+#elif defined(__linux__) && (defined(__aarch64__) || defined(__arm64__))
+  return {"linux-arm64", "aarch64-unknown-linux-gnu", "linux", "arm64",
+          "gnu", "dwarf", "neon"};
+#elif defined(__APPLE__) && defined(__MACH__) && (defined(__aarch64__) || defined(__arm64__))
+  return {"macos-arm64", "arm64-apple-macosx", "macos", "arm64", "apple",
+          "dwarf", "neon"};
+#else
+  return {"unsupported", "unknown-unknown-unknown", "unknown", "unknown",
+          "unknown", "unknown", "unknown"};
+#endif
+}
+
+} // namespace
+
+RocketString* rocket_std_target_alias() {
+  return makeString(nativeTargetValues().alias);
+}
+
+RocketString* rocket_std_target_triple() {
+  return makeString(nativeTargetValues().triple);
+}
+
+RocketString* rocket_std_target_os() {
+  return makeString(nativeTargetValues().operatingSystem);
+}
+
+RocketString* rocket_std_target_architecture() {
+  return makeString(nativeTargetValues().architecture);
+}
+
+RocketString* rocket_std_target_environment() {
+  return makeString(nativeTargetValues().environment);
+}
+
+std::int64_t rocket_std_target_pointer_width() {
+  return static_cast<std::int64_t>(sizeof(void*) * 8U);
+}
+
+RocketString* rocket_std_target_endianness() { return makeString("little"); }
+
+std::uint8_t rocket_std_target_has_feature(RocketString* name) {
+  const std::string feature = stringValue(name);
+  const auto values = nativeTargetValues();
+  return static_cast<std::uint8_t>(
+      feature == "threads" || feature == "dynamic-libraries" ||
+      feature == values.debugFormat || feature == values.baselineFeature);
 }
 
 std::int64_t rocket_std_time_unix_milliseconds() {

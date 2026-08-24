@@ -606,6 +606,15 @@ RocketAggregate* rocket_std_process_executable_path();
 RocketAggregate* rocket_std_process_environment(RocketString* name);
 RocketAggregate* rocket_std_process_working_directory();
 
+RocketString* rocket_std_target_alias();
+RocketString* rocket_std_target_triple();
+RocketString* rocket_std_target_os();
+RocketString* rocket_std_target_architecture();
+RocketString* rocket_std_target_environment();
+std::int64_t rocket_std_target_pointer_width();
+RocketString* rocket_std_target_endianness();
+std::uint8_t rocket_std_target_has_feature(RocketString* name);
+
 std::int64_t rocket_std_time_unix_milliseconds();
 std::int64_t rocket_std_time_monotonic_milliseconds();
 void rocket_std_time_sleep_milliseconds(std::int64_t milliseconds);

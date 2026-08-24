@@ -4,14 +4,25 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <cerrno>
+#include <cstring>
 #include <fstream>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#else
+#include <csignal>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 namespace rocket {
@@ -106,6 +117,97 @@ bool runGit(const std::vector<std::string>& arguments,
   }
   return true;
 }
+#else
+bool runGit(const std::vector<std::string>& arguments,
+            const std::filesystem::path& workingDirectory,
+            const std::filesystem::path& capturePath, std::string& output,
+            std::string& error) {
+  std::vector<std::string> hardened{
+      "git", "-c", "core.hooksPath=/dev/null", "-c", "credential.helper=",
+      "-c", "protocol.ext.allow=never", "-c", "protocol.file.allow=never",
+      "-c", "submodule.recurse=false"};
+  hardened.insert(hardened.end(), arguments.begin(), arguments.end());
+  std::vector<char*> nativeArguments;
+  nativeArguments.reserve(hardened.size() + 1);
+  for (auto& argument : hardened) nativeArguments.push_back(argument.data());
+  nativeArguments.push_back(nullptr);
+
+  const int capture = ::open(capturePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC,
+                             S_IRUSR | S_IWUSR);
+  if (capture < 0) {
+    error = "could not create bounded Git output capture";
+    return false;
+  }
+
+  const pid_t child = ::fork();
+  if (child < 0) {
+    ::close(capture);
+    error = "could not start the reviewed git transport";
+    return false;
+  }
+  if (child == 0) {
+    ::setpgid(0, 0);
+    if (::chdir(workingDirectory.c_str()) != 0 ||
+        ::dup2(capture, STDOUT_FILENO) < 0 ||
+        ::dup2(capture, STDERR_FILENO) < 0) {
+      _exit(126);
+    }
+    ::close(capture);
+    ::execvp("git", nativeArguments.data());
+    _exit(errno == ENOENT ? 127 : 126);
+  }
+  ::close(capture);
+  ::setpgid(child, child);
+
+  int status = 0;
+  bool completed = false;
+  const auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::seconds(30);
+  while (std::chrono::steady_clock::now() < deadline) {
+    const pid_t waited = ::waitpid(child, &status, WNOHANG);
+    if (waited == child) {
+      completed = true;
+      break;
+    }
+    if (waited < 0 && errno != EINTR) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  if (!completed) {
+    ::kill(-child, SIGTERM);
+    const auto terminateDeadline = std::chrono::steady_clock::now() +
+                                   std::chrono::seconds(1);
+    while (std::chrono::steady_clock::now() < terminateDeadline) {
+      const pid_t waited = ::waitpid(child, &status, WNOHANG);
+      if (waited == child) {
+        completed = true;
+        break;
+      }
+      if (waited < 0 && errno != EINTR) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (!completed) {
+      ::kill(-child, SIGKILL);
+      while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+    }
+    error = "Git acquisition exceeded the 30 second operation limit";
+  }
+
+  std::error_code filesystemError;
+  const auto size = std::filesystem::file_size(capturePath, filesystemError);
+  if (filesystemError || size > 64ULL * 1024 * 1024) {
+    error = "Git output exceeded the 64 MiB acquisition limit";
+    return false;
+  }
+  std::ifstream input(capturePath, std::ios::binary);
+  output.assign(std::istreambuf_iterator<char>(input),
+                std::istreambuf_iterator<char>());
+  if (!error.empty()) return false;
+  if (!completed || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    error = "Git transport failed without executing dependency code";
+    return false;
+  }
+  return true;
+}
 #endif
 
 std::string trim(std::string value) {
@@ -140,15 +242,14 @@ bool acquireGitPackage(const std::string& url, const std::string& revision,
     error = "remote Git dependency revision is not an immutable object ID";
     return false;
   }
-#ifndef _WIN32
-  (void)stagingRoot;
-  error = "secure Git acquisition is currently supported on Windows x64 only";
-  return false;
-#else
   std::error_code filesystemError;
   std::filesystem::create_directories(stagingRoot, filesystemError);
   if (filesystemError) { error = "could not create Git acquisition root"; return false; }
+#ifdef _WIN32
   const auto process = static_cast<unsigned long>(GetCurrentProcessId());
+#else
+  const auto process = static_cast<unsigned long>(::getpid());
+#endif
   const auto transaction = stagingRoot / ("git-" + std::to_string(process));
   if (std::filesystem::exists(transaction)) {
     const auto status = std::filesystem::symlink_status(transaction, filesystemError);
@@ -248,7 +349,6 @@ bool acquireGitPackage(const std::string& url, const std::string& revision,
   acquisition.sourceRoot = extracted;
   acquisition.temporaryRoot = transaction;
   return true;
-#endif
 }
 
 void discardGitAcquisition(const GitAcquisition& acquisition) {

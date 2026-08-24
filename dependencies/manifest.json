@@ -1,23 +1,80 @@
 {
-  "schemaVersion": 1,
-  "platform": "windows-x64",
-  "portable": {
-    "llvm": {
-      "version": "22.1.6",
-      "archive": "clang+llvm-22.1.6-x86_64-pc-windows-msvc.tar.xz",
-      "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/clang%2Bllvm-22.1.6-x86_64-pc-windows-msvc.tar.xz",
-      "size": 861999212,
-      "sha256": "657343edf361ca463bd642e39c74b251c6338b96cdbd55ff277555298b027696",
-      "installDirectory": "llvm-22.1.6"
+  "schemaVersion": 2,
+  "platforms": {
+    "windows-x64": {
+      "llvm": {
+        "version": "22.1.6",
+        "archive": "clang+llvm-22.1.6-x86_64-pc-windows-msvc.tar.xz",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/clang%2Bllvm-22.1.6-x86_64-pc-windows-msvc.tar.xz",
+        "size": 861999212,
+        "sha256": "657343edf361ca463bd642e39c74b251c6338b96cdbd55ff277555298b027696",
+        "installDirectory": "llvm-22.1.6"
+      },
+      "ninja": {
+        "version": "1.13.1",
+        "archive": "ninja-win-1.13.1.zip",
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-win.zip",
+        "size": 289808,
+        "sha256": "26a40fa8595694dec2fad4911e62d29e10525d2133c9a4230b66397774ae25bf",
+        "installDirectory": "ninja-1.13.1"
+      }
     },
-    "ninja": {
-      "version": "1.13.1",
-      "archive": "ninja-win-1.13.1.zip",
-      "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-win.zip",
-      "size": 289808,
-      "sha256": "26a40fa8595694dec2fad4911e62d29e10525d2133c9a4230b66397774ae25bf",
-      "installDirectory": "ninja-1.13.1"
+    "linux-x64": {
+      "llvm": {
+        "version": "22.1.6",
+        "archive": "LLVM-22.1.6-Linux-X64.tar.xz",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/LLVM-22.1.6-Linux-X64.tar.xz",
+        "size": 1937446204,
+        "sha256": "c5ac8ef89ca39d30cb32e9b83772f995dd891c685ebc188d593c943a64d5f8b5",
+        "installDirectory": "llvm-22.1.6"
+      },
+      "ninja": {
+        "version": "1.13.1",
+        "archive": "ninja-linux-1.13.1.zip",
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip",
+        "size": 134048,
+        "sha256": "0830252db77884957a1a4b87b05a1e2d9b5f658b8367f82999a941884cbe0238",
+        "installDirectory": "ninja-1.13.1"
+      }
     },
+    "linux-arm64": {
+      "llvm": {
+        "version": "22.1.6",
+        "archive": "LLVM-22.1.6-Linux-ARM64.tar.xz",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/LLVM-22.1.6-Linux-ARM64.tar.xz",
+        "size": 1770949840,
+        "sha256": "b67817634e8e1c2632dfc056af14d61b94f8e6502f4e557560eea227aa22ce37",
+        "installDirectory": "llvm-22.1.6"
+      },
+      "ninja": {
+        "version": "1.13.1",
+        "archive": "ninja-linux-aarch64-1.13.1.zip",
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux-aarch64.zip",
+        "size": 126282,
+        "sha256": "740f1b9f9d8ae68438240a6a2f3f7a27fc8b1946d2024a6a6b25857ee877987b",
+        "installDirectory": "ninja-1.13.1"
+      }
+    },
+    "macos-arm64": {
+      "llvm": {
+        "version": "22.1.6",
+        "archive": "LLVM-22.1.6-macOS-ARM64.tar.xz",
+        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.6/LLVM-22.1.6-macOS-ARM64.tar.xz",
+        "size": 1480006836,
+        "sha256": "8059d9d9eeb059c30d812b4a37291888f8dcba04d2b5ace61fd12d2904eaa0e9",
+        "installDirectory": "llvm-22.1.6"
+      },
+      "ninja": {
+        "version": "1.13.1",
+        "archive": "ninja-mac-1.13.1.zip",
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-mac.zip",
+        "size": 314009,
+        "sha256": "da7797794153629aca5570ef7c813342d0be214ba84632af886856e8f0063dd9",
+        "installDirectory": "ninja-1.13.1"
+      }
+    }
+  },
+  "shared": {
     "raylib": {
       "version": "6.0",
       "tagCommit": "dbc56a87da87d973a9c5baa4e7438a9d20121d28",
@@ -31,8 +88,9 @@
   "systemRequirements": {
     "cmake": ">=3.25",
     "git": ">=2.40",
-    "msvc": ">=14.50",
-    "windowsSdk": ">=10.0.26100",
-    "python": ">=3.11 (optional: benchmarks and release tooling)"
+    "python": ">=3.11",
+    "windows-x64": "MSVC >=19.50 and Windows SDK >=10.0.26100",
+    "linux": "C++20 compiler, glibc development files, libcurl, OpenSSL, ICU, X11/OpenGL/ALSA development files",
+    "macos-arm64": "Xcode command-line tools, macOS SDK, libcurl, OpenSSL, and ICU"
   }
 }

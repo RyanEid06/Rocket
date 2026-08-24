@@ -1,0 +1,481 @@
+name: Rocket Phase 19 native acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase19-native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native-acceptance:
+    name: ${{ matrix.target }} native acceptance
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runner: windows-2025-vs2026
+          - target: linux-x64
+            runner: ubuntu-24.04
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: macos-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Linux native SDK prerequisites
+        if: startsWith(matrix.target, 'linux-')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake git libasound2-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev libicu-dev libssl-dev libx11-dev libxcursor-dev \
+            libxi-dev libxinerama-dev libxrandr-dev
+
+      - name: Install macOS native SDK prerequisites
+        if: matrix.target == 'macos-arm64'
+        shell: bash
+        run: |
+          brew install cmake icu4c openssl@3
+          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix icu4c);$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$(brew --prefix icu4c)/lib:$(brew --prefix openssl@3)/lib" >> "$GITHUB_ENV"
+          echo "CPATH=$(brew --prefix icu4c)/include:$(brew --prefix openssl@3)/include" >> "$GITHUB_ENV"
+
+      - name: Restore pinned dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            dependencies/cache
+            dependencies/installed
+          key: rocket-phase19-${{ matrix.target }}-${{ hashFiles('dependencies/manifest.json') }}
+
+      - name: Install checksum-pinned LLVM, Ninja, and raylib
+        shell: bash
+        run: python dependencies/bootstrap.py --host "${{ matrix.target }}"
+
+      - name: Export POSIX toolchain paths
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        run: |
+          llvm="$GITHUB_WORKSPACE/dependencies/installed/llvm-22.1.6"
+          echo "$GITHUB_WORKSPACE/dependencies/installed/ninja-1.13.1" >> "$GITHUB_PATH"
+          echo "$llvm/bin" >> "$GITHUB_PATH"
+          echo "LLVM_DIR=$llvm/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
+          if [[ "${{ matrix.target }}" == macos-* ]]; then
+            echo "ROCKET_HOST_LINKER=$llvm/bin/ld64.lld" >> "$GITHUB_ENV"
+          else
+            echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
+          fi
+
+      - name: Record native host and pinned tool versions
+        shell: bash
+        run: |
+          mkdir -p "out/phase19/evidence/${{ matrix.target }}"
+          {
+            echo "runner=${{ matrix.runner }}"
+            echo "target=${{ matrix.target }}"
+            uname -a || true
+            cmake --version
+            python --version
+            git --version
+            dependencies/installed/ninja-1.13.1/ninja --version 2>/dev/null || dependencies/installed/ninja-1.13.1/ninja.exe --version
+            dependencies/installed/llvm-22.1.6/bin/clang --version 2>/dev/null || dependencies/installed/llvm-22.1.6/bin/clang.exe --version
+          } | tee "out/phase19/evidence/${{ matrix.target }}/host.txt"
+
+      - name: Configure, build, and test Windows Debug and Release
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          foreach ($configuration in 'debug', 'release') {
+            $preset = "phase19-windows-x64-$configuration"
+            cmake --preset $preset
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            cmake --build --preset $preset
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            ctest --preset $preset --output-junit "out/phase19/evidence/windows-x64/ctest-$configuration.xml"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Configure, build, and test POSIX Debug and Release
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        run: |
+          for configuration in debug release; do
+            preset="phase19-${{ matrix.target }}-$configuration"
+            cmake --preset "$preset"
+            cmake --build --preset "$preset"
+            ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-$configuration.xml"
+          done
+
+      - name: Prove LLVM-disabled C++ stage0 Debug and Release on Windows
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          foreach ($configuration in 'debug', 'release') {
+            $preset = "phase19-windows-x64-stage0-$configuration"
+            cmake --preset $preset
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            cmake --build --preset $preset
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            ctest --preset $preset --output-junit "out/phase19/evidence/windows-x64/ctest-stage0-$configuration.xml"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Prove LLVM-disabled C++ stage0 Debug and Release on POSIX
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        run: |
+          for configuration in debug release; do
+            preset="phase19-${{ matrix.target }}-stage0-$configuration"
+            cmake --preset "$preset"
+            cmake --build --preset "$preset"
+            ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-stage0-$configuration.xml"
+          done
+
+      - name: Prepare Windows target inputs for supported cross builds
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          $input = 'out/phase19/cross-input/windows-x64'
+          New-Item -ItemType Directory -Force "$input/lib" | Out-Null
+          Copy-Item 'out/phase19/build/phase19-windows-x64-release/rocket_runtime.lib' "$input/rocket_runtime.lib"
+          $sources = @{
+            msvc = (Join-Path $env:VCToolsInstallDir 'lib/x64')
+            ucrt = (Join-Path $env:WindowsSdkDir ("Lib/{0}ucrt/x64" -f $env:WindowsSDKVersion))
+            um = (Join-Path $env:WindowsSdkDir ("Lib/{0}um/x64" -f $env:WindowsSDKVersion))
+          }
+          foreach ($name in $sources.Keys) {
+            New-Item -ItemType Directory -Force "$input/lib/$name" | Out-Null
+            Copy-Item (Join-Path $sources[$name] '*.lib') "$input/lib/$name"
+          }
+          "target=windows-x64" | Set-Content -Encoding ascii "$input/INPUT.txt"
+
+      - name: Prepare Linux target inputs for supported cross builds
+        if: startsWith(matrix.target, 'linux-')
+        shell: bash
+        run: |
+          input="out/phase19/cross-input/${{ matrix.target }}"
+          mkdir -p "$input"
+          cp "out/phase19/build/phase19-${{ matrix.target }}-release/rocket_runtime.a" "$input/rocket_runtime.a"
+          python scripts/phase19_export_linux_sysroot.py \
+            --target "${{ matrix.target }}" --output "$input/sysroot"
+          printf 'target=%s\n' "${{ matrix.target }}" > "$input/INPUT.txt"
+
+      - name: Upload destination inputs for cross acceptance
+        if: matrix.target != 'macos-arm64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rocket-phase19-cross-input-${{ matrix.target }}
+          retention-days: 7
+          if-no-files-found: error
+          path: out/phase19/cross-input/${{ matrix.target }}
+
+      - name: Bootstrap stage0 through stage3 on Windows
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          $build = 'out/phase19/build/phase19-windows-x64-release'
+          $msvc = Join-Path $env:VCToolsInstallDir 'lib/x64'
+          $ucrt = Join-Path $env:WindowsSdkDir ("Lib/{0}ucrt/x64" -f $env:WindowsSDKVersion)
+          $um = Join-Path $env:WindowsSdkDir ("Lib/{0}um/x64" -f $env:WindowsSDKVersion)
+          python scripts/phase19_bootstrap.py --target windows-x64 --configuration Release `
+            --stage0 "$build/rocketc.exe" --runtime "$build/rocket_runtime.lib" `
+            --clang dependencies/installed/llvm-22.1.6/bin/clang.exe `
+            --librarian dependencies/installed/llvm-22.1.6/bin/llvm-lib.exe `
+            --native-library-root "$build/native/windows-x64" `
+            --library-directory $msvc --library-directory $ucrt --library-directory $um `
+            --output out/phase19/bootstrap/windows-x64-release
+
+      - name: Bootstrap stage0 through stage3 on POSIX
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        run: |
+          build="out/phase19/build/phase19-${{ matrix.target }}-release"
+          extra=()
+          if [[ "${{ matrix.target }}" == "macos-arm64" ]]; then
+            extra+=(--library-directory "$(brew --prefix icu4c)/lib")
+            extra+=(--library-directory "$(brew --prefix openssl@3)/lib")
+          fi
+          python scripts/phase19_bootstrap.py --target "${{ matrix.target }}" --configuration Release \
+            --stage0 "$build/rocketc" --runtime "$build/rocket_runtime.a" \
+            --clang dependencies/installed/llvm-22.1.6/bin/clang \
+            --librarian dependencies/installed/llvm-22.1.6/bin/llvm-ar \
+            --native-library-root "$build/native/${{ matrix.target }}" \
+            "${extra[@]}" --output "out/phase19/bootstrap/${{ matrix.target }}-release"
+
+      - name: Package and relocate Windows SDK
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          $build = 'out/phase19/build/phase19-windows-x64-release'
+          $msvc = Join-Path $env:VCToolsInstallDir 'lib/x64'
+          $ucrt = Join-Path $env:WindowsSdkDir ("Lib/{0}ucrt/x64" -f $env:WindowsSDKVersion)
+          $um = Join-Path $env:WindowsSdkDir ("Lib/{0}um/x64" -f $env:WindowsSDKVersion)
+          python scripts/phase19_package.py --target windows-x64 --configuration Release `
+            --build-dir $build --bootstrap-dir out/phase19/bootstrap/windows-x64-release `
+            --llvm-root dependencies/installed/llvm-22.1.6 `
+            --output-parent out/phase19/package --relocation-parent out/phase19/relocation `
+            --windows-library-directory $msvc --windows-library-directory $ucrt `
+            --windows-library-directory $um
+
+      - name: Package and relocate POSIX SDK
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        run: |
+          extra=()
+          if [[ "${{ matrix.target }}" == "macos-arm64" ]]; then
+            extra+=(--runtime-shared-library "$(brew --prefix openssl@3)/lib/libcrypto.dylib")
+            extra+=(--runtime-shared-library "$(brew --prefix openssl@3)/lib/libssl.dylib")
+            extra+=(--runtime-shared-library "$(brew --prefix icu4c)/lib/libicuuc.dylib")
+            extra+=(--runtime-shared-library "$(brew --prefix icu4c)/lib/libicudata.dylib")
+          fi
+          python scripts/phase19_package.py --target "${{ matrix.target }}" --configuration Release \
+            --build-dir "out/phase19/build/phase19-${{ matrix.target }}-release" \
+            --bootstrap-dir "out/phase19/bootstrap/${{ matrix.target }}-release" \
+            --llvm-root dependencies/installed/llvm-22.1.6 \
+            --output-parent out/phase19/package --relocation-parent out/phase19/relocation \
+            "${extra[@]}"
+
+      - name: Upload native acceptance evidence and SDK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rocket-phase19-${{ matrix.target }}-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            out/phase19/evidence/${{ matrix.target }}
+            out/phase19/bootstrap/${{ matrix.target }}-release/bootstrap-report.json
+            out/phase19/bootstrap/${{ matrix.target }}-release/SHA256SUMS.txt
+            out/phase19/package/package-report-${{ matrix.target }}.json
+            out/phase19/package/rocket-2.1.0-${{ matrix.target }}.zip
+            out/phase19/package/rocket-2.1.0-${{ matrix.target }}.tar.xz
+
+  cross-acceptance:
+    name: ${{ matrix.host }} to ${{ matrix.target }} cross acceptance
+    needs: native-acceptance
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: windows-x64
+            target: linux-x64
+            runner: windows-2025-vs2026
+            suffix: ''
+          - host: windows-x64
+            target: linux-arm64
+            runner: windows-2025-vs2026
+            suffix: ''
+          - host: linux-x64
+            target: linux-arm64
+            runner: ubuntu-24.04
+            suffix: ''
+          - host: linux-x64
+            target: windows-x64
+            runner: ubuntu-24.04
+            suffix: '.exe'
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Linux host prerequisites
+        if: matrix.host == 'linux-x64'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake git libasound2-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev libicu-dev libssl-dev libx11-dev libxcursor-dev \
+            libxi-dev libxinerama-dev libxrandr-dev
+
+      - name: Restore pinned host dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            dependencies/cache
+            dependencies/installed
+          key: rocket-phase19-cross-host-${{ matrix.host }}-${{ hashFiles('dependencies/manifest.json') }}
+
+      - name: Install checksum-pinned host LLVM, Ninja, and raylib
+        shell: bash
+        run: python dependencies/bootstrap.py --host "${{ matrix.host }}"
+
+      - name: Export Linux host toolchain paths
+        if: matrix.host == 'linux-x64'
+        shell: bash
+        run: |
+          llvm="$GITHUB_WORKSPACE/dependencies/installed/llvm-22.1.6"
+          echo "$GITHUB_WORKSPACE/dependencies/installed/ninja-1.13.1" >> "$GITHUB_PATH"
+          echo "$llvm/bin" >> "$GITHUB_PATH"
+          echo "LLVM_DIR=$llvm/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
+
+      - name: Download destination runtime and SDK inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: rocket-phase19-cross-input-${{ matrix.target }}
+          path: out/phase19/cross-input/${{ matrix.target }}
+
+      - name: Build the Windows host compiler
+        if: matrix.host == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          cmake --preset phase19-windows-x64-release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build --preset phase19-windows-x64-release --target rocketc
+
+      - name: Build the Linux x64 host compiler
+        if: matrix.host == 'linux-x64'
+        shell: bash
+        run: |
+          cmake --preset phase19-linux-x64-release
+          cmake --build --preset phase19-linux-x64-release --target rocketc
+
+      - name: Assemble SDK and cross-build from Windows x64
+        if: matrix.host == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          $pair = '${{ matrix.host }}-to-${{ matrix.target }}'
+          $input = 'out/phase19/cross-input/${{ matrix.target }}'
+          $sdk = "out/phase19/cross-sdk/$pair"
+          python scripts/phase19_cross_sdk.py --target '${{ matrix.target }}' `
+            --host-llvm-root dependencies/installed/llvm-22.1.6 `
+            --target-runtime "$input/rocket_runtime.a" --sysroot "$input/sysroot" `
+            --output $sdk
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:ROCKET_ARTIFACT_ROOT = "out/phase19/cross-build/$pair"
+          & 'out/phase19/build/phase19-windows-x64-release/rocketc.exe' build `
+            tests/fixtures/phase19_cross_application --target '${{ matrix.target }}' `
+            --target-sdk $sdk
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $product = "out/phase19/cross-product/$pair"
+          New-Item -ItemType Directory -Force $product | Out-Null
+          Copy-Item "$env:ROCKET_ARTIFACT_ROOT/phase19_cross_application/.rocketc/targets/${{ matrix.target }}/phase19-cross-application" $product
+          Copy-Item "$sdk/CROSS_SDK.json" $product
+
+      - name: Assemble SDK and cross-build from Linux x64
+        if: matrix.host == 'linux-x64'
+        shell: bash
+        run: |
+          pair='${{ matrix.host }}-to-${{ matrix.target }}'
+          input='out/phase19/cross-input/${{ matrix.target }}'
+          sdk="out/phase19/cross-sdk/$pair"
+          extra=()
+          runtime="$input/rocket_runtime.a"
+          if [[ '${{ matrix.target }}' == 'windows-x64' ]]; then
+            runtime="$input/rocket_runtime.lib"
+            extra+=(--windows-library-directory "$input/lib/msvc")
+            extra+=(--windows-library-directory "$input/lib/ucrt")
+            extra+=(--windows-library-directory "$input/lib/um")
+          else
+            extra+=(--sysroot "$input/sysroot")
+          fi
+          python scripts/phase19_cross_sdk.py --target '${{ matrix.target }}' \
+            --host-llvm-root dependencies/installed/llvm-22.1.6 \
+            --target-runtime "$runtime" "${extra[@]}" --output "$sdk"
+          export ROCKET_ARTIFACT_ROOT="out/phase19/cross-build/$pair"
+          out/phase19/build/phase19-linux-x64-release/rocketc build \
+            tests/fixtures/phase19_cross_application --target '${{ matrix.target }}' \
+            --target-sdk "$sdk"
+          product="out/phase19/cross-product/$pair"
+          mkdir -p "$product"
+          cp "$ROCKET_ARTIFACT_ROOT/phase19_cross_application/.rocketc/targets/${{ matrix.target }}/phase19-cross-application${{ matrix.suffix }}" "$product/"
+          cp "$sdk/CROSS_SDK.json" "$product/"
+
+      - name: Upload cross-built destination artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rocket-phase19-cross-${{ matrix.host }}-to-${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 30
+          path: out/phase19/cross-product/${{ matrix.host }}-to-${{ matrix.target }}
+
+  cross-destination-execution:
+    name: Execute ${{ matrix.host }} to ${{ matrix.target }} artifact natively
+    needs: cross-acceptance
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: windows-x64
+            target: linux-x64
+            runner: ubuntu-24.04
+            suffix: ''
+          - host: windows-x64
+            target: linux-arm64
+            runner: ubuntu-24.04-arm
+            suffix: ''
+          - host: linux-x64
+            target: linux-arm64
+            runner: ubuntu-24.04-arm
+            suffix: ''
+          - host: linux-x64
+            target: windows-x64
+            runner: windows-2025-vs2026
+            suffix: '.exe'
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Download cross-built artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rocket-phase19-cross-${{ matrix.host }}-to-${{ matrix.target }}
+          path: cross-product
+
+      - name: Execute cross-built Linux artifact
+        if: startsWith(matrix.target, 'linux-')
+        shell: bash
+        run: |
+          chmod +x cross-product/phase19-cross-application
+          output=$(cross-product/phase19-cross-application)
+          test "$output" = 'phase19-cross-ok'
+
+      - name: Execute cross-built Windows artifact
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          $output = & 'cross-product/phase19-cross-application.exe'
+          if ($LASTEXITCODE -ne 0 -or $output -ne 'phase19-cross-ok') { exit 1 }

@@ -1,0 +1,4 @@
+import src.platform
+
+fn main() -> Int:
+    return platform.expected()

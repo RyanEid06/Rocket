@@ -7,6 +7,9 @@ if(NOT ROCKET_ROOT)
   get_filename_component(ROCKET_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 endif()
 if(NOT ROCKETC)
+  find_program(ROCKETC NAMES rocketc rocketc.exe)
+endif()
+if(NOT ROCKETC AND WIN32)
   set(ROCKETC "${ROCKET_ROOT}/out/build/windows-release/rocketc.exe")
 endif()
 if(NOT EXISTS "${ROCKETC}")
@@ -15,7 +18,7 @@ endif()
 
 set(raylib_source "${ROCKET_ROOT}/dependencies/installed/raylib-6.0")
 if(NOT EXISTS "${raylib_source}/src/raylib.h")
-  message(FATAL_ERROR "Pinned raylib 6.0 is missing; run Rocket dependencies/bootstrap.ps1")
+  message(FATAL_ERROR "Pinned raylib 6.0 is missing; bootstrap the Rocket dependencies")
 endif()
 
 set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -45,7 +48,7 @@ endforeach()
 set(PLATFORM Desktop CACHE STRING "" FORCE)
 add_subdirectory("${raylib_source}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
-set(native_output "${CMAKE_CURRENT_SOURCE_DIR}/.rocketc/native")
+set(native_output "${CMAKE_CURRENT_BINARY_DIR}/native")
 set_target_properties(raylib PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${native_output}"
   MSVC_RUNTIME_LIBRARY "MultiThreaded")
@@ -59,17 +62,19 @@ set_target_properties(rocket_raylib_adapter PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${native_output}"
   MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
-set(bindings "${CMAKE_CURRENT_SOURCE_DIR}/generated/rocket_raylib_adapter.rocket")
+set(bindings "${CMAKE_CURRENT_BINARY_DIR}/generated/rocket_raylib_adapter.rocket")
 add_custom_command(
   OUTPUT "${bindings}"
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/generated"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/generated"
   COMMAND "${ROCKETC}" bind "${CMAKE_CURRENT_SOURCE_DIR}/native/rocket_raylib_adapter.h"
           --output "${bindings}"
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/native/rocket_raylib_adapter.h"
   VERBATIM)
 
 add_custom_target(rocket_app ALL
-  COMMAND "${ROCKETC}" build "${CMAKE_CURRENT_SOURCE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E env
+          "ROCKET_NATIVE_LIBRARY_ROOT=${native_output}"
+          "${ROCKETC}" build "${CMAKE_CURRENT_SOURCE_DIR}"
   DEPENDS rocket_raylib_adapter "${bindings}"
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   USES_TERMINAL)

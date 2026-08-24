@@ -1,4 +1,4 @@
-# Rocket Language Specification 2.0
+# Rocket Language Specification 2.1
 
 This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
@@ -6,6 +6,8 @@ incompatible language changes require a recorded decision and a new major
 version. Rocket 2.0 freezes the additive language contracts through Rocket 1.8, including
 the Rocket 1.6 package metadata and source-selection contract. Rocket 1.4 and
 1.5 add validated native/library surfaces without introducing new grammar.
+Rocket 2.1 adds the target and portability contract in `TARGETS.md` without
+changing the frozen grammar or runtime ABI v1.
 
 ## Layout and comments
 
@@ -485,6 +487,8 @@ lower to typed MIR calls. The stable foundational modules are `std.string`,
 `std.sqlite`, and `std.testing`. Rocket 1.8 adds `std.ownership`, `std.buffer`,
 `std.thread`, `std.task`, `std.sync`, `std.channel`, `std.cancel`,
 `std.async_time`, `std.async_file`, `std.async_net`, and `std.async_process`.
+Rocket 2.1 adds `std.target`; its immutable queries describe the selected
+compilation target and never the compiler host.
 
 Standard APIs use the same `Option` and `Result` enums as user code. File,
 process, conversion, JSON, and CSV failures are recoverable values. No standard
@@ -522,6 +526,13 @@ relative paths contained by that root. Source imports resolve from the package
 root. Standalone-file compilation instead uses the file's parent directory as
 its import root. In both modes, generated artifacts are outside the source graph
 and cannot become implicit modules.
+
+Rocket 2.1 selects an optional `[target.<alias>]` source overlay before source
+discovery, lexing, or type checking. The selected overlay takes precedence for
+the same logical module and inactive target roots are semantically nonexistent.
+Dependencies make the same selection from the normalized target. The exact
+aliases, containment rules, ambiguity diagnostics, and lookup order are in
+`TARGETS.md`.
 
 Formatting is not semantically observable. The canonical formatter preserves
 tokens, literals, and line comments while normalizing whitespace and newlines.

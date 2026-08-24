@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$Compiler = '')
+param(
+    [string]$Compiler = '',
+    [string]$OutputDirectory = ''
+)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
@@ -7,7 +10,11 @@ if (-not $Compiler) {
     . (Join-Path $projectRoot 'dependencies\activate.ps1')
     $Compiler = Join-Path $projectRoot 'out\build\windows-debug\rocketc.exe'
 }
-$work = Join-Path $projectRoot 'out\tooling'
+$work = if ($OutputDirectory) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+} else {
+    Join-Path $projectRoot 'out\tooling'
+}
 New-Item -ItemType Directory -Path $work -Force | Out-Null
 $hello = Join-Path $projectRoot 'examples\hello.rocket'
 $coverage = Join-Path $work 'coverage.json'

@@ -2,7 +2,9 @@
 
 #include <charconv>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
+#include <ctime>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -50,6 +52,41 @@ inline bool weekday(std::int64_t year, std::int64_t month, std::int64_t day,
                           century / 4 + 5 * century) % 7;
   result = (h + 6) % 7;
   return true;
+}
+
+inline std::int64_t daysFromCivil(std::int64_t year, unsigned month,
+                                  unsigned day) {
+  year -= month <= 2;
+  const std::int64_t era = (year >= 0 ? year : year - 399) / 400;
+  const unsigned within = static_cast<unsigned>(year - era * 400);
+  const unsigned dayOfYear =
+      (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 + day - 1;
+  const unsigned dayOfEra =
+      within * 365 + within / 4 - within / 100 + dayOfYear;
+  return era * 146097 + static_cast<std::int64_t>(dayOfEra) - 719468;
+}
+
+inline void civilFromDays(std::int64_t days, std::int64_t& year,
+                          unsigned& month, unsigned& day) {
+  days += 719468;
+  const std::int64_t era = (days >= 0 ? days : days - 146096) / 146097;
+  const unsigned dayOfEra = static_cast<unsigned>(days - era * 146097);
+  const unsigned yearOfEra =
+      (dayOfEra - dayOfEra / 1460 + dayOfEra / 36524 - dayOfEra / 146096) /
+      365;
+  year = static_cast<std::int64_t>(yearOfEra) + era * 400;
+  const unsigned dayOfYear =
+      dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100);
+  const unsigned monthPrime = (5 * dayOfYear + 2) / 153;
+  day = dayOfYear - (153 * monthPrime + 2) / 5 + 1;
+  month = monthPrime < 10 ? monthPrime + 3 : monthPrime - 9;
+  year += month <= 2;
+}
+
+inline std::int64_t floorDivide(std::int64_t value, std::int64_t divisor) {
+  std::int64_t quotient = value / divisor;
+  if (value % divisor < 0) --quotient;
+  return quotient;
 }
 
 #ifdef _WIN32
@@ -118,9 +155,32 @@ inline bool formatUtc(std::int64_t unixMilliseconds, std::string& result,
   result.assign(text, static_cast<std::size_t>(written));
   return true;
 #else
-  (void)unixMilliseconds; (void)result;
-  error = "calendar conversion is currently supported on Windows x64 only";
-  return false;
+  constexpr std::int64_t dayMilliseconds = 86400000;
+  const std::int64_t days = floorDivide(unixMilliseconds, dayMilliseconds);
+  const std::int64_t within = unixMilliseconds - days * dayMilliseconds;
+  std::int64_t year = 0;
+  unsigned month = 0;
+  unsigned day = 0;
+  civilFromDays(days, year, month, day);
+  if (year < 1 || year > 9999) {
+    error = "timestamp is outside the supported calendar range";
+    return false;
+  }
+  const unsigned hour = static_cast<unsigned>(within / 3600000);
+  const unsigned minute = static_cast<unsigned>((within / 60000) % 60);
+  const unsigned second = static_cast<unsigned>((within / 1000) % 60);
+  const unsigned millisecond = static_cast<unsigned>(within % 1000);
+  char text[32]{};
+  const int written = std::snprintf(
+      text, sizeof(text), "%04lld-%02u-%02uT%02u:%02u:%02u.%03uZ",
+      static_cast<long long>(year), month, day, hour, minute, second,
+      millisecond);
+  if (written != 24) {
+    error = "could not format UTC timestamp";
+    return false;
+  }
+  result.assign(text, static_cast<std::size_t>(written));
+  return true;
 #endif
 }
 
@@ -170,9 +230,19 @@ inline bool parseUtc(std::string_view text, std::int64_t& result,
   result = unixMilliseconds(file);
   return true;
 #else
-  (void)result;
-  error = "calendar conversion is currently supported on Windows x64 only";
-  return false;
+  constexpr std::int64_t dayMilliseconds = 86400000;
+  const std::int64_t days = daysFromCivil(year, month, day);
+  if (days > (std::numeric_limits<std::int64_t>::max() -
+              static_cast<std::int64_t>(dayMilliseconds - 1)) /
+                 dayMilliseconds ||
+      days < std::numeric_limits<std::int64_t>::min() / dayMilliseconds) {
+    error = "UTC timestamp is outside the supported calendar range";
+    return false;
+  }
+  result = days * dayMilliseconds + static_cast<std::int64_t>(hour) * 3600000 +
+           static_cast<std::int64_t>(minute) * 60000 +
+           static_cast<std::int64_t>(second) * 1000 + millisecond;
+  return true;
 #endif
 }
 
@@ -197,9 +267,29 @@ inline bool localOffsetMinutes(std::int64_t unixMs, std::int64_t& result,
   result = (unixMilliseconds(localAsFile) - unixMilliseconds(utcAsFile)) / 60000;
   return true;
 #else
-  (void)unixMs; (void)result;
-  error = "time-zone conversion is currently supported on Windows x64 only";
-  return false;
+  const std::int64_t seconds = floorDivide(unixMs, 1000);
+  if (static_cast<long double>(seconds) <
+          static_cast<long double>(std::numeric_limits<std::time_t>::min()) ||
+      static_cast<long double>(seconds) >
+          static_cast<long double>(std::numeric_limits<std::time_t>::max())) {
+    error = "timestamp is outside the host time-zone range";
+    return false;
+  }
+  const std::time_t value = static_cast<std::time_t>(seconds);
+  std::tm utc{};
+  if (!gmtime_r(&value, &utc)) {
+    error = "could not convert timestamp to UTC calendar time";
+    return false;
+  }
+  utc.tm_isdst = -1;
+  const std::time_t interpretedLocal = std::mktime(&utc);
+  if (interpretedLocal == static_cast<std::time_t>(-1)) {
+    error = "could not calculate the local UTC offset";
+    return false;
+  }
+  result = static_cast<std::int64_t>(
+               std::difftime(value, interpretedLocal) / 60.0);
+  return true;
 #endif
 }
 
@@ -219,9 +309,20 @@ inline bool timezoneName(std::string& result, std::string& error) {
   }
   return true;
 #else
-  (void)result;
-  error = "time-zone names are currently supported on Windows x64 only";
-  return false;
+  const std::time_t now = std::time(nullptr);
+  std::tm local{};
+  if (!localtime_r(&now, &local)) {
+    error = "could not read the local time-zone configuration";
+    return false;
+  }
+  char name[128]{};
+  const std::size_t length = std::strftime(name, sizeof(name), "%Z", &local);
+  if (length == 0) {
+    error = "local time-zone name is unavailable";
+    return false;
+  }
+  result.assign(name, length);
+  return true;
 #endif
 }
 

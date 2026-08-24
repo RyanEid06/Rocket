@@ -37,17 +37,17 @@ if (-not (Test-Path -LiteralPath $env:LLVM_DIR)) { throw "LLVM CMake package not
 $manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'manifest.json') -Raw |
     ConvertFrom-Json
 $raylibHeader = Join-Path -Path $PSScriptRoot -ChildPath `
-    ("installed\{0}\src\raylib.h" -f $manifest.portable.raylib.installDirectory)
+    ("installed\{0}\src\raylib.h" -f $manifest.shared.raylib.installDirectory)
 if (-not (Test-Path -LiteralPath $raylibHeader -PathType Leaf)) {
     throw "Pinned raylib source was not found at $raylibHeader"
 }
-$raylibVersionParts = $manifest.portable.raylib.version.Split('.')
+$raylibVersionParts = $manifest.shared.raylib.version.Split('.')
 $raylibMajorMatch = Select-String -LiteralPath $raylibHeader -Pattern `
     ("^#define RAYLIB_VERSION_MAJOR\s+{0}$" -f $raylibVersionParts[0])
 $raylibMinorMatch = Select-String -LiteralPath $raylibHeader -Pattern `
     ("^#define RAYLIB_VERSION_MINOR\s+{0}$" -f $raylibVersionParts[1])
 if (-not $raylibMajorMatch -or -not $raylibMinorMatch) {
-    throw "Installed raylib header does not report version $($manifest.portable.raylib.version)."
+    throw "Installed raylib header does not report version $($manifest.shared.raylib.version)."
 }
-Write-Host ('{0,-12} {1}' -f 'raylib:', $manifest.portable.raylib.version)
+Write-Host ('{0,-12} {1}' -f 'raylib:', $manifest.shared.raylib.version)
 Write-Host 'Toolchain verification passed.'

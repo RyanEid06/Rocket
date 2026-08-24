@@ -126,6 +126,73 @@ int main() {
       "target-aware native inputs and library products load deterministically: " + error,
       failures);
 
+  const auto targeted =
+      std::filesystem::current_path() / "package_test_targeted";
+  std::filesystem::remove_all(targeted, errorCode);
+  std::filesystem::create_directories(targeted / "src", errorCode);
+  std::filesystem::create_directories(
+      targeted / "targets/linux-arm64/tests", errorCode);
+  std::filesystem::create_directories(targeted / "native/windows", errorCode);
+  std::filesystem::create_directories(targeted / "native/linux-arm64", errorCode);
+  write(targeted / "src/main.rocket",
+        "fn main() -> Int:\n    return 10\n");
+  write(targeted / "targets/linux-arm64/main.rocket",
+        "fn main() -> Int:\n    return 20\n");
+  write(targeted / "targets/linux-arm64/tests/target_test.rocket",
+        "fn main() -> Int:\n    return 0\n");
+  write(targeted / "native/windows/api.h", "int windows_api(void);\n");
+  write(targeted / "native/linux-arm64/api.h", "int linux_api(void);\n");
+  write(targeted / "rocket.toml",
+        "[package]\nname = \"targeted\"\nentry = \"src/main.rocket\"\n"
+        "[target.linux-arm64]\nsource-root = \"targets/linux-arm64\"\n"
+        "entry = \"main.rocket\"\ntest-directory = \"tests\"\n"
+        "[native.windows-x64]\nlibraries = \"windows.lib\"\n"
+        "headers = \"native/windows/api.h\"\n"
+        "[native.linux-arm64]\nlibraries = \"linux.a\"\n"
+        "headers = \"native/linux-arm64/api.h\"\n");
+  rocket::TargetError targetError;
+  const auto windowsTarget = rocket::parseTarget("windows-x64", targetError);
+  const auto linuxArm64Target = rocket::parseTarget("linux-arm64", targetError);
+  error.clear();
+  auto windowsPackage = windowsTarget
+                            ? rocket::loadPackage(targeted, *windowsTarget, error)
+                            : std::optional<rocket::Package>{};
+  rocket::test::expect(
+      windowsPackage && windowsPackage->entry == targeted / "src/main.rocket" &&
+          windowsPackage->targetSourceRoot.empty() &&
+          windowsPackage->nativeLibraries ==
+              std::vector<std::string>{"windows.lib"} &&
+          windowsPackage->nativeHeaders.front() ==
+              targeted / "native/windows/api.h",
+      "inactive target sources and native inputs are not selected on Windows: " +
+          error,
+      failures);
+  error.clear();
+  auto linuxPackage = linuxArm64Target
+                          ? rocket::loadPackage(targeted, *linuxArm64Target, error)
+                          : std::optional<rocket::Package>{};
+  rocket::test::expect(
+      linuxPackage &&
+          linuxPackage->entry == targeted / "targets/linux-arm64/main.rocket" &&
+          linuxPackage->tests == targeted / "targets/linux-arm64/tests" &&
+          linuxPackage->targetSourceRoot == targeted / "targets/linux-arm64" &&
+          linuxPackage->nativeLibraries == std::vector<std::string>{"linux.a"} &&
+          linuxPackage->nativeHeaders.front() ==
+              targeted / "native/linux-arm64/api.h",
+      "the normalized target selects its source overlay, tests, and native inputs: " +
+          error,
+      failures);
+
+  write(targeted / "rocket.toml",
+        "[package]\nname = \"targeted\"\nentry = \"src/main.rocket\"\n"
+        "[target.plan9-x64]\nsource-root = \"targets/plan9\"\n");
+  error.clear();
+  rocket::test::expect(
+      windowsTarget && !rocket::loadPackage(targeted, *windowsTarget, error) &&
+          error.find("target manifest uses unknown target section") !=
+              std::string::npos,
+      "unknown target manifest sections fail deterministically", failures);
+
   rocket::test::expect(
       rocket::isValidSemanticVersion("1.2.3") &&
           rocket::isValidSemanticVersion("2.0.0-beta.1+build.7") &&
@@ -401,6 +468,7 @@ int main() {
   std::filesystem::remove_all(workspace, errorCode);
   std::filesystem::remove_all(invalid, errorCode);
   std::filesystem::remove_all(native, errorCode);
+  std::filesystem::remove_all(targeted, errorCode);
   std::filesystem::remove_all(phase16, errorCode);
   return rocket::test::finish(failures, "package");
 }

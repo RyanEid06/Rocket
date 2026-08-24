@@ -580,6 +580,20 @@ void HirLowerer::registerStandardLibrary() {
   add("std.process.working_directory", {}, result(Type::String),
       Intrinsic::ProcessWorkingDirectory);
 
+  add("std.target.alias", {}, Type::String, Intrinsic::TargetAlias);
+  add("std.target.triple", {}, Type::String, Intrinsic::TargetTriple);
+  add("std.target.os", {}, Type::String, Intrinsic::TargetOs);
+  add("std.target.architecture", {}, Type::String,
+      Intrinsic::TargetArchitecture);
+  add("std.target.environment", {}, Type::String,
+      Intrinsic::TargetEnvironment);
+  add("std.target.pointer_width", {}, Type::Int,
+      Intrinsic::TargetPointerWidth);
+  add("std.target.endianness", {}, Type::String,
+      Intrinsic::TargetEndianness);
+  add("std.target.has_feature", {Type::String}, Type::Bool,
+      Intrinsic::TargetHasFeature);
+
   add("std.time.unix_milliseconds", {}, Type::Int, Intrinsic::TimeUnixMilliseconds);
   add("std.time.monotonic_milliseconds", {}, Type::Int,
       Intrinsic::TimeMonotonicMilliseconds);

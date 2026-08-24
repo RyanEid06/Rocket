@@ -1,0 +1,2 @@
+pub fn expected() -> Int:
+    return 0

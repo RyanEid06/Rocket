@@ -1,5 +1,7 @@
 #pragma once
 
+#include "target.h"
+
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -28,6 +30,10 @@ struct Package {
   std::string registry;
   std::filesystem::path entry;
   std::filesystem::path tests;
+  std::filesystem::path portableEntry;
+  std::filesystem::path portableTests;
+  std::filesystem::path targetSourceRoot;
+  Target compilationTarget;
   PackageOutputKind outputKind = PackageOutputKind::Executable;
   std::string outputName;
   std::vector<std::string> nativeLibraries;
@@ -70,6 +76,7 @@ struct PackageDependencyRoot {
   std::string identity;
   std::filesystem::path root;
   std::filesystem::path entry;
+  std::filesystem::path targetSourceRoot;
   std::vector<std::string> dependencies;
   bool direct = false;
   std::vector<std::string> nativeLibraries;
@@ -84,6 +91,8 @@ struct ResolveOptions {
 
 std::optional<Package> loadPackage(const std::filesystem::path& path,
                                    std::string& error);
+std::optional<Package> loadPackage(const std::filesystem::path& path,
+                                   const Target& target, std::string& error);
 bool createPackage(const std::filesystem::path& directory,
                    const std::string& requestedName, std::string& error);
 std::vector<std::filesystem::path> packageTests(const Package& package,

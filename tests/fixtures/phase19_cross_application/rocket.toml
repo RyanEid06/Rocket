@@ -1,0 +1,8 @@
+[package]
+name = "phase19_cross_application"
+version = "2.1.0"
+entry = "src/main.rocket"
+
+[build]
+kind = "executable"
+name = "phase19-cross-application"

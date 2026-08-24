@@ -563,3 +563,34 @@ recreates the fixed-timestamp archive twice, and verifies relocation. External
 adoption is a continuing maturity/maintenance signal that cannot be fabricated
 by repository tests; owner acceptance completes the technical Phase 20 gate
 without claiming independent production users.
+
+## D034 - Phase 19 resumes as the additive Rocket 2.1 portability release
+
+**Accepted for Rocket 2.1.** Phase 19 resumes after the Rocket 2.0 freeze by
+owner direction. The milestone number remains Phase 19, but its first portable
+release is named Rocket 2.1 rather than retroactively renaming the shipped 2.0
+contract. It adds no lexical preprocessor and preserves all valid Rocket 2.0
+source plus runtime ABI v1. The permanent C++20 compiler remains reproducible
+`stage0`, and the Rocket-written compiler must implement equivalent behavior.
+
+The production targets are Windows x64 (`x86_64-pc-windows-msvc`), Linux x64
+(`x86_64-unknown-linux-gnu`), Linux ARM64
+(`aarch64-unknown-linux-gnu`), and macOS ARM64 (`arm64-apple-macosx`). Windows
+ARM64 is a recognized evaluation target, not a supported target. Host and
+target identities are distinct compiler inputs; caches, native dependencies,
+artifacts, toolchain selection, linker behavior, and target queries use the
+normalized target and never ambient host inference.
+
+Conditional compilation uses target-specific manifest source overlays selected
+before lexing and type checking. This preserves the frozen grammar and excludes
+inactive source from discovery, diagnostics, and cache keys. Target-native
+inputs use the same stable aliases. `std.target` reports immutable selected
+target values. The complete rules, diagnostic categories, supported cross
+paths, platform differences, package requirements, and native acceptance gate
+are normative in `TARGETS.md`.
+
+No production target claim is accepted from source changes, cross-emission,
+emulation, or CI configuration alone. Each target requires observed native
+build, bootstrap, complete-suite, packaging, installation, checksum, and
+relocation evidence in `PHASE_19_AUDIT.md`. The frozen Rocket 2.0 Windows SDK
+consumed by Scroll2Roll is an immutable safety boundary during Phase 19.

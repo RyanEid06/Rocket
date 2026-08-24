@@ -1,10 +1,12 @@
-# Rocket Package and Registry Contract 2.0
+# Rocket Package and Registry Contract 2.1
 
 Rocket 1.6 makes third-party source selection reproducible and treats registry,
 archive, credential, advisory, and native-input handling as security boundaries.
 This contract is additive to the Rocket 1.0 package layout and does not change
 runtime ABI v1. Rocket 2.0 freezes this package/registry contract and adds only
 bounded input processing and the local artifact cache described below.
+Rocket 2.1 adds deterministic target-conditioned source and native-input
+sections under the unchanged security and reproducibility boundary.
 
 `rocket.toml` is limited to 1 MiB, 64 KiB per line, 4,096 entries, and 1,024
 dependencies. Rocket source discovery is limited to 4,096 files and 64 MiB.
@@ -217,12 +219,21 @@ integrity, policy, yank-policy, or advisory failures.
 Dependency source is inert during resolve, audit, documentation, and publish.
 Rocket 1.6 introduces no dependency build-script execution. The only accepted
 `build-scripts` policy is `deny`; any dependency declaring a build hook is an
-error. Dependency `[native.windows-x64]` inputs are also inert and rejected
+error. Dependency `[native.<target>]` inputs are also inert and rejected
 unless the root's exact `allow-native` list names the locked
 `namespace/name@version`. Even when allowed, only declared library/header files
 inside the verified source tree are made available to the ordinary Phase 13
 link pipeline; no command, environment mutation, network access, or generated
 output is implied.
+
+The recognized production section names are `windows-x64`, `linux-x64`,
+`linux-arm64`, and `macos-arm64`. Only the normalized compilation target's
+section is inspected or hashed. An inactive native section grants no capability
+and its files are not required to exist. `[target.<alias>]` may select a
+contained `source-root`, `entry`, and `test-directory`; selection occurs before
+source discovery and applies independently to each locked dependency. Unknown,
+duplicate-normalized, escaping, or ambiguous target configuration is `R6005`.
+The complete lookup and cross-compilation contract is in `TARGETS.md`.
 
 A future build capability requires a new decision defining reviewed inputs,
 outputs, target, environment, network access, cache key, sandbox, resource

@@ -93,7 +93,7 @@ without introducing an unstable binary module format before packaging.
 ## Scalar LLVM backend
 
 The production backend consumes only verified MIR and maps scalar values to the
-following LLVM types on the Windows x64 target:
+following LLVM types on every Rocket 2.1 64-bit production target:
 
 | Rocket type | LLVM value type | Function result ABI |
 | --- | --- | --- |
@@ -114,9 +114,10 @@ following LLVM types on the Windows x64 target:
   returns. Short-circuit behavior therefore remains encoded by MIR control flow.
 - Rocket functions retain declaration-ID-qualified native names. A C-compatible
   `i32 @main()` wrapper invokes Rocket's required `fn main() -> Int` entry point.
-- The target triple and data layout come from the pinned LLVM Windows toolchain;
-  code generation uses the baseline `x86-64` CPU rather than host-specific CPU
-  features so build outputs do not depend on the developer machine's processor.
+- The explicit normalized target supplies the LLVM triple, data layout, object
+  format, debug-information format, baseline CPU, and baseline features. x64
+  uses the target's generic x86-64 baseline plus SSE2 and ARM64 uses the generic
+  AArch64 baseline plus NEON; host CPU discovery never affects output.
 - `emit-ir` prints verified unoptimized IR for inspection. `build`, `run`, and
   `emit-asm` run LLVM's O2 module pipeline; object and assembly emission use the
   LLVM target machine, and the pinned Clang driver performs native linking.
@@ -291,7 +292,8 @@ runtime ABI v1 remain private and unchanged. The preserved C++ backend emits
 equivalent `extern "C"` declarations/wrappers and uses the configured MSVC
 compiler/librarian when LLVM is disabled.
 
-Target resolution reads `[build]` and `[native.windows-x64]` before compilation.
+Target resolution reads `[build]`, the selected `[target.<alias>]`, and only the
+selected `[native.<alias>]` before compilation.
 Executable linking consumes native libraries in manifest order; static output
 archives the Rocket object; dynamic output links a DLL and import library.
 Header and binding generation walk source declarations in canonical module
@@ -450,3 +452,26 @@ process coordination is bounded-worker blocking rather than a general IOCP
 dispatcher, and no operation creates an unbounded I/O thread per request.
 `CONCURRENCY.md` defines ordering, cancellation, partial-I/O, shutdown, the
 deliberate process-capture limitation, and resource limits.
+
+## Rocket 2.1 target architecture
+
+CLI normalization creates distinct immutable host and target values before
+manifest loading. The target value flows through source-overlay selection,
+dependency loading, HIR target constants, MIR, LLVM target-machine creation,
+native-input resolution, linker selection, artifact naming, package metadata,
+and cache identity. No later layer re-detects a target from the host.
+
+The module loader applies the selected target overlay before discovery. The HIR
+standard-module table exposes `std.target` constants. LLVM initializes all
+required target families, assigns the canonical triple and target-machine data
+layout to every module, emits PE/COFF with CodeView on Windows, ELF with DWARF
+on Linux, and Mach-O with DWARF on macOS. Export visibility, object/archive/
+dynamic-library production, runtime selection, and link arguments are derived
+from the target model rather than filename guesses.
+
+Stage0 and `compiler/src/main.rocket` own matching normalization tables,
+manifest rules, cache serialization, extensions, target diagnostics, and
+canonical IR decisions. Native and cross toolchains are explicit SDK records;
+missing SDKs and unsupported host/target operations fail before code generation.
+The supported rows and acceptance authority are normative in `TARGETS.md` and
+`PHASE_19_AUDIT.md`.

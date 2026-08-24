@@ -1,10 +1,17 @@
-# Rocket Tooling and Packages 2.0
+# Rocket Tooling and Packages 2.1
 
 Rocket 2.0 retains the Rocket 1.6 package ecosystem and Rocket 1.7
 language-server and developer-tooling contracts. Its ownership, concurrency,
 and asynchronous-I/O additions require no new editor protocol or manifest
 syntax; `CONCURRENCY.md`, `STDLIB.md`, and `MIGRATION_1_8.md` document the new
 source APIs and diagnostics.
+
+Rocket 2.1 adds `--target <alias-or-triple>` to target-producing and
+target-inspecting commands. `rocketc target [--verbose]` reports normalized
+host/target information. Package artifacts default to
+`.rocketc/targets/<alias>/`; `run` and native test execution reject a different
+host/target with `R6004`. `TARGETS.md` defines supported cross paths and SDK
+discovery.
 
 For package targets, `build` and `run` reuse a `rocket-build-cache-1` artifact
 only when compiler, runtime, target, options, dependency/native configuration,
@@ -86,7 +93,8 @@ executable package without `[build]` still writes `.rocketc/main.exe`; a library
 without an explicit name uses the package name. Library builds emit `.lib` or
 `.dll` plus a deterministic `.h` header and do not synthesize `main`.
 
-Windows x64 native inputs are explicit and target-scoped:
+Native inputs are explicit and target-scoped; this Windows x64 example has
+equivalent sections for the other production aliases:
 
 ```toml
 [native.windows-x64]

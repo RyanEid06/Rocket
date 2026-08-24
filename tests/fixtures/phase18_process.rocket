@@ -1,19 +1,36 @@
 import std.async_process
 import std.cancel
+import std.collections
+import std.process
 import std.task
 import std.time
 
 fn main() -> Int:
+    let arguments = process.arguments()
+    if collections.length(arguments) > 0:
+        if arguments[0] == "exit-7":
+            return 7
+        if arguments[0] == "slow-child":
+            time.sleep_milliseconds(5000)
+            return 0
+
+    var executable = ""
+    match process.executable_path():
+        case Ok(value):
+            executable = value
+        case Err(message):
+            print(message)
+            return 1
     let token = cancel.token()
     let deadline = time.monotonic_milliseconds() + 5000
-    match task.join(async_process.run("cmd.exe", ["/c", "exit", "7"], deadline, token)):
+    match task.join(async_process.run(executable, ["exit-7"], deadline, token)):
         case Ok(code):
             print(code)
         case Err(message):
             print(message)
             return 1
 
-    let slow = async_process.run("cmd.exe", ["/c", "ping", "-n", "6", "127.0.0.1", ">", "nul"], time.monotonic_milliseconds() + 10000, token)
+    let slow = async_process.run(executable, ["slow-child"], time.monotonic_milliseconds() + 10000, token)
     time.sleep_milliseconds(50)
     print(task.cancel(slow))
     match task.join(slow):

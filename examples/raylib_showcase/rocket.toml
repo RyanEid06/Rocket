@@ -14,3 +14,18 @@ name = "rocket-raylib-showcase"
 libraries = "rocket_raylib_adapter.lib;raylib.lib;opengl32.lib;winmm.lib;gdi32.lib;user32.lib;shell32.lib;ole32.lib"
 library-search = ".rocketc/native"
 headers = "native/rocket_raylib_adapter.h"
+
+[native.linux-x64]
+libraries = "librocket_raylib_adapter.a;libraylib.a;GL;m;pthread;dl;rt;X11"
+library-search = ".rocketc/native"
+headers = "native/rocket_raylib_adapter.h"
+
+[native.linux-arm64]
+libraries = "librocket_raylib_adapter.a;libraylib.a;GL;m;pthread;dl;rt;X11"
+library-search = ".rocketc/native"
+headers = "native/rocket_raylib_adapter.h"
+
+[native.macos-arm64]
+libraries = "librocket_raylib_adapter.a;libraylib.a;framework:Cocoa;framework:IOKit;framework:CoreVideo;framework:OpenGL"
+library-search = ".rocketc/native"
+headers = "native/rocket_raylib_adapter.h"

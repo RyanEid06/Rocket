@@ -2,7 +2,9 @@
 #include "test_support.h"
 
 #include <filesystem>
+#include <fstream>
 #include <string>
+#include <vector>
 
 int main() {
   int failures = 0;
@@ -68,6 +70,50 @@ int main() {
                          "native object output is non-empty", failures);
     std::error_code removeError;
     std::filesystem::remove(objectPath, removeError);
+
+    for (const auto& target : rocket::productionTargets()) {
+      std::string targetIr;
+      error.clear();
+      rocket::test::expect(
+          rocket::generateLlvmIr(*mir, false, target, targetIr, error),
+          "LLVM creates target machine for " + target.alias + ": " + error,
+          failures);
+      rocket::test::expect(
+          targetIr.find("target triple = \"" + target.triple + "\"") !=
+                  std::string::npos &&
+              targetIr.find("target datalayout = ") != std::string::npos,
+          "IR records explicit triple and data layout for " + target.alias,
+          failures);
+      const auto names = rocket::targetArtifacts(target);
+      const auto targetObject = std::filesystem::current_path() /
+                                ("llvm_codegen_" + target.alias +
+                                 names.objectSuffix);
+      error.clear();
+      rocket::test::expect(
+          rocket::emitLlvmFile(*mir, false, rocket::LlvmFileType::Object,
+                               target, targetObject, error),
+          "LLVM emits object for " + target.alias + ": " + error, failures);
+      std::ifstream object(targetObject, std::ios::binary);
+      std::vector<unsigned char> bytes(20, 0);
+      object.read(reinterpret_cast<char*>(bytes.data()),
+                  static_cast<std::streamsize>(bytes.size()));
+      bool objectFormat = false;
+      if (target.operatingSystem == rocket::TargetOperatingSystem::Windows)
+        objectFormat = bytes[0] == 0x64 && bytes[1] == 0x86;
+      else if (target.operatingSystem == rocket::TargetOperatingSystem::MacOS)
+        objectFormat = bytes[0] == 0xcf && bytes[1] == 0xfa &&
+                       bytes[2] == 0xed && bytes[3] == 0xfe;
+      else
+        objectFormat = bytes[0] == 0x7f && bytes[1] == 'E' && bytes[2] == 'L' &&
+                       bytes[3] == 'F' &&
+                       (target.architecture == rocket::TargetArchitecture::X64
+                            ? bytes[18] == 0x3e
+                            : bytes[18] == 0xb7);
+      rocket::test::expect(objectFormat,
+                           "object format and architecture match " + target.alias,
+                           failures);
+      std::filesystem::remove(targetObject, removeError);
+    }
   }
 
 
@@ -140,6 +186,16 @@ int main() {
                              ir.find("define dllexport i64 @rocket_twice") != std::string::npos,
                          "LLVM emits stable C declarations, callback trampolines, and exports",
                          failures);
+    rocket::TargetError targetError;
+    const auto linux = rocket::parseTarget("linux-x64", targetError);
+    std::string linuxIr;
+    error.clear();
+    rocket::test::expect(
+        linux && rocket::generateLlvmIr(*nativeMir, false, *linux, linuxIr, error) &&
+            linuxIr.find("define dllexport i64 @rocket_twice") ==
+                std::string::npos &&
+            linuxIr.find("define i64 @rocket_twice") != std::string::npos,
+        "non-Windows C exports do not carry PE/COFF dllexport storage", failures);
   }
   rocket::Diagnostics asyncDiagnostics;
   auto asyncMir = rocket::test::lowerToMir(

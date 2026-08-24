@@ -245,6 +245,14 @@ enum class Intrinsic {
   TaskCancel,
   TaskGroupCancel,
   SyncOnceEmpty,
+  TargetAlias,
+  TargetTriple,
+  TargetOs,
+  TargetArchitecture,
+  TargetEnvironment,
+  TargetPointerWidth,
+  TargetEndianness,
+  TargetHasFeature,
 };
 
 struct HirSymbol {

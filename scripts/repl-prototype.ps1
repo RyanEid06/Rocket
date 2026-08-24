@@ -2,13 +2,18 @@
 param(
     [string]$Compiler = '',
     [switch]$Measure,
-    [string[]]$Expression
+    [string[]]$Expression,
+    [string]$SessionDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 if (-not $Compiler) { $Compiler = Join-Path $projectRoot 'out\build\windows-debug\rocketc.exe' }
-$session = Join-Path $projectRoot 'out\repl-prototype'
+$session = if ($SessionDirectory) {
+    [IO.Path]::GetFullPath($SessionDirectory)
+} else {
+    Join-Path $projectRoot 'out\repl-prototype'
+}
 New-Item -ItemType Directory -Path $session -Force | Out-Null
 $source = Join-Path $session 'session.rocket'
 $expressions = [Collections.Generic.List[string]]::new()

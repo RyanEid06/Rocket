@@ -1,0 +1,68 @@
+# Generated deterministically by rocketc bind.
+pub extern const RLV_OK: Int = 0
+pub extern const RLV_ERR_INVALID_ARGUMENT: Int = -1
+pub extern const RLV_ERR_INVALID_STATE: Int = -2
+pub extern const RLV_ERR_NOT_FOUND: Int = -3
+pub extern const RLV_ERR_RESOURCE_LIVE: Int = -4
+pub extern const RLV_ERR_UNAVAILABLE: Int = -5
+pub extern const RLV_ERR_STALE_HANDLE: Int = -6
+pub extern const RLV_KEY_SPACE: Int = 32
+pub extern const RLV_KEY_ESCAPE: Int = 256
+pub extern const RLV_KEY_RIGHT: Int = 262
+pub extern const RLV_KEY_LEFT: Int = 263
+pub extern const RLV_KEY_DOWN: Int = 264
+pub extern const RLV_KEY_UP: Int = 265
+pub extern const RLV_MOUSE_LEFT: Int = 0
+pub extern callback RlvIntCallback(value: Int) -> Int
+pub extern fn rlv_version_major() -> Int
+pub extern fn rlv_version_minor() -> Int
+pub extern fn rlv_enable_test_mode(enabled: Bool) -> Int
+pub extern fn rlv_test_reset() -> Int
+pub extern fn rlv_buffer_create() -> Int
+pub extern fn rlv_buffer_push(buffer_id: Int, byte_value: Char) -> Int
+pub extern fn rlv_buffer_destroy(buffer_id: Int) -> Int
+pub extern fn rlv_buffer_live_count() -> Int
+pub extern fn rlv_window_open(width: Int, height: Int, title_buffer_id: Int) -> Int
+pub extern fn rlv_window_close(window_id: Int) -> Int
+pub extern fn rlv_window_ready(window_id: Int) -> Bool
+pub extern fn rlv_window_should_close(window_id: Int) -> Bool
+pub extern fn rlv_set_target_fps(window_id: Int, fps: Int) -> Int
+pub extern fn rlv_frame_time(window_id: Int) -> Float
+pub extern fn rlv_time(window_id: Int) -> Float
+pub extern fn rlv_begin_drawing(window_id: Int) -> Int
+pub extern fn rlv_end_drawing(frame_id: Int) -> Int
+pub extern fn rlv_clear_background(frame_id: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle(frame_id: Int, x: Int, y: Int, width: Int, height: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle(frame_id: Int, x: Int, y: Int, radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_text(frame_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_count() -> Int
+pub extern fn rlv_key_pressed(window_id: Int, key: Int) -> Bool
+pub extern fn rlv_key_down(window_id: Int, key: Int) -> Bool
+pub extern fn rlv_mouse_pressed(window_id: Int, button: Int) -> Bool
+pub extern fn rlv_mouse_x(window_id: Int) -> Int
+pub extern fn rlv_mouse_y(window_id: Int) -> Int
+pub extern fn rlv_texture_load(window_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_texture_width(texture_id: Int) -> Int
+pub extern fn rlv_texture_height(texture_id: Int) -> Int
+pub extern fn rlv_texture_draw(frame_id: Int, texture_id: Int, x: Int, y: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_texture_draw_scaled(frame_id: Int, texture_id: Int, x: Int, y: Int, scale: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_texture_unload(texture_id: Int) -> Int
+pub extern fn rlv_texture_live_count() -> Int
+pub extern fn rlv_font_load(window_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_font_draw(frame_id: Int, font_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Float, spacing: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_font_unload(font_id: Int) -> Int
+pub extern fn rlv_font_live_count() -> Int
+pub extern fn rlv_audio_open() -> Int
+pub extern fn rlv_audio_close(audio_id: Int) -> Int
+pub extern fn rlv_audio_ready(audio_id: Int) -> Bool
+pub extern fn rlv_sound_load(audio_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_sound_tone(audio_id: Int, frequency: Float, seconds: Float) -> Int
+pub extern fn rlv_sound_play(sound_id: Int) -> Int
+pub extern fn rlv_sound_stop(sound_id: Int) -> Int
+pub extern fn rlv_sound_set_volume(sound_id: Int, volume: Float) -> Int
+pub extern fn rlv_sound_unload(sound_id: Int) -> Int
+pub extern fn rlv_sound_live_count() -> Int
+pub extern fn rlv_apply_callback(callback: RlvIntCallback, value: Int) -> Int
+pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
+pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
+pub extern fn rlv_test_request_close(requested: Bool) -> Int

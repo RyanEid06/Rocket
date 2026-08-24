@@ -29,6 +29,12 @@ std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
 std::optional<Module> loadModuleGraph(
     const std::filesystem::path& rootPath,
     const std::filesystem::path& packageRoot,
+    const std::filesystem::path& targetSourceRoot,
+    const std::vector<PackageDependencyRoot>& dependencyRoots,
+    Diagnostics& diagnostics);
+std::optional<Module> loadModuleGraph(
+    const std::filesystem::path& rootPath,
+    const std::filesystem::path& packageRoot,
     const std::vector<PackageDependencyRoot>& dependencyRoots,
     Diagnostics& diagnostics);
 std::optional<Module> loadModuleGraph(

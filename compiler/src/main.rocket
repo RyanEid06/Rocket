@@ -5,6 +5,7 @@ import std.file
 import std.path
 import std.process
 import std.string
+import std.target
 
 struct Diagnostic:
     code: String
@@ -440,6 +441,31 @@ struct PackageInfo:
     native_libraries: Array[String]
     native_library_search: Array[String]
     native_headers: Array[String]
+    target_alias: String
+    target_triple: String
+    target_source_root: String
+    error: String
+
+struct TargetInfo:
+    valid: Bool
+    alias: String
+    triple: String
+    os: String
+    architecture: String
+    environment: String
+    pointer_width: Int
+    endianness: String
+    features: Array[String]
+    error_code: String
+    error: String
+
+struct TargetCommandOptions:
+    valid: Bool
+    input: String
+    selected_target: TargetInfo
+    target_sdk: String
+    filter: String
+    error_code: String
     error: String
 
 struct DependencyImportPath:
@@ -453,6 +479,8 @@ struct ToolchainInfo:
     runtime: String
     librarian: String
     library_directories: Array[String]
+    sysroot: String
+    error_code: String
     error: String
 
 struct NativeBuildResult:
@@ -1405,6 +1433,22 @@ fn intrinsic_task_group_cancel() -> Int:
     return 221
 fn intrinsic_sync_once_empty() -> Int:
     return 222
+fn intrinsic_target_alias() -> Int:
+    return 223
+fn intrinsic_target_triple() -> Int:
+    return 224
+fn intrinsic_target_os() -> Int:
+    return 225
+fn intrinsic_target_architecture() -> Int:
+    return 226
+fn intrinsic_target_environment() -> Int:
+    return 227
+fn intrinsic_target_pointer_width() -> Int:
+    return 228
+fn intrinsic_target_endianness() -> Int:
+    return 229
+fn intrinsic_target_has_feature() -> Int:
+    return 230
 
 fn mir_constant() -> Int:
     return 0
@@ -2254,19 +2298,19 @@ fn parse_statement(state: ParserState) -> StatementResult:
     if token.kind == kind_continue():
         let newline = consume_token(advance_parser(state), kind_newline(), "expected newline after 'continue'")
         return StatementResult(make_statement(statement_continue(), "", "", false, [], [], [], [], token), newline.state)
-    let target = parse_expression(state)
-    let equal = match_token(target.state, kind_equal())
+    let parsed_target = parse_expression(state)
+    let equal = match_token(parsed_target.state, kind_equal())
     if equal.matched:
         let value = parse_expression(equal.state)
         let newline = consume_token(value.state, kind_newline(), "expected newline after assignment")
-        if target.expression.kind == expr_name():
-            return StatementResult(make_statement(statement_assignment(), target.expression.text, "", false, [value.expression], [], [], [], token), newline.state)
-        if target.expression.kind == expr_index() and target.expression.children[0].kind == expr_name():
-            return StatementResult(make_statement(statement_index_assignment(), target.expression.children[0].text, "", false, [target.expression.children[1], value.expression], [], [], [], token), newline.state)
+        if parsed_target.expression.kind == expr_name():
+            return StatementResult(make_statement(statement_assignment(), parsed_target.expression.text, "", false, [value.expression], [], [], [], token), newline.state)
+        if parsed_target.expression.kind == expr_index() and parsed_target.expression.children[0].kind == expr_name():
+            return StatementResult(make_statement(statement_index_assignment(), parsed_target.expression.children[0].text, "", false, [parsed_target.expression.children[1], value.expression], [], [], [], token), newline.state)
         let invalid = parser_error(newline.state, token, "assignment target must be a binding or Array element")
         return StatementResult(make_statement(statement_expression(), "", "", false, [value.expression], [], [], [], token), invalid)
-    let newline = consume_token(target.state, kind_newline(), "expected newline after expression")
-    return StatementResult(make_statement(statement_expression(), "", "", false, [target.expression], [], [], [], token), newline.state)
+    let newline = consume_token(parsed_target.state, kind_newline(), "expected newline after expression")
+    return StatementResult(make_statement(statement_expression(), "", "", false, [parsed_target.expression], [], [], [], token), newline.state)
 
 fn parse_function(state: ParserState, public_declaration: Bool, asynchronous: Bool) -> FunctionResult:
     let keyword = consume_token(state, kind_fn(), "expected 'fn'")
@@ -2945,9 +2989,9 @@ fn lock_package_field(source: String, selector_key: String, selector_value: Stri
         if selector != "":
             selected = selector == selector_value
         if selected:
-            let target = lock_line_value(line, target_key)
-            if target != "":
-                return target
+            let selected_value = lock_line_value(line, target_key)
+            if selected_value != "":
+                return selected_value
     return ""
 
 fn lock_owner_dependencies(source: String, cache_root: String, source_path: String) -> String:
@@ -3017,17 +3061,25 @@ fn locked_dependency_import(module_root: String, source_path: String, name: Stri
                 resolved = std.path.normalize(resolved)
             return DependencyImportPath(true, file.exists(resolved), resolved)
 
-fn resolve_import_path(module_root: String, source_path: String, name: String) -> DependencyImportPath:
+fn resolve_import_path(module_root: String, target_root: String, source_path: String, name: String) -> DependencyImportPath:
     let dependency = locked_dependency_import(module_root, source_path, name)
     if dependency.matched:
         return dependency
     let pieces = string.split(name, ".")
-    var result = module_root
+    var relative = ""
     for index in 0..collections.length(pieces):
         var piece = pieces[index]
         if index + 1 == collections.length(pieces):
             piece = string.concat(piece, ".rocket")
-        result = std.path.join(result, piece)
+        if relative == "":
+            relative = piece
+        else:
+            relative = std.path.join(relative, piece)
+    if target_root != "":
+        let target_result = std.path.normalize(std.path.join(target_root, relative))
+        if file.exists(target_result):
+            return DependencyImportPath(false, true, target_result)
+    let result = std.path.join(module_root, relative)
     return DependencyImportPath(false, file.exists(std.path.normalize(result)), std.path.normalize(result))
 
 fn mapped_declaration_name(prefix_name: String, name: String, public_declaration: Bool) -> String:
@@ -3214,7 +3266,7 @@ fn diagnose_import_aliases(state: ProgramLoadState, imports: Array[AstImport]) -
                 next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3004", imports[right].line, imports[right].column, string.concat("duplicate import alias '", string.concat(import_alias(imports[right].name), "'")))))
     return next
 
-fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name: String, module_root: String) -> ProgramLoadState:
+fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name: String, module_root: String, target_root: String) -> ProgramLoadState:
     let normalized = std.path.normalize(source_path)
     if contains_string(state.active_paths, normalized):
         return load_state_diagnostics(state, append(state.diagnostics, make_diagnostic("R3002", 1, 1, string.concat("import cycle detected at '", string.concat(normalized, "'")))))
@@ -3248,24 +3300,27 @@ fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name
                             if standard_path == "":
                                 next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", imported.line, imported.column, "cannot locate bundled standard module 'std.testing'")))
                             else:
-                                next = load_program_module(next, standard_path, imported.name, module_root)
+                                next = load_program_module(next, standard_path, imported.name, module_root, target_root)
                         else:
                             if not string.starts_with(imported.name, "std."):
-                                let imported_path = resolve_import_path(module_root, normalized, imported.name)
+                                let imported_path = resolve_import_path(module_root, target_root, normalized, imported.name)
                                 if not imported_path.valid:
                                     var code = "R3001"
                                     if imported_path.matched:
                                         code = "R3005"
                                     next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic(code, imported.line, imported.column, string.concat("dependency import is absent from the exact locked graph or cache: '", string.concat(imported.name, "'")))))
                                 else:
-                                    next = load_program_module(next, imported_path.path, import_alias(imported.name), module_root)
+                                    next = load_program_module(next, imported_path.path, import_alias(imported.name), module_root, target_root)
                     next = load_state_module(next, merge_ast_modules(next.module, map_imported_module(parsed.module, prefix_name)))
     return load_state_paths(next, append(next.loaded_paths, normalized), prefix(next.active_paths, collections.length(next.active_paths) - 1))
 
 fn parse_program(source_path: String) -> ParseResult:
+    return parse_program_target(source_path, "")
+
+fn parse_program_target(source_path: String, target_root: String) -> ParseResult:
     let empty = AstModule([], [], [], [], [])
     let normalized = std.path.normalize(source_path)
-    let loaded = load_program_module(ProgramLoadState(empty, [], [], [], 0), normalized, "", module_root_for_source(normalized))
+    let loaded = load_program_module(ProgramLoadState(empty, [], [], [], 0), normalized, "", module_root_for_source(normalized), target_root)
     return ParseResult(loaded.module, loaded.diagnostics)
 
 fn is_array_type(type_name: String) -> Bool:
@@ -3702,6 +3757,22 @@ fn standard_signature(name: String) -> StandardSignature:
         return StandardSignature(true, [], ["String"], "Option[String]", intrinsic_process_environment())
     if name == "std.process.working_directory":
         return StandardSignature(true, [], [], "Result[String, String]", intrinsic_process_working_directory())
+    if name == "std.target.alias":
+        return StandardSignature(true, [], [], "String", intrinsic_target_alias())
+    if name == "std.target.triple":
+        return StandardSignature(true, [], [], "String", intrinsic_target_triple())
+    if name == "std.target.os":
+        return StandardSignature(true, [], [], "String", intrinsic_target_os())
+    if name == "std.target.architecture":
+        return StandardSignature(true, [], [], "String", intrinsic_target_architecture())
+    if name == "std.target.environment":
+        return StandardSignature(true, [], [], "String", intrinsic_target_environment())
+    if name == "std.target.pointer_width":
+        return StandardSignature(true, [], [], "Int", intrinsic_target_pointer_width())
+    if name == "std.target.endianness":
+        return StandardSignature(true, [], [], "String", intrinsic_target_endianness())
+    if name == "std.target.has_feature":
+        return StandardSignature(true, [], ["String"], "Bool", intrinsic_target_has_feature())
     if name == "std.time.unix_milliseconds":
         return StandardSignature(true, [], [], "Int", intrinsic_time_unix_milliseconds())
     if name == "std.time.monotonic_milliseconds":
@@ -5102,6 +5173,10 @@ fn analyze_program_kind(source_path: String, library: Bool) -> HirResult:
     let parsed = parse_program(source_path)
     return lower_to_hir(parsed.module, parsed.diagnostics, library)
 
+fn analyze_program_kind_target(source_path: String, target_root: String, library: Bool) -> HirResult:
+    let parsed = parse_program_target(source_path, target_root)
+    return lower_to_hir(parsed.module, parsed.diagnostics, library)
+
 fn empty_mir_operand() -> MirOperand:
     return MirOperand(-1, "", "Unit", false)
 
@@ -5161,8 +5236,8 @@ fn start_mir_block(state: MirState, block: Int) -> MirState:
 fn allocate_mir_block(state: MirState) -> MirBlockResult:
     return MirBlockResult(state.next_block, mir_state_next_block(state, state.next_block + 1))
 
-fn goto_terminator(target: Int) -> MirTerminator:
-    return MirTerminator(terminator_goto(), target, -1, -1, empty_mir_operand(), empty_mir_operand(), false)
+fn goto_terminator(block_target: Int) -> MirTerminator:
+    return MirTerminator(terminator_goto(), block_target, -1, -1, empty_mir_operand(), empty_mir_operand(), false)
 
 fn branch_terminator(condition: MirOperand, then_target: Int, else_target: Int) -> MirTerminator:
     return MirTerminator(terminator_branch(), -1, then_target, else_target, condition, empty_mir_operand(), false)
@@ -5553,6 +5628,10 @@ fn compile_program_to_mir(source_path: String) -> MirResult:
 
 fn compile_program_to_mir_kind(source_path: String, library: Bool) -> MirResult:
     let hir = analyze_program_kind(source_path, library)
+    return lower_to_mir(hir.module, hir.diagnostics)
+
+fn compile_program_to_mir_kind_target(source_path: String, target_root: String, library: Bool) -> MirResult:
+    let hir = analyze_program_kind_target(source_path, target_root, library)
     return lower_to_mir(hir.module, hir.diagnostics)
 
 fn llvm_type(type_name: String) -> String:
@@ -6127,6 +6206,22 @@ fn intrinsic_runtime_name(intrinsic: Int) -> String:
         return "@rocket_std_process_environment"
     if intrinsic == intrinsic_process_working_directory():
         return "@rocket_std_process_working_directory"
+    if intrinsic == intrinsic_target_alias():
+        return "@rocket_std_target_alias"
+    if intrinsic == intrinsic_target_triple():
+        return "@rocket_std_target_triple"
+    if intrinsic == intrinsic_target_os():
+        return "@rocket_std_target_os"
+    if intrinsic == intrinsic_target_architecture():
+        return "@rocket_std_target_architecture"
+    if intrinsic == intrinsic_target_environment():
+        return "@rocket_std_target_environment"
+    if intrinsic == intrinsic_target_pointer_width():
+        return "@rocket_std_target_pointer_width"
+    if intrinsic == intrinsic_target_endianness():
+        return "@rocket_std_target_endianness"
+    if intrinsic == intrinsic_target_has_feature():
+        return "@rocket_std_target_has_feature"
     if intrinsic == intrinsic_time_unix_milliseconds():
         return "@rocket_std_time_unix_milliseconds"
     if intrinsic == intrinsic_time_monotonic_milliseconds():
@@ -6507,6 +6602,14 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare ptr @rocket_std_process_executable_path()")
     emit_llvm_line(builder, "declare ptr @rocket_std_process_environment(ptr)")
     emit_llvm_line(builder, "declare ptr @rocket_std_process_working_directory()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_target_alias()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_target_triple()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_target_os()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_target_architecture()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_target_environment()")
+    emit_llvm_line(builder, "declare i64 @rocket_std_target_pointer_width()")
+    emit_llvm_line(builder, "declare ptr @rocket_std_target_endianness()")
+    emit_llvm_line(builder, "declare i8 @rocket_std_target_has_feature(ptr)")
     emit_llvm_line(builder, "declare i64 @rocket_std_time_unix_milliseconds()")
     emit_llvm_line(builder, "declare i64 @rocket_std_time_monotonic_milliseconds()")
     emit_llvm_line(builder, "declare void @rocket_std_time_sleep_milliseconds(i64)")
@@ -7121,11 +7224,14 @@ fn emit_callback_wrappers(builder: std.string.Builder, module: MirModule) -> Uni
                 emit_callback_wrapper(builder, module, symbol, declaration)
                 break
 
-fn emit_export_wrapper(builder: std.string.Builder, symbol: HirSymbol) -> Unit:
+fn emit_export_wrapper(builder: std.string.Builder, symbol: HirSymbol, selected: TargetInfo) -> Unit:
     var parameters: Array[String] = []
     for index in 0..collections.length(symbol.parameter_types):
         parameters = append(parameters, string.concat(native_llvm_type(symbol.parameter_types[index]), string.concat(" %arg", string.from_int(index))))
-    emit_llvm_line(builder, string.concat("define dllexport ", string.concat(native_llvm_type(symbol.type_name), string.concat(" ", string.concat(native_symbol_name(symbol), string.concat("(", string.concat(collections.join(parameters, ", "), ") {")))))))
+    var storage = ""
+    if selected.os == "windows":
+        storage = "dllexport "
+    emit_llvm_line(builder, string.concat("define ", string.concat(storage, string.concat(native_llvm_type(symbol.type_name), string.concat(" ", string.concat(native_symbol_name(symbol), string.concat("(", string.concat(collections.join(parameters, ", "), ") {"))))))))
     emit_llvm_line(builder, "entry:")
     var arguments: Array[String] = []
     for index in 0..collections.length(symbol.parameter_types):
@@ -7150,10 +7256,10 @@ fn emit_export_wrapper(builder: std.string.Builder, symbol: HirSymbol) -> Unit:
     emit_llvm_line(builder, "}")
     emit_llvm_line(builder, "")
 
-fn emit_export_wrappers(builder: std.string.Builder, module: MirModule) -> Unit:
+fn emit_export_wrappers(builder: std.string.Builder, module: MirModule, selected: TargetInfo) -> Unit:
     for index in 0..collections.length(module.symbols):
         if module.symbols[index].native_export:
-            emit_export_wrapper(builder, module.symbols[index])
+            emit_export_wrapper(builder, module.symbols[index], selected)
 
 fn emit_native_entrypoint(builder: std.string.Builder, module: MirModule) -> Unit:
     if module.library:
@@ -7174,11 +7280,11 @@ fn emit_native_entrypoint(builder: std.string.Builder, module: MirModule) -> Uni
     emit_llvm_line(builder, "}")
     emit_llvm_line(builder, "")
 
-fn generate_llvm_ir(module: MirModule) -> String:
+fn generate_llvm_ir(module: MirModule, selected: TargetInfo) -> String:
     let output = string.builder()
     let globals = string.builder()
     emit_llvm_line(output, "; Generated by the Rocket self-hosted compiler")
-    emit_llvm_line(output, "; The pinned Windows Clang driver supplies the concrete target triple")
+    emit_llvm_line(output, "; The selected pinned Clang driver supplies the concrete target triple")
     emit_llvm_line(output, "")
     emit_runtime_declarations(output)
     emit_native_declarations(output, module)
@@ -7186,7 +7292,7 @@ fn generate_llvm_ir(module: MirModule) -> String:
         emit_mir_function_llvm(output, globals, module, module.functions[index])
     emit_async_entries_llvm(output, module)
     emit_callback_wrappers(output, module)
-    emit_export_wrappers(output, module)
+    emit_export_wrappers(output, module, selected)
     emit_native_entrypoint(output, module)
     emit_llvm_line(output, "; String constants")
     string.builder_append(output, string.builder_finish(globals))
@@ -7248,7 +7354,7 @@ fn emit_ir_file(input: String, output: String) -> Int:
         for index in 0..collections.length(result.diagnostics):
             print(diagnostic_text(input, result.diagnostics[index]))
         return 1
-    let ir = generate_llvm_ir(result.module)
+    let ir = generate_llvm_ir(result.module, native_target())
     let written = file.write_text(output, ir)
     match written:
         case Ok(success):
@@ -7304,19 +7410,174 @@ fn safe_manifest_relative_path(value: String) -> Bool:
     let first = string.byte_at(value, 0)
     return first != '/' and first != '\\'
 
-fn resolve_package(input: String) -> PackageInfo:
+fn normalize_target(value: String) -> TargetInfo:
+    if value == "windows-x64" or value == "x86_64-pc-windows-msvc":
+        return TargetInfo(true, "windows-x64", "x86_64-pc-windows-msvc", "windows", "x64", "msvc", 64, "little", ["threads", "dynamic-libraries", "codeview", "sse2"], "", "")
+    if value == "linux-x64" or value == "x86_64-unknown-linux-gnu":
+        return TargetInfo(true, "linux-x64", "x86_64-unknown-linux-gnu", "linux", "x64", "gnu", 64, "little", ["threads", "dynamic-libraries", "dwarf", "sse2"], "", "")
+    if value == "linux-arm64" or value == "aarch64-unknown-linux-gnu":
+        return TargetInfo(true, "linux-arm64", "aarch64-unknown-linux-gnu", "linux", "arm64", "gnu", 64, "little", ["threads", "dynamic-libraries", "dwarf", "neon"], "", "")
+    if value == "macos-arm64" or value == "arm64-apple-macosx":
+        return TargetInfo(true, "macos-arm64", "arm64-apple-macosx", "macos", "arm64", "apple", 64, "little", ["threads", "dynamic-libraries", "dwarf", "neon"], "", "")
+    if value == "windows-arm64" or value == "aarch64-pc-windows-msvc":
+        return TargetInfo(false, "windows-arm64", "aarch64-pc-windows-msvc", "windows", "arm64", "msvc", 64, "little", [], "R6002", "target 'windows-arm64' is recognized but is not production-supported")
+    return TargetInfo(false, "", "", "", "", "", 0, "", [], "R6001", string.concat("unknown target '", string.concat(value, "'")))
+
+fn native_target() -> TargetInfo:
+    return normalize_target(target.alias())
+
+fn target_cross_supported(host: TargetInfo, selected: TargetInfo) -> Bool:
+    if host.alias == selected.alias:
+        return true
+    if host.alias == "windows-x64":
+        return selected.alias == "linux-x64" or selected.alias == "linux-arm64"
+    if host.alias == "linux-x64":
+        return selected.alias == "linux-arm64" or selected.alias == "windows-x64"
+    return false
+
+fn target_sdk_environment_variable(selected: TargetInfo) -> String:
+    if selected.alias == "windows-x64":
+        return "ROCKET_TARGET_SDK_WINDOWS_X64"
+    if selected.alias == "linux-x64":
+        return "ROCKET_TARGET_SDK_LINUX_X64"
+    if selected.alias == "linux-arm64":
+        return "ROCKET_TARGET_SDK_LINUX_ARM64"
+    if selected.alias == "macos-arm64":
+        return "ROCKET_TARGET_SDK_MACOS_ARM64"
+    return "ROCKET_TARGET_SDK_WINDOWS_ARM64"
+
+fn parse_target_command_options(arguments: Array[String], allow_filter: Bool) -> TargetCommandOptions:
+    var input = "."
+    var input_set = false
+    var requested = target.alias()
+    var target_sdk = ""
+    var filter = ""
+    var forwarding = false
+    var index = 1
+    while index < collections.length(arguments):
+        let argument = arguments[index]
+        if forwarding:
+            index = index + 1
+        else:
+            if argument == "--":
+                forwarding = true
+                index = index + 1
+            else:
+                if argument == "--target":
+                    if index + 1 >= collections.length(arguments):
+                        return TargetCommandOptions(false, input, normalize_target(requested), target_sdk, filter, "R5002", "--target requires an alias or triple")
+                    requested = arguments[index + 1]
+                    index = index + 2
+                else:
+                    if argument == "--target-sdk":
+                        if index + 1 >= collections.length(arguments):
+                            return TargetCommandOptions(false, input, normalize_target(requested), target_sdk, filter, "R5002", "--target-sdk requires a directory")
+                        target_sdk = arguments[index + 1]
+                        index = index + 2
+                    else:
+                        if argument == "--filter":
+                            if not allow_filter or index + 1 >= collections.length(arguments):
+                                return TargetCommandOptions(false, input, normalize_target(requested), target_sdk, filter, "R5002", "--filter is only valid for test and requires text")
+                            filter = arguments[index + 1]
+                            index = index + 2
+                        else:
+                            if string.starts_with(argument, "--"):
+                                return TargetCommandOptions(false, input, normalize_target(requested), target_sdk, filter, "R5002", string.concat("unexpected argument '", string.concat(argument, "'")))
+                            if input_set:
+                                return TargetCommandOptions(false, input, normalize_target(requested), target_sdk, filter, "R5002", string.concat("unexpected argument '", string.concat(argument, "'")))
+                            input = argument
+                            input_set = true
+                            index = index + 1
+    let selected = normalize_target(requested)
+    if not selected.valid:
+        return TargetCommandOptions(false, input, selected, target_sdk, filter, selected.error_code, selected.error)
+    return TargetCommandOptions(true, input, selected, target_sdk, filter, "", "")
+
+fn ensure_target_build_available(selected: TargetInfo, target_sdk: String) -> Int:
+    let host = native_target()
+    if host.alias == selected.alias:
+        return 0
+    if target_cross_supported(host, selected):
+        var configured = target_sdk
+        if configured == "":
+            configured = environment_or_empty(target_sdk_environment_variable(selected))
+        if configured == "":
+            print(string.concat("rocketc: error[R6003]: target SDK for '", string.concat(selected.alias, string.concat("' is not configured; use --target-sdk or ", target_sdk_environment_variable(selected)))))
+            return 2
+        return 0
+    print(string.concat("rocketc: error[R6004]: host '", string.concat(host.alias, string.concat("' cannot produce target '", string.concat(selected.alias, "'")))))
+    return 2
+
+fn ensure_target_execution_available(selected: TargetInfo, tests: Bool) -> Int:
+    let host = native_target()
+    if host.alias == selected.alias:
+        return 0
+    if tests:
+        print(string.concat("rocketc: error[R6004]: cannot execute target '", string.concat(selected.alias, string.concat("' tests on host '", string.concat(host.alias, "'")))))
+    else:
+        print(string.concat("rocketc: error[R6004]: cannot execute target '", string.concat(selected.alias, string.concat("' on host '", string.concat(host.alias, "'")))))
+    return 2
+
+fn target_command(arguments: Array[String]) -> Int:
+    var requested = target.alias()
+    var verbose = false
+    var index = 1
+    while index < collections.length(arguments):
+        if arguments[index] == "--verbose":
+            verbose = true
+            index = index + 1
+        else:
+            if arguments[index] == "--target" and index + 1 < collections.length(arguments):
+                requested = arguments[index + 1]
+                index = index + 2
+            else:
+                print(string.concat("rocketc: error[R5002]: unexpected target argument '", string.concat(arguments[index], "'")))
+                return 2
+    let selected = normalize_target(requested)
+    if not selected.valid:
+        print(string.concat("rocketc: error[", string.concat(selected.error_code, string.concat("]: ", selected.error))))
+        return 2
+    if not verbose:
+        print(selected.alias)
+        return 0
+    let host = native_target()
+    if not host.valid:
+        print(string.concat("rocketc: error[", string.concat(host.error_code, string.concat("]: ", host.error))))
+        return 2
+    print(string.concat("host: ", host.alias))
+    print(string.concat("target: ", selected.alias))
+    print(string.concat("triple: ", selected.triple))
+    print(string.concat("os: ", selected.os))
+    print(string.concat("architecture: ", selected.architecture))
+    print(string.concat("environment: ", selected.environment))
+    print(string.concat("pointer-width: ", string.from_int(selected.pointer_width)))
+    print(string.concat("endianness: ", selected.endianness))
+    print(string.concat("features: ", collections.join(selected.features, ",")))
+    if host.alias == selected.alias:
+        print("native: true")
+    else:
+        print("native: false")
+    if target_cross_supported(host, selected):
+        print("cross-supported: true")
+    else:
+        print("cross-supported: false")
+    return 0
+
+fn resolve_package_target(input: String, selected_target: TargetInfo) -> PackageInfo:
     let normalized = std.path.normalize(input)
     if std.path.extension(normalized) == ".rocket":
-        return PackageInfo(true, source_parent(normalized), normalized, std.path.join(source_parent(normalized), "tests"), "main", output_executable(), "main", [], [], [], "")
+        let filename = std.path.basename(normalized)
+        let name = string.slice(filename, 0, string.byte_length(filename) - 7)
+        return PackageInfo(true, source_parent(normalized), normalized, std.path.join(source_parent(normalized), "tests"), name, output_executable(), name, [], [], [], selected_target.alias, selected_target.triple, "", "")
     let manifest_path = std.path.join(normalized, "rocket.toml")
     let loaded = file.read_text(manifest_path)
     match loaded:
         case Err(error):
-            return PackageInfo(false, normalized, "", "", "", output_executable(), "", [], [], [], string.concat("cannot read rocket.toml: ", error))
+            return PackageInfo(false, normalized, "", "", "", output_executable(), "", [], [], [], selected_target.alias, selected_target.triple, "", string.concat("cannot read rocket.toml: ", error))
         case Ok(source):
             let resource_error = manifest_resource_error(source)
             if resource_error != "":
-                return PackageInfo(false, normalized, "", "", "", output_executable(), "", [], [], [], resource_error)
+                return PackageInfo(false, normalized, "", "", "", output_executable(), "", [], [], [], selected_target.alias, selected_target.triple, "", resource_error)
             let package_name = manifest_value(source, "package", "name")
             let version = manifest_value(source, "package", "version")
             let entry_relative = manifest_value(source, "package", "entry")
@@ -7332,35 +7593,76 @@ fn resolve_package(input: String) -> PackageInfo:
                     output_kind = output_dynamic_library()
                 else:
                     if kind != "" and kind != "executable":
-                        return PackageInfo(false, normalized, "", "", package_name, output_executable(), "", [], [], [], "build.kind must be executable, static-library, or dynamic-library")
+                        return PackageInfo(false, normalized, "", "", package_name, output_executable(), "", [], [], [], selected_target.alias, selected_target.triple, "", "build.kind must be executable, static-library, or dynamic-library")
             var output_name = manifest_value(source, "build", "name")
             if output_name == "":
                 if output_kind == output_executable():
                     output_name = "main"
                 else:
                     output_name = package_name
-            let native_libraries = manifest_list(source, "native.windows-x64", "libraries")
-            let native_search_relative = manifest_list(source, "native.windows-x64", "library-search")
-            let native_headers_relative = manifest_list(source, "native.windows-x64", "headers")
+            let native_section = string.concat("native.", selected_target.alias)
+            let native_libraries = manifest_list(source, native_section, "libraries")
+            let native_search_relative = manifest_list(source, native_section, "library-search")
+            let native_headers_relative = manifest_list(source, native_section, "headers")
             var native_search: Array[String] = []
             var native_headers: Array[String] = []
+            for index in 0..collections.length(native_libraries):
+                if string.starts_with(native_libraries[index], "framework:"):
+                    let framework = string.slice(native_libraries[index], 10, string.byte_length(native_libraries[index]))
+                    if selected_target.os != "macos" or not safe_framework_name(framework):
+                        return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], selected_target.alias, selected_target.triple, "", string.concat("invalid target-native framework input '", string.concat(native_libraries[index], "'")))
             for index in 0..collections.length(native_search_relative):
                 if not safe_manifest_relative_path(native_search_relative[index]):
-                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], "native library search paths must remain inside the package")
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], selected_target.alias, selected_target.triple, "", "native library search paths must remain inside the package")
                 native_search = append(native_search, std.path.normalize(std.path.join(normalized, native_search_relative[index])))
+            let configured_native_root = environment_or_empty("ROCKET_NATIVE_LIBRARY_ROOT")
+            if configured_native_root != "" and file.exists(configured_native_root):
+                native_search = append(native_search, std.path.normalize(configured_native_root))
             for index in 0..collections.length(native_headers_relative):
                 if not safe_manifest_relative_path(native_headers_relative[index]):
-                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], "native headers must remain inside the package")
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], selected_target.alias, selected_target.triple, "", "native headers must remain inside the package")
                 let header = std.path.normalize(std.path.join(normalized, native_headers_relative[index]))
                 if not file.exists(header):
-                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], string.concat("native header does not exist: ", header))
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, [], [], [], selected_target.alias, selected_target.triple, "", string.concat("native header does not exist: ", header))
                 native_headers = append(native_headers, header)
             if package_name == "" or version == "" or not safe_manifest_relative_path(entry_relative) or not safe_manifest_relative_path(tests_relative):
-                return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, "invalid package name, version, entry, or test directory")
-            let entry = std.path.normalize(std.path.join(normalized, entry_relative))
+                return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, selected_target.alias, selected_target.triple, "", "invalid package name, version, entry, or test directory")
+            let target_section = string.concat("target.", selected_target.alias)
+            let source_root_relative = manifest_value(source, target_section, "source-root")
+            let target_entry_relative = manifest_value(source, target_section, "entry")
+            let target_tests_relative = manifest_value(source, target_section, "test-directory")
+            var target_source_root = ""
+            if source_root_relative != "":
+                if not safe_manifest_relative_path(source_root_relative):
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, selected_target.alias, selected_target.triple, "", "target manifest source-root must stay inside the package")
+                target_source_root = std.path.normalize(std.path.join(normalized, source_root_relative))
+                if not file.exists(target_source_root):
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, selected_target.alias, selected_target.triple, "", "selected target source-root does not exist inside the package")
+            var entry = std.path.normalize(std.path.join(normalized, entry_relative))
+            var tests = std.path.normalize(std.path.join(normalized, tests_relative))
+            var selected_base = normalized
+            if target_source_root != "":
+                selected_base = target_source_root
+                let overlaid_entry = std.path.normalize(std.path.join(selected_base, entry_relative))
+                if file.exists(overlaid_entry):
+                    entry = overlaid_entry
+                let overlaid_tests = std.path.normalize(std.path.join(selected_base, tests_relative))
+                if file.exists(overlaid_tests):
+                    tests = overlaid_tests
+            if target_entry_relative != "":
+                if not safe_manifest_relative_path(target_entry_relative):
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, selected_target.alias, selected_target.triple, target_source_root, "target manifest entry must stay inside the package")
+                entry = std.path.normalize(std.path.join(selected_base, target_entry_relative))
+            if target_tests_relative != "":
+                if not safe_manifest_relative_path(target_tests_relative):
+                    return PackageInfo(false, normalized, "", "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, selected_target.alias, selected_target.triple, target_source_root, "target manifest test-directory must stay inside the package")
+                tests = std.path.normalize(std.path.join(selected_base, target_tests_relative))
             if not file.exists(entry):
-                return PackageInfo(false, normalized, entry, "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, string.concat("package entry does not exist: ", entry))
-            return PackageInfo(true, normalized, entry, std.path.normalize(std.path.join(normalized, tests_relative)), package_name, output_kind, output_name, native_libraries, native_search, native_headers, "")
+                return PackageInfo(false, normalized, entry, "", package_name, output_kind, output_name, native_libraries, native_search, native_headers, selected_target.alias, selected_target.triple, target_source_root, string.concat("package entry does not exist: ", entry))
+            return PackageInfo(true, normalized, entry, tests, package_name, output_kind, output_name, native_libraries, native_search, native_headers, selected_target.alias, selected_target.triple, target_source_root, "")
+
+fn resolve_package(input: String) -> PackageInfo:
+    return resolve_package_target(input, native_target())
 
 fn environment_or_empty(name: String) -> String:
     let result = process.environment(name)
@@ -7391,29 +7693,130 @@ fn existing_directories(paths: Array[String]) -> Array[String]:
             result = append(result, std.path.normalize(paths[index]))
     return result
 
-fn locate_toolchain() -> ToolchainInfo:
+fn host_tool_suffix() -> String:
+    if native_target().os == "windows":
+        return ".exe"
+    return ""
+
+fn target_executable_suffix(selected: TargetInfo) -> String:
+    if selected.os == "windows":
+        return ".exe"
+    return ""
+
+fn target_object_suffix(selected: TargetInfo) -> String:
+    if selected.os == "windows":
+        return ".obj"
+    return ".o"
+
+fn target_static_library_suffix(selected: TargetInfo) -> String:
+    if selected.os == "windows":
+        return ".lib"
+    return ".a"
+
+fn target_dynamic_library_suffix(selected: TargetInfo) -> String:
+    if selected.os == "windows":
+        return ".dll"
+    if selected.os == "macos":
+        return ".dylib"
+    return ".so"
+
+fn target_metadata_matches(root: String, selected: TargetInfo) -> Bool:
+    let loaded = file.read_text(std.path.join(root, "share/rocket/target.txt"))
+    match loaded:
+        case Err(error):
+            return false
+        case Ok(source):
+            let lines = string.split(source, "\n")
+            if collections.length(lines) < 3:
+                return false
+            if string.trim(lines[0]) != "rocket-target-sdk-1":
+                return false
+            if string.trim(lines[1]) != string.concat("alias=", selected.alias):
+                return false
+            if string.trim(lines[2]) != string.concat("triple=", selected.triple):
+                return false
+            for index in 3..collections.length(lines):
+                if string.trim(lines[index]) != "":
+                    return false
+            return true
+
+fn installed_target_toolchain(root: String, selected: TargetInfo, require_metadata: Bool) -> ToolchainInfo:
+    let normalized = std.path.normalize(root)
+    if not file.exists(normalized) or(require_metadata and not target_metadata_matches(normalized, selected)):
+        return ToolchainInfo(false, "", "", "", [], "", "R6003", string.concat("configured target SDK for '", string.concat(selected.alias, "' is incomplete or has mismatched target metadata")))
+    let suffix = host_tool_suffix()
+    let clang_path = std.path.join(normalized, string.concat("bin/clang", suffix))
+    var librarian_name = "bin/llvm-ar"
+    if selected.os == "windows":
+        librarian_name = "bin/llvm-lib"
+    let librarian = std.path.join(normalized, string.concat(librarian_name, suffix))
+    let runtime_path = std.path.join(normalized, string.concat("lib/rocket_runtime", target_static_library_suffix(selected)))
+    var library_directories: Array[String] = []
+    if selected.os == "windows":
+        library_directories = existing_directories([std.path.join(normalized, "lib/msvc"), std.path.join(normalized, "lib/ucrt"), std.path.join(normalized, "lib/um")])
+    else:
+        library_directories = existing_directories([std.path.join(normalized, "lib")])
+    var sysroot = ""
+    let possible_sysroot = std.path.join(normalized, "sysroot")
+    if file.exists(possible_sysroot):
+        sysroot = possible_sysroot
+    let host = native_target()
+    let cross = host.alias != selected.alias
+    var complete = file.exists(clang_path) and file.exists(librarian) and file.exists(runtime_path)
+    if cross and selected.os == "linux" and sysroot == "":
+        complete = false
+    if cross and selected.os == "windows" and collections.length(library_directories) != 3:
+        complete = false
+    if not complete:
+        return ToolchainInfo(false, clang_path, runtime_path, librarian, library_directories, sysroot, "R6003", string.concat("configured target SDK for '", string.concat(selected.alias, "' is incomplete or has mismatched target metadata")))
+    return ToolchainInfo(true, clang_path, runtime_path, librarian, library_directories, sysroot, "", "")
+
+fn locate_toolchain_target(selected: TargetInfo, target_sdk: String) -> ToolchainInfo:
+    let host = native_target()
+    if host.alias != selected.alias and not target_cross_supported(host, selected):
+        return ToolchainInfo(false, "", "", "", [], "", "R6004", string.concat("host '", string.concat(host.alias, string.concat("' cannot produce target '", string.concat(selected.alias, "'")))))
+    var configured = target_sdk
+    if configured == "":
+        configured = environment_or_empty(target_sdk_environment_variable(selected))
+    if configured != "":
+        return installed_target_toolchain(configured, selected, true)
+    if host.alias != selected.alias:
+        return ToolchainInfo(false, "", "", "", [], "", "R6003", string.concat("target SDK for '", string.concat(selected.alias, string.concat("' is not configured; use --target-sdk or ", target_sdk_environment_variable(selected)))))
     let compiler_directory = executable_directory()
     var install_root = compiler_directory
     if std.path.basename(compiler_directory) == "bin":
         install_root = source_parent(compiler_directory)
+    let installed = installed_target_toolchain(install_root, selected, false)
+    if installed.valid:
+        return installed
     var development_root = ""
     if std.path.basename(compiler_directory) == ".rocketc":
         development_root = source_parent(source_parent(compiler_directory))
+    let targets_directory = source_parent(compiler_directory)
+    let cache_directory = source_parent(targets_directory)
+    if std.path.basename(targets_directory) == "targets" and std.path.basename(cache_directory) == ".rocketc":
+        development_root = source_parent(source_parent(cache_directory))
+    let suffix = host_tool_suffix()
     var clang_path = environment_or_empty("ROCKET_CLANG")
     var runtime_path = environment_or_empty("ROCKET_RUNTIME")
     if clang_path == "":
-        clang_path = first_existing([std.path.join(compiler_directory, "clang.exe"), std.path.join(install_root, "bin/clang.exe"), std.path.join(development_root, "dependencies/installed/llvm-22.1.6/bin/clang.exe"), "bin/clang.exe", "dependencies/installed/llvm-22.1.6/bin/clang.exe"])
+        clang_path = first_existing([std.path.join(compiler_directory, string.concat("clang", suffix)), std.path.join(install_root, string.concat("bin/clang", suffix)), std.path.join(development_root, string.concat("dependencies/installed/llvm-22.1.6/bin/clang", suffix)), string.concat("bin/clang", suffix), string.concat("dependencies/installed/llvm-22.1.6/bin/clang", suffix)])
     if runtime_path == "":
-        runtime_path = first_existing([std.path.join(install_root, "lib/rocket_runtime.lib"), std.path.join(compiler_directory, "rocket_runtime.lib"), std.path.join(development_root, "out/build/windows-debug/rocket_runtime.lib"), std.path.join(development_root, "out/build/windows-release/rocket_runtime.lib"), "lib/rocket_runtime.lib", "out/build/windows-debug/rocket_runtime.lib", "out/build/windows-release/rocket_runtime.lib"])
+        let runtime_name = string.concat("rocket_runtime", target_static_library_suffix(selected))
+        runtime_path = first_existing([std.path.join(install_root, string.concat("lib/", runtime_name)), std.path.join(compiler_directory, runtime_name), std.path.join(development_root, std.path.join(string.concat("out/build/", string.concat(selected.alias, "-debug")), runtime_name)), std.path.join(development_root, std.path.join(string.concat("out/build/", string.concat(selected.alias, "-release")), runtime_name)), std.path.join("lib", runtime_name)])
+    var librarian = environment_or_empty("ROCKET_LIBRARIAN")
+    if librarian == "" and clang_path != "":
+        var librarian_name = "llvm-ar"
+        if selected.os == "windows":
+            librarian_name = "llvm-lib"
+        librarian = std.path.join(source_parent(std.path.normalize(clang_path)), string.concat(librarian_name, suffix))
     let library_directories = existing_directories([std.path.join(install_root, "lib/msvc"), std.path.join(install_root, "lib/ucrt"), std.path.join(install_root, "lib/um")])
-    if clang_path == "":
-        return ToolchainInfo(false, "", runtime_path, "", library_directories, "could not locate the pinned clang.exe; set ROCKET_CLANG")
-    if runtime_path == "":
-        return ToolchainInfo(false, clang_path, "", "", library_directories, "could not locate rocket_runtime.lib; set ROCKET_RUNTIME")
-    let librarian = std.path.join(source_parent(std.path.normalize(clang_path)), "llvm-lib.exe")
-    if not file.exists(librarian):
-        return ToolchainInfo(false, clang_path, runtime_path, "", library_directories, "could not locate llvm-lib.exe next to clang.exe")
-    return ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), std.path.normalize(librarian), library_directories, "")
+    if clang_path == "" or runtime_path == "" or librarian == "" or not file.exists(librarian):
+        return ToolchainInfo(false, clang_path, runtime_path, librarian, library_directories, "", "R6003", string.concat("native toolchain for '", string.concat(selected.alias, "' is incomplete; install the Rocket SDK or configure its compiler, librarian, and runtime")))
+    return ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), std.path.normalize(librarian), library_directories, "", "", "")
+
+fn locate_toolchain() -> ToolchainInfo:
+    return locate_toolchain_target(native_target(), "")
 
 fn ensure_directory(directory: String) -> Int:
     let created = file.create_directory(directory)
@@ -7754,12 +8157,15 @@ fn bind_command(header_path: String, output_path: String) -> Int:
                     return 1
 
 fn write_generated_ir_kind(input: String, output: String, library: Bool) -> Int:
-    let result = compile_program_to_mir_kind(input, library)
+    return write_generated_ir_kind_target(input, "", output, library, native_target())
+
+fn write_generated_ir_kind_target(input: String, target_root: String, output: String, library: Bool, selected: TargetInfo) -> Int:
+    let result = compile_program_to_mir_kind_target(input, target_root, library)
     if collections.length(result.diagnostics) != 0:
         for index in 0..collections.length(result.diagnostics):
             print(diagnostic_text(input, result.diagnostics[index]))
         return 1
-    let written = file.write_text(output, generate_llvm_ir(result.module))
+    let written = file.write_text(output, generate_llvm_ir(result.module, selected))
     match written:
         case Ok(value):
             return 0
@@ -7836,20 +8242,40 @@ fn hash_build_file(path_value: String) -> String:
                 case Err(error):
                     return ""
 
-fn output_extension(output_kind: Int) -> String:
+fn output_extension(output_kind: Int, selected: TargetInfo) -> String:
     if output_kind == output_static_library():
-        return ".lib"
+        return target_static_library_suffix(selected)
     if output_kind == output_dynamic_library():
-        return ".dll"
-    return ".exe"
+        return target_dynamic_library_suffix(selected)
+    return target_executable_suffix(selected)
+
+fn safe_artifact_identity(value: String) -> String:
+    let builder = string.builder()
+    for index in 0..string.byte_length(value):
+        let byte = string.byte_value_at(value, index)
+        if(byte >= 65 and byte <= 90) or(byte >= 97 and byte <= 122) or(byte >= 48 and byte <= 57) or byte == 95 or byte == 45:
+            string.builder_append(builder, string.slice(value, index, index + 1))
+        else:
+            string.builder_append(builder, "_")
+    let result = string.builder_finish(builder)
+    if result == "":
+        return "anonymous"
+    return result
+
+fn package_artifact_directory(package: PackageInfo) -> String:
+    var root = package.root
+    let configured = environment_or_empty("ROCKET_ARTIFACT_ROOT")
+    if configured != "":
+        root = std.path.join(std.path.normalize(configured), safe_artifact_identity(package.name))
+    return std.path.join(std.path.join(std.path.join(root, ".rocketc"), "targets"), package.target_alias)
 
 fn package_artifact_path(package: PackageInfo) -> String:
-    return std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, output_extension(package.output_kind)))
+    return std.path.join(package_artifact_directory(package), string.concat(package.output_name, output_extension(package.output_kind, normalize_target(package.target_alias))))
 
 fn package_cache_marker(package: PackageInfo) -> String:
-    return std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, ".rocket-build-cache-1"))
+    return std.path.join(package_artifact_directory(package), string.concat(package.output_name, ".rocket-build-cache-1"))
 
-fn build_cache_key(package: PackageInfo) -> String:
+fn build_cache_key(package: PackageInfo, target_sdk: String) -> String:
     if not file.exists(std.path.join(package.root, "rocket.toml")):
         return ""
     let sources = collect_build_hashes(package.root, "")
@@ -7865,7 +8291,7 @@ fn build_cache_key(package: PackageInfo) -> String:
             compiler_digest = hash_build_file(path_value)
         case Err(error):
             return ""
-    let toolchain = locate_toolchain()
+    let toolchain = locate_toolchain_target(normalize_target(package.target_alias), target_sdk)
     if not toolchain.valid:
         return ""
     let runtime_digest = hash_build_file(toolchain.runtime)
@@ -7873,10 +8299,12 @@ fn build_cache_key(package: PackageInfo) -> String:
         return ""
     let material = string.builder()
     string.builder_append(material, "rocket-build-cache-1\n")
-    string.builder_append(material, "compiler-version=2.0.0\n")
+    string.builder_append(material, "compiler-version=2.1.0\n")
     string.builder_append(material, string.concat("compiler-sha256=", string.concat(compiler_digest, "\n")))
     string.builder_append(material, string.concat("source-sha256=", string.concat(source_digest, "\n")))
-    string.builder_append(material, "target=windows-x64\noptimized=true\n")
+    string.builder_append(material, string.concat("target=", string.concat(package.target_alias, "\n")))
+    string.builder_append(material, string.concat("triple=", string.concat(package.target_triple, "\n")))
+    string.builder_append(material, "optimized=true\n")
     string.builder_append(material, string.concat("output-kind=", string.concat(string.from_int(package.output_kind), "\n")))
     string.builder_append(material, string.concat("output-name=", string.concat(package.output_name, "\n")))
     string.builder_append(material, string.concat("runtime-sha256=", string.concat(runtime_digest, "\n")))
@@ -7889,7 +8317,7 @@ fn build_cache_key(package: PackageInfo) -> String:
 fn package_build_cache_hit(package: PackageInfo, key: String) -> Bool:
     if key == "" or not file.exists(package_artifact_path(package)):
         return false
-    if package.output_kind != output_executable() and not file.exists(std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, ".h"))):
+    if package.output_kind != output_executable() and not file.exists(std.path.join(package_artifact_directory(package), string.concat(package.output_name, ".h"))):
         return false
     let loaded = file.read_text(package_cache_marker(package))
     match loaded:
@@ -7898,10 +8326,27 @@ fn package_build_cache_hit(package: PackageInfo, key: String) -> Bool:
         case Err(error):
             return false
 
+fn safe_framework_name(value: String) -> Bool:
+    if value == "":
+        return false
+    for index in 0..string.byte_length(value):
+        let byte = string.byte_value_at(value, index)
+        if not((byte >= 65 and byte <= 90) or(byte >= 97 and byte <= 122) or(byte >= 48 and byte <= 57) or byte == 95):
+            return false
+    return true
+
 fn native_library_arguments(package: PackageInfo) -> Array[String]:
     var result: Array[String] = []
     for index in 0..collections.length(package.native_libraries):
         let library = package.native_libraries[index]
+        if package.target_alias == "macos-arm64" and string.starts_with(library, "framework:"):
+            let framework = string.slice(library, 10, string.byte_length(library))
+            if safe_framework_name(framework):
+                result = append(result, "-framework")
+                result = append(result, framework)
+            else:
+                result = append(result, library)
+            continue
         var resolved = ""
         if string.contains(library, "/") or string.contains(library, "\\"):
             if safe_manifest_relative_path(library):
@@ -7918,46 +8363,82 @@ fn native_library_arguments(package: PackageInfo) -> Array[String]:
                 if file.exists(candidate):
                     resolved = std.path.normalize(candidate)
         if resolved == "":
-            if std.path.extension(library) == ".lib":
+            let extension = std.path.extension(library)
+            if extension == ".lib":
                 result = append(result, string.concat("-l", string.slice(library, 0, string.byte_length(library) - 4)))
             else:
-                result = append(result, library)
+                if extension == ".a" and string.starts_with(library, "lib"):
+                    result = append(result, string.concat("-l", string.slice(library, 3, string.byte_length(library) - 2)))
+                else:
+                    if extension == ".so" and string.starts_with(library, "lib"):
+                        result = append(result, string.concat("-l", string.slice(library, 3, string.byte_length(library) - 3)))
+                    else:
+                        if extension == ".dylib" and string.starts_with(library, "lib"):
+                            result = append(result, string.concat("-l", string.slice(library, 3, string.byte_length(library) - 6)))
+                        else:
+                            if extension == "":
+                                result = append(result, string.concat("-l", library))
+                            else:
+                                result = append(result, library)
         else:
             result = append(result, resolved)
     return result
 
-fn build_native_source_with_package(package: PackageInfo, source: String, artifact_directory: String, artifact_name: String, output_kind: Int) -> NativeBuildResult:
+fn build_native_source_with_package(package: PackageInfo, source: String, artifact_directory: String, artifact_name: String, output_kind: Int, target_sdk: String) -> NativeBuildResult:
     if ensure_directory(artifact_directory) != 0:
         return NativeBuildResult(1, "")
-    let toolchain = locate_toolchain()
+    let selected = normalize_target(package.target_alias)
+    let toolchain = locate_toolchain_target(selected, target_sdk)
     if not toolchain.valid:
-        print(string.concat("rocketc: error[R5002]: ", toolchain.error))
-        return NativeBuildResult(1, "")
+        print(string.concat("rocketc: error[", string.concat(toolchain.error_code, string.concat("]: ", toolchain.error))))
+        return NativeBuildResult(2, "")
     let ir = std.path.join(artifact_directory, string.concat(artifact_name, ".ll"))
-    let object = std.path.join(artifact_directory, string.concat(artifact_name, ".obj"))
-    var artifact = std.path.join(artifact_directory, string.concat(artifact_name, ".exe"))
-    if output_kind == output_static_library():
-        artifact = std.path.join(artifact_directory, string.concat(artifact_name, ".lib"))
-    if output_kind == output_dynamic_library():
-        artifact = std.path.join(artifact_directory, string.concat(artifact_name, ".dll"))
-    if write_generated_ir_kind(source, ir, output_kind != output_executable()) != 0:
+    let object = std.path.join(artifact_directory, string.concat(artifact_name, target_object_suffix(selected)))
+    let artifact = std.path.join(artifact_directory, string.concat(artifact_name, output_extension(output_kind, selected)))
+    if write_generated_ir_kind_target(source, package.target_source_root, ir, output_kind != output_executable(), selected) != 0:
         return NativeBuildResult(1, artifact)
-    if direct_process(toolchain.clang, ["-c", "-O2", "-Wno-override-module", ir, "-o", object]) != 0:
+    var compile_arguments: Array[String] = ["-c", "-O2", "-Wno-override-module", string.concat("--target=", selected.triple)]
+    if toolchain.sysroot != "":
+        compile_arguments = append(compile_arguments, string.concat("--sysroot=", toolchain.sysroot))
+    compile_arguments = append(compile_arguments, ir)
+    compile_arguments = append(compile_arguments, "-o")
+    compile_arguments = append(compile_arguments, object)
+    if direct_process(toolchain.clang, compile_arguments) != 0:
         return NativeBuildResult(1, artifact)
     if output_kind == output_static_library():
-        if direct_process(toolchain.librarian, [string.concat("/OUT:", artifact), object]) != 0:
+        var librarian_arguments: Array[String] = ["rcsD", artifact, object]
+        if selected.os == "windows":
+            librarian_arguments = ["/nologo", string.concat("/OUT:", artifact), object]
+        if direct_process(toolchain.librarian, librarian_arguments) != 0:
             return NativeBuildResult(1, artifact)
         return NativeBuildResult(0, artifact)
-    var link_arguments: Array[String] = [object, toolchain.runtime, "-fuse-ld=lld", "-Wl,/Brepro"]
+    var link_arguments: Array[String] = [object, toolchain.runtime, string.concat("--target=", selected.triple), "-fuse-ld=lld"]
     if output_kind == output_dynamic_library():
-        link_arguments = ["-shared", object, toolchain.runtime, "-fuse-ld=lld", "-Wl,/Brepro"]
+        link_arguments = ["-shared", object, toolchain.runtime, string.concat("--target=", selected.triple), "-fuse-ld=lld"]
+    if toolchain.sysroot != "":
+        link_arguments = append(link_arguments, string.concat("--sysroot=", toolchain.sysroot))
+    if selected.os == "windows":
+        link_arguments = append(link_arguments, "-Wl,/Brepro")
+        link_arguments = append(link_arguments, "-Wl,/DEBUG:FULL")
+        link_arguments = append(link_arguments, string.concat("-Wl,/PDB:", std.path.join(artifact_directory, string.concat(artifact_name, ".pdb"))))
+    else:
+        if selected.os == "linux":
+            link_arguments = append(link_arguments, "-Wl,--build-id=sha1")
+        else:
+            link_arguments = append(link_arguments, "-Wl,-no_uuid")
     for index in 0..collections.length(toolchain.library_directories):
         link_arguments = append(link_arguments, "-L")
         link_arguments = append(link_arguments, toolchain.library_directories[index])
+        if native_target().alias == selected.alias and selected.os != "windows":
+            link_arguments = append(link_arguments, string.concat("-Wl,-rpath,", toolchain.library_directories[index]))
     for index in 0..collections.length(package.native_library_search):
         link_arguments = append(link_arguments, "-L")
         link_arguments = append(link_arguments, package.native_library_search[index])
     link_arguments = collections.concat(link_arguments, native_library_arguments(package))
+    if selected.os == "linux":
+        link_arguments = collections.concat(link_arguments, ["-lcurl", "-lcrypto", "-licuuc", "-licudata", "-lpthread", "-ldl", "-lstdc++", "-lm"])
+    if selected.os == "macos":
+        link_arguments = collections.concat(link_arguments, ["-lcurl", "-lcrypto", "-licuuc", "-licudata", "-lpthread", "-lc++", "-lm", "-framework", "Security", "-framework", "CoreFoundation"])
     link_arguments = append(link_arguments, "-o")
     link_arguments = append(link_arguments, artifact)
     if direct_process(toolchain.clang, link_arguments) != 0:
@@ -7966,15 +8447,19 @@ fn build_native_source_with_package(package: PackageInfo, source: String, artifa
 
 fn build_native_source(source: String, artifact_directory: String, artifact_name: String) -> NativeBuildResult:
     let root = source_parent(std.path.normalize(source))
-    let package = PackageInfo(true, root, source, std.path.join(root, "tests"), artifact_name, output_executable(), artifact_name, [], [], [], "")
-    return build_native_source_with_package(package, source, artifact_directory, artifact_name, output_executable())
+    let host = native_target()
+    let package = PackageInfo(true, root, source, std.path.join(root, "tests"), artifact_name, output_executable(), artifact_name, [], [], [], host.alias, host.triple, "", "")
+    return build_native_source_with_package(package, source, artifact_directory, artifact_name, output_executable(), "")
 
 fn check_command(input: String) -> Int:
-    let package = resolve_package(input)
+    return check_command_target(input, native_target())
+
+fn check_command_target(input: String, selected_target: TargetInfo) -> Int:
+    let package = resolve_package_target(input, selected_target)
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
         return 1
-    let result = analyze_program_kind(package.entry, package.output_kind != output_executable())
+    let result = analyze_program_kind_target(package.entry, package.target_source_root, package.output_kind != output_executable())
     if collections.length(result.diagnostics) != 0:
         for index in 0..collections.length(result.diagnostics):
             print(diagnostic_text(package.entry, result.diagnostics[index]))
@@ -7983,19 +8468,22 @@ fn check_command(input: String) -> Int:
     return 0
 
 fn build_command(input: String) -> NativeBuildResult:
-    let package = resolve_package(input)
+    return build_command_target(input, native_target(), "")
+
+fn build_command_target(input: String, selected_target: TargetInfo, target_sdk: String) -> NativeBuildResult:
+    let package = resolve_package_target(input, selected_target)
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
         return NativeBuildResult(1, "")
-    let cache_key = build_cache_key(package)
+    let cache_key = build_cache_key(package, target_sdk)
     if package_build_cache_hit(package, cache_key):
         let artifact = package_artifact_path(package)
         print(string.concat("built ", string.concat(artifact, " (cache hit)")))
         return NativeBuildResult(0, artifact)
-    let result = build_native_source_with_package(package, package.entry, std.path.join(package.root, ".rocketc"), package.output_name, package.output_kind)
+    let result = build_native_source_with_package(package, package.entry, package_artifact_directory(package), package.output_name, package.output_kind, target_sdk)
     if result.status == 0:
         if package.output_kind != output_executable():
-            let header = std.path.join(std.path.join(package.root, ".rocketc"), string.concat(package.output_name, ".h"))
+            let header = std.path.join(package_artifact_directory(package), string.concat(package.output_name, ".h"))
             if emit_header_command(input, header) != 0:
                 return NativeBuildResult(1, result.executable)
         if cache_key != "":
@@ -8012,14 +8500,17 @@ fn run_command(arguments: Array[String]) -> Int:
     if collections.length(arguments) < 2:
         print("rocketc: error[R5002]: run expects a source file or package")
         return 1
-    let package = resolve_package(arguments[1])
+    return run_command_target(arguments, arguments[1], native_target(), "")
+
+fn run_command_target(arguments: Array[String], input: String, selected_target: TargetInfo, target_sdk: String) -> Int:
+    let package = resolve_package_target(input, selected_target)
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
         return 1
     if package.output_kind != output_executable():
         print("rocketc: error[R5002]: run requires an executable package")
         return 1
-    let built = build_command(arguments[1])
+    let built = build_command_target(input, selected_target, target_sdk)
     if built.status != 0:
         return built.status
     var program_arguments: Array[String] = []
@@ -8254,7 +8745,10 @@ fn format_command(input: String, check_only: Bool) -> Int:
     return 1
 
 fn test_command(input: String, filter: String) -> Int:
-    let package = resolve_package(input)
+    return test_command_target(input, filter, native_target(), "")
+
+fn test_command_target(input: String, filter: String, selected_target: TargetInfo, target_sdk: String) -> Int:
+    let package = resolve_package_target(input, selected_target)
     if not package.valid:
         print(string.concat("rocketc: error[R5001]: ", package.error))
         return 1
@@ -8271,12 +8765,12 @@ fn test_command(input: String, filter: String) -> Int:
             var failed = 0
             var expected_failures = 0
             var selected = 0
-            let artifact_directory = std.path.join(package.root, ".rocketc/tests")
+            let artifact_directory = std.path.join(package_artifact_directory(package), "tests")
             for index in 0..collections.length(entries):
                 if std.path.extension(entries[index]) == ".rocket" and(filter == "" or string.contains(entries[index], filter)):
                     selected = selected + 1
                     let source = std.path.join(package.test_directory, entries[index])
-                    let built = build_native_source_with_package(package, source, artifact_directory, string.concat("test-", string.from_int(index)), output_executable())
+                    let built = build_native_source_with_package(package, source, artifact_directory, string.concat("test-", string.from_int(index)), output_executable(), target_sdk)
                     let expected_failure = string.ends_with(entries[index], ".xfail.rocket")
                     if built.status != 0:
                         failed = failed + 1
@@ -8356,14 +8850,14 @@ fn package_stage0_path() -> String:
             return ""
         case Ok(path_value):
             let executable_directory = source_parent(std.path.normalize(path_value))
-            let packaged = std.path.normalize(std.path.join(source_parent(executable_directory), "stage0/rocketc-stage0.exe"))
+            let packaged = std.path.normalize(std.path.join(source_parent(executable_directory), string.concat("stage0/rocketc-stage0", host_tool_suffix())))
             if file.exists(packaged):
                 return packaged
             let repository_root = source_parent(source_parent(executable_directory))
-            let release = std.path.normalize(std.path.join(repository_root, "out/build/windows-release/rocketc.exe"))
+            let release = first_existing([std.path.normalize(std.path.join(repository_root, std.path.join(string.concat("out/build/", string.concat(native_target().alias, "-release")), string.concat("rocketc", host_tool_suffix())))), std.path.normalize(std.path.join(repository_root, std.path.join(string.concat("out/build/", string.concat(native_target().os, "-release")), string.concat("rocketc", host_tool_suffix()))))])
             if file.exists(release):
                 return release
-            let debug = std.path.normalize(std.path.join(repository_root, "out/build/windows-debug/rocketc.exe"))
+            let debug = first_existing([std.path.normalize(std.path.join(repository_root, std.path.join(string.concat("out/build/", string.concat(native_target().alias, "-debug")), string.concat("rocketc", host_tool_suffix())))), std.path.normalize(std.path.join(repository_root, std.path.join(string.concat("out/build/", string.concat(native_target().os, "-debug")), string.concat("rocketc", host_tool_suffix()))))])
             if file.exists(debug):
                 return debug
     return ""
@@ -8398,10 +8892,10 @@ fn verify_package_graph(input: String) -> Int:
             return 1
 
 fn print_help() -> Unit:
-    print("Rocket compiler 2.0.0")
-    print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|coverage|profile|benchmark|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind> [arguments]")
+    print("Rocket compiler 2.1.0")
+    print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|coverage|profile|benchmark|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind|target> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
-    print("  build <path>        build .rocketc/main.exe")
+    print("  build <path> [--target alias-or-triple] [--target-sdk directory] build a target-qualified artifact")
     print("  run <path> -- ...   build and run with optional arguments")
     print("  test <package> [--filter text] build and run package tests")
     print("  fmt <path> [--check] format or verify source formatting")
@@ -8410,6 +8904,7 @@ fn print_help() -> Unit:
     print("  login|logout|publish|registry ... authenticated package workflows")
     print("  emit-header <package> [--output output.h] generate a deterministic C header")
     print("  bind <header.h> [--output bindings.rocket] generate deterministic Rocket bindings")
+    print("  target [--target alias-or-triple] [--verbose] inspect host and target")
 
 fn lexer_self_test() -> Int:
     let source = "fn main() -> Int:\r\n    let text = \"Rocket\\n\"\r\n    return 0\r\n"
@@ -8430,6 +8925,8 @@ fn lexer_self_test() -> Int:
 
 fn main() -> Int:
     let arguments = process.arguments()
+    if collections.length(arguments) > 0 and arguments[0] == "target":
+        return target_command(arguments)
     if collections.length(arguments) == 1 and arguments[0] == "--self-test-lexer":
         let status = lexer_self_test()
         if status == 0:
@@ -8452,7 +8949,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 2.0.0")
+        print("rocketc 2.1.0")
         return 0
     if collections.length(arguments) > 0 and contains_string(["coverage", "profile", "benchmark"], arguments[0]):
         return forward_package_command(arguments)
@@ -8460,31 +8957,30 @@ fn main() -> Int:
         return forward_package_command(arguments)
     if collections.length(arguments) > 0 and contains_string(["resolve", "tree", "audit", "doc", "login", "logout", "publish", "registry"], arguments[0]):
         return forward_package_command(arguments)
-    if collections.length(arguments) == 2 and arguments[0] == "check":
-        let verified = verify_package_graph(arguments[1])
+    if collections.length(arguments) > 0 and contains_string(["check", "build", "run", "test"], arguments[0]):
+        let options = parse_target_command_options(arguments, arguments[0] == "test")
+        if not options.valid:
+            print(string.concat("rocketc: error[", string.concat(options.error_code, string.concat("]: ", options.error))))
+            return 2
+        let verified = verify_package_graph(options.input)
         if verified != 0:
             return verified
-        return check_command(arguments[1])
-    if collections.length(arguments) == 2 and arguments[0] == "build":
-        let verified = verify_package_graph(arguments[1])
-        if verified != 0:
-            return verified
-        return build_command(arguments[1]).status
-    if collections.length(arguments) >= 2 and arguments[0] == "run":
-        let verified = verify_package_graph(arguments[1])
-        if verified != 0:
-            return verified
-        return run_command(arguments)
-    if collections.length(arguments) == 2 and arguments[0] == "test":
-        let verified = verify_package_graph(arguments[1])
-        if verified != 0:
-            return verified
-        return test_command(arguments[1], "")
-    if collections.length(arguments) == 4 and arguments[0] == "test" and arguments[2] == "--filter":
-        let verified = verify_package_graph(arguments[1])
-        if verified != 0:
-            return verified
-        return test_command(arguments[1], arguments[3])
+        if arguments[0] == "check":
+            return check_command_target(options.input, options.selected_target)
+        if arguments[0] == "build":
+            let available = ensure_target_build_available(options.selected_target, options.target_sdk)
+            if available != 0:
+                return available
+            return build_command_target(options.input, options.selected_target, options.target_sdk).status
+        if arguments[0] == "run":
+            let executable = ensure_target_execution_available(options.selected_target, false)
+            if executable != 0:
+                return executable
+            return run_command_target(arguments, options.input, options.selected_target, options.target_sdk)
+        let tests = ensure_target_execution_available(options.selected_target, true)
+        if tests != 0:
+            return tests
+        return test_command_target(options.input, options.filter, options.selected_target, options.target_sdk)
     if collections.length(arguments) >= 2 and collections.length(arguments) <= 3 and arguments[0] == "fmt":
         var check_only = false
         if collections.length(arguments) == 3 and arguments[2] == "--check":

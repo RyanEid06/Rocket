@@ -37,6 +37,11 @@ enum class DiagnosticCode {
   DependencyAudit = 5005,
   PackageTransport = 5006,
   PackageCapability = 5007,
+  UnknownTarget = 6001,
+  UnsupportedTarget = 6002,
+  TargetToolchain = 6003,
+  HostTargetOperation = 6004,
+  TargetManifest = 6005,
   Internal = 9001,
 };
 

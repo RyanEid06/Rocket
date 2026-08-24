@@ -2,8 +2,9 @@ $ErrorActionPreference = 'Stop'
 $dependencyRoot = $PSScriptRoot
 $manifest = Get-Content -LiteralPath (Join-Path $dependencyRoot 'manifest.json') -Raw | ConvertFrom-Json
 $installedRoot = Join-Path $dependencyRoot 'installed'
-$llvmRoot = Join-Path $installedRoot $manifest.portable.llvm.installDirectory
-$ninjaRoot = Join-Path $installedRoot $manifest.portable.ninja.installDirectory
+$platform = $manifest.platforms.'windows-x64'
+$llvmRoot = Join-Path $installedRoot $platform.llvm.installDirectory
+$ninjaRoot = Join-Path $installedRoot $platform.ninja.installDirectory
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Visual Studio Installer was not found.' }
@@ -65,4 +66,4 @@ $env:PATH = (Join-Path $llvmRoot 'bin') + ';' + $ninjaRoot + ';' + $env:PATH
 $env:LLVM_DIR = Join-Path $llvmRoot 'lib\cmake\llvm'
 $env:ROCKET_DEPS = $dependencyRoot
 
-Write-Host "Developer environment active: LLVM $($manifest.portable.llvm.version), Ninja $($manifest.portable.ninja.version)"
+Write-Host "Developer environment active: LLVM $($platform.llvm.version), Ninja $($platform.ninja.version)"

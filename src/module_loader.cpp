@@ -74,10 +74,15 @@ struct LoadedModule {
 class Loader {
 public:
   Loader(std::filesystem::path root, std::filesystem::path packageRoot,
+         std::filesystem::path targetSourceRoot,
          std::vector<PackageDependencyRoot> dependencyRoots,
          Diagnostics& diagnostics, const SourceOverlays* overlays = nullptr)
       : rootPath_(std::filesystem::absolute(std::move(root)).lexically_normal()),
         packageRoot_(std::filesystem::absolute(std::move(packageRoot)).lexically_normal()),
+        targetSourceRoot_(targetSourceRoot.empty()
+                              ? std::filesystem::path{}
+                              : std::filesystem::absolute(
+                                    std::move(targetSourceRoot)).lexically_normal()),
         diagnostics_(diagnostics), overlays_(overlays) {
     for (auto& dependency : dependencyRoots) {
       if (dependency.direct) rootDependencies_.insert(dependency.name);
@@ -86,8 +91,8 @@ public:
   }
 
   std::optional<Module> load() {
-    if (!loadOne("", rootPath_, {rootPath_.string(), 1, 1}, packageRoot_, "",
-                 rootDependencies_, 0))
+    if (!loadOne("", rootPath_, {rootPath_.string(), 1, 1}, packageRoot_,
+                 targetSourceRoot_, "", rootDependencies_, 0))
       return std::nullopt;
     buildIndexes();
     for (auto& [name, module] : modules_) rewrite(module);
@@ -110,6 +115,12 @@ public:
   }
 
 private:
+  bool sourceExists(const std::filesystem::path& path) const {
+    const auto normalized = std::filesystem::absolute(path).lexically_normal();
+    return (overlays_ != nullptr && overlays_->contains(normalized)) ||
+           std::filesystem::is_regular_file(normalized);
+  }
+
   bool readSource(const std::filesystem::path& path, std::string& source,
                   std::string& error) const {
     const auto normalized = std::filesystem::absolute(path).lexically_normal();
@@ -130,6 +141,7 @@ private:
   bool loadOne(const std::string& name, const std::filesystem::path& path,
                const Location& importLocation,
                const std::filesystem::path& ownerRoot,
+               const std::filesystem::path& ownerTargetRoot,
                const std::string& ownerPrefix,
                const std::unordered_set<std::string>& allowedDependencies,
                std::size_t depth) {
@@ -192,7 +204,8 @@ private:
         module.importTargets[import.name] = import.name;
         valid = loadOne(import.name,
                         (standardLibraryRoot / "std/testing.rocket").lexically_normal(),
-                        import.location, standardLibraryRoot, "std", {}, depth + 1) && valid;
+                        import.location, standardLibraryRoot, {}, "std", {},
+                        depth + 1) && valid;
         continue;
       }
       if (import.name.rfind("std.", 0) == 0) continue;
@@ -201,6 +214,7 @@ private:
       std::filesystem::path importedPath;
       std::string importedName;
       std::filesystem::path importedOwnerRoot = ownerRoot;
+      std::filesystem::path importedOwnerTargetRoot = ownerTargetRoot;
       std::string importedOwnerPrefix = ownerPrefix;
       std::unordered_set<std::string> importedAllowed = allowedDependencies;
       if (allowedDependencies.contains(first)) {
@@ -214,6 +228,7 @@ private:
         }
         importedName = import.name;
         importedOwnerRoot = dependency->second.root;
+        importedOwnerTargetRoot = dependency->second.targetSourceRoot;
         importedOwnerPrefix = dependency->second.name;
         importedAllowed = std::unordered_set<std::string>(
             dependency->second.dependencies.begin(),
@@ -221,16 +236,22 @@ private:
         if (firstDot == std::string::npos) {
           importedPath = dependency->second.entry;
         } else {
-          importedPath = dependency->second.root;
+          std::filesystem::path relative;
           std::size_t start = firstDot + 1;
           while (start < import.name.size()) {
             const std::size_t dot = import.name.find('.', start);
-            importedPath /= import.name.substr(
+            relative /= import.name.substr(
                 start, dot == std::string::npos ? std::string::npos : dot - start);
             if (dot == std::string::npos) break;
             start = dot + 1;
           }
-          importedPath += ".rocket";
+          relative += ".rocket";
+          importedPath = dependency->second.root / relative;
+          if (!dependency->second.targetSourceRoot.empty()) {
+            const auto candidate =
+                dependency->second.targetSourceRoot / relative;
+            if (sourceExists(candidate)) importedPath = candidate;
+          }
         }
       } else if (dependencyRoots_.contains(first)) {
         diagnostics_.error(
@@ -241,23 +262,29 @@ private:
         valid = false;
         continue;
       } else {
-        importedPath = ownerRoot;
+        std::filesystem::path relative;
         std::size_t start = 0;
         while (start < import.name.size()) {
           const std::size_t dot = import.name.find('.', start);
-          importedPath /= import.name.substr(start, dot == std::string::npos
-                                                        ? std::string::npos
-                                                        : dot - start);
+          relative /= import.name.substr(start, dot == std::string::npos
+                                                    ? std::string::npos
+                                                    : dot - start);
           if (dot == std::string::npos) break;
           start = dot + 1;
         }
-        importedPath += ".rocket";
+        relative += ".rocket";
+        importedPath = ownerRoot / relative;
+        if (!ownerTargetRoot.empty()) {
+          const auto candidate = ownerTargetRoot / relative;
+          if (sourceExists(candidate)) importedPath = candidate;
+        }
         importedName = ownerPrefix.empty() ? import.name
                                             : ownerPrefix + "." + import.name;
       }
       module.importTargets[import.name] = importedName;
       valid = loadOne(importedName, importedPath.lexically_normal(), import.location,
-                      importedOwnerRoot, importedOwnerPrefix,
+                      importedOwnerRoot, importedOwnerTargetRoot,
+                      importedOwnerPrefix,
                       importedAllowed, depth + 1) && valid;
     }
     states_[name] = 2;
@@ -639,6 +666,7 @@ private:
 
   std::filesystem::path rootPath_;
   std::filesystem::path packageRoot_;
+  std::filesystem::path targetSourceRoot_;
   Diagnostics& diagnostics_;
   const SourceOverlays* overlays_ = nullptr;
   std::map<std::string, PackageDependencyRoot> dependencyRoots_;
@@ -658,13 +686,13 @@ void setStandardLibraryRoot(std::filesystem::path root) {
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       Diagnostics& diagnostics) {
   return Loader(rootPath, std::filesystem::absolute(rootPath).parent_path(), {},
-                diagnostics).load();
+                {}, diagnostics).load();
 }
 
 std::optional<Module> loadModuleGraph(const std::filesystem::path& rootPath,
                                       const std::filesystem::path& packageRoot,
                                       Diagnostics& diagnostics) {
-  return Loader(rootPath, packageRoot, {}, diagnostics).load();
+  return Loader(rootPath, packageRoot, {}, {}, diagnostics).load();
 }
 
 std::optional<Module> loadModuleGraph(
@@ -672,7 +700,17 @@ std::optional<Module> loadModuleGraph(
     const std::filesystem::path& packageRoot,
     const std::vector<PackageDependencyRoot>& dependencyRoots,
     Diagnostics& diagnostics) {
-  return Loader(rootPath, packageRoot, dependencyRoots, diagnostics).load();
+  return Loader(rootPath, packageRoot, {}, dependencyRoots, diagnostics).load();
+}
+
+std::optional<Module> loadModuleGraph(
+    const std::filesystem::path& rootPath,
+    const std::filesystem::path& packageRoot,
+    const std::filesystem::path& targetSourceRoot,
+    const std::vector<PackageDependencyRoot>& dependencyRoots,
+    Diagnostics& diagnostics) {
+  return Loader(rootPath, packageRoot, targetSourceRoot, dependencyRoots,
+                diagnostics).load();
 }
 
 std::optional<Module> loadModuleGraph(
@@ -680,7 +718,7 @@ std::optional<Module> loadModuleGraph(
     const std::filesystem::path& packageRoot,
     const std::vector<PackageDependencyRoot>& dependencyRoots,
     const SourceOverlays& overlays, Diagnostics& diagnostics) {
-  return Loader(rootPath, packageRoot, dependencyRoots, diagnostics,
+  return Loader(rootPath, packageRoot, {}, dependencyRoots, diagnostics,
                 &overlays).load();
 }
 

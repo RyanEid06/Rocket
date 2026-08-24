@@ -9,6 +9,10 @@ import std.process
 import std.time
 
 fn main() -> Int:
+    let arguments = process.arguments()
+    if collections.length(arguments) > 0 and arguments[0] == "process-child":
+        return 0
+
     let joined = string.concat("Rocket", " Standard Library")
     print(joined)
     print(string.byte_length(joined))
@@ -76,7 +80,14 @@ fn main() -> Int:
             print(string.byte_length(value) > 0)
         case None:
             print(false)
-    let process_result = process.run("cmd.exe", ["/c", "exit", "0"])
+    var executable = ""
+    match process.executable_path():
+        case Ok(value):
+            executable = value
+        case Err(error):
+            print(error)
+            return 1
+    let process_result = process.run(executable, ["process-child"])
     match process_result:
         case Ok(code):
             print(code)

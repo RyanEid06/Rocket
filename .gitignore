@@ -6,6 +6,8 @@
 /dependencies/cache/
 /dependencies/installed/
 /out/
+**/__pycache__/
+*.py[cod]
 *.exe
 *.o
 *.obj

@@ -1,0 +1,16 @@
+[package]
+name = "phase19_target_package"
+version = "2.1.0"
+entry = "src/main.rocket"
+
+[target.windows-x64]
+source-root = "targets/windows-x64"
+
+[target.linux-x64]
+source-root = "targets/linux-x64"
+
+[target.linux-arm64]
+source-root = "targets/linux-arm64"
+
+[target.macos-arm64]
+source-root = "targets/macos-arm64"

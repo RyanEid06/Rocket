@@ -1,9 +1,54 @@
 cmake_minimum_required(VERSION 3.25)
-project(Rocket VERSION 2.0.0 LANGUAGES C CXX)
+project(Rocket VERSION 2.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" ROCKET_SYSTEM_PROCESSOR)
+if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8 AND
+   ROCKET_SYSTEM_PROCESSOR MATCHES "^(amd64|x86_64)$")
+  set(ROCKET_NATIVE_TARGET "windows-x64")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+       ROCKET_SYSTEM_PROCESSOR MATCHES "^(amd64|x86_64)$")
+  set(ROCKET_NATIVE_TARGET "linux-x64")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+       ROCKET_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(ROCKET_NATIVE_TARGET "linux-arm64")
+elseif(APPLE AND ROCKET_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(ROCKET_NATIVE_TARGET "macos-arm64")
+else()
+  message(FATAL_ERROR
+    "This host is not one of the four Rocket 2.1 production targets")
+endif()
+set(ROCKET_EXPECTED_NATIVE_TARGET "" CACHE STRING
+  "Fail configuration unless the detected native target matches this alias")
+if(ROCKET_EXPECTED_NATIVE_TARGET AND
+   NOT ROCKET_EXPECTED_NATIVE_TARGET STREQUAL ROCKET_NATIVE_TARGET)
+  message(FATAL_ERROR
+    "Rocket preset target '${ROCKET_EXPECTED_NATIVE_TARGET}' does not match "
+    "the detected native host '${ROCKET_NATIVE_TARGET}'")
+endif()
+message(STATUS "Rocket native target: ${ROCKET_NATIVE_TARGET}")
+set(ROCKET_TEST_ARTIFACT_ROOT "${CMAKE_BINARY_DIR}/rocket-artifacts")
+set(ROCKET_SELFHOST_COMPILER
+  "${ROCKET_TEST_ARTIFACT_ROOT}/rocket_compiler/.rocketc/targets/${ROCKET_NATIVE_TARGET}/main${CMAKE_EXECUTABLE_SUFFIX}")
+set(ROCKET_TARGET_ARTIFACT_SUFFIX
+  ".rocketc/targets/${ROCKET_NATIVE_TARGET}")
+if(WIN32)
+  set(ROCKET_STATIC_LIBRARY_SUFFIX ".lib")
+  set(ROCKET_DYNAMIC_LIBRARY_SUFFIX ".dll")
+  set(ROCKET_DYNAMIC_LINK_LIBRARY_SUFFIX ".lib")
+elseif(APPLE)
+  set(ROCKET_STATIC_LIBRARY_SUFFIX ".a")
+  set(ROCKET_DYNAMIC_LIBRARY_SUFFIX ".dylib")
+  set(ROCKET_DYNAMIC_LINK_LIBRARY_SUFFIX ".dylib")
+else()
+  set(ROCKET_STATIC_LIBRARY_SUFFIX ".a")
+  set(ROCKET_DYNAMIC_LIBRARY_SUFFIX ".so")
+  set(ROCKET_DYNAMIC_LINK_LIBRARY_SUFFIX ".so")
+endif()
 option(ROCKETC_ENABLE_SANITIZERS
   "Enable AddressSanitizer (and UndefinedBehaviorSanitizer where available)" OFF)
 if(MSVC)
@@ -35,6 +80,23 @@ endif()
 
 add_library(rocket_runtime STATIC src/runtime.cpp src/stdlib.cpp)
 target_include_directories(rocket_runtime PUBLIC src)
+if(NOT WIN32)
+  find_package(Threads REQUIRED)
+  find_package(CURL REQUIRED)
+  find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+  find_package(ICU REQUIRED COMPONENTS uc)
+  set(ROCKET_POSIX_PLATFORM_LIBRARIES Threads::Threads CURL::libcurl
+    OpenSSL::Crypto ICU::uc ${CMAKE_DL_LIBS})
+  if(APPLE)
+    find_library(ROCKET_SECURITY_FRAMEWORK Security REQUIRED)
+    find_library(ROCKET_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    list(APPEND ROCKET_POSIX_PLATFORM_LIBRARIES
+      "${ROCKET_SECURITY_FRAMEWORK}" "${ROCKET_COREFOUNDATION_FRAMEWORK}")
+  endif()
+  target_link_libraries(rocket_runtime PUBLIC ${ROCKET_POSIX_PLATFORM_LIBRARIES})
+  target_compile_definitions(rocket_runtime PUBLIC
+    ROCKET_HAS_CURL=1 ROCKET_HAS_ICU=1)
+endif()
 if(MSVC)
   target_compile_options(rocket_runtime PRIVATE /W4 /permissive-)
 else()
@@ -44,7 +106,7 @@ endif()
 set(ROCKET_RAYLIB_SOURCE "${CMAKE_SOURCE_DIR}/dependencies/installed/raylib-6.0")
 if(NOT EXISTS "${ROCKET_RAYLIB_SOURCE}/src/raylib.h")
   message(FATAL_ERROR
-    "Pinned raylib 6.0 is missing. Run dependencies/bootstrap.ps1 before configuring.")
+    "Pinned raylib 6.0 is missing. Run python dependencies/bootstrap.py before configuring.")
 endif()
 set(BUILD_EXAMPLES OFF CACHE BOOL "Build raylib examples" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build raylib as a shared library" FORCE)
@@ -74,11 +136,8 @@ set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
 add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
 set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
-if(ROCKETC_ENABLE_SANITIZERS)
-  set(ROCKET_RAYLIB_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/sanitized-native/raylib")
-else()
-  set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_RAYLIB_PACKAGE}/.rocketc/native")
-endif()
+set(ROCKET_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/native/${ROCKET_NATIVE_TARGET}")
+set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_NATIVE_OUTPUT}")
 set_target_properties(raylib PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_RAYLIB_NATIVE_OUTPUT}"
   MSVC_RUNTIME_LIBRARY "MultiThreaded")
@@ -102,16 +161,13 @@ endif()
 
 add_library(rocket_phase13_native STATIC tests/native/phase13_native.cpp)
 target_include_directories(rocket_phase13_native PUBLIC tests/native)
-if(ROCKETC_ENABLE_SANITIZERS)
-  set(ROCKET_PHASE13_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/sanitized-native/phase13")
-else()
-  set(ROCKET_PHASE13_NATIVE_OUTPUT
-    "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package/.rocketc/native")
-endif()
+set(ROCKET_PHASE13_NATIVE_OUTPUT "${ROCKET_NATIVE_OUTPUT}")
 set_target_properties(rocket_phase13_native PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_PHASE13_NATIVE_OUTPUT}")
 
 add_library(rocketc_core
+  src/target.cpp
+  src/toolchain.cpp
   src/lexer.cpp
   src/parser.cpp
   src/module_loader.cpp
@@ -134,6 +190,10 @@ target_compile_definitions(rocketc_core PRIVATE
   ROCKETC_STDLIB_SOURCE_PATH="${ROCKETC_STDLIB_SOURCE_PATH}")
 if(WIN32)
   target_link_libraries(rocketc_core PRIVATE bcrypt advapi32)
+else()
+  target_link_libraries(rocketc_core PRIVATE ${ROCKET_POSIX_PLATFORM_LIBRARIES})
+  target_compile_definitions(rocketc_core PUBLIC
+    ROCKET_HAS_CURL=1 ROCKET_HAS_ICU=1)
 endif()
 
 if(MSVC)
@@ -173,7 +233,8 @@ if(LLVM_FOUND)
   separate_arguments(ROCKETC_LLVM_DEFINITIONS NATIVE_COMMAND "${LLVM_DEFINITIONS}")
   target_compile_options(rocketc_core PRIVATE ${ROCKETC_LLVM_DEFINITIONS})
   llvm_map_components_to_libnames(ROCKETC_LLVM_LIBS
-    core support analysis transformutils passes target mc codegen nativecodegen
+    core support analysis transformutils passes target mc codegen
+    x86codegen x86asmparser aarch64codegen aarch64asmparser
   )
   target_link_libraries(rocketc_core PRIVATE ${ROCKETC_LLVM_LIBS})
   target_compile_definitions(rocketc_core PUBLIC ROCKETC_HAS_LLVM=1)
@@ -197,9 +258,24 @@ target_compile_definitions(rocketc PRIVATE
   ROCKETC_STAGE0_AR_PATH="${ROCKETC_STAGE0_AR_PATH}")
 target_compile_definitions(rocketc PRIVATE ROCKETC_VERSION="${PROJECT_VERSION}")
 if(LLVM_FOUND)
-  file(TO_CMAKE_PATH "${LLVM_TOOLS_BINARY_DIR}/clang.exe" ROCKETC_CLANG_PATH)
+  file(TO_CMAKE_PATH
+    "${LLVM_TOOLS_BINARY_DIR}/clang${CMAKE_EXECUTABLE_SUFFIX}"
+    ROCKETC_CLANG_PATH)
+  file(TO_CMAKE_PATH
+    "${LLVM_TOOLS_BINARY_DIR}/llvm-ar${CMAKE_EXECUTABLE_SUFFIX}"
+    ROCKETC_LLVM_AR_PATH)
+  file(TO_CMAKE_PATH
+    "${LLVM_TOOLS_BINARY_DIR}/llvm-lib${CMAKE_EXECUTABLE_SUFFIX}"
+    ROCKETC_LLVM_LIB_PATH)
+  if(WIN32)
+    set(ROCKETC_TEST_LIBRARIAN_PATH "${ROCKETC_LLVM_LIB_PATH}")
+  else()
+    set(ROCKETC_TEST_LIBRARIAN_PATH "${ROCKETC_LLVM_AR_PATH}")
+  endif()
   target_compile_definitions(rocketc PRIVATE
     ROCKETC_CLANG_PATH="${ROCKETC_CLANG_PATH}"
+    ROCKETC_LLVM_AR_PATH="${ROCKETC_LLVM_AR_PATH}"
+    ROCKETC_LLVM_LIB_PATH="${ROCKETC_LLVM_LIB_PATH}"
     ROCKETC_RUNTIME_LIBRARY_PATH="$<TARGET_FILE:rocket_runtime>")
   add_dependencies(rocketc rocket_runtime)
 endif()
@@ -207,11 +283,11 @@ endif()
 set(ROCKET_RAYLIB_HEADER
   "${ROCKET_RAYLIB_PACKAGE}/native/rocket_raylib_adapter.h")
 set(ROCKET_RAYLIB_BINDINGS
-  "${ROCKET_RAYLIB_PACKAGE}/generated/rocket_raylib_adapter.rocket")
+  "${CMAKE_BINARY_DIR}/generated/raylib/rocket_raylib_adapter.rocket")
 add_custom_command(
   OUTPUT "${ROCKET_RAYLIB_BINDINGS}"
   COMMAND ${CMAKE_COMMAND} -E make_directory
-          "${ROCKET_RAYLIB_PACKAGE}/generated"
+          "${CMAKE_BINARY_DIR}/generated/raylib"
   COMMAND $<TARGET_FILE:rocketc> bind "${ROCKET_RAYLIB_HEADER}"
           --output "${ROCKET_RAYLIB_BINDINGS}"
   DEPENDS rocketc "${ROCKET_RAYLIB_HEADER}"
@@ -227,13 +303,19 @@ add_custom_target(rocket_raylib_check
   USES_TERMINAL
   COMMENT "Checking the Rocket raylib showcase")
 add_custom_target(rocket_raylib_build
-  COMMAND $<TARGET_FILE:rocketc> build "${ROCKET_RAYLIB_PACKAGE}"
+  COMMAND ${CMAKE_COMMAND} -E env
+          "ROCKET_NATIVE_LIBRARY_ROOT=${ROCKET_NATIVE_OUTPUT}"
+          "ROCKET_ARTIFACT_ROOT=${ROCKET_TEST_ARTIFACT_ROOT}"
+          $<TARGET_FILE:rocketc> build "${ROCKET_RAYLIB_PACKAGE}"
   DEPENDS rocket_raylib_bindings
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}"
   USES_TERMINAL
   COMMENT "Building the Rocket raylib showcase")
 add_custom_target(rocket_raylib_test
-  COMMAND $<TARGET_FILE:rocketc> test "${ROCKET_RAYLIB_PACKAGE}"
+  COMMAND ${CMAKE_COMMAND} -E env
+          "ROCKET_NATIVE_LIBRARY_ROOT=${ROCKET_NATIVE_OUTPUT}"
+          "ROCKET_ARTIFACT_ROOT=${ROCKET_TEST_ARTIFACT_ROOT}"
+          $<TARGET_FILE:rocketc> test "${ROCKET_RAYLIB_PACKAGE}"
   DEPENDS rocket_raylib_bindings
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}"
   USES_TERMINAL
@@ -262,13 +344,25 @@ add_custom_target(rocket_demo_test
   USES_TERMINAL
   COMMENT "Testing the Rocket Visual Studio demo")
 
-add_custom_target(rocket_visualstudio_extension
-  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
-          -File "${CMAKE_SOURCE_DIR}/scripts/package-visualstudio-extension.ps1"
-  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-  COMMENT "Packaging the Rocket Visual Studio 2026 extension")
+if(WIN32)
+  add_custom_target(rocket_visualstudio_extension
+    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_SOURCE_DIR}/scripts/package-visualstudio-extension.ps1"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Packaging the Rocket Visual Studio 2026 extension")
+endif()
 
 enable_testing()
+find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
+set(ROCKET_PORTABLE_WORKFLOW_TEST
+  "${CMAKE_SOURCE_DIR}/tests/portable_workflow_test.py")
+add_test(NAME phase19_release_tooling
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/phase19_release_tooling_test.py"
+    --source-dir "${CMAKE_SOURCE_DIR}"
+    --work "${CMAKE_BINARY_DIR}/phase19-release-tooling")
+set_tests_properties(phase19_release_tooling PROPERTIES
+  LABELS "phase19;release;packaging;relocation;determinism;portable")
 function(add_rocketc_test name)
   add_executable(rocketc_${name}_tests tests/${name}_tests.cpp)
   target_link_libraries(rocketc_${name}_tests PRIVATE rocketc_core)
@@ -281,6 +375,8 @@ add_rocketc_test(sema)
 add_rocketc_test(hir)
 add_rocketc_test(mir)
 add_rocketc_test(codegen)
+add_rocketc_test(target)
+add_rocketc_test(toolchain)
 if(LLVM_FOUND)
   add_rocketc_test(llvm_codegen)
 endif()
@@ -312,6 +408,12 @@ endif()
 add_executable(rocketc_stdlib_tests tests/stdlib_tests.cpp)
 target_link_libraries(rocketc_stdlib_tests PRIVATE rocket_runtime)
 add_test(NAME stdlib COMMAND rocketc_stdlib_tests phase9-argument)
+
+add_executable(rocketc_compression_tests tests/compression_tests.cpp)
+target_include_directories(rocketc_compression_tests PRIVATE src)
+add_test(NAME compression COMMAND rocketc_compression_tests)
+set_tests_properties(compression PROPERTIES
+  LABELS "phase15;phase19;stdlib;compression;portable")
 
 add_test(NAME cli_check_hello
   COMMAND rocketc check "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
@@ -387,7 +489,7 @@ set_tests_properties(cli_check_phase14_raylib_reference PROPERTIES
 add_test(NAME cli_build_phase14_raylib_reference
   COMMAND rocketc build "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
-  PASS_REGULAR_EXPRESSION "rocket-raylib-showcase.exe"
+  PASS_REGULAR_EXPRESSION "rocket-raylib-showcase${CMAKE_EXECUTABLE_SUFFIX}"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_test_phase14_raylib_reference
@@ -533,42 +635,42 @@ add_test(NAME cli_build_self_hosted_compiler
 set_tests_properties(cli_build_self_hosted_compiler PROPERTIES
   FIXTURES_SETUP self_hosted_compiler)
 add_test(NAME cli_run_self_hosted_lexer_tests
-  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --self-test-lexer)
+  COMMAND "${ROCKET_SELFHOST_COMPILER}" --self-test-lexer)
 set_tests_properties(cli_run_self_hosted_lexer_tests PROPERTIES
   PASS_REGULAR_EXPRESSION "self-hosted lexer tests passed"
   FIXTURES_REQUIRED self_hosted_compiler)
 add_test(NAME cli_run_self_hosted_parser_tests
-  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --self-test-parser)
+  COMMAND "${ROCKET_SELFHOST_COMPILER}" --self-test-parser)
 set_tests_properties(cli_run_self_hosted_parser_tests PROPERTIES
   PASS_REGULAR_EXPRESSION "self-hosted parser tests passed"
   FIXTURES_REQUIRED self_hosted_compiler)
 add_test(NAME cli_run_self_hosted_syntax_check
-  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --check-syntax
+  COMMAND "${ROCKET_SELFHOST_COMPILER}" --check-syntax
     "${CMAKE_SOURCE_DIR}/examples/hello.rocket")
 set_tests_properties(cli_run_self_hosted_syntax_check PROPERTIES
   PASS_REGULAR_EXPRESSION "hello.rocket: syntax check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler)
 add_test(NAME cli_run_self_hosted_hir_check
-  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --check-hir
+  COMMAND "${ROCKET_SELFHOST_COMPILER}" --check-hir
     "${CMAKE_SOURCE_DIR}/compiler/src/main.rocket")
 set_tests_properties(cli_run_self_hosted_hir_check PROPERTIES
   PASS_REGULAR_EXPRESSION "main.rocket: HIR check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler)
 add_test(NAME cli_run_self_hosted_mir_check
-  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" --check-mir
+  COMMAND "${ROCKET_SELFHOST_COMPILER}" --check-mir
     "${CMAKE_SOURCE_DIR}/compiler/src/main.rocket")
 set_tests_properties(cli_run_self_hosted_mir_check PROPERTIES
   PASS_REGULAR_EXPRESSION "main.rocket: MIR check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler)
 add_test(NAME cli_self_hosted_check_package
-  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+  COMMAND "${ROCKET_SELFHOST_COMPILER}" check
     "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
 set_tests_properties(cli_self_hosted_check_package PROPERTIES
   PASS_REGULAR_EXPRESSION "check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler)
 foreach(fixture async_join nested_await weak unique_buffer concurrency async_file async_socket async_cancel process task_group task_cancel thread structured_cleanup unsafe_local)
   add_test(NAME cli_self_hosted_phase18_${fixture}
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" check
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${fixture}.rocket")
   set_tests_properties(cli_self_hosted_phase18_${fixture} PROPERTIES
     PASS_REGULAR_EXPRESSION "check succeeded"
@@ -578,7 +680,7 @@ endforeach()
 foreach(failure await_context send async_result_send suspension unique_buffer_move scoped_escape weak_share task_weak pointer_send guard_release task_reuse mutex_share capture_move transitive_move buffer_element_share)
   add_test(NAME cli_self_hosted_phase18_${failure}_failure
     COMMAND ${CMAKE_COMMAND}
-      "-DROCKETC=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+      "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
       "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase18_${failure}_failure.rocket"
       "-DEXPECTED=R410"
       -P "${CMAKE_SOURCE_DIR}/tests/expect_compile_failure.cmake")
@@ -587,23 +689,23 @@ foreach(failure await_context send async_result_send suspension unique_buffer_mo
     LABELS "phase18;selfhost;negative")
 endforeach()
 add_test(NAME cli_self_hosted_fmt_package
-  COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" fmt
+  COMMAND "${ROCKET_SELFHOST_COMPILER}" fmt
     "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package" --check)
 set_tests_properties(cli_self_hosted_fmt_package PROPERTIES
   PASS_REGULAR_EXPRESSION "format check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler)
 add_test(NAME cli_self_hosted_formatter_canonical
-  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
-    -File "${CMAKE_SOURCE_DIR}/tests/self_hosted_formatter_test.ps1"
-    -Compiler "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
-    -WorkDirectory "${CMAKE_BINARY_DIR}/self-hosted-formatter")
+  COMMAND ${CMAKE_COMMAND}
+    "-DCOMPILER=${ROCKET_SELFHOST_COMPILER}"
+    "-DWORK=${CMAKE_BINARY_DIR}/self-hosted-formatter"
+    -P "${CMAKE_SOURCE_DIR}/tests/self_hosted_formatter_test.cmake")
 set_tests_properties(cli_self_hosted_formatter_canonical PROPERTIES
   PASS_REGULAR_EXPRESSION "format check succeeded"
   FIXTURES_REQUIRED self_hosted_compiler
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME cli_self_hosted_new_package
   COMMAND ${CMAKE_COMMAND}
-    "-DCOMPILER=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+    "-DCOMPILER=${ROCKET_SELFHOST_COMPILER}"
     "-DWORK=${CMAKE_BINARY_DIR}/self-hosted-new-package"
     -P "${CMAKE_SOURCE_DIR}/tests/self_hosted_new_package_test.cmake")
 set_tests_properties(cli_self_hosted_new_package PROPERTIES
@@ -616,9 +718,43 @@ add_test(NAME cli_test_phase8_package
 set_tests_properties(cli_test_phase8_package PROPERTIES
   PASS_REGULAR_EXPRESSION "2 passed; 0 failed")
 add_test(NAME cli_version COMMAND rocketc --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 2.0.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "rocketc 2.1.0")
 add_test(NAME cli_help COMMAND rocketc --help)
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "rocketc fmt")
+
+add_test(NAME phase19_target_cli
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase19_target_package"
+    -P "${CMAKE_SOURCE_DIR}/tests/phase19_cli_target_test.cmake")
+set_tests_properties(phase19_target_cli PROPERTIES
+  LABELS "phase19;target;conditional-compilation;diagnostics")
+if(LLVM_FOUND)
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/phase19-target-query")
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/tests/fixtures/phase19_target_queries.rocket"
+    "${CMAKE_BINARY_DIR}/phase19-target-query/main.rocket" COPYONLY)
+  add_test(NAME phase19_target_queries_native
+    COMMAND rocketc run
+      "${CMAKE_BINARY_DIR}/phase19-target-query/main.rocket")
+  set_tests_properties(phase19_target_queries_native PROPERTIES
+    LABELS "phase19;target;stdlib;runtime;${ROCKET_NATIVE_TARGET}")
+  add_test(NAME phase19_selfhost_target_parity
+    COMMAND ${CMAKE_COMMAND}
+      "-DSTAGE0=$<TARGET_FILE:rocketc>"
+      "-DCOMPILER_SOURCE=${CMAKE_SOURCE_DIR}/compiler/src/main.rocket"
+      "-DCOMPILER_MANIFEST=${CMAKE_SOURCE_DIR}/compiler/rocket.toml"
+      "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase19_target_package"
+      "-DCLANG=${LLVM_TOOLS_BINARY_DIR}/clang${CMAKE_EXECUTABLE_SUFFIX}"
+      "-DRUNTIME=$<TARGET_FILE:rocket_runtime>"
+      "-DHOST_ALIAS=${ROCKET_NATIVE_TARGET}"
+      "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+      "-DWORK=${CMAKE_BINARY_DIR}/phase19-selfhost-target"
+      -P "${CMAKE_SOURCE_DIR}/tests/phase19_selfhost_target_parity.cmake")
+  set_tests_properties(phase19_selfhost_target_parity PROPERTIES
+    LABELS "phase19;target;selfhost;conditional-compilation;diagnostics"
+    TIMEOUT 120)
+endif()
 
 add_test(NAME phase20_build_cache
   COMMAND ${CMAKE_COMMAND}
@@ -630,28 +766,31 @@ set_tests_properties(phase20_build_cache PROPERTIES
   LABELS "phase20;cache;compatibility" TIMEOUT 90)
 
 add_test(NAME phase20_crash_minimizer
-  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-    "${CMAKE_SOURCE_DIR}/scripts/minimize-crash.ps1"
-    -Compiler $<TARGET_FILE:rocketc>
-    -InputPath "${CMAKE_SOURCE_DIR}/tests/fixtures/phase20_minimize.rocket"
-    -OutputPath "${CMAKE_BINARY_DIR}/phase20-minimized.rocket"
-    -ExpectedExitCode 1 -MatchText "R2001")
+  COMMAND "${Python3_EXECUTABLE}" "${ROCKET_PORTABLE_WORKFLOW_TEST}"
+    minimizer --compiler $<TARGET_FILE:rocketc>
+    --input "${CMAKE_SOURCE_DIR}/tests/fixtures/phase20_minimize.rocket"
+    --output "${CMAKE_BINARY_DIR}/phase20-minimized.rocket"
+    --expected-exit 1 --match "R2001")
 set_tests_properties(phase20_crash_minimizer PROPERTIES
   LABELS "phase20;hardening;minimizer" TIMEOUT 60)
 
 add_test(NAME phase20_compatibility
-  COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-    "${CMAKE_SOURCE_DIR}/scripts/compatibility.ps1"
-    -Compiler $<TARGET_FILE:rocketc> -Configuration $<CONFIG>)
+  COMMAND "${Python3_EXECUTABLE}" "${ROCKET_PORTABLE_WORKFLOW_TEST}"
+    compatibility --compiler $<TARGET_FILE:rocketc>
+    --source-dir "${CMAKE_SOURCE_DIR}"
+    --work "${CMAKE_BINARY_DIR}/compatibility"
+    --configuration $<CONFIG> --target "${ROCKET_NATIVE_TARGET}")
 set_tests_properties(phase20_compatibility PROPERTIES
   LABELS "phase20;compatibility" TIMEOUT 120)
 
 if(LLVM_FOUND)
   add_test(NAME phase20_application_validation
-    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-      "${CMAKE_SOURCE_DIR}/scripts/application-validation.ps1"
-      -Compiler $<TARGET_FILE:rocketc> -Configuration $<CONFIG>
-      -PackageCount 16 -Iterations 3)
+    COMMAND "${Python3_EXECUTABLE}" "${ROCKET_PORTABLE_WORKFLOW_TEST}"
+      application --compiler $<TARGET_FILE:rocketc>
+      --source-dir "${CMAKE_SOURCE_DIR}"
+      --work "${CMAKE_BINARY_DIR}/application-validation"
+      --configuration $<CONFIG> --target "${ROCKET_NATIVE_TARGET}"
+      --package-count 16 --iterations 3)
   set_tests_properties(phase20_application_validation PROPERTIES
     LABELS "phase20;application;performance" TIMEOUT 240)
 endif()
@@ -679,7 +818,7 @@ set_tests_properties(cli_phase16_ecosystem_workflow PROPERTIES
 add_test(NAME cli_phase16_self_hosted_package_parity
   COMMAND ${CMAKE_COMMAND}
     "-DSTAGE0=$<TARGET_FILE:rocketc>"
-    "-DSELF_HOSTED=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+    "-DSELF_HOSTED=${ROCKET_SELFHOST_COMPILER}"
     "-DFIXTURE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase16_packages"
     "-DWORK=${CMAKE_BINARY_DIR}/phase16-self-hosted"
     -P "${CMAKE_SOURCE_DIR}/tests/phase16_self_hosted_test.cmake")
@@ -845,11 +984,11 @@ if(LLVM_FOUND)
   add_test(NAME cli_build_phase13_static_library
     COMMAND rocketc build "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library")
   set_tests_properties(cli_build_phase13_static_library PROPERTIES
-    PASS_REGULAR_EXPRESSION "phase13_math.lib")
+    PASS_REGULAR_EXPRESSION "phase13_math${ROCKET_STATIC_LIBRARY_SUFFIX}")
   add_test(NAME cli_build_phase13_dynamic_library
     COMMAND rocketc build "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library")
   set_tests_properties(cli_build_phase13_dynamic_library PROPERTIES
-    PASS_REGULAR_EXPRESSION "phase13_math_dynamic.dll")
+    PASS_REGULAR_EXPRESSION "phase13_math_dynamic${ROCKET_DYNAMIC_LIBRARY_SUFFIX}")
 
   add_test(NAME cli_phase13_static_c_consumer
     COMMAND ${CMAKE_COMMAND}
@@ -857,11 +996,12 @@ if(LLVM_FOUND)
       "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library"
       "-DCXX=${CMAKE_CXX_COMPILER}"
       "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/native/phase13_static_consumer.cpp"
-      "-DHEADER_DIRECTORY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library/.rocketc"
-      "-DLIBRARY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library/.rocketc/phase13_math.lib"
+      "-DHEADER_DIRECTORY=${ROCKET_TEST_ARTIFACT_ROOT}/phase13_math/${ROCKET_TARGET_ARTIFACT_SUFFIX}"
+      "-DLIBRARY=${ROCKET_TEST_ARTIFACT_ROOT}/phase13_math/${ROCKET_TARGET_ARTIFACT_SUFFIX}/phase13_math${ROCKET_STATIC_LIBRARY_SUFFIX}"
       "-DRUNTIME=$<TARGET_FILE:rocket_runtime>"
-      "-DEXECUTABLE=${CMAKE_BINARY_DIR}/phase13-consumers/static-consumer.exe"
+      "-DEXECUTABLE=${CMAKE_BINARY_DIR}/phase13-consumers/static-consumer${CMAKE_EXECUTABLE_SUFFIX}"
       "-DCONFIGURATION=${CMAKE_BUILD_TYPE}"
+      "-DHOST_OS=${CMAKE_SYSTEM_NAME}"
       -P "${CMAKE_SOURCE_DIR}/tests/native/phase13_consumer_test.cmake")
   add_test(NAME cli_phase13_dynamic_c_consumer
     COMMAND ${CMAKE_COMMAND}
@@ -869,20 +1009,22 @@ if(LLVM_FOUND)
       "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library"
       "-DCXX=${CMAKE_CXX_COMPILER}"
       "-DSOURCE=${CMAKE_SOURCE_DIR}/tests/native/phase13_dynamic_consumer.cpp"
-      "-DHEADER_DIRECTORY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library/.rocketc"
-      "-DLIBRARY=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library/.rocketc/phase13_math_dynamic.lib"
-      "-DEXECUTABLE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_dynamic_library/.rocketc/phase13-dynamic-consumer.exe"
+      "-DHEADER_DIRECTORY=${ROCKET_TEST_ARTIFACT_ROOT}/phase13_math_dynamic/${ROCKET_TARGET_ARTIFACT_SUFFIX}"
+      "-DLIBRARY=${ROCKET_TEST_ARTIFACT_ROOT}/phase13_math_dynamic/${ROCKET_TARGET_ARTIFACT_SUFFIX}/phase13_math_dynamic${ROCKET_DYNAMIC_LINK_LIBRARY_SUFFIX}"
+      "-DDYNAMIC_LIBRARY=${ROCKET_TEST_ARTIFACT_ROOT}/phase13_math_dynamic/${ROCKET_TARGET_ARTIFACT_SUFFIX}/phase13_math_dynamic${ROCKET_DYNAMIC_LIBRARY_SUFFIX}"
+      "-DEXECUTABLE=${CMAKE_BINARY_DIR}/phase13-consumers/phase13-dynamic-consumer${CMAKE_EXECUTABLE_SUFFIX}"
       "-DCONFIGURATION=${CMAKE_BUILD_TYPE}"
+      "-DHOST_OS=${CMAKE_SYSTEM_NAME}"
       -P "${CMAKE_SOURCE_DIR}/tests/native/phase13_consumer_test.cmake")
 
   add_test(NAME cli_self_hosted_check_phase13_native
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" check
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
   set_tests_properties(cli_self_hosted_check_phase13_native PROPERTIES
     PASS_REGULAR_EXPRESSION "check succeeded"
     FIXTURES_REQUIRED self_hosted_compiler)
   add_test(NAME cli_self_hosted_run_phase13_native
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package")
   set_tests_properties(cli_self_hosted_run_phase13_native PROPERTIES
     PASS_REGULAR_EXPRESSION "native-interop-ok"
@@ -891,7 +1033,7 @@ if(LLVM_FOUND)
   add_test(NAME cli_phase13_generation_parity
     COMMAND ${CMAKE_COMMAND}
       "-DSTAGE0=$<TARGET_FILE:rocketc>"
-      "-DSELFHOST=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+      "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
       "-DPACKAGE=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library"
       "-DHEADER=${CMAKE_SOURCE_DIR}/tests/native/phase13_native.h"
       "-DEXPECTED_BINDINGS=${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_native_package/native/phase13_native.bindings.rocket"
@@ -901,7 +1043,7 @@ if(LLVM_FOUND)
     FIXTURES_REQUIRED self_hosted_compiler)
 
   add_test(NAME cli_self_hosted_check_phase14_raylib_reference
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" check
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" check
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_check_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
@@ -909,15 +1051,15 @@ if(LLVM_FOUND)
     PASS_REGULAR_EXPRESSION "check succeeded"
     WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
   add_test(NAME cli_self_hosted_build_phase14_raylib_reference
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" build
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" build
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_build_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib;native"
-    PASS_REGULAR_EXPRESSION "rocket-raylib-showcase.exe"
+    PASS_REGULAR_EXPRESSION "rocket-raylib-showcase${CMAKE_EXECUTABLE_SUFFIX}"
     WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
   add_test(NAME cli_self_hosted_test_phase14_raylib_reference
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" test
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" test
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
@@ -927,9 +1069,10 @@ if(LLVM_FOUND)
   add_test(NAME cli_phase14_raylib_generation_parity
     COMMAND ${CMAKE_COMMAND}
       "-DSTAGE0=$<TARGET_FILE:rocketc>"
-      "-DSELFHOST=${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe"
+      "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
       "-DHEADER=${ROCKET_RAYLIB_HEADER}"
       "-DGENERATED=${ROCKET_RAYLIB_BINDINGS}"
+      "-DVENDORED=${ROCKET_RAYLIB_PACKAGE}/src/rocket_raylib_adapter.rocket"
       "-DWORK=${CMAKE_BINARY_DIR}/phase14-generation"
       -P "${CMAKE_SOURCE_DIR}/tests/native/phase14_generation_test.cmake")
   set_tests_properties(cli_phase14_raylib_generation_parity PROPERTIES
@@ -937,7 +1080,7 @@ if(LLVM_FOUND)
     LABELS "phase14;raylib;native")
 
   add_test(NAME cli_self_hosted_run_package
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
   set_tests_properties(cli_self_hosted_run_package PROPERTIES
     PASS_REGULAR_EXPRESSION "42"
@@ -945,7 +1088,7 @@ if(LLVM_FOUND)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_test(NAME cli_self_hosted_test_package
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" test
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" test
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase8_package")
   set_tests_properties(cli_self_hosted_test_package PROPERTIES
     PASS_REGULAR_EXPRESSION "2 passed; 0 failed"
@@ -953,7 +1096,7 @@ if(LLVM_FOUND)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_test(NAME cli_self_hosted_run_phase11_array_mutation
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_mutation.rocket")
   set_tests_properties(cli_self_hosted_run_phase11_array_mutation PROPERTIES
     PASS_REGULAR_EXPRESSION "99[\r\n]+20[\r\n]+20[\r\n]+new[\r\n]+old"
@@ -961,7 +1104,7 @@ if(LLVM_FOUND)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_test(NAME cli_self_hosted_run_phase11_array_growth
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_array_growth.rocket")
   set_tests_properties(cli_self_hosted_run_phase11_array_growth PROPERTIES
     PASS_REGULAR_EXPRESSION "8[\r\n]+0[\r\n]+old[\r\n]+new[\r\n]+1[\r\n]+old[\r\n]+first[\r\n]+old[\r\n]+0[\r\n]+8"
@@ -969,7 +1112,7 @@ if(LLVM_FOUND)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_test(NAME cli_self_hosted_run_phase11_map_set_tuple
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase11_map_set_tuple.rocket")
   set_tests_properties(cli_self_hosted_run_phase11_map_set_tuple PROPERTIES
     PASS_REGULAR_EXPRESSION "answer[\r\n]+42[\r\n]+2[\r\n]+1[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+2[\r\n]+b[\r\n]+a[\r\n]+1[\r\n]+1[\r\n]+4567693929835203094[\r\n]+1[\r\n]+3[\r\n]+1[\r\n]+1[\r\n]+2[\r\n]+1[\r\n]+6[\r\n]+7[\r\n]+8[\r\n]+R"
@@ -977,14 +1120,14 @@ if(LLVM_FOUND)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
   add_test(NAME cli_self_hosted_run_phase12_methods
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_methods.rocket")
   set_tests_properties(cli_self_hosted_run_phase12_methods PROPERTIES
     PASS_REGULAR_EXPRESSION "42[\r\n]+7[\r\n]+method[\r\n]+3[\r\n]+12"
     FIXTURES_REQUIRED self_hosted_compiler
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   add_test(NAME cli_self_hosted_run_phase12_modules
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_modules.rocket")
   set_tests_properties(cli_self_hosted_run_phase12_modules PROPERTIES
     PASS_REGULAR_EXPRESSION "42"
@@ -992,7 +1135,7 @@ if(LLVM_FOUND)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   foreach(feature traits closures iterators associated_constants)
     add_test(NAME cli_self_hosted_run_phase12_${feature}
-      COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+      COMMAND "${ROCKET_SELFHOST_COMPILER}" run
         "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_${feature}.rocket")
     set_tests_properties(cli_self_hosted_run_phase12_${feature} PROPERTIES
       PASS_REGULAR_EXPRESSION "(42|6)"
@@ -1000,7 +1143,7 @@ if(LLVM_FOUND)
       WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   endforeach()
   add_test(NAME cli_self_hosted_run_phase12_generic_lambdas
-    COMMAND "${CMAKE_SOURCE_DIR}/compiler/.rocketc/main.exe" run
+    COMMAND "${ROCKET_SELFHOST_COMPILER}" run
       "${CMAKE_SOURCE_DIR}/tests/fixtures/phase12_generic_lambdas.rocket")
   set_tests_properties(cli_self_hosted_run_phase12_generic_lambdas PROPERTIES
     PASS_REGULAR_EXPRESSION "42[\r\n]+generic[\r\n]+7[\r\n]+capture[\r\n]+9[\r\n]+immediate[\r\n]+8[\r\n]+nested[\r\n]+10[\r\n]+deep"
@@ -1079,7 +1222,7 @@ else()
   add_test(NAME cli_build_stage0_phase13_static_library
     COMMAND rocketc build "${CMAKE_SOURCE_DIR}/tests/fixtures/phase13_static_library")
   set_tests_properties(cli_build_stage0_phase13_static_library PROPERTIES
-    PASS_REGULAR_EXPRESSION "phase13_math.lib")
+    PASS_REGULAR_EXPRESSION "phase13_math${ROCKET_STATIC_LIBRARY_SUFFIX}")
   add_test(NAME cli_run_stage0_phase7_stdlib
     COMMAND rocketc run "${CMAKE_SOURCE_DIR}/tests/fixtures/phase7_stdlib.rocket")
   set_tests_properties(cli_run_stage0_phase7_stdlib PROPERTIES
@@ -1158,19 +1301,25 @@ endif()
 
 if(LLVM_FOUND)
   add_test(NAME phase17_tooling
-    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-      "${CMAKE_SOURCE_DIR}/scripts/tooling.ps1"
-      -Compiler $<TARGET_FILE:rocketc>)
+    COMMAND "${Python3_EXECUTABLE}" "${ROCKET_PORTABLE_WORKFLOW_TEST}"
+      tooling --compiler $<TARGET_FILE:rocketc>
+      --source-dir "${CMAKE_SOURCE_DIR}"
+      --work "${CMAKE_BINARY_DIR}/tooling")
   set_tests_properties(phase17_tooling PROPERTIES LABELS "phase17;tooling")
   add_test(NAME phase17_debugging
-    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-      "${CMAKE_SOURCE_DIR}/scripts/debugging.ps1"
-      -Compiler $<TARGET_FILE:rocketc>)
+    COMMAND "${Python3_EXECUTABLE}" "${ROCKET_PORTABLE_WORKFLOW_TEST}"
+      debugging --compiler $<TARGET_FILE:rocketc>
+      --source-dir "${CMAKE_SOURCE_DIR}"
+      --work "${CMAKE_BINARY_DIR}/debugging"
+      --target "${ROCKET_NATIVE_TARGET}"
+      --llvm-bin "${LLVM_TOOLS_BINARY_DIR}")
   set_tests_properties(phase17_debugging PROPERTIES LABELS "phase17;debugging")
   add_test(NAME phase17_repl_prototype
-    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-      "${CMAKE_SOURCE_DIR}/scripts/repl-prototype.ps1"
-      -Compiler $<TARGET_FILE:rocketc> -Expression "1 + 1" -Measure)
+    COMMAND "${Python3_EXECUTABLE}" "${ROCKET_PORTABLE_WORKFLOW_TEST}"
+      repl --compiler $<TARGET_FILE:rocketc>
+      --source-dir "${CMAKE_SOURCE_DIR}"
+      --work "${CMAKE_BINARY_DIR}/repl-prototype"
+      --expression "1 + 1")
   set_tests_properties(phase17_repl_prototype PROPERTIES LABELS "phase17;repl"
     PASS_REGULAR_EXPRESSION "rocket-repl-evaluation-1")
 endif()
@@ -1197,5 +1346,16 @@ get_property(ROCKET_CONFIGURED_TESTS DIRECTORY PROPERTY TESTS)
 set_property(TEST lexer parser sema hir mir diagnostics language_server
   formatter package native runtime stdlib APPEND PROPERTY LABELS
   "phase20;hardening")
+set(ROCKET_CONFIGURED_TEST_ENVIRONMENT
+  "ROCKET_STAGE0=$<TARGET_FILE:rocketc>"
+  "ROCKET_NATIVE_LIBRARY_ROOT=${ROCKET_NATIVE_OUTPUT}"
+  "ROCKET_ARTIFACT_ROOT=${ROCKET_TEST_ARTIFACT_ROOT}"
+  "ROCKET_NATIVE_TARGET=${ROCKET_NATIVE_TARGET}")
+if(LLVM_FOUND)
+  list(APPEND ROCKET_CONFIGURED_TEST_ENVIRONMENT
+    "ROCKET_CLANG=${ROCKETC_CLANG_PATH}"
+    "ROCKET_LIBRARIAN=${ROCKETC_TEST_LIBRARIAN_PATH}"
+    "ROCKET_RUNTIME=$<TARGET_FILE:rocket_runtime>")
+endif()
 set_tests_properties(${ROCKET_CONFIGURED_TESTS} PROPERTIES
-  ENVIRONMENT "ROCKET_STAGE0=$<TARGET_FILE:rocketc>")
+  ENVIRONMENT "${ROCKET_CONFIGURED_TEST_ENVIRONMENT}")

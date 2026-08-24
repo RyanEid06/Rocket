@@ -14,3 +14,18 @@ name = "phase13_native"
 libraries = "rocket_phase13_native.lib"
 library-search = ".rocketc/native"
 headers = "native/phase13_native.h"
+
+[native.linux-x64]
+libraries = "librocket_phase13_native.a"
+library-search = ".rocketc/native"
+headers = "native/phase13_native.h"
+
+[native.linux-arm64]
+libraries = "librocket_phase13_native.a"
+library-search = ".rocketc/native"
+headers = "native/phase13_native.h"
+
+[native.macos-arm64]
+libraries = "librocket_phase13_native.a"
+library-search = ".rocketc/native"
+headers = "native/phase13_native.h"

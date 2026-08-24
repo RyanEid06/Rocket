@@ -19,6 +19,9 @@
 #include <windows.h>
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")
+#else
+#include <openssl/evp.h>
+#include <unistd.h>
 #endif
 
 namespace rocket {
@@ -403,6 +406,17 @@ int compareSemanticVersionText(const std::string& left,
 
 std::optional<Package> loadPackage(const std::filesystem::path& path,
                                    std::string& error) {
+  TargetError targetError;
+  const auto host = detectHostTarget(targetError);
+  if (!host) {
+    error = targetError.message;
+    return {};
+  }
+  return loadPackage(path, *host, error);
+}
+
+std::optional<Package> loadPackage(const std::filesystem::path& path,
+                                   const Target& target, std::string& error) {
   const std::filesystem::path supplied = std::filesystem::absolute(path).lexically_normal();
   const std::filesystem::path manifest =
       supplied.filename() == "rocket.toml" ? supplied : supplied / "rocket.toml";
@@ -418,11 +432,17 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
 
   Package package;
   package.root = manifest.parent_path();
+  package.compilationTarget = target;
   package.version = "0.1.0";
   package.entry = "src/main.rocket";
   package.tests = "tests";
+  std::optional<std::filesystem::path> selectedSourceRoot;
+  std::optional<std::filesystem::path> selectedEntry;
+  std::optional<std::filesystem::path> selectedTests;
   std::string section;
   std::unordered_set<std::string> seen;
+  std::unordered_set<std::string> seenTargetSections;
+  std::unordered_set<std::string> seenNativeSections;
   std::string line;
   int lineNumber = 0;
   while (std::getline(input, line)) {
@@ -436,9 +456,27 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     if (clean.empty()) continue;
     if (clean.front() == '[' && clean.back() == ']') {
       section = trim(clean.substr(1, clean.size() - 2));
-      if (section != "package" && section != "test" && section != "build" &&
-          section != "native.windows-x64" && section != "dependencies" &&
-          section != "package-policy") {
+      const bool targetSection = section.starts_with("target.");
+      const bool nativeSection = section.starts_with("native.");
+      if (targetSection || nativeSection) {
+        const std::string alias = section.substr(section.find('.') + 1);
+        const bool known = std::any_of(
+            productionTargets().begin(), productionTargets().end(),
+            [&](const Target& candidate) { return candidate.alias == alias; });
+        if (!known) {
+          error = manifest.string() + ":" + std::to_string(lineNumber) +
+                  ": target manifest uses unknown target section '" + section + "'";
+          return {};
+        }
+        auto& sections = targetSection ? seenTargetSections : seenNativeSections;
+        if (!sections.insert(alias).second) {
+          error = manifest.string() + ":" + std::to_string(lineNumber) +
+                  ": duplicate target manifest section '" + section + "'";
+          return {};
+        }
+      } else if (section != "package" && section != "test" &&
+                 section != "build" && section != "dependencies" &&
+                 section != "package-policy") {
         error = manifest.string() + ":" + std::to_string(lineNumber) +
                 ": unsupported manifest section '" + section + "'";
         return {};
@@ -516,14 +554,43 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     }
     else if (qualified == "package-policy.build-scripts")
       package.buildScripts = value;
-    else if (qualified == "native.windows-x64.libraries")
-      package.nativeLibraries = listValue(value);
-    else if (qualified == "native.windows-x64.library-search") {
-      for (const auto& item : listValue(value))
-        package.nativeLibrarySearch.push_back(item);
+    else if (section.starts_with("target.")) {
+      const bool selected = section == "target." + target.alias;
+      if (key != "source-root" && key != "entry" && key != "test-directory") {
+        error = manifest.string() + ":" + std::to_string(lineNumber) +
+                ": unsupported target manifest key '" + qualified + "'";
+        return {};
+      }
+      const std::filesystem::path configured(value);
+      if (configured.empty() || configured.is_absolute() ||
+          (!configured.lexically_normal().empty() &&
+           *configured.lexically_normal().begin() == "..")) {
+        error = manifest.string() + ":" + std::to_string(lineNumber) +
+                ": target manifest paths must be contained package-relative paths";
+        return {};
+      }
+      if (selected) {
+        if (key == "source-root") selectedSourceRoot = configured;
+        else if (key == "entry") selectedEntry = configured;
+        else selectedTests = configured;
+      }
     }
-    else if (qualified == "native.windows-x64.headers") {
-      for (const auto& item : listValue(value)) package.nativeHeaders.push_back(item);
+    else if (section.starts_with("native.")) {
+      if (key != "libraries" && key != "library-search" && key != "headers") {
+        error = manifest.string() + ":" + std::to_string(lineNumber) +
+                ": unsupported target manifest key '" + qualified + "'";
+        return {};
+      }
+      if (section == "native." + target.alias) {
+        if (key == "libraries") package.nativeLibraries = listValue(value);
+        else if (key == "library-search") {
+          for (const auto& item : listValue(value))
+            package.nativeLibrarySearch.push_back(item);
+        } else {
+          for (const auto& item : listValue(value))
+            package.nativeHeaders.push_back(item);
+        }
+      }
     }
     else {
       error = manifest.string() + ":" + std::to_string(lineNumber) +
@@ -561,14 +628,50 @@ std::optional<Package> loadPackage(const std::filesystem::path& path,
     error = manifest.string() + ": build.name must be a valid native artifact name";
     return {};
   }
-  const auto entry = (package.root / package.entry).lexically_normal();
-  const auto tests = (package.root / package.tests).lexically_normal();
-  if (!containedPath(package.root, entry) || !containedPath(package.root, tests)) {
+  const auto portableEntry = (package.root / package.entry).lexically_normal();
+  const auto portableTests = (package.root / package.tests).lexically_normal();
+  if (!containedPath(package.root, portableEntry) ||
+      !containedPath(package.root, portableTests)) {
     error = manifest.string() + ": entry and test paths must stay inside the package";
     return {};
   }
-  package.entry = entry;
-  package.tests = tests;
+  package.portableEntry = portableEntry;
+  package.portableTests = portableTests;
+  package.entry = portableEntry;
+  package.tests = portableTests;
+  if (selectedSourceRoot) {
+    package.targetSourceRoot =
+        (package.root / *selectedSourceRoot).lexically_normal();
+    if (!containedPath(package.root, package.targetSourceRoot) ||
+        !std::filesystem::is_directory(package.targetSourceRoot)) {
+      error = manifest.string() + ": selected target source-root does not exist "
+              "inside the package";
+      return {};
+    }
+  }
+  const std::filesystem::path selectedBase = package.targetSourceRoot.empty()
+                                                 ? package.root
+                                                 : package.targetSourceRoot;
+  if (selectedEntry) {
+    package.entry = (selectedBase / *selectedEntry).lexically_normal();
+  } else if (!package.targetSourceRoot.empty()) {
+    const auto candidate = (selectedBase / package.entry.lexically_relative(
+                                              package.root)).lexically_normal();
+    if (std::filesystem::is_regular_file(candidate)) package.entry = candidate;
+  }
+  if (selectedTests) {
+    package.tests = (selectedBase / *selectedTests).lexically_normal();
+  } else if (!package.targetSourceRoot.empty()) {
+    const auto candidate = (selectedBase / package.tests.lexically_relative(
+                                              package.root)).lexically_normal();
+    if (std::filesystem::is_directory(candidate)) package.tests = candidate;
+  }
+  if (!containedPath(package.root, package.entry) ||
+      !containedPath(package.root, package.tests)) {
+    error = manifest.string() +
+            ": selected target entry and test paths must stay inside the package";
+    return {};
+  }
   auto resolveContained = [&](std::filesystem::path path, const char* category)
       -> std::optional<std::filesystem::path> {
     if (path.is_absolute()) {
@@ -715,9 +818,9 @@ std::vector<std::filesystem::path> packageContentFiles(
   return files;
 }
 
-#ifdef _WIN32
 class Sha256 {
 public:
+#ifdef _WIN32
   Sha256() {
     if (BCryptOpenAlgorithmProvider(&algorithm_, BCRYPT_SHA256_ALGORITHM,
                                     nullptr, 0) != 0) return;
@@ -764,15 +867,49 @@ private:
   BCRYPT_HASH_HANDLE hash_ = nullptr;
   std::vector<unsigned char> object_;
   bool valid_ = false;
-};
+#else
+  Sha256() : context_(EVP_MD_CTX_new()) {
+    valid_ = context_ != nullptr &&
+             EVP_DigestInit_ex(context_, EVP_sha256(), nullptr) == 1;
+  }
+
+  ~Sha256() {
+    if (context_ != nullptr) EVP_MD_CTX_free(context_);
+  }
+
+  Sha256(const Sha256&) = delete;
+  Sha256& operator=(const Sha256&) = delete;
+
+  bool update(const void* data, std::size_t size) {
+    return valid_ && (size == 0 || EVP_DigestUpdate(context_, data, size) == 1);
+  }
+
+  bool finish(std::string& result) {
+    std::array<unsigned char, EVP_MAX_MD_SIZE> bytes{};
+    unsigned int size = 0;
+    if (!valid_ || EVP_DigestFinal_ex(context_, bytes.data(), &size) != 1 ||
+        size != 32) {
+      return false;
+    }
+    static constexpr char hexadecimal[] = "0123456789abcdef";
+    result.clear();
+    result.reserve(size * 2);
+    for (unsigned int index = 0; index < size; ++index) {
+      result.push_back(hexadecimal[bytes[index] >> 4]);
+      result.push_back(hexadecimal[bytes[index] & 15]);
+    }
+    valid_ = false;
+    return true;
+  }
+
+private:
+  EVP_MD_CTX* context_ = nullptr;
+  bool valid_ = false;
 #endif
+};
 
 bool sha256Package(const std::filesystem::path& root, std::string& checksum,
                    std::string& error) {
-#ifndef _WIN32
-  error = "secure package hashing is currently supported on Windows x64 only";
-  return false;
-#else
   const auto files = packageContentFiles(root, error);
   if (!error.empty()) return false;
   Sha256 hash;
@@ -805,11 +942,10 @@ bool sha256Package(const std::filesystem::path& root, std::string& checksum,
     }
   }
   if (!hash.finish(checksum)) {
-    error = "Windows SHA-256 provider failed";
+    error = "platform SHA-256 provider failed";
     return false;
   }
   return true;
-#endif
 }
 
 bool copyPackageContent(const std::filesystem::path& source,
@@ -865,7 +1001,7 @@ bool ensureCached(const std::filesystem::path& cacheRoot,
 #ifdef _WIN32
   const auto processIdentifier = static_cast<unsigned long>(GetCurrentProcessId());
 #else
-  const auto processIdentifier = 0UL;
+  const auto processIdentifier = static_cast<unsigned long>(::getpid());
 #endif
   const std::string suffix = ".partial-" + std::to_string(processIdentifier);
   const auto temporary = cacheRoot / (checksum + suffix);
@@ -1167,7 +1303,7 @@ bool resolveDependency(const PackageDependency& dependency,
             sourceStatusError.message();
     return false;
   }
-  auto resolved = loadPackage(sourceRoot, error);
+  auto resolved = loadPackage(sourceRoot, parent.compilationTarget, error);
   if (!resolved) return false;
   if (resolved->name != dependency.name) {
     error = "dependency key '" + dependency.name + "' resolved package '" +
@@ -1687,7 +1823,7 @@ bool prepareLockedPackageDependencies(
               locked.version;
       return false;
     }
-    auto dependencyPackage = loadPackage(cached, error);
+    auto dependencyPackage = loadPackage(cached, package.compilationTarget, error);
     if (!dependencyPackage) return false;
     if (dependencyPackage->name != locked.name ||
         dependencyPackage->version != locked.version) {
@@ -1758,7 +1894,8 @@ bool prepareLockedPackageDependencies(
     const std::string lockedIdentity = locked.name + "@" + locked.version;
     roots.push_back(PackageDependencyRoot{
         locked.name, locked.name + "@" + locked.version, cached,
-        dependencyPackage->entry, std::move(dependencyNames),
+        dependencyPackage->entry, dependencyPackage->targetSourceRoot,
+        std::move(dependencyNames),
         std::find(lock.rootDependencies.begin(), lock.rootDependencies.end(),
                   lockedIdentity) != lock.rootDependencies.end(),
         std::move(nativeLibraries), dependencyPackage->nativeLibrarySearch,
