@@ -5,6 +5,7 @@ import std.file
 import std.task
 
 fn main() -> Int:
+    let directory = file.create_directory("tests/fixtures/.rocketc")
     let path = "tests/fixtures/.rocketc/phase18-async-file.tmp"
     let token = cancel.token()
     let bytes = buffer.thaw(['R', 'K', 'T'])
