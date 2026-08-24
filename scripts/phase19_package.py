@@ -370,7 +370,12 @@ def package_tree(arguments: argparse.Namespace) -> tuple[Path, dict[str, object]
     install_host_program(
         stage0, package / "stage0" / f"rocketc-stage0{executable_suffix}", windows
     )
-    shutil.copy2(runtime, package / "lib" / runtime.name)
+    # CMake prefixes POSIX static-library build products with "lib", whereas
+    # an installed Rocket target SDK has one canonical runtime spelling across
+    # all platforms.  Toolchain discovery and cross-SDK assembly both use this
+    # installed name.
+    packaged_runtime = package / "lib" / f"rocket_runtime{runtime_suffix}"
+    shutil.copy2(runtime, packaged_runtime)
     llvm_tools = copy_llvm(arguments, package)
 
     if windows:
@@ -463,7 +468,7 @@ Release channel: {arguments.channel}.
         "archive_format": "deterministic-zip-2" if windows else "deterministic-tar-xz-2",
         "compiler_sha256": sha256(package / "bin" / ("rocketc.exe" if windows else "rocketc.bin")),
         "stage0_sha256": sha256(package / "stage0" / ("rocketc-stage0.exe" if windows else "rocketc-stage0.bin")),
-        "runtime_sha256": sha256(package / "lib" / runtime.name),
+        "runtime_sha256": sha256(packaged_runtime),
         "bootstrap_proof_sha256": sha256(package / "BOOTSTRAP_SHA256SUMS.txt"),
         "llvm_tools": llvm_tools,
         "bundled_runtime_libraries": bundled_runtime_libraries,

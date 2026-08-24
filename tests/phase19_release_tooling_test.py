@@ -79,8 +79,8 @@ def main() -> int:
         "POSIX native workflow does not use CMake's librocket_runtime archive name",
     )
     check(
-        "ROCKET_HOST_CXX_COMPILER=$(xcrun --find clang++)" in workflow,
-        "macOS workflow does not use Xcode's matching C++ toolchain",
+        "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" in workflow,
+        "macOS workflow does not use the LLVM 22 linker-compatible C++ toolchain",
     )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
@@ -90,6 +90,15 @@ def main() -> int:
     check(
         "else f\"librocket_runtime{runtime_suffix}\"" in package_tree_source,
         "POSIX package lookup does not use CMake's librocket_runtime archive name",
+    )
+    check(
+        'package / "lib" / f"rocket_runtime{runtime_suffix}"' in package_tree_source,
+        "installed package does not normalize the POSIX runtime SDK name",
+    )
+    cmake = (root / "CMakeLists.txt").read_text()
+    check(
+        "find_library(ROCKET_CXX_STANDARD_LIBRARY c++ REQUIRED)" in cmake,
+        "macOS CMake configuration does not explicitly link the Apple C++ runtime",
     )
     runtime_library_initialization = package_tree_source.find(
         "bundled_runtime_libraries: list[str] = []"
