@@ -83,12 +83,23 @@ def main() -> int:
         "macOS workflow does not use the LLVM 22 linker-compatible C++ toolchain",
     )
     check(
-        'ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime' in workflow,
-        "macOS workflow does not select the libc++ matching the pinned LLVM headers",
+        'ROCKET_CXX_STANDARD_INCLUDE=$cxx_include' in workflow,
+        "macOS workflow does not select Xcode's matching libc++ headers",
     )
     check(
-        'extra+=(--library-directory "$llvm/lib")' in workflow,
-        "macOS bootstrap does not link against the pinned LLVM libc++ directory",
+        'ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime' in workflow,
+        "macOS workflow does not select Xcode's matching libc++ runtime",
+    )
+    check(
+        'cxx_runtime="$sdk/usr/lib/libc++.tbd"' in workflow
+        and 'cxx_runtime="$llvm/lib/libc++.dylib"' not in workflow,
+        "macOS workflow can still select LLVM's incompatible bundled libc++",
+    )
+    check(
+        "Prove macOS libc++ header and runtime compatibility" in workflow
+        and "std::unordered_map" in workflow
+        and "std::runtime_error" in workflow,
+        "macOS workflow lacks an early libc++ symbol and exception ABI probe",
     )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
@@ -105,13 +116,17 @@ def main() -> int:
     )
     cmake = (root / "CMakeLists.txt").read_text()
     check(
-        'set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")' in cmake,
-        "macOS CMake configuration does not honor the pinned LLVM libc++ runtime",
+        'set(ROCKET_CXX_STANDARD_INCLUDE "$ENV{ROCKET_CXX_STANDARD_INCLUDE}")' in cmake
+        and "-nostdinc++" in cmake,
+        "macOS CMake configuration can compile against LLVM's newer libc++ headers",
     )
     check(
-        "CMAKE_BUILD_RPATH" in cmake
-        and "ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY" in cmake,
-        "macOS build-tree tools cannot load the pinned LLVM libc++ runtime",
+        'set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")' in cmake,
+        "macOS CMake configuration does not honor the selected Xcode libc++ runtime",
+    )
+    check(
+        "ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY" not in cmake,
+        "macOS builds still inject LLVM's incompatible libc++ runtime path",
     )
     wrapper_source = package_tool.wrapper("rocketc", "rocketc.bin")
     for value in ("ROCKET_CLANG", "ROCKET_LIBRARIAN", "ROCKET_RUNTIME"):
@@ -125,6 +140,21 @@ def main() -> int:
         'destination = package / "bin" / installed_name' in copy_llvm_source,
         "POSIX LLVM driver aliases are replaced by resolved symlink names",
     )
+    check(
+        package_tool.macos_cxx_runtime_library("libc++.1.dylib")
+        and package_tool.macos_cxx_runtime_library("libc++abi.1.dylib")
+        and not package_tool.macos_cxx_runtime_library("libLLVM.dylib"),
+        "macOS package filtering does not isolate LLVM's private C++ ABI runtimes",
+    )
+    mach_o_probe = work / "mach-o-probe"
+    shell_probe = work / "shell-probe"
+    mach_o_probe.write_bytes(b"\xcf\xfa\xed\xfeprobe")
+    shell_probe.write_text("#!/bin/sh\n", encoding="ascii")
+    check(
+        package_tool.macos_mach_o(mach_o_probe)
+        and not package_tool.macos_mach_o(shell_probe),
+        "macOS packaging cannot distinguish Mach-O files from launcher scripts",
+    )
     driver_probe_source = inspect.getsource(package_tool.verify_packaged_driver)
     check(
         '"-fuse-ld=lld"' in driver_probe_source,
@@ -134,6 +164,15 @@ def main() -> int:
     check(
         '"-delete_rpath"' in macos_bundle_source,
         "macOS packages retain absolute build-machine runtime paths",
+    )
+    check(
+        '"/usr/bin/codesign"' in macos_bundle_source
+        and '"--timestamp=none"' in macos_bundle_source,
+        "rewritten macOS package binaries lack deterministic ad-hoc signatures",
+    )
+    check(
+        'extra+=(--library-directory "$llvm/lib")' not in workflow,
+        "macOS bootstrap can still select LLVM's incompatible bundled libc++",
     )
     bootstrap_stage_source = inspect.getsource(bootstrap_tool.build_self_hosted_stage)
     check(
@@ -173,6 +212,23 @@ def main() -> int:
     check(
         (fake_package / "bin" / "ld.lld").is_file(),
         "copying a symlinked LLVM linker drops the ld.lld driver alias",
+    )
+    fake_macos_package = work / "fake-macos-package"
+    for directory in ("bin", "lib", "licenses"):
+        (fake_macos_package / directory).mkdir(parents=True)
+    (fake_llvm / "bin" / "ld64.lld").write_bytes(b"ld64.lld\n")
+    (fake_llvm / "lib" / "libc++.1.dylib").write_bytes(b"private-libc++\n")
+    (fake_llvm / "lib" / "libc++abi.1.dylib").write_bytes(b"private-libc++abi\n")
+    (fake_llvm / "lib" / "libLLVM.dylib").write_bytes(b"llvm-runtime\n")
+    package_tool.copy_llvm(
+        argparse.Namespace(target="macos-arm64", llvm_root=fake_llvm),
+        fake_macos_package,
+    )
+    check(
+        (fake_macos_package / "lib" / "libLLVM.dylib").is_file()
+        and not (fake_macos_package / "lib" / "libc++.1.dylib").exists()
+        and not (fake_macos_package / "lib" / "libc++abi.1.dylib").exists(),
+        "macOS SDK package copied LLVM's private libc++ ABI into its loader path",
     )
     copy_host_llvm_source = inspect.getsource(cross_tool.copy_host_llvm)
     check(

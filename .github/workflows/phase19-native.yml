@@ -84,15 +84,20 @@ jobs:
           echo "$llvm/bin" >> "$GITHUB_PATH"
           echo "LLVM_DIR=$llvm/lib/cmake/llvm" >> "$GITHUB_ENV"
           if [[ "${{ matrix.target }}" == macos-* ]]; then
-            # Apple ld cannot read the LLVM 22 bitcode embedded in the pinned
-            # LLVM archives.  Use the matching LLVM 22 compiler/linker and
-            # libc++, rather than mixing its C++ headers with Xcode's libc++.
-            cxx_runtime="$llvm/lib/libc++.dylib"
+            # Retain the pinned LLVM 22 compiler and LLD, but pair Xcode's
+            # libc++ headers with Xcode's system runtime.  LLVM's bundled 22.x
+            # headers require symbols absent from the Xcode 16 runtime, while
+            # forcing its bundled dylib breaks Apple's libc++ ABI support.
+            sdk="$(xcrun --sdk macosx --show-sdk-path)"
+            cxx_include="$sdk/usr/include/c++/v1"
+            cxx_runtime="$sdk/usr/lib/libc++.tbd"
+            test -d "$cxx_include"
             test -f "$cxx_runtime"
             echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_LINKER=$llvm/bin/ld64.lld" >> "$GITHUB_ENV"
+            echo "ROCKET_CXX_STANDARD_INCLUDE=$cxx_include" >> "$GITHUB_ENV"
             echo "ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime" >> "$GITHUB_ENV"
           else
             echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
@@ -100,6 +105,35 @@ jobs:
             echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
           fi
+
+      - name: Prove macOS libc++ header and runtime compatibility
+        if: matrix.target == 'macos-arm64'
+        shell: bash
+        run: |
+          llvm="$GITHUB_WORKSPACE/dependencies/installed/llvm-22.1.6"
+          probe="out/phase19/preflight/macos-cxx"
+          mkdir -p "$probe" "out/phase19/evidence/macos-arm64"
+          printf '%s\n' \
+            '#include <stdexcept>' \
+            '#include <string>' \
+            '#include <unordered_map>' \
+            'int main() {' \
+            '  std::unordered_map<std::string, int> values{{"rocket", 19}};' \
+            '  try { throw std::runtime_error("abi-probe"); }' \
+            '  catch (const std::runtime_error&) { return values.at("rocket") == 19 ? 0 : 1; }' \
+            '}' > "$probe/main.cpp"
+          "$ROCKET_HOST_CXX_COMPILER" -std=c++20 -nostdinc++ \
+            -isystem "$ROCKET_CXX_STANDARD_INCLUDE" \
+            -fuse-ld=lld -Wl,-no_uuid "$probe/main.cpp" \
+            "$ROCKET_CXX_STANDARD_LIBRARY" -o "$probe/macos-cxx-probe"
+          dependencies="$(otool -L "$probe/macos-cxx-probe")"
+          printf '%s\n' "$dependencies" | tee \
+            "out/phase19/evidence/macos-arm64/libcxx-preflight.txt"
+          if printf '%s\n' "$dependencies" | grep -F "$llvm/lib/libc++"; then
+            echo "macOS preflight linked LLVM's incompatible bundled libc++" >&2
+            exit 1
+          fi
+          "$probe/macos-cxx-probe"
 
       - name: Record native host and pinned tool versions
         shell: bash
@@ -231,8 +265,6 @@ jobs:
           build="out/phase19/build/phase19-${{ matrix.target }}-release"
           extra=()
           if [[ "${{ matrix.target }}" == "macos-arm64" ]]; then
-            llvm="$GITHUB_WORKSPACE/dependencies/installed/llvm-22.1.6"
-            extra+=(--library-directory "$llvm/lib")
             extra+=(--library-directory "$(brew --prefix icu4c)/lib")
             extra+=(--library-directory "$(brew --prefix openssl@3)/lib")
           fi

@@ -195,6 +195,31 @@ def macos_system_library(value: str) -> bool:
     return value.startswith("/usr/lib/") or value.startswith("/System/Library/")
 
 
+def macos_cxx_runtime_library(name: str) -> bool:
+    """Return whether a dylib belongs to Apple's system C++ ABI stack."""
+    return (
+        name == "libc++.dylib"
+        or name.startswith("libc++.")
+        or name == "libc++abi.dylib"
+        or name.startswith("libc++abi.")
+    )
+
+
+def macos_mach_o(path: Path) -> bool:
+    """Recognize thin and universal Mach-O files without invoking otool."""
+    try:
+        with path.open("rb") as handle:
+            magic = handle.read(4)
+    except OSError:
+        return False
+    return magic in {
+        b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe",
+        b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe",
+        b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca",
+        b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca",
+    }
+
+
 def bundle_macos_dependencies(package: Path, seeds: list[Path]) -> list[str]:
     """Bundle and rewrite non-Apple dylibs needed by the shipped executables."""
     library_directory = package / "lib"
@@ -206,7 +231,12 @@ def bundle_macos_dependencies(package: Path, seeds: list[Path]) -> list[str]:
         if source in visited:
             continue
         visited.add(source)
-        for dependency in macos_dependencies(source):
+        # POSIX packages also contain launcher shell scripts.  They are valid
+        # queue seeds, but only Mach-O objects should ever be passed to otool.
+        if not macos_mach_o(source):
+            continue
+        dependencies = macos_dependencies(source)
+        for dependency in dependencies:
             if macos_system_library(dependency):
                 continue
             if dependency.startswith("@loader_path/"):
@@ -233,10 +263,9 @@ def bundle_macos_dependencies(package: Path, seeds: list[Path]) -> list[str]:
         for path in directory.iterdir() if path.is_file()
     ]
     for path in sorted(candidates):
-        try:
-            dependencies = macos_dependencies(path)
-        except PackageFailure:
+        if not macos_mach_o(path):
             continue
+        dependencies = macos_dependencies(path)
         if path.parent == library_directory and path.suffix == ".dylib":
             capture(["/usr/bin/install_name_tool", "-id", f"@rpath/{path.name}", path])
         for dependency in dependencies:
@@ -256,6 +285,12 @@ def bundle_macos_dependencies(package: Path, seeds: list[Path]) -> list[str]:
                 capture(["/usr/bin/install_name_tool", "-delete_rpath", existing, path])
         if rpath not in existing_rpaths:
             capture(["/usr/bin/install_name_tool", "-add_rpath", rpath, path])
+        # install_name_tool invalidates any existing signature.  Ad-hoc sign
+        # each rewritten Mach-O so macOS will execute the relocated binaries.
+        capture([
+            "/usr/bin/codesign", "--force", "--sign", "-",
+            "--timestamp=none", path,
+        ])
     return sorted(copied)
 
 
@@ -332,6 +367,12 @@ def copy_llvm(arguments: argparse.Namespace, package: Path) -> list[str]:
             if not source.is_file() and not source.is_symlink():
                 continue
             if not (name.endswith(".dylib") or ".so" in name):
+                continue
+            if (arguments.target == "macos-arm64"
+                    and macos_cxx_runtime_library(name)):
+                # Xcode's libc++ headers and runtime are one matched ABI unit.
+                # Shipping LLVM's private libc++ beside an Xcode-ABI binary
+                # lets DYLD_LIBRARY_PATH substitute an incompatible runtime.
                 continue
             destination = package / "lib" / name
             shutil.copy2(source.resolve(), destination)

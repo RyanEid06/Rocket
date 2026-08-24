@@ -6,6 +6,47 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+if(APPLE)
+  # The release LLVM compiler searches its own libc++ 22 headers first, but
+  # those headers are newer than the libc++ runtime supplied by Xcode 16.
+  # Compile every C++ target against the active SDK's matching headers and
+  # runtime while retaining the pinned LLVM Clang and LLD executables.
+  set(ROCKET_CXX_STANDARD_INCLUDE "$ENV{ROCKET_CXX_STANDARD_INCLUDE}")
+  set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")
+  if(NOT ROCKET_CXX_STANDARD_INCLUDE OR NOT ROCKET_CXX_STANDARD_LIBRARY)
+    execute_process(
+      COMMAND xcrun --sdk macosx --show-sdk-path
+      OUTPUT_VARIABLE ROCKET_MACOS_SDK_ROOT
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE ROCKET_XCRUN_RESULT)
+    if(NOT ROCKET_XCRUN_RESULT EQUAL 0 OR NOT ROCKET_MACOS_SDK_ROOT)
+      message(FATAL_ERROR "Unable to locate the active macOS SDK with xcrun")
+    endif()
+    if(NOT ROCKET_CXX_STANDARD_INCLUDE)
+      set(ROCKET_CXX_STANDARD_INCLUDE
+        "${ROCKET_MACOS_SDK_ROOT}/usr/include/c++/v1")
+    endif()
+    if(NOT ROCKET_CXX_STANDARD_LIBRARY)
+      set(ROCKET_CXX_STANDARD_LIBRARY
+        "${ROCKET_MACOS_SDK_ROOT}/usr/lib/libc++.tbd")
+    endif()
+  endif()
+  if(NOT IS_DIRECTORY "${ROCKET_CXX_STANDARD_INCLUDE}")
+    message(FATAL_ERROR
+      "macOS libc++ headers are missing: ${ROCKET_CXX_STANDARD_INCLUDE}")
+  endif()
+  if(NOT EXISTS "${ROCKET_CXX_STANDARD_LIBRARY}")
+    message(FATAL_ERROR
+      "macOS libc++ runtime stub is missing: ${ROCKET_CXX_STANDARD_LIBRARY}")
+  endif()
+  add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>")
+  include_directories(SYSTEM BEFORE "${ROCKET_CXX_STANDARD_INCLUDE}")
+  message(STATUS
+    "Rocket macOS libc++ headers: ${ROCKET_CXX_STANDARD_INCLUDE}")
+  message(STATUS
+    "Rocket macOS libc++ runtime: ${ROCKET_CXX_STANDARD_LIBRARY}")
+endif()
+
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" ROCKET_SYSTEM_PROCESSOR)
 if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8 AND
    ROCKET_SYSTEM_PROCESSOR MATCHES "^(amd64|x86_64)$")
@@ -90,20 +131,8 @@ if(NOT WIN32)
   if(APPLE)
     find_library(ROCKET_SECURITY_FRAMEWORK Security REQUIRED)
     find_library(ROCKET_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
-    # The pinned LLVM compiler is required to link the downloaded LLVM 22
-    # archives.  Its libc++ headers use the matching LLVM ABI, so link the
-    # matching libc++ supplied by that toolchain instead of Xcode's older one.
-    set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")
-    if(NOT EXISTS "${ROCKET_CXX_STANDARD_LIBRARY}")
-      find_library(ROCKET_CXX_STANDARD_LIBRARY c++ REQUIRED)
-    endif()
-    # LLVM's macOS archives and headers use the libc++ shipped beside the
-    # pinned compiler.  Link against that exact dylib and make it discoverable
-    # when build-tree tools (including rocketc custom commands) execute.
-    get_filename_component(ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY
-      "${ROCKET_CXX_STANDARD_LIBRARY}" DIRECTORY)
-    list(APPEND CMAKE_BUILD_RPATH
-      "${ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY}")
+    # Keep the SDK libc++ runtime explicit and transitive.  The matching SDK
+    # headers were selected before any C++ target was created above.
     list(APPEND ROCKET_POSIX_PLATFORM_LIBRARIES
       "${ROCKET_SECURITY_FRAMEWORK}" "${ROCKET_COREFOUNDATION_FRAMEWORK}"
       "${ROCKET_CXX_STANDARD_LIBRARY}")
