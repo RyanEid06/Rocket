@@ -8209,6 +8209,12 @@ fn direct_process(program: String, arguments: Array[String]) -> Int:
             print(string.concat("rocketc: error[R5002]: ", error))
             return 1
 
+fn report_external_command_failure(stage: String, program: String, arguments: Array[String], status: Int) -> Unit:
+    print(string.concat("rocketc: external ", string.concat(stage, string.concat(" command failed with status ", string.from_int(status)))))
+    print(string.concat("  program: ", program))
+    for index in 0..collections.length(arguments):
+        print(string.concat("  argument: ", arguments[index]))
+
 fn ignored_build_entry(name: String) -> Bool:
     return name == ".git" or name == ".rocketc" or name == "out" or name == "build" or name == "dependencies" or name == "node_modules"
 
@@ -8427,13 +8433,17 @@ fn build_native_source_with_package(package: PackageInfo, source: String, artifa
     compile_arguments = append(compile_arguments, ir)
     compile_arguments = append(compile_arguments, "-o")
     compile_arguments = append(compile_arguments, object)
-    if direct_process(toolchain.clang, compile_arguments) != 0:
+    let compile_status = direct_process(toolchain.clang, compile_arguments)
+    if compile_status != 0:
+        report_external_command_failure("compile", toolchain.clang, compile_arguments, compile_status)
         return NativeBuildResult(1, artifact)
     if output_kind == output_static_library():
         var librarian_arguments: Array[String] = ["rcsD", artifact, object]
         if selected.os == "windows":
             librarian_arguments = ["/nologo", string.concat("/OUT:", artifact), object]
-        if direct_process(toolchain.librarian, librarian_arguments) != 0:
+        let librarian_status = direct_process(toolchain.librarian, librarian_arguments)
+        if librarian_status != 0:
+            report_external_command_failure("archive", toolchain.librarian, librarian_arguments, librarian_status)
             return NativeBuildResult(1, artifact)
         return NativeBuildResult(0, artifact)
     var link_arguments: Array[String] = [object, toolchain.runtime, string.concat("--target=", selected.triple), "-fuse-ld=lld"]
@@ -8465,7 +8475,9 @@ fn build_native_source_with_package(package: PackageInfo, source: String, artifa
         link_arguments = collections.concat(link_arguments, ["-lcurl", "-lcrypto", "-licuuc", "-licudata", "-lpthread", "-lc++", "-lm", "-framework", "Security", "-framework", "CoreFoundation"])
     link_arguments = append(link_arguments, "-o")
     link_arguments = append(link_arguments, artifact)
-    if direct_process(toolchain.clang, link_arguments) != 0:
+    let link_status = direct_process(toolchain.clang, link_arguments)
+    if link_status != 0:
+        report_external_command_failure("link", toolchain.clang, link_arguments, link_status)
         return NativeBuildResult(1, artifact)
     return NativeBuildResult(0, artifact)
 

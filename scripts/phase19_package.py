@@ -176,6 +176,21 @@ def macos_dependencies(path: Path) -> list[str]:
     return dependencies
 
 
+def macos_rpaths(path: Path) -> list[str]:
+    output = capture(["/usr/bin/otool", "-l", path])
+    lines = output.splitlines()
+    result: list[str] = []
+    for index, line in enumerate(lines):
+        if line.strip() != "cmd LC_RPATH":
+            continue
+        for detail in lines[index + 1:index + 5]:
+            value = detail.strip()
+            if value.startswith("path ") and " (offset " in value:
+                result.append(value[5:].split(" (offset ", 1)[0])
+                break
+    return result
+
+
 def macos_system_library(value: str) -> bool:
     return value.startswith("/usr/lib/") or value.startswith("/System/Library/")
 
@@ -232,8 +247,14 @@ def bundle_macos_dependencies(package: Path, seeds: list[Path]) -> list[str]:
                     f"@rpath/{basename}", path,
                 ])
         rpath = "@loader_path" if path.parent == library_directory else "@loader_path/../lib"
-        load_commands = capture(["/usr/bin/otool", "-l", path])
-        if rpath not in load_commands:
+        existing_rpaths = macos_rpaths(path)
+        # Build and bootstrap products may contain absolute paths into the
+        # dependency cache or Homebrew.  They are valid while assembling the
+        # SDK but must never survive in a relocatable package.
+        for existing in existing_rpaths:
+            if Path(existing).is_absolute():
+                capture(["/usr/bin/install_name_tool", "-delete_rpath", existing, path])
+        if rpath not in existing_rpaths:
             capture(["/usr/bin/install_name_tool", "-add_rpath", rpath, path])
     return sorted(copied)
 
@@ -284,12 +305,21 @@ def copy_llvm(arguments: argparse.Namespace, package: Path) -> list[str]:
         required.extend(["ld64.lld", "lld", "llvm-dwarfdump", "llvm-objdump"])
     copied: list[str] = []
     for name in required:
-        source = require_file(llvm / "bin" / f"{name}{suffix}", f"LLVM tool {name}")
-        destination = package / "bin" / source.name
+        installed_name = f"{name}{suffix}"
+        source = require_file(llvm / "bin" / installed_name, f"LLVM tool {name}")
+        # require_file resolves symlinks so that the copied bytes are regular,
+        # but the installed filename must remain the requested driver alias.
+        # In official POSIX archives ld.lld/ld64.lld may point at lld; losing
+        # that alias makes Clang's -fuse-ld=lld discovery fail after relocation.
+        destination = package / "bin" / installed_name
         shutil.copy2(source, destination)
         if not suffix:
             destination.chmod(0o755)
-        copied.append(source.name)
+        copied.append(destination.name)
+    for source in sorted((llvm / "bin").glob("*.cfg")):
+        destination = package / "bin" / source.name
+        shutil.copy2(source, destination)
+        copied.append(destination.name)
     clang_header = next((llvm / "lib" / "clang").glob("*/include/stddef.h"), None)
     if clang_header is None:
         raise PackageFailure(f"missing Clang resource headers under {llvm}")
@@ -547,9 +577,36 @@ def sanitized_environment(package: Path, work: Path, target: str) -> dict[str, s
     keep["LC_ALL"] = keep["LANG"]
     keep["ROCKET_ARTIFACT_ROOT"] = str(work / "artifacts")
     keep["ROCKET_NATIVE_TARGET"] = target
+    if target.startswith("linux-"):
+        keep["LD_LIBRARY_PATH"] = str(package / "lib")
+    elif target == "macos-arm64":
+        keep["DYLD_LIBRARY_PATH"] = str(package / "lib")
     (work / "temp").mkdir(parents=True)
     (work / "home").mkdir(parents=True)
     return keep
+
+
+def verify_packaged_driver(
+    package: Path, work: Path, target: str, env: dict[str, str]
+) -> None:
+    """Prove the relocated Clang driver can find its matching LLD alias."""
+    triple = TARGETS[target][0]
+    clang = package / "bin" / "clang"
+    source = work / "relocated-toolchain-probe.c"
+    executable = work / "relocated-toolchain-probe"
+    source.write_text(
+        "int main(void) { return 0; }\n", encoding="ascii", newline="\n"
+    )
+    run([clang, "--version"], env=env, cwd=work, pattern=r"clang version 22\.1\.6")
+    command: list[str | Path] = [
+        clang, f"--target={triple}", source, "-fuse-ld=lld",
+    ]
+    command.append(
+        "-Wl,-no_uuid" if target == "macos-arm64" else "-Wl,--build-id=sha1"
+    )
+    command.extend(["-o", executable])
+    run(command, env=env, cwd=work)
+    run([executable], env=env, cwd=work)
 
 
 def verify_relocation(package: Path, arguments: argparse.Namespace) -> dict[str, object]:
@@ -571,6 +628,8 @@ def verify_relocation(package: Path, arguments: argparse.Namespace) -> dict[str,
         pattern=rf"(?m)^target: {re.escape(arguments.target)}$"
     )
     run([stage0, "--version"], env=env, cwd=work, pattern=r"^rocketc 2\.1\.0$")
+    if arguments.target != "windows-x64":
+        verify_packaged_driver(relocation, work, arguments.target, env)
     fixture = work / "package-fixture"
     shutil.copytree(ROOT / "tests" / "fixtures" / "phase8_package", fixture)
     run([compiler, "check", fixture], env=env, cwd=work, pattern=r"check succeeded")

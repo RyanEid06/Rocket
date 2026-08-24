@@ -166,6 +166,8 @@ def build_self_hosted_stage(
     ]
     for directory in arguments.library_directory:
         link.extend(["-L", directory])
+        if arguments.target != "windows-x64":
+            link.append(f"-Wl,-rpath,{directory}")
     if arguments.target == "windows-x64":
         link.extend(
             ["-Wl,/Brepro", "-Wl,/DEBUG:FULL", f"-Wl,/PDB:{output / (stage + '.pdb')}"]

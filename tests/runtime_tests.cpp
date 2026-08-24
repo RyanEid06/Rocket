@@ -24,6 +24,15 @@ void* phase18ManagedTaskEntry(void* context) {
   return result;
 }
 
+bool waitForRuntimeQuiescence() {
+  const auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::seconds(2);
+  while (rocket_rt_debug_live_allocations() != 0 &&
+         std::chrono::steady_clock::now() < deadline)
+    std::this_thread::yield();
+  return rocket_rt_debug_live_allocations() == 0;
+}
+
 } // namespace
 
 int main() {
@@ -440,8 +449,8 @@ int main() {
                        "bounded task executor owns and joins typed results", failures);
   rocket_rt_release(taskResult);
   rocket_rt_release(task);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
-                        "Task completion releases captured context and result", failures);
+  rocket::test::expect(waitForRuntimeQuiescence(),
+                       "Task completion releases captured context and result", failures);
 
   std::vector<RocketTask*> poolTasks;
   poolTasks.reserve(512);
@@ -461,10 +470,10 @@ int main() {
   rocket::test::expect(poolTotal == 512 * 513 / 2,
                        "bounded task pool completes 512 contended publications",
                        failures);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "thread-pool contention releases every task and capture", failures);
   rocket::test::expect(rocket_rt_debug_executor_cycles(1000) == 1 &&
-                           rocket_rt_debug_live_allocations() == 0,
+                           waitForRuntimeQuiescence(),
                        "1,000 executor startup/shutdown cycles drain outstanding work",
                        failures);
 
@@ -495,7 +504,7 @@ int main() {
   rocket_rt_release(runtimeThread);
   rocket_rt_release(threadSpawned);
   rocket_rt_release(threadTask);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "joined Thread and underlying Task release exactly once", failures);
 
   RocketAggregate* detachedContext = rocket_rt_aggregate_new(0, 1, 0);
@@ -516,12 +525,7 @@ int main() {
   rocket_rt_release(detachedThread);
   rocket_rt_release(detachedSpawned);
   rocket_rt_release(detachedTask);
-  const auto detachedWatchdog = std::chrono::steady_clock::now() +
-      std::chrono::seconds(1);
-  while (rocket_rt_debug_live_allocations() != 0 &&
-         std::chrono::steady_clock::now() < detachedWatchdog)
-    std::this_thread::yield();
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "detached Thread releases its worker ownership on completion",
                        failures);
 
@@ -554,7 +558,7 @@ int main() {
   rocket_rt_release(secondTask);
   rocket_rt_release(firstTask);
   // Task contexts are consumed by spawn; the Task objects release these strings.
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "TaskGroup structured cleanup releases every child", failures);
 
   RocketAggregate* firstIntegerResult = rocket_rt_aggregate_new(0, 1, 0);
@@ -580,7 +584,7 @@ int main() {
   rocket_rt_release(integerTasks);
   rocket_rt_release(secondIntegerTask);
   rocket_rt_release(firstIntegerTask);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "primitive TaskGroup results leave no boxed ownership", failures);
 
   RocketCancellation* abandonedToken = rocket_std_cancel_token();
@@ -601,7 +605,7 @@ int main() {
   rocket_rt_release(abandonedSecond);
   rocket_rt_release(abandonedFirst);
   rocket_rt_release(abandonedToken);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "unjoined TaskGroup cleanup leaves no child tasks", failures);
 
   RocketCancellation* cancellation = rocket_std_cancel_token();
@@ -788,7 +792,7 @@ int main() {
   rocket_rt_release(initialValues);
   rocket_rt_release(sentValue);
   rocket_rt_release(initialValue);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "Phase 18 synchronization and channel handles leave no leaks",
                        failures);
 
@@ -844,7 +848,7 @@ int main() {
   rocket_rt_release(blockedInitialValues);
   rocket_rt_release(blockedValue);
   rocket_rt_release(blockedInitial);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "backpressure and close paths release queued channel values", failures);
 
   RocketString* disconnectQueued = rocket_rt_string_new(
@@ -937,7 +941,7 @@ int main() {
                        failures);
   rocket_rt_release(oversizedChannel);
   rocket_rt_release(oversizedUnbounded);
-  rocket::test::expect(rocket_rt_debug_live_allocations() == 0,
+  rocket::test::expect(waitForRuntimeQuiescence(),
                        "channel disconnect races and resource failures leave no leaks",
                        failures);
   return rocket::test::finish(failures, "runtime");

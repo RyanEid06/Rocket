@@ -97,6 +97,13 @@ if(NOT WIN32)
     if(NOT EXISTS "${ROCKET_CXX_STANDARD_LIBRARY}")
       find_library(ROCKET_CXX_STANDARD_LIBRARY c++ REQUIRED)
     endif()
+    # LLVM's macOS archives and headers use the libc++ shipped beside the
+    # pinned compiler.  Link against that exact dylib and make it discoverable
+    # when build-tree tools (including rocketc custom commands) execute.
+    get_filename_component(ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY
+      "${ROCKET_CXX_STANDARD_LIBRARY}" DIRECTORY)
+    list(APPEND CMAKE_BUILD_RPATH
+      "${ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY}")
     list(APPEND ROCKET_POSIX_PLATFORM_LIBRARIES
       "${ROCKET_SECURITY_FRAMEWORK}" "${ROCKET_COREFOUNDATION_FRAMEWORK}"
       "${ROCKET_CXX_STANDARD_LIBRARY}")

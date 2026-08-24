@@ -94,12 +94,19 @@ def copy_host_llvm(llvm_root: Path, target: str, destination: Path) -> list[str]
     tools = ["clang", librarian, linker]
     copied: list[str] = []
     for tool in tools:
-        source = require_file(llvm_root / "bin" / f"{tool}{suffix}", f"host LLVM {tool}")
-        destination_path = destination / "bin" / source.name
+        installed_name = f"{tool}{suffix}"
+        source = require_file(llvm_root / "bin" / installed_name, f"host LLVM {tool}")
+        # Preserve the driver spelling even when the source is a symlink to
+        # the shared lld/clang implementation.
+        destination_path = destination / "bin" / installed_name
         copy_file(source, destination_path, executable=True)
         copied.append(destination_path.relative_to(destination).as_posix())
 
     for source in sorted((llvm_root / "bin").glob("*.dll")):
+        destination_path = destination / "bin" / source.name
+        copy_file(source, destination_path)
+        copied.append(destination_path.relative_to(destination).as_posix())
+    for source in sorted((llvm_root / "bin").glob("*.cfg")):
         destination_path = destination / "bin" / source.name
         copy_file(source, destination_path)
         copied.append(destination_path.relative_to(destination).as_posix())

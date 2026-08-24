@@ -231,6 +231,8 @@ jobs:
           build="out/phase19/build/phase19-${{ matrix.target }}-release"
           extra=()
           if [[ "${{ matrix.target }}" == "macos-arm64" ]]; then
+            llvm="$GITHUB_WORKSPACE/dependencies/installed/llvm-22.1.6"
+            extra+=(--library-directory "$llvm/lib")
             extra+=(--library-directory "$(brew --prefix icu4c)/lib")
             extra+=(--library-directory "$(brew --prefix openssl@3)/lib")
           fi

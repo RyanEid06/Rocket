@@ -86,6 +86,10 @@ def main() -> int:
         'ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime' in workflow,
         "macOS workflow does not select the libc++ matching the pinned LLVM headers",
     )
+    check(
+        'extra+=(--library-directory "$llvm/lib")' in workflow,
+        "macOS bootstrap does not link against the pinned LLVM libc++ directory",
+    )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
     bootstrap_tool = load("phase19_bootstrap", root / "scripts" / "phase19_bootstrap.py")
@@ -104,12 +108,76 @@ def main() -> int:
         'set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")' in cmake,
         "macOS CMake configuration does not honor the pinned LLVM libc++ runtime",
     )
+    check(
+        "CMAKE_BUILD_RPATH" in cmake
+        and "ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY" in cmake,
+        "macOS build-tree tools cannot load the pinned LLVM libc++ runtime",
+    )
     wrapper_source = package_tool.wrapper("rocketc", "rocketc.bin")
     for value in ("ROCKET_CLANG", "ROCKET_LIBRARIAN", "ROCKET_RUNTIME"):
         check(value in wrapper_source, f"relocated POSIX SDK wrapper omits {value}")
     check(
         "$rocket_sdk_root/bin/clang" in wrapper_source,
         "stage0 and production wrappers do not share the SDK-local clang path",
+    )
+    copy_llvm_source = inspect.getsource(package_tool.copy_llvm)
+    check(
+        'destination = package / "bin" / installed_name' in copy_llvm_source,
+        "POSIX LLVM driver aliases are replaced by resolved symlink names",
+    )
+    driver_probe_source = inspect.getsource(package_tool.verify_packaged_driver)
+    check(
+        '"-fuse-ld=lld"' in driver_probe_source,
+        "relocation verification does not prove packaged Clang-to-LLD discovery",
+    )
+    macos_bundle_source = inspect.getsource(package_tool.bundle_macos_dependencies)
+    check(
+        '"-delete_rpath"' in macos_bundle_source,
+        "macOS packages retain absolute build-machine runtime paths",
+    )
+    bootstrap_stage_source = inspect.getsource(bootstrap_tool.build_self_hosted_stage)
+    check(
+        'f"-Wl,-rpath,{directory}"' in bootstrap_stage_source,
+        "POSIX bootstrap stages cannot load explicitly selected runtime libraries",
+    )
+
+    fake_llvm = work / "fake-llvm"
+    fake_package = work / "fake-package"
+    (fake_llvm / "bin").mkdir(parents=True)
+    (fake_llvm / "lib" / "clang" / "22" / "include").mkdir(parents=True)
+    (fake_package / "bin").mkdir(parents=True)
+    (fake_package / "lib").mkdir(parents=True)
+    (fake_package / "licenses").mkdir(parents=True)
+    for name in (
+        "clang", "llvm-ar", "ld.lld", "lld", "llvm-dwarfdump", "llvm-objdump"
+    ):
+        (fake_llvm / "bin" / name).write_bytes((name + "\n").encode())
+    (fake_llvm / "lib" / "clang" / "22" / "include" / "stddef.h").write_text(
+        "/* resource probe */\n", encoding="ascii"
+    )
+    real_require_file = package_tool.require_file
+
+    def resolve_ld_alias(path: Path, description: str) -> Path:
+        if path.name == "ld.lld":
+            return (path.parent / "lld").resolve()
+        return real_require_file(path, description)
+
+    package_tool.require_file = resolve_ld_alias
+    try:
+        package_tool.copy_llvm(
+            argparse.Namespace(target="linux-x64", llvm_root=fake_llvm),
+            fake_package,
+        )
+    finally:
+        package_tool.require_file = real_require_file
+    check(
+        (fake_package / "bin" / "ld.lld").is_file(),
+        "copying a symlinked LLVM linker drops the ld.lld driver alias",
+    )
+    copy_host_llvm_source = inspect.getsource(cross_tool.copy_host_llvm)
+    check(
+        'destination / "bin" / installed_name' in copy_host_llvm_source,
+        "cross SDKs replace LLVM driver aliases with resolved symlink names",
     )
     runtime_library_initialization = package_tree_source.find(
         "bundled_runtime_libraries: list[str] = []"
@@ -158,6 +226,10 @@ def main() -> int:
             ("bootstrap", bootstrap_source),
         ):
             check(library in source, f"{name} omits POSIX runtime link input {library}")
+    check(
+        "report_external_command_failure" in selfhost_source,
+        "self-hosted native tool failures do not report the failed command",
+    )
     check(package_tool.verify_checksums(sample) == 2, "checksum coverage count differs")
     (sample / "PACKAGE.md").write_text("tampered\n", encoding="utf-8")
     try:
@@ -201,7 +273,7 @@ def main() -> int:
     if cross_target:
         fake_llvm = work / "fake-host-llvm"
         executable_suffix = ".exe" if native_host == "windows-x64" else ""
-        for name in ("clang", "llvm-ar", "ld.lld"):
+        for name in ("clang", "llvm-ar", "ld.lld", "lld"):
             tool = fake_llvm / "bin" / f"{name}{executable_suffix}"
             tool.parent.mkdir(parents=True, exist_ok=True)
             tool.write_bytes(b"host-tool\n")
@@ -213,15 +285,26 @@ def main() -> int:
         (sysroot / "usr" / "include" / "stddef.h").write_text("/* test */\n")
         (sysroot / "usr" / "lib" / "crt1.o").write_bytes(b"crt\n")
         cross_output = work / "cross-sdk"
-        report = cross_tool.assemble(argparse.Namespace(
-            host=native_host,
-            target=cross_target,
-            host_llvm_root=fake_llvm,
-            target_runtime=runtime,
-            sysroot=sysroot,
-            windows_library_directory=[],
-            output=cross_output,
-        ))
+        real_cross_require_file = cross_tool.require_file
+
+        def resolve_cross_linker_alias(path: Path, description: str) -> Path:
+            if path.name == f"ld.lld{executable_suffix}":
+                return (path.parent / f"lld{executable_suffix}").resolve()
+            return real_cross_require_file(path, description)
+
+        cross_tool.require_file = resolve_cross_linker_alias
+        try:
+            report = cross_tool.assemble(argparse.Namespace(
+                host=native_host,
+                target=cross_target,
+                host_llvm_root=fake_llvm,
+                target_runtime=runtime,
+                sysroot=sysroot,
+                windows_library_directory=[],
+                output=cross_output,
+            ))
+        finally:
+            cross_tool.require_file = real_cross_require_file
         check(report["passed"], "cross-SDK assembly report did not pass")
         check(
             cross_tool.verify_checksums(cross_output) > 0,
@@ -231,6 +314,10 @@ def main() -> int:
             (cross_output / "share" / "rocket" / "target.txt").read_text()
             .splitlines()[1] == f"alias={cross_target}",
             "cross-SDK target metadata differs",
+        )
+        check(
+            (cross_output / "bin" / f"ld.lld{executable_suffix}").is_file(),
+            "cross-SDK assembly drops a symlinked ld.lld driver alias",
         )
 
     print("phase19-release-tooling-ok")
