@@ -1,19 +1,21 @@
-# Rocket 2.0
+# Rocket 2.1 portability work
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
 Rocket 2.0 security, performance, compatibility, and trust work is complete on
-the cumulative Rocket 1.0-1.8 language. Phase 19 portability is deliberately
-deferred, so Windows x64 remains the only supported target. The 2.0 milestone
-is frozen; further language features require a new, explicitly scoped effort.
-Exact validation evidence is recorded in
-[`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) and
-[`PHASE_20_AUDIT.md`](docs/PHASE_20_AUDIT.md). Independent production adoption
-remains an ongoing maturity signal rather than an unverified repository claim.
+the cumulative Rocket 1.0-1.8 language. Phase 19 is the additive Rocket 2.1
+portability release: it preserves valid Rocket 2.0 source and runtime ABI v1
+while adding explicit target selection, native Linux and macOS hosts, and
+documented cross-compilation paths. Windows x64 has completed its isolated
+Phase 19 acceptance; Linux x64, Linux ARM64, and macOS ARM64 remain acceptance
+pending until their native-host matrices are observed. Do not treat a committed
+workflow or cross-built artifact as support evidence. Exact status is recorded
+in [`PHASE_19_AUDIT.md`](docs/PHASE_19_AUDIT.md),
+[`TARGETS.md`](docs/TARGETS.md), and [`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md).
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
-optimized Windows x64 executables. Its linked ABI-v1 runtime provides ARC,
+optimized native executables. Its linked ABI-v1 runtime provides ARC,
 owned UTF-8 strings, checked integer arithmetic, nested collections, structs,
 enums, and safe bounds failures. The production compiler is written in Rocket
 and deterministically bootstraps through stage3. The C++ MIR transpiler remains
@@ -126,7 +128,9 @@ See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [the Rocket book](docs/BOOK.md), [FFI guide](docs/FFI_GUIDE.md),
 [package author guide](docs/PACKAGE_AUTHOR_GUIDE.md),
 [Rocket 2.0 migration guide](docs/MIGRATION_2_0.md),
+[Rocket 2.1 migration guide](docs/MIGRATION_2_1.md),
 [Rocket 2.0 release contract](docs/RELEASE_2_0.md),
+[Rocket 2.1 release contract](docs/RELEASE_2_1.md),
 [project charter](docs/CHARTER.md), and [roadmap](docs/ROADMAP.md).
 
 Rocket 2.0 freezes runtime ABI v1. Thread-confined values retain cheap
@@ -134,9 +138,14 @@ plain ARC; checked publication promotes a complete managed graph to atomic ARC.
 The compiler rejects unsafe transfers, move reuse, scoped-handle escape, and
 invalid suspension with stable `R4101`-`R4106` diagnostics.
 
-## Rocket 2.0 release
+## Packaging and release status
 
-Build the checksummed, relocation-tested, self-contained Windows x64 archive:
+The frozen Rocket 2.0 Windows x64 archive remains the stable SDK consumed by
+Scroll2Roll. Phase 19 packages are deliberately generated only under
+`out/phase19` until each native target passes its complete acceptance gate.
+Use the target-aware package workflow documented in
+[the Rocket 2.1 release contract](docs/RELEASE_2_1.md); it must not overwrite
+the frozen SDK.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-compiler.ps1 -Configuration Release

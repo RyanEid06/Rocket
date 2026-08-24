@@ -29,8 +29,10 @@ concurrency, macros, a package manager, JIT compilation, and semantic IDE
 features. That surface remains the compatibility baseline, not a claim that
 later compatible releases cannot add libraries or tooling. Rocket 2.0 freezes
 the cumulative Rocket 1.0-1.8 language, ownership, package, tooling, runtime ABI
-v1, and Windows x64 FFI contracts. Additional platforms remain deferred Phase
-19 work.
+v1, and Windows x64 FFI contracts. Phase 19 is the additive Rocket 2.1
+portability effort. It may add the explicit target and platform contracts in
+`TARGETS.md`, but it cannot weaken the frozen Windows compatibility boundary or
+call a platform supported before native-host acceptance evidence exists.
 
 The C++20 compiler remains the permanent reproducible `stage0`, runtime ABI v1
 remains the frozen Rocket 2.x ABI, and incompatible language changes require a

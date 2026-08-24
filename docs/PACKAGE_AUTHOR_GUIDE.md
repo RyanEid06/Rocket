@@ -22,5 +22,8 @@ identity, and native configuration participate in the key. The cache is a
 local acceleration and never replaces the lockfile or registry checksum.
 
 The normative manifest, lock, registry, cache, publishing, namespace,
-credential, advisory, and archive rules are in `PACKAGES.md`. Windows x64 is
-the only supported package target until deferred Phase 19 is resumed.
+credential, advisory, and archive rules are in `PACKAGES.md`. Rocket 2.1
+packages may use an explicit `[target.<alias>]` source overlay and
+`[native.<alias>]` inputs for the four production target names in `TARGETS.md`.
+Do not claim a package is portable merely because it parses: test it on every
+target it declares, and document any target-specific native capability.

@@ -1,10 +1,11 @@
 # Rocket Master Roadmap
 
-**Final status (updated 2026-08-08):** Rocket 2.0 is complete and frozen on
-Windows x64. Phase 19 remains deferred for later. The compatible post-freeze
-Visual Studio Community 2026 integration is also complete. This language
-roadmap is closed; any further Rocket work or separate casino project requires
-new owner direction.
+**Current status (updated 2026-08-24):** Rocket 2.0 remains frozen on Windows
+x64, including the compatible Visual Studio Community 2026 integration. By
+owner direction, Phase 19 is active as the additive Rocket 2.1 portability
+release. Its roadmap closes only after Windows x64, Linux x64, Linux ARM64,
+and macOS ARM64 have direct native-host acceptance evidence. The casino remains
+a separate future project and is not part of Rocket Phase 19.
 
 ## Long-term objective
 
@@ -517,12 +518,14 @@ Rocket's default programming model understandable and safe.
   hashes, package metadata, and deliberate limits are recorded in
   `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`.
 
-### Phase 19 - Rocket 1.9: multi-platform compiler and runtime - Deferred
+### Phase 19 - Rocket 2.1: multi-platform compiler and runtime - Active
 
-**Status:** Deferred by owner direction on 2026-08-02. The work below remains
-valid future portability scope, but it is not a dependency of the accepted
-Windows x64 Rocket 2.0 technical release and no Phase 19 implementation was
-performed as part of Phase 20.
+**Status:** Resumed by owner direction on 2026-08-20. The frozen Rocket 2.0
+Windows x64 SDK remains an immutable compatibility boundary. Phase 19 is an
+additive 2.1 release and cannot close on implementation or CI configuration
+alone: every production target needs direct observed native-host Debug/Release,
+stage0-stage3, package, relocation, and complete-suite evidence in
+`PHASE_19_AUDIT.md`.
 
 **Purpose:** Make Rocket a portable language rather than a Windows-only tool.
 
@@ -548,6 +551,8 @@ performed as part of Phase 20.
   than hidden behind inconsistent implementations.
 - Published compiler packages install and run without requiring an unrelated
   system compiler toolchain.
+- Windows ARM64 is an evaluated non-production target until its own native
+  acceptance matrix exists; WebAssembly and JIT are separate future work.
 
 ### Phase 20 - Rocket 2.0: security, performance, compatibility, and trust - Completed
 

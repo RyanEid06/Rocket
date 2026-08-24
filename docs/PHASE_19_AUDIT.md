@@ -50,12 +50,12 @@ The status vocabulary is `missing`, `in progress`, `implemented`, and
 
 | ID | Requirement | Required implementation | Acceptance evidence | Status |
 | --- | --- | --- | --- | --- |
-| T01 | Explicit target identity | Canonical triples, stable aliases, host detection, normalized target values, and one shared model in stage0 and the Rocket-written compiler | Positive/negative target parsing tests and identical CLI output from stage0-stage3 | in progress |
-| T02 | Host/target separation | Compilation options carry host and target independently; backend, linker, runtime, native inputs, cache, artifact names, and package metadata consume the target | Native and cross-host fixtures prove no host inference leaks into target output | in progress |
-| T03 | Conditional compilation | Explicit deterministic target-conditioned source/module selection with inactive source excluded before parsing/type checking | Positive selection, inactive-invalid-source, ambiguity, missing-selection, dependency, and parity tests | in progress |
-| T04 | Target queries | Stable compile-time target OS, architecture, environment, pointer width, endianness, and feature queries | Native fixtures on all supported targets plus canonical IR checks | missing |
-| T05 | Diagnostics | Stable diagnostics for unknown/unsupported targets, invalid target configuration, missing toolchains/sysroots/SDKs, unavailable native inputs, and unsupported cross paths | Golden diagnostics in both compilers with path-independent wording | in progress |
-| T06 | Windows x64 compatibility | Existing Rocket 1.0-2.0 language, ABI v1, standard library, FFI, package, tooling, debugger, and application behavior remains valid | Isolated Debug/Release, stage0, bootstrap, conformance, compatibility, hardening, FFI, async, application, and package gates | missing |
+| T01 | Explicit target identity | Canonical triples, stable aliases, host detection, normalized target values, and one shared model in stage0 and the Rocket-written compiler | Positive/negative target parsing tests and identical CLI output from stage0-stage3 | implemented |
+| T02 | Host/target separation | Compilation options carry host and target independently; backend, linker, runtime, native inputs, cache, artifact names, and package metadata consume the target | Native and cross-host fixtures prove no host inference leaks into target output | implemented |
+| T03 | Conditional compilation | Explicit deterministic target-conditioned source/module selection with inactive source excluded before parsing/type checking | Positive selection, inactive-invalid-source, ambiguity, missing-selection, dependency, and parity tests | implemented |
+| T04 | Target queries | Stable compile-time target OS, architecture, environment, pointer width, endianness, and feature queries | Native fixtures on all supported targets plus canonical IR checks | implemented |
+| T05 | Diagnostics | Stable diagnostics for unknown/unsupported targets, invalid target configuration, missing toolchains/sysroots/SDKs, unavailable native inputs, and unsupported cross paths | Golden diagnostics in both compilers with path-independent wording | implemented |
+| T06 | Windows x64 compatibility | Existing Rocket 1.0-2.0 language, ABI v1, standard library, FFI, package, tooling, debugger, and application behavior remains valid | Isolated Debug/Release, stage0, bootstrap, conformance, compatibility, hardening, FFI, async, application, and package gates | observed |
 | T07 | Linux x64 | Compiler, runtime, standard library, FFI, ELF/DWARF debugging, packages, concurrency/async, and release bundle | Complete native Linux x64 acceptance matrix and relocated package | missing |
 | T08 | Linux ARM64 | AArch64 code generation plus the same Linux product surface and ABI rules | Complete native Linux ARM64 acceptance matrix and relocated package | missing |
 | T09 | macOS ARM64 | Compiler, runtime, standard library, FFI, Mach-O/DWARF debugging, packages, concurrency/async, and release bundle | Complete native macOS ARM64 acceptance matrix and relocated package | missing |
@@ -72,7 +72,7 @@ The status vocabulary is `missing`, `in progress`, `implemented`, and
 | T20 | Continuous matrix | Automated build, test, bootstrap, package, conformance, FFI, standard-library, compatibility, async, and application jobs for every target | Observed successful jobs, not merely committed workflow files | missing |
 | T21 | Substantial applications | Orbital Workshop/raylib or an equivalent substantial non-casino application exercises graphics/audio/native/resource behavior per target | Native build and headless/application validation on every target | missing |
 | T22 | Documentation | Target, platform differences, installation, cross-compilation, FFI, packages, standard library, concurrency, debugging, release, migration, roadmap, decisions, and context are current | Cross-reference audit plus commands checked against shipped packages | in progress |
-| T23 | Optional limitation audit | Broader calling conventions, dynamic loading, and incomplete raylib coverage are either required for parity and implemented or explicitly classified as optional | Requirement analysis and tests for any promoted surface | missing |
+| T23 | Optional limitation audit | Broader calling conventions, dynamic loading, and incomplete raylib coverage are either required for parity and implemented or explicitly classified as optional | Requirement analysis and tests for any promoted surface | implemented |
 | T24 | Honest completion | No fabricated adoption, signing, or platform claim; Windows ARM64/WebAssembly/JIT status is explicit | Final audit contains observed evidence and remaining non-gate limits only | in progress |
 
 ## Implementation checkpoints
@@ -98,6 +98,28 @@ The status vocabulary is `missing`, `in progress`, `implemented`, and
    decision journal, project context, exact evidence, frozen-hash verification,
    clean-tree inspection, and the milestone commit.
 
+## Limitation classification
+
+The portable Phase 19 FFI requirement is the ordinary platform C ABI with
+explicit static/dynamic products, generated headers/bindings, and target-scoped
+native inputs. Broader foreign calling conventions (`stdcall`, vector, C++, or
+vendor-specific ABIs) are not necessary for parity across the four production
+targets and remain optional future FFI work. They must not be guessed by the
+binding generator.
+
+Rocket does not expose arbitrary safe-language runtime foreign-library loading.
+That is intentional: native dependencies remain manifest-declared and reviewed.
+Platform providers may dynamically load a system implementation behind a
+documented standard-library API, but no unchecked handle/symbol capability is
+made public. This preserves the Phase 13 safety boundary and does not block the
+explicit dynamic-library product requirement.
+
+The raylib surface remains the reviewed primitive adapter and Orbital Workshop
+application subset, not a claim of every raylib API. Phase 19 requires that
+reviewed surface to build, link, package, relocate, and run its headless
+application validation per target; it does not require an unbounded generated
+binding surface. Any expansion needs its own wrapper safety review and tests.
+
 ## Initial environment evidence
 
 Observed on 2026-08-20 from the Windows x64 repository host:
@@ -115,6 +137,23 @@ and local validation continue, while T07-T10 and T18-T21 remain unproved until
 real hosts or authenticated CI runners supply observed evidence.
 
 ## Progress log
+
+- **2026-08-24 - Windows x64 native acceptance observed:** All work used new
+  directories below `out/phase19`; the frozen Rocket 2.0 outputs were not
+  rebuilt or packaged. Clean isolated LLVM Debug and Release CTest matrices
+  passed **222/222** in **532.06 s** and **177.38 s**. Clean isolated
+  LLVM-disabled C++ stage0 Debug and Release matrices passed **174/174** in
+  **474.57 s** and **418.81 s**. The Release stage0-to-stage3 bootstrap passed
+  184 validation cases with identical stage2/stage3 canonical IR SHA-256
+  `0710bae675be1dfc81b716605c07bd113771eedfd42bfd5092873d72768dfe2b`.
+  The native Windows package and sanitized relocation check passed with 954
+  files and archive SHA-256
+  `ccc8a1a7ba33bbd6f0dd0ecfadfa341d589204aee182476e9f08cb25b34fedcc`.
+  Target, self-host parity, portable workflow, application, compatibility,
+  tooling, package, FFI, standard-library, ownership, concurrency, and async
+  suites are included in those complete matrices. The temporary checked source
+  snapshot is commit `2413a32`; Linux x64, Linux ARM64, macOS ARM64, and the
+  cross-host native-destination evidence remain required before completion.
 
 - **2026-08-20 - audit start:** Read the project context, roadmap, decision
   journal, compiler architecture, language, standard-library, concurrency,

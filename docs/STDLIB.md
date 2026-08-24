@@ -206,20 +206,21 @@ documented resource bounds.
 
 | Function | Result | Meaning |
 | --- | --- | --- |
-| `secure_bytes(length: Int)` | `Result[ByteBuffer, String]` | Read bytes from the Windows CNG system-preferred cryptographic generator |
+| `secure_bytes(length: Int)` | `Result[ByteBuffer, String]` | Read bytes from the target system cryptographic provider (Windows CNG or OpenSSL-backed POSIX provider) |
 | `secure_int(minimum: Int, maximum: Int)` | `Result[Int, String]` | Uniformly sample the inclusive range with rejection sampling |
 | `sha256(value: ByteBuffer)` | `Result[String, String]` | Return a lowercase 64-digit SHA-256 digest |
 | `hmac_sha256(key: ByteBuffer, value: ByteBuffer)` | `Result[String, String]` | Return a lowercase HMAC-SHA-256 digest |
 | `constant_time_equal(left: ByteBuffer, right: ByteBuffer)` | `Bool` | Compare secret byte strings without data-dependent early exit |
-| `verify_signed_file(path: String)` | `Result[Bool, String]` | Validate a Windows Authenticode signature and cached certificate chain |
+| `verify_signed_file(path: String)` | `Result[Bool, String]` | Validate a target-native signing policy where available; Windows uses Authenticode |
 
 Random byte requests and hash inputs are capped at 64 MiB; HMAC keys are capped
-at 1 MiB and must not be empty. These cryptographic APIs use Windows CNG rather
-than the deterministic `std.random` generator. `verify_signed_file` delegates
-signature, certificate-chain, and revocation policy to WinVerifyTrust with no UI
-and cache-only URL retrieval, so the call is deterministic and does not perform
-surprise network access. `Ok(false)` means the file was inspected but is not
-trusted; malformed paths and unavailable platform services are `Err`.
+at 1 MiB and must not be empty. These cryptographic APIs use the target system
+provider rather than the deterministic `std.random` generator. On Windows,
+`verify_signed_file` delegates signature, certificate-chain, and revocation
+policy to WinVerifyTrust with no UI and cache-only URL retrieval. POSIX hosts
+return an explicit `Err` when no equivalent platform verification policy is
+available. `Ok(false)` means a file was inspected but is not trusted; malformed
+paths and unavailable platform services are `Err`.
 
 ## `std.net` and `std.http`
 
@@ -242,11 +243,11 @@ services; no name-resolution result is cached by Rocket.
 
 `http.request(method, url, body, timeout_ms)` returns
 `Result[std.http.Response, String]`, where `Response` contains `status: Int` and
-`body: ByteBuffer`. It accepts absolute HTTP and HTTPS URLs, follows WinHTTP
-policy, retains normal Windows certificate validation, and exposes no insecure
-certificate bypass. Both request and response bodies are capped at 64 MiB.
-WinHTTP applies `timeout_ms` separately to resolution, connection, send, and
-receive phases, so the full request can take several timeout intervals.
+`body: ByteBuffer`. It accepts absolute HTTP and HTTPS URLs, uses WinHTTP on
+Windows and the pinned/libcurl provider on Linux/macOS, retains normal target
+certificate validation, and exposes no insecure certificate bypass. Both
+request and response bodies are capped at 64 MiB. Each provider applies the
+documented timeout to its resolution, connection, send, and receive phases.
 
 For servers, `http.read_request(connection, maximum, timeout_ms)` returns a
 bounded `std.http.Request` containing `method`, `path`, and binary `body`.
@@ -262,11 +263,11 @@ listener explicitly.
 `format_utc(unix_ms)` and `parse_utc(text)` round-trip the fixed, locale-neutral
 `YYYY-MM-DDTHH:MM:SS.mmmZ` form. `days_in_month(year, month)` and
 `weekday(year, month, day)` validate Gregorian dates from year 1 through 9999;
-weekday zero is Sunday. `local_offset_minutes(unix_ms)` applies the Windows
+weekday zero is Sunday. `local_offset_minutes(unix_ms)` applies the target
 historical daylight/time-zone rules for that instant, and `timezone_name()`
-returns the configured Windows time-zone key. Calendar and time-zone failures
-are `Err`, never silently clamped. These calls do not change process locale or
-time-zone settings.
+returns the configured target time-zone identifier. Calendar and time-zone
+failures are `Err`, never silently clamped. These calls do not change process
+locale or time-zone settings.
 
 ## `std.log`, `std.cli`, and `std.config`
 
@@ -294,7 +295,8 @@ I/O.
 ## `std.compression` and `std.archive`
 
 `compression.xpress_compress(bytes)` and `xpress_decompress(bytes)` use the
-Windows Compression API's XPRESS Huffman codec. Both directions return
+portable deterministic XPRESS Huffman implementation (compatible with the
+Windows format). Both directions return
 `Result[ByteBuffer, String]`, reject invalid streams, and cap uncompressed data
 at 64 MiB. XPRESS bytes are a Windows interoperability format, not ZIP or gzip;
 callers must label stored data accordingly.
@@ -310,8 +312,8 @@ synchronous.
 
 ## `std.sqlite`
 
-`sqlite.open(path)` opens a Windows system SQLite database in read/write,
-create, full-mutex mode and applies a five-second busy timeout. `:memory:` is
+`sqlite.open(path)` opens the target SQLite provider in read/write, create,
+full-mutex mode and applies a five-second busy timeout. `:memory:` is
 supported for isolated tests. `execute(handle, sql, parameters)` returns the
 changed-row count; `query` returns rows as `Array[Array[String]]`; `close`
 invalidates the opaque token exactly once.
@@ -478,9 +480,9 @@ Buffer `length`, `capacity`, and `get` borrow. `set`, `append`, `slice`, and
 | `sleep(milliseconds: Int, token: CancellationToken)` | `Task[Bool]` |
 | `sleep_until(deadline: Int, token: CancellationToken)` | `Task[Bool]` |
 
-Deadlines are monotonic `Int` values. Timer tasks use Windows waitable timers
-with bounded cancellation observation on the default executor and observe both
-their explicit token and task token.
+Deadlines are monotonic `Int` values. Timer tasks use target-native waits with
+bounded cancellation observation on the default executor and observe both their
+explicit token and task token.
 
 ### `std.thread` and `std.task`
 
@@ -568,6 +570,6 @@ waiter. Any structurally `Send` payload is accepted, including primitives.
 Partial I/O, EOF, close, cancellation races, and resource limits are defined
 in `CONCURRENCY.md`. Async process execution returns the child exit code and
 inherits standard streams; 1.8 does not expose output capture. The Rocket 1.5
-synchronous functions remain unchanged. The Windows backend combines bounded
-executor work with overlapped file events, Winsock readiness, waitable timers,
-and process-handle waits.
+synchronous functions remain unchanged. The target backend combines bounded
+executor work with native file, socket, timer, and process waits; Windows uses
+overlapped file events while Linux/macOS use POSIX providers.

@@ -56,5 +56,7 @@ and Orbital Workshop example demonstrate a substantial wrapper and application.
 
 Use `TOOLING.md` for the LSP, formatter, debugger, coverage, profiles, and
 benchmarks; `STDLIB.md` for APIs; `DIAGNOSTICS.md` for stable codes; `SPEC.md`
-for the language; and `RELEASE_2_0.md` for security, compatibility, and release
-trust. Rocket 2.0 supports Windows x64; Phase 19 portability is deferred.
+for the language; `RELEASE_2_0.md` for the frozen Windows release; and
+`TARGETS.md`, `MIGRATION_2_1.md`, and `RELEASE_2_1.md` for portability.
+Rocket 2.1 target acceptance is recorded in `PHASE_19_AUDIT.md`; a target is
+not supported until that audit has direct native-host evidence.

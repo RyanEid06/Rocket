@@ -2,8 +2,8 @@
 
 Rocket 1.8 adds safe concurrency without changing valid Rocket 1.0-1.7 source.
 This document is normative for weak ownership, unique buffers, values crossing
-threads, tasks, synchronization, cancellation, and the Windows x64 asynchronous
-surface. Recoverable failures remain `Result`; absence remains `Option`; safe
+threads, tasks, synchronization, cancellation, and the portable Phase 19
+asynchronous surface. Recoverable failures remain `Result`; absence remains `Option`; safe
 Rocket still has no null value and no exception path.
 
 ## Design and compatibility rules
@@ -173,7 +173,7 @@ bounded default executor used by all tasks and asynchronous operations.
 ## Dedicated threads and structured groups
 
 `thread.spawn` consumes an already-created `Task[T]`. It creates one dedicated
-Windows coordination thread that owns and awaits that task. This keeps the
+native coordination thread that owns and awaits that task. This keeps the
 source boundary typed and prevents borrowed closure state from escaping.
 
 | Function | Result |
@@ -291,10 +291,11 @@ mutex/event/channel waits, file chunk boundaries, socket operation boundaries,
 and process wait polling. An explicit operation token and its current task
 token are both observed. Deadlines use the monotonic clock. Negative durations
 are errors; an elapsed absolute deadline fails immediately. Timer waits use a
-Windows waitable timer and observe cancellation in bounded 2 ms slices on the
-default executor, so cancellation cannot be lost or double-complete a task.
+native waitable timer on Windows and a bounded monotonic condition wait on
+Linux/macOS; all observe cancellation in bounded slices on the default executor,
+so cancellation cannot be lost or double-complete a task.
 
-## Windows x64 asynchronous files, sockets, and processes
+## Native asynchronous files, sockets, and processes
 
 The synchronous Rocket 1.5 APIs remain unchanged. Rocket 1.8 adds:
 
@@ -311,30 +312,31 @@ async_net.shutdown(socket) -> Result[Bool, String]
 async_process.run(program, arguments, deadline, token) -> Task[Int]
 ```
 
-The implementation uses the bounded default executor plus Windows platform
-events; it does not create an unbounded operating-system thread per I/O
-request. Files use `FILE_FLAG_OVERLAPPED`, per-operation events,
-`GetOverlappedResult`, and `CancelIoEx`; work advances in 64 KiB chunks with a
-64 MiB request cap.
+The implementation uses the bounded default executor plus native platform
+waits; it does not create an unbounded operating-system thread per I/O request.
+Windows files use `FILE_FLAG_OVERLAPPED`, per-operation events,
+`GetOverlappedResult`, and `CancelIoEx`; Linux/macOS file work uses bounded
+native file operations. Work advances in 64 KiB chunks with a 64 MiB request
+cap.
 Read consumes the known file size up to `maximum`; an empty successful buffer
 is EOF. Write continues through the full buffer or returns an error.
 
-Socket calls reuse nonblocking Winsock plus `select` readiness with the
-remaining deadline.
+Socket calls use nonblocking Winsock readiness on Windows and POSIX socket
+readiness on Linux/macOS with the remaining deadline.
 `receive` may return fewer than `maximum` bytes, including an empty buffer for
 orderly shutdown. `send` returns the actual byte count, so callers that require
 a complete write must loop until their buffer is exhausted. A successful
 connect or accept that loses a cancellation race is closed before cancellation
 is returned. `shutdown` closes the runtime socket handle and prevents reuse.
 
-Process execution uses `CreateProcessW`, direct UTF-8 argument quoting, and
-bounded waits on the process handle. Deadline or cancellation terminates only the directly
-created child and waits for its handle before completing. The result is the
-exit code. Rocket 1.8 deliberately inherits the child's standard streams and
+Process execution uses `CreateProcessW` on Windows and `fork`/`exec` on POSIX,
+with direct UTF-8 argument handling and bounded waits. Deadline or cancellation
+terminates only the directly created child and waits for its handle before
+completing. The result is the exit code. Rocket deliberately inherits the child's standard streams and
 does not yet expose output capture; this is a documented limitation, not a
 silent truncation behavior. Socket and process coordination remains
-bounded-worker blocking rather than a general IOCP completion dispatcher in
-1.8; file transfer itself is overlapped.
+bounded-worker blocking rather than a general OS completion dispatcher; Windows
+file transfer itself is overlapped.
 
 All handles and buffers stay owned until the single task completion is
 published. Timeouts, cancellation, close races, resource limits, and platform

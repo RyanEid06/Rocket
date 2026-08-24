@@ -9,8 +9,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 - **Source extension:** `.rocket`
 - **Primary target:** Windows x64
 - **Goal:** Preserve the completed and frozen, beginner-friendly, statically
-  typed, LLVM-native Rocket 2.0 Windows x64 language. Phase 19 portability is
-  explicitly deferred and remains available for a later owner-directed effort.
+  typed, LLVM-native Rocket 2.0 Windows x64 language while Phase 19 delivers
+  the additive Rocket 2.1 portability release without changing ABI v1.
 - **Possible casino goal after Rocket 2.0:** A separate local, single-player,
   play-money desktop application may be planned after the owner's final
   post-Rocket step and explicit direction. No casino implementation belongs to
@@ -37,7 +37,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 Rocket 2.0 security, performance, compatibility, and trust work is complete on
 the Rocket 1.5 standard library, Rocket 1.6 package ecosystem, Rocket 1.7
 professional tooling, and Rocket 1.8 ownership/concurrency release. Phase 19
-multi-platform work is explicitly deferred. The production `rocketc` is written in Rocket,
+multi-platform work resumed by owner direction on 2026-08-20 as the additive
+Rocket 2.1 release. The production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -150,10 +151,11 @@ Implemented:
 
 Not implemented yet:
 
-- Broader native calling conventions, dynamic native loading, the full raylib
-  surface, and deferred Phase 19 non-Windows targets. Independent external
-  production use is not yet evidenced in this repository and remains an
-  ongoing maturity signal. No casino implementation has begun.
+- Broader native calling conventions and the full raylib surface remain optional
+  only where `FFI_GUIDE.md` and the Phase 19 audit classify them as outside the
+  portable C surface. Native dynamic loading and the four Phase 19 targets are
+  under active implementation/acceptance; independent external production use
+  remains an ongoing maturity signal. No casino implementation has begun.
 
 ## Canonical build commands
 
@@ -196,9 +198,9 @@ Build output is in `out/build/windows-debug` and `out/build/windows-release`. Th
     documentation tools, native debugging, profiling, benchmarking, and coverage.
 18. Add robust ownership and concurrency: weak references, cycle handling,
     thread-sharing rules, tasks, channels, structured concurrency, and async I/O.
-19. Deferred by owner direction: add target triples, Linux and macOS support,
-    ARM64, supported cross-compilation paths, and multi-platform validation if
-    and when portability work resumes.
+19. Active by owner direction: add target triples, Linux and macOS support,
+    ARM64, supported cross-compilation paths, and complete multi-platform
+    native validation without modifying the frozen Rocket 2.0 SDK.
 20. Completed: freeze Rocket 2.0 with bounded-input hardening, fuzzing,
     sanitizer/minimization workflows, caching and scale validation,
     compatibility tests, signed reproducible release tooling, and complete
@@ -990,12 +992,14 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Rocket 2.0 and its Visual Studio Community 2026 integration are complete on
-the supported Windows x64 target. Phase 19 remains explicitly deferred.
-Complete only validation or maintenance explicitly requested by the owner; do
-not begin new language features or the casino project without new owner
-direction. Treat Visual Studio extension 2.0.3, its reproducible CMake/script
-fallbacks, and the preserved owner demo edit as the current repository state.**
+**Phase 19 is active as Rocket 2.1 portability work. The frozen Rocket 2.0
+Windows x64 SDK and Visual Studio Community 2026 integration remain immutable
+compatibility baselines. Finish the isolated native-host acceptance matrix for
+Windows x64, Linux x64, Linux ARM64, and macOS ARM64; record direct evidence in
+`PHASE_19_AUDIT.md`; then close the roadmap truthfully. Do not begin casino work
+or unrelated language features. Treat Visual Studio extension 2.0.3, its
+reproducible CMake/script fallbacks, and the preserved owner demo edit as
+current baseline state.**
 
 ## New-chat prompt
 

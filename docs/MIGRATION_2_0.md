@@ -20,6 +20,6 @@ Release automation should consume `RELEASE-PROVENANCE.json` and
 only stable, clean, signed `official` artifacts as official Rocket releases.
 Unsigned local/nightly/preview packages are development artifacts.
 
-Phase 19 remains deferred, so `windows-x64` is still the only supported target.
-Do not interpret the 2.0 version as Linux, macOS, ARM64, or cross-compilation
-support.
+Rocket 2.0 itself remains Windows x64-only. The separate additive Rocket 2.1
+portability work is described by `MIGRATION_2_1.md`; do not infer non-Windows
+support from this historical 2.0 contract.

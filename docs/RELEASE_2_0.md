@@ -1,8 +1,8 @@
 # Rocket 2.0 Release Contract
 
 Rocket 2.0 is the trust and stability release for the completed Windows x64
-language. It adds no source-language feature and deliberately does not perform
-the deferred Phase 19 platform expansion. Valid Rocket 1.0-1.8 source remains
+language. It adds no source-language feature and did not perform the Phase 19
+platform expansion. Valid Rocket 1.0-1.8 source remains
 compatible, the C++20 compiler remains permanent stage0, and runtime ABI v1 is
 the frozen 2.0 ABI.
 
@@ -31,6 +31,11 @@ target. Its no-terminal Run/Debug workflow does not provide interactive console
 stdin; application arguments, captured stdout/stderr, files, GUI input, and
 networking remain supported. Exact GUI and package evidence is recorded in
 `PROJECT_CONTEXT.md`.
+
+Phase 19 later resumed as the additive Rocket 2.1 portability release. Its
+targets, packaging rules, and acceptance state are defined separately in
+`TARGETS.md`, `RELEASE_2_1.md`, and `PHASE_19_AUDIT.md`; that work does not
+alter this historical Rocket 2.0 release contract.
 
 ## Hardening and scale contract
 

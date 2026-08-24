@@ -312,8 +312,12 @@ Rocket source map/PDB. Benchmarks report bounded iteration count (1..1000),
 minimum, median, and maximum wall time in `rocket-benchmark-1`. Instrumentation
 is absent from normal builds.
 
-`scripts/tooling.ps1` validates all three schemas and compiler JSON messages.
-`scripts/debugging.ps1` validates optimized/unoptimized PDB and map records.
+`scripts/tooling.ps1` validates all three schemas and compiler JSON messages on
+Windows. The Phase 19 portable workflow also validates target-native
+DWARF/CodeView selection and executable-suffix behavior on each native host.
+`scripts/debugging.ps1` validates optimized/unoptimized PDB and map records on
+Windows; native-host debug-information evidence is recorded in
+`PHASE_19_AUDIT.md`.
 The evaluated AOT prototype and its limits are in `docs/REPL.md`.
 
 ## Compiler packaging
@@ -323,17 +327,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\package-compiler.ps1 -Configuration Release
 ```
 
-The script runs the Release test matrix and deterministic bootstrap, packages
-the Rocket-written stage3 compiler, and creates a checksummed archive under
-`out/package`. `bin/rocketc.exe` locates the bundled runtime, Clang/LLD,
-compiler-rt resources, and static MSVC/UCRT/Windows SDK libraries relative to
-its executable; `bin/rocket-lsp.exe` provides the standalone language server.
-The verification step clears development toolchain variables,
+This historical command packages the frozen Rocket 2.0 Windows SDK under
+`out/package`; Phase 19 must not run it in place. `scripts/phase19_package.py`
+packages an isolated target build under `out/phase19/package`, verifies
+checksums, and relocates it to a sanitized path. A target package includes the
+matching `rocketc`, runtime, stage0, standard library, linker/toolchain pieces,
+and target-native support libraries needed for ordinary compilation after
+installation. The verification step clears development toolchain variables,
 changes to an isolated working directory, then checks, builds, runs, and
 directly executes a native Rocket program.
 
 The preserved C++ bootstrap compiler is distributed separately as
-`stage0/rocketc-stage0.exe`. It remains the reproducible bootstrap compiler and
+`stage0/rocketc-stage0` (with `.exe` on Windows). It remains the reproducible bootstrap compiler and
 the audited package security host used by the Rocket-written CLI for registry,
 credential, signing, HTTPS, and Git operations; it is not the user-facing
 `rocketc` command.
@@ -361,6 +366,8 @@ and the primitive adapter statically, then runs `rocketc bind` into an ignored
 `generated/` module before checking or building `examples/raylib_showcase`.
 Use `scripts/run-raylib-validation.ps1` for the labeled native suite,
 `scripts/new-raylib-app.ps1` for a scaffold, and
-`scripts/package-raylib-showcase.ps1` for a checksummed Windows bundle. The
-interactive executable must run with its packaged `assets` directory as the
-working directory.
+`scripts/package-raylib-showcase.ps1` for the historical Windows bundle. Phase
+19 uses target-scoped raylib adapters and the native acceptance matrix for the
+same headless/application validation on every production target. The interactive
+executable must run with its packaged `assets` directory as the working
+directory.
