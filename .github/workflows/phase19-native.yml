@@ -97,6 +97,7 @@ jobs:
             echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
             echo "ROCKET_HOST_LINKER=$llvm/bin/ld64.lld" >> "$GITHUB_ENV"
+            echo "ROCKET_MACOS_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
             echo "ROCKET_CXX_STANDARD_INCLUDE=$cxx_include" >> "$GITHUB_ENV"
             echo "ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime" >> "$GITHUB_ENV"
           else
@@ -124,6 +125,7 @@ jobs:
             '}' > "$probe/main.cpp"
           "$ROCKET_HOST_CXX_COMPILER" -std=c++20 -nostdinc++ \
             -isystem "$ROCKET_CXX_STANDARD_INCLUDE" \
+            -isysroot "$ROCKET_MACOS_SDK_ROOT" \
             -fuse-ld=lld -Wl,-no_uuid "$probe/main.cpp" \
             "$ROCKET_CXX_STANDARD_LIBRARY" -o "$probe/macos-cxx-probe"
           dependencies="$(otool -L "$probe/macos-cxx-probe")"

@@ -87,6 +87,11 @@ def main() -> int:
         "macOS workflow does not select Xcode's matching libc++ headers",
     )
     check(
+        'ROCKET_MACOS_SDK_ROOT=$sdk' in workflow
+        and '-isysroot "$ROCKET_MACOS_SDK_ROOT"' in workflow,
+        "standalone macOS ABI probe does not use the SDK owning its libc++ headers",
+    )
+    check(
         'ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime' in workflow,
         "macOS workflow does not select Xcode's matching libc++ runtime",
     )
