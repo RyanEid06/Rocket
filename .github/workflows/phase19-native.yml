@@ -91,6 +91,8 @@ jobs:
             sdk="$(xcrun --sdk macosx --show-sdk-path)"
             cxx_include="$sdk/usr/include/c++/v1"
             cxx_runtime="$sdk/usr/lib/libc++.tbd"
+            test -x "$llvm/bin/dsymutil"
+            "$llvm/bin/dsymutil" --version
             test -d "$cxx_include"
             test -f "$cxx_runtime"
             echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"

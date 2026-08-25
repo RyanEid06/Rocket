@@ -110,6 +110,10 @@ def main() -> int:
         and "std::runtime_error" in workflow,
         "macOS workflow lacks an early libc++ symbol and exception ABI probe",
     )
+    check(
+        '"$llvm/bin/dsymutil" --version' in workflow,
+        "macOS workflow does not prove the pinned dSYM tool before building",
+    )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
     bootstrap_tool = load("phase19_bootstrap", root / "scripts" / "phase19_bootstrap.py")
@@ -137,6 +141,23 @@ def main() -> int:
         'ROCKETC_MACOS_SDK_ROOT="${ROCKET_MACOS_SDK_ROOT}"' in cmake
         and '"ROCKET_MACOS_SDK_ROOT=${ROCKET_MACOS_SDK_ROOT}"' in cmake,
         "macOS CMake configuration does not propagate its SDK to native compiler links",
+    )
+    consumer_test = (root / "tests" / "native" / "phase13_consumer_test.cmake").read_text()
+    check(
+        'ROCKET_MACOS_SDK_ROOT' in consumer_test
+        and '-isysroot "$ENV{ROCKET_MACOS_SDK_ROOT}"' in consumer_test,
+        "macOS C ABI consumers do not link through the accepted Apple SDK",
+    )
+    portable_workflow = (root / "tests" / "portable_workflow_test.py").read_text()
+    check(
+        'llvm_bin / "dsymutil"' in portable_workflow
+        and '"DWARF" / executable.name' in portable_workflow
+        and 'args.target == "macos-arm64"' in portable_workflow,
+        "macOS debugger acceptance does not inspect a materialized dSYM",
+    )
+    check(
+        '"--verify"' in portable_workflow,
+        "macOS debugger acceptance does not verify materialized DWARF",
     )
     check(
         "ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY" not in cmake,

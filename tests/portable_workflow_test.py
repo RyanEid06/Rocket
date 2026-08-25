@@ -314,6 +314,25 @@ def debugging(args: argparse.Namespace) -> None:
                             r"S_(LOCAL|CONSTANT)"):
                 require_pattern(text, pattern, f"{name} PDB")
             debug_hash = sha256_file(copied_pdb)
+        elif args.target == "macos-arm64":
+            dsymutil = llvm_bin / "dsymutil"
+            if not dsymutil.is_file():
+                raise WorkflowError(f"macOS dsymutil is missing: {dsymutil}")
+            copied_dsym = case / f"{executable.name}.dSYM"
+            run([str(dsymutil), "--verify", "-o", str(copied_dsym),
+                 str(executable)])
+            debug_binary = (copied_dsym / "Contents" / "Resources" /
+                            "DWARF" / executable.name)
+            if not debug_binary.is_file():
+                raise WorkflowError(
+                    f"macOS dSYM has no DWARF binary: {debug_binary}")
+            dwarfdump = llvm_bin / "llvm-dwarfdump"
+            text = run([str(dwarfdump), "--debug-info", "--debug-line",
+                        str(debug_binary)]).stdout
+            for pattern in (r"phase6_types\.rocket", r"DW_TAG_subprogram",
+                            r"DW_TAG_(variable|formal_parameter)", r"debug_line"):
+                require_pattern(text, pattern, f"{name} macOS dSYM DWARF")
+            debug_hash = sha256_file(debug_binary)
         else:
             dwarfdump = llvm_bin / "llvm-dwarfdump"
             text = run([str(dwarfdump), "--debug-info", "--debug-line",
@@ -338,9 +357,13 @@ def debugging(args: argparse.Namespace) -> None:
     report = work / "report.json"
     write_json(report, {
         "schema": "rocket-debug-validation-1",
-        "debugger_contract": ("CodeView/PDB plus rocket-source-map-1"
-                              if args.target == "windows-x64"
-                              else "DWARF plus rocket-source-map-1"),
+        "debugger_contract": (
+            "CodeView/PDB plus rocket-source-map-1"
+            if args.target == "windows-x64" else
+            "Mach-O/dSYM DWARF plus rocket-source-map-1"
+            if args.target == "macos-arm64" else
+            "ELF/DWARF plus rocket-source-map-1"
+        ),
         "target": args.target, "configurations": records,
         "panic_location": "int_overflow.rocket",
     })

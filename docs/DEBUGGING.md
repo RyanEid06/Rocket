@@ -2,7 +2,8 @@
 
 Rocket emits target-native source information for every LLVM executable or
 dynamic-library build. Windows x64 emits CodeView/PDB; Linux x64 and Linux
-ARM64 emit ELF/DWARF; macOS ARM64 emits Mach-O/DWARF. `--debug` selects
+ARM64 emit ELF/DWARF; macOS ARM64 emits Mach-O/DWARF debug maps that `dsymutil`
+materializes into the platform-standard `.dSYM` bundle. `--debug` selects
 unoptimized lowering; the default retains optimized debug locations. The
 adjacent `*.rocket.map.json` file uses schema `rocket-source-map-1` and records
 the optimization mode, native Rocket symbol, declaration, and executable source
@@ -12,8 +13,9 @@ The workflow is editor neutral:
 
 1. build with `rocketc build <path> --debug` or omit `--debug` to inspect an
    optimized build;
-2. give the selected target's native debugger the executable and its adjacent
-   CodeView/PDB or DWARF information;
+2. on macOS, run the pinned `dsymutil <executable> -o <executable>.dSYM`; then
+   give the selected target's native debugger the executable and its adjacent
+   CodeView/PDB, ELF/DWARF, or Mach-O `.dSYM` information;
 3. map the logical `rocket:\source\<file>.rocket` record to the workspace file
    using the sidecar's `source` field;
 4. set a source breakpoint or a symbol breakpoint such as
@@ -73,8 +75,9 @@ optimized and unoptimized, checks PDB source/file/line/function/variable
 records with pinned `llvm-pdbutil`, verifies both sidecar modes, validates a
 panic source location, and writes `out/debugging/report.json` with hashes.
 
-The Visual Studio integration remains Windows x64-specific. On Linux and macOS,
-the same source map accompanies standard DWARF artifacts and may be used by
-native debugger front ends; Rocket does not mandate an editor-specific debug
-adapter. Platform acceptance, including actual debug-information inspection,
-is recorded in `PHASE_19_AUDIT.md` rather than inferred from this contract.
+The Visual Studio integration remains Windows x64-specific. On Linux, the same
+source map accompanies embedded ELF/DWARF. On macOS, it accompanies the `.dSYM`
+materialized from the linked Mach-O debug map. Native debugger front ends may
+use those artifacts; Rocket does not mandate an editor-specific debug adapter.
+Platform acceptance, including actual debug-information inspection, is recorded
+in `PHASE_19_AUDIT.md` rather than inferred from this contract.

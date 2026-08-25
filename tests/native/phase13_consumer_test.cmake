@@ -33,12 +33,21 @@ if(HOST_OS STREQUAL "Windows")
 else()
   get_filename_component(library_directory "${LIBRARY}" DIRECTORY)
   set(platform_libraries -lcurl -lcrypto -licuuc -licudata -pthread)
+  set(platform_compile_options)
   if(HOST_OS STREQUAL "Linux")
     list(APPEND platform_libraries -ldl)
+  elseif(HOST_OS STREQUAL "Darwin")
+    if("$ENV{ROCKET_MACOS_SDK_ROOT}" STREQUAL "" OR
+       NOT IS_DIRECTORY "$ENV{ROCKET_MACOS_SDK_ROOT}")
+      message(FATAL_ERROR
+        "Phase 13 macOS consumer test requires ROCKET_MACOS_SDK_ROOT")
+    endif()
+    list(APPEND platform_compile_options
+      -isysroot "$ENV{ROCKET_MACOS_SDK_ROOT}")
   endif()
   execute_process(
     COMMAND "${CXX}" -std=c++20 "${SOURCE}" "-I${HEADER_DIRECTORY}"
-            ${link_inputs} ${platform_libraries}
+            ${platform_compile_options} ${link_inputs} ${platform_libraries}
             "-Wl,-rpath,${library_directory}" -o "${EXECUTABLE}"
     RESULT_VARIABLE compile_status
     OUTPUT_VARIABLE compile_output

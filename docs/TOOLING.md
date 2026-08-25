@@ -314,7 +314,8 @@ is absent from normal builds.
 
 `scripts/tooling.ps1` validates all three schemas and compiler JSON messages on
 Windows. The Phase 19 portable workflow also validates target-native
-DWARF/CodeView selection and executable-suffix behavior on each native host.
+CodeView/PDB, ELF/DWARF, or Mach-O `.dSYM` selection and executable-suffix
+behavior on each native host.
 `scripts/debugging.ps1` validates optimized/unoptimized PDB and map records on
 Windows; native-host debug-information evidence is recorded in
 `PHASE_19_AUDIT.md`.
