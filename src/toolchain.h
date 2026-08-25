@@ -28,6 +28,7 @@ struct TargetToolchainRequest {
   std::filesystem::path developmentCompiler;
   std::filesystem::path developmentLibrarian;
   std::filesystem::path developmentRuntime;
+  std::optional<std::filesystem::path> nativeSysroot;
 };
 
 std::string targetSdkEnvironmentVariable(const Target& target);

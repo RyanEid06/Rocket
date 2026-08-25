@@ -110,6 +110,31 @@ bool validateCrossInputs(const TargetToolchainRequest& request,
   return false;
 }
 
+bool applyNativeMacOSSysroot(const TargetToolchainRequest& request,
+                             TargetToolchain& result, TargetError& error) {
+  if (!isNativeTarget(request.host, request.target) ||
+      request.target.operatingSystem != TargetOperatingSystem::MacOS ||
+      !result.sysroot.empty()) {
+    return true;
+  }
+  if (!request.nativeSysroot || request.nativeSysroot->empty()) {
+    error.code = DiagnosticCode::TargetToolchain;
+    error.message =
+        "native macOS SDK root is not configured; set ROCKET_MACOS_SDK_ROOT";
+    return false;
+  }
+  const auto sysroot =
+      std::filesystem::absolute(*request.nativeSysroot).lexically_normal();
+  if (!directory(sysroot)) {
+    error.code = DiagnosticCode::TargetToolchain;
+    error.message = "native macOS SDK root does not exist: '" +
+                    sysroot.string() + "'";
+    return false;
+  }
+  result.sysroot = sysroot;
+  return true;
+}
+
 } // namespace
 
 std::string targetSdkEnvironmentVariable(const Target& target) {
@@ -168,7 +193,7 @@ bool discoverTargetToolchain(const TargetToolchainRequest& request,
                       "' is incomplete or has mismatched target metadata";
       return false;
     }
-    return true;
+    return applyNativeMacOSSysroot(request, toolchain, error);
   }
 
   if (!native) {
@@ -180,7 +205,8 @@ bool discoverTargetToolchain(const TargetToolchainRequest& request,
   }
 
   const auto installRoot = request.compilerDirectory.parent_path();
-  if (installedLayout(installRoot, request, false, toolchain)) return true;
+  if (installedLayout(installRoot, request, false, toolchain))
+    return applyNativeMacOSSysroot(request, toolchain, error);
 
   // Rocket 2.0 placed toolchain files beside the compiler. Keep this fallback
   // for source compatibility while all Rocket 2.1 packages use the root layout.
@@ -198,7 +224,7 @@ bool discoverTargetToolchain(const TargetToolchainRequest& request,
     toolchain.compiler = legacyCompiler;
     toolchain.librarian = legacyLibrarian;
     toolchain.runtime = legacyRuntime;
-    return true;
+    return applyNativeMacOSSysroot(request, toolchain, error);
   }
 
   if (regular(request.developmentCompiler) &&
@@ -207,7 +233,7 @@ bool discoverTargetToolchain(const TargetToolchainRequest& request,
     toolchain.compiler = request.developmentCompiler;
     toolchain.librarian = request.developmentLibrarian;
     toolchain.runtime = request.developmentRuntime;
-    return true;
+    return applyNativeMacOSSysroot(request, toolchain, error);
   }
 
   error.code = DiagnosticCode::TargetToolchain;

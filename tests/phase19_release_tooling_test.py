@@ -92,6 +92,10 @@ def main() -> int:
         "standalone macOS ABI probe does not use the SDK owning its libc++ headers",
     )
     check(
+        workflow.count('--macos-sdk-root "$ROCKET_MACOS_SDK_ROOT"') == 2,
+        "macOS bootstrap and package relocation do not share the accepted SDK root",
+    )
+    check(
         'ROCKET_CXX_STANDARD_LIBRARY=$cxx_runtime' in workflow,
         "macOS workflow does not select Xcode's matching libc++ runtime",
     )
@@ -130,6 +134,11 @@ def main() -> int:
         "macOS CMake configuration does not honor the selected Xcode libc++ runtime",
     )
     check(
+        'ROCKETC_MACOS_SDK_ROOT="${ROCKET_MACOS_SDK_ROOT}"' in cmake
+        and '"ROCKET_MACOS_SDK_ROOT=${ROCKET_MACOS_SDK_ROOT}"' in cmake,
+        "macOS CMake configuration does not propagate its SDK to native compiler links",
+    )
+    check(
         "ROCKET_CXX_RUNTIME_LIBRARY_DIRECTORY" not in cmake,
         "macOS builds still inject LLVM's incompatible libc++ runtime path",
     )
@@ -139,6 +148,11 @@ def main() -> int:
     check(
         "$rocket_sdk_root/bin/clang" in wrapper_source,
         "stage0 and production wrappers do not share the SDK-local clang path",
+    )
+    check(
+        "/usr/bin/xcrun --sdk macosx --show-sdk-path" in wrapper_source
+        and "ROCKET_MACOS_SDK_ROOT" in wrapper_source,
+        "relocated macOS SDK launchers do not discover the active Apple SDK",
     )
     copy_llvm_source = inspect.getsource(package_tool.copy_llvm)
     check(
@@ -162,8 +176,9 @@ def main() -> int:
     )
     driver_probe_source = inspect.getsource(package_tool.verify_packaged_driver)
     check(
-        '"-fuse-ld=lld"' in driver_probe_source,
-        "relocation verification does not prove packaged Clang-to-LLD discovery",
+        '"-fuse-ld=lld"' in driver_probe_source
+        and 'f"--sysroot={sysroot}"' in driver_probe_source,
+        "relocation verification does not prove packaged Clang-to-LLD SDK linking",
     )
     macos_bundle_source = inspect.getsource(package_tool.bundle_macos_dependencies)
     check(
@@ -183,6 +198,10 @@ def main() -> int:
     check(
         'f"-Wl,-rpath,{directory}"' in bootstrap_stage_source,
         "POSIX bootstrap stages cannot load explicitly selected runtime libraries",
+    )
+    check(
+        bootstrap_stage_source.count('f"--sysroot={arguments.macos_sdk_root}"') == 2,
+        "macOS stage2/stage3 compile and link commands do not share the Apple SDK",
     )
 
     fake_llvm = work / "fake-llvm"
@@ -291,6 +310,11 @@ def main() -> int:
         "report_external_command_failure" in selfhost_source,
         "self-hosted native tool failures do not report the failed command",
     )
+    for name, source in (("stage0", stage0_source), ("selfhost", selfhost_source)):
+        check(
+            "ROCKET_MACOS_SDK_ROOT" in source and "sysroot" in source,
+            f"{name} does not propagate the active Apple SDK to native links",
+        )
     check(package_tool.verify_checksums(sample) == 2, "checksum coverage count differs")
     (sample / "PACKAGE.md").write_text("tampered\n", encoding="utf-8")
     try:

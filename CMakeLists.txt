@@ -11,9 +11,8 @@ if(APPLE)
   # those headers are newer than the libc++ runtime supplied by Xcode 16.
   # Compile every C++ target against the active SDK's matching headers and
   # runtime while retaining the pinned LLVM Clang and LLD executables.
-  set(ROCKET_CXX_STANDARD_INCLUDE "$ENV{ROCKET_CXX_STANDARD_INCLUDE}")
-  set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")
-  if(NOT ROCKET_CXX_STANDARD_INCLUDE OR NOT ROCKET_CXX_STANDARD_LIBRARY)
+  set(ROCKET_MACOS_SDK_ROOT "$ENV{ROCKET_MACOS_SDK_ROOT}")
+  if(NOT ROCKET_MACOS_SDK_ROOT)
     execute_process(
       COMMAND xcrun --sdk macosx --show-sdk-path
       OUTPUT_VARIABLE ROCKET_MACOS_SDK_ROOT
@@ -22,14 +21,20 @@ if(APPLE)
     if(NOT ROCKET_XCRUN_RESULT EQUAL 0 OR NOT ROCKET_MACOS_SDK_ROOT)
       message(FATAL_ERROR "Unable to locate the active macOS SDK with xcrun")
     endif()
-    if(NOT ROCKET_CXX_STANDARD_INCLUDE)
-      set(ROCKET_CXX_STANDARD_INCLUDE
-        "${ROCKET_MACOS_SDK_ROOT}/usr/include/c++/v1")
-    endif()
-    if(NOT ROCKET_CXX_STANDARD_LIBRARY)
-      set(ROCKET_CXX_STANDARD_LIBRARY
-        "${ROCKET_MACOS_SDK_ROOT}/usr/lib/libc++.tbd")
-    endif()
+  endif()
+  if(NOT IS_DIRECTORY "${ROCKET_MACOS_SDK_ROOT}")
+    message(FATAL_ERROR
+      "macOS SDK root is missing: ${ROCKET_MACOS_SDK_ROOT}")
+  endif()
+  set(ROCKET_CXX_STANDARD_INCLUDE "$ENV{ROCKET_CXX_STANDARD_INCLUDE}")
+  set(ROCKET_CXX_STANDARD_LIBRARY "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")
+  if(NOT ROCKET_CXX_STANDARD_INCLUDE)
+    set(ROCKET_CXX_STANDARD_INCLUDE
+      "${ROCKET_MACOS_SDK_ROOT}/usr/include/c++/v1")
+  endif()
+  if(NOT ROCKET_CXX_STANDARD_LIBRARY)
+    set(ROCKET_CXX_STANDARD_LIBRARY
+      "${ROCKET_MACOS_SDK_ROOT}/usr/lib/libc++.tbd")
   endif()
   if(NOT IS_DIRECTORY "${ROCKET_CXX_STANDARD_INCLUDE}")
     message(FATAL_ERROR
@@ -288,6 +293,10 @@ endif()
 
 add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
+if(APPLE)
+  target_compile_definitions(rocketc PRIVATE
+    ROCKETC_MACOS_SDK_ROOT="${ROCKET_MACOS_SDK_ROOT}")
+endif()
 
 add_executable(rocket_lsp src/language_server_main.cpp)
 set_target_properties(rocket_lsp PROPERTIES OUTPUT_NAME "rocket-lsp")
@@ -1400,6 +1409,10 @@ if(LLVM_FOUND)
     "ROCKET_CLANG=${ROCKETC_CLANG_PATH}"
     "ROCKET_LIBRARIAN=${ROCKETC_TEST_LIBRARIAN_PATH}"
     "ROCKET_RUNTIME=$<TARGET_FILE:rocket_runtime>")
+endif()
+if(APPLE)
+  list(APPEND ROCKET_CONFIGURED_TEST_ENVIRONMENT
+    "ROCKET_MACOS_SDK_ROOT=${ROCKET_MACOS_SDK_ROOT}")
 endif()
 set_tests_properties(${ROCKET_CONFIGURED_TESTS} PROPERTIES
   ENVIRONMENT "${ROCKET_CONFIGURED_TEST_ENVIRONMENT}")

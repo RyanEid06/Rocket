@@ -135,6 +135,8 @@ def compiler_environment(
             "ROCKET_NATIVE_TARGET": arguments.target,
         }
     )
+    if arguments.macos_sdk_root is not None:
+        result["ROCKET_MACOS_SDK_ROOT"] = str(arguments.macos_sdk_root)
     return result
 
 
@@ -155,15 +157,22 @@ def build_self_hosted_stage(
         [compiler, "--emit-ir", source, ir], env=environment,
         label=f"{stage}-emit-ir"
     )
+    compile_command = [
+        arguments.clang, "-c", "-O2", "-Wno-override-module",
+        f"--target={triple}",
+    ]
+    if arguments.macos_sdk_root is not None:
+        compile_command.append(f"--sysroot={arguments.macos_sdk_root}")
+    compile_command.extend([ir, "-o", obj])
     runner.run(
-        [arguments.clang, "-c", "-O2", "-Wno-override-module",
-         f"--target={triple}", ir, "-o", obj],
-        env=environment, label=f"{stage}-compile"
+        compile_command, env=environment, label=f"{stage}-compile"
     )
     link = [
         arguments.clang, obj, arguments.runtime, f"--target={triple}",
         "-fuse-ld=lld",
     ]
+    if arguments.macos_sdk_root is not None:
+        link.append(f"--sysroot={arguments.macos_sdk_root}")
     for directory in arguments.library_directory:
         link.extend(["-L", directory])
         if arguments.target != "windows-x64":
@@ -372,6 +381,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--librarian", required=True, type=Path)
     parser.add_argument("--native-library-root", required=True, type=Path)
     parser.add_argument("--library-directory", action="append", default=[])
+    parser.add_argument("--macos-sdk-root", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     return parser.parse_args()
 
@@ -387,6 +397,8 @@ def main() -> int:
     arguments.native_library_root = arguments.native_library_root.resolve()
     arguments.output = arguments.output.resolve()
     arguments.library_directory = [str(Path(value).resolve()) for value in arguments.library_directory]
+    if arguments.macos_sdk_root is not None:
+        arguments.macos_sdk_root = arguments.macos_sdk_root.resolve()
     detected = host_alias()
     if detected != arguments.target:
         raise BootstrapFailure(
@@ -400,6 +412,13 @@ def main() -> int:
         raise BootstrapFailure(
             f"missing native library root: {arguments.native_library_root}"
         )
+    if arguments.target == "macos-arm64":
+        if arguments.macos_sdk_root is None:
+            raise BootstrapFailure("macOS bootstrap requires --macos-sdk-root")
+        if not arguments.macos_sdk_root.is_dir():
+            raise BootstrapFailure(
+                f"missing macOS SDK root: {arguments.macos_sdk_root}"
+            )
     clean_output(arguments.output)
 
     report: dict[str, object] = {
@@ -417,6 +436,10 @@ def main() -> int:
             "runtime_sha256": sha256(arguments.runtime),
             "clang": str(arguments.clang),
             "librarian": str(arguments.librarian),
+            "macos_sdk_root": (
+                str(arguments.macos_sdk_root)
+                if arguments.macos_sdk_root is not None else None
+            ),
         },
         "commands": [],
     }

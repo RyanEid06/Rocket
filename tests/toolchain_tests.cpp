@@ -46,7 +46,7 @@ int main() {
   const auto windows = parse("windows-x64");
   const auto linux = parse("linux-x64");
   rocket::TargetToolchainRequest request{
-      windows, linux, root / "compiler", root / "linux-sdk", {}, {}, {}};
+      windows, linux, root / "compiler", root / "linux-sdk", {}, {}, {}, {}};
   rocket::TargetToolchain toolchain;
   rocket::TargetError error;
   expect(!rocket::discoverTargetToolchain(request, toolchain, error) &&
@@ -96,10 +96,31 @@ int main() {
       windows, windows, root / "compiler", std::nullopt,
       development / (std::string("clang") + suffix),
       development / (std::string("llvm-lib") + suffix),
-      development / "rocket_runtime.lib"};
+      development / "rocket_runtime.lib", std::nullopt};
   expect(rocket::discoverTargetToolchain(nativeRequest, toolchain, error) &&
              !toolchain.cross && !toolchain.installedSdk,
          "native development toolchain fallback remains available");
+
+  const auto macos = parse("macos-arm64");
+  const fs::path macosDevelopment = root / "macos-development";
+  const fs::path macosSysroot = root / "MacOSX.sdk";
+  touch(macosDevelopment / (std::string("clang") + suffix));
+  touch(macosDevelopment / (std::string("llvm-ar") + suffix));
+  touch(macosDevelopment / "rocket_runtime.a");
+  fs::create_directories(macosSysroot);
+  rocket::TargetToolchainRequest macosRequest{
+      macos, macos, root / "compiler", std::nullopt,
+      macosDevelopment / (std::string("clang") + suffix),
+      macosDevelopment / (std::string("llvm-ar") + suffix),
+      macosDevelopment / "rocket_runtime.a", macosSysroot};
+  expect(rocket::discoverTargetToolchain(macosRequest, toolchain, error) &&
+             toolchain.sysroot == macosSysroot,
+         "native macOS development toolchain preserves its Apple SDK sysroot");
+  macosRequest.nativeSysroot = root / "missing-MacOSX.sdk";
+  expect(!rocket::discoverTargetToolchain(macosRequest, toolchain, error) &&
+             error.code == rocket::DiagnosticCode::TargetToolchain &&
+             error.message.find("SDK root does not exist") != std::string::npos,
+         "missing native macOS SDK fails before invoking the linker");
 
   fs::remove_all(root, filesystemError);
   if (failures != 0) {

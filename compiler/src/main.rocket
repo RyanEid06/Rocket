@@ -7799,6 +7799,18 @@ fn installed_target_toolchain(root: String, selected: TargetInfo, require_metada
         return ToolchainInfo(false, clang_path, runtime_path, librarian, library_directories, sysroot, "R6003", string.concat("configured target SDK for '", string.concat(selected.alias, "' is incomplete or has mismatched target metadata")))
     return ToolchainInfo(true, clang_path, runtime_path, librarian, library_directories, sysroot, "", "")
 
+fn apply_native_macos_sysroot(toolchain: ToolchainInfo, selected: TargetInfo) -> ToolchainInfo:
+    let host = native_target()
+    if not toolchain.valid or host.alias != selected.alias or selected.os != "macos" or toolchain.sysroot != "":
+        return toolchain
+    let configured = environment_or_empty("ROCKET_MACOS_SDK_ROOT")
+    if configured == "":
+        return ToolchainInfo(false, toolchain.clang, toolchain.runtime, toolchain.librarian, toolchain.library_directories, "", "R6003", "native macOS SDK root is not configured; set ROCKET_MACOS_SDK_ROOT")
+    let sysroot = std.path.normalize(configured)
+    if not file.exists(sysroot):
+        return ToolchainInfo(false, toolchain.clang, toolchain.runtime, toolchain.librarian, toolchain.library_directories, "", "R6003", string.concat("native macOS SDK root does not exist: '", string.concat(sysroot, "'")))
+    return ToolchainInfo(true, toolchain.clang, toolchain.runtime, toolchain.librarian, toolchain.library_directories, sysroot, "", "")
+
 fn locate_toolchain_target(selected: TargetInfo, target_sdk: String) -> ToolchainInfo:
     let host = native_target()
     if host.alias != selected.alias and not target_cross_supported(host, selected):
@@ -7807,7 +7819,7 @@ fn locate_toolchain_target(selected: TargetInfo, target_sdk: String) -> Toolchai
     if configured == "":
         configured = environment_or_empty(target_sdk_environment_variable(selected))
     if configured != "":
-        return installed_target_toolchain(configured, selected, true)
+        return apply_native_macos_sysroot(installed_target_toolchain(configured, selected, true), selected)
     if host.alias != selected.alias:
         return ToolchainInfo(false, "", "", "", [], "", "R6003", string.concat("target SDK for '", string.concat(selected.alias, string.concat("' is not configured; use --target-sdk or ", target_sdk_environment_variable(selected)))))
     let compiler_directory = executable_directory()
@@ -7816,7 +7828,7 @@ fn locate_toolchain_target(selected: TargetInfo, target_sdk: String) -> Toolchai
         install_root = source_parent(compiler_directory)
     let installed = installed_target_toolchain(install_root, selected, false)
     if installed.valid:
-        return installed
+        return apply_native_macos_sysroot(installed, selected)
     var development_root = ""
     if std.path.basename(compiler_directory) == ".rocketc":
         development_root = source_parent(source_parent(compiler_directory))
@@ -7841,7 +7853,7 @@ fn locate_toolchain_target(selected: TargetInfo, target_sdk: String) -> Toolchai
     let library_directories = existing_directories([std.path.join(install_root, "lib/msvc"), std.path.join(install_root, "lib/ucrt"), std.path.join(install_root, "lib/um")])
     if clang_path == "" or runtime_path == "" or librarian == "" or not file.exists(librarian):
         return ToolchainInfo(false, clang_path, runtime_path, librarian, library_directories, "", "R6003", string.concat("native toolchain for '", string.concat(selected.alias, "' is incomplete; install the Rocket SDK or configure its compiler, librarian, and runtime")))
-    return ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), std.path.normalize(librarian), library_directories, "", "", "")
+    return apply_native_macos_sysroot(ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), std.path.normalize(librarian), library_directories, "", "", ""), selected)
 
 fn locate_toolchain() -> ToolchainInfo:
     return locate_toolchain_target(native_target(), "")

@@ -269,6 +269,7 @@ jobs:
           if [[ "${{ matrix.target }}" == "macos-arm64" ]]; then
             extra+=(--library-directory "$(brew --prefix icu4c)/lib")
             extra+=(--library-directory "$(brew --prefix openssl@3)/lib")
+            extra+=(--macos-sdk-root "$ROCKET_MACOS_SDK_ROOT")
           fi
           python scripts/phase19_bootstrap.py --target "${{ matrix.target }}" --configuration Release \
             --stage0 "$build/rocketc" --runtime "$build/librocket_runtime.a" \
@@ -299,6 +300,7 @@ jobs:
         run: |
           extra=()
           if [[ "${{ matrix.target }}" == "macos-arm64" ]]; then
+            extra+=(--macos-sdk-root "$ROCKET_MACOS_SDK_ROOT")
             extra+=(--runtime-shared-library "$(brew --prefix openssl@3)/lib/libcrypto.dylib")
             extra+=(--runtime-shared-library "$(brew --prefix openssl@3)/lib/libssl.dylib")
             extra+=(--runtime-shared-library "$(brew --prefix icu4c)/lib/libicuuc.dylib")

@@ -664,6 +664,20 @@ void announceCachedBuild(const std::string& command,
   }
 }
 
+std::optional<fs::path> nativeSysroot(const rocket::Target& target) {
+  if (target.operatingSystem != rocket::TargetOperatingSystem::MacOS)
+    return std::nullopt;
+  if (const char* configured = std::getenv("ROCKET_MACOS_SDK_ROOT");
+      configured && *configured)
+    return fs::u8path(configured);
+#ifdef ROCKETC_MACOS_SDK_ROOT
+  if (std::string_view(ROCKETC_MACOS_SDK_ROOT).empty()) return std::nullopt;
+  return fs::u8path(ROCKETC_MACOS_SDK_ROOT);
+#else
+  return std::nullopt;
+#endif
+}
+
 int executeCompiler(const std::string& command, const CommandTarget& target,
                     const std::vector<std::string>& programArguments,
                     bool announceBuild = true,
@@ -692,7 +706,8 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
         *host, target.compilationTarget, compilerDirectory,
         target.targetSdkRoot, fs::path(ROCKETC_CLANG_PATH),
         developmentLibrarianPath(target.compilationTarget),
-        fs::path(ROCKETC_RUNTIME_LIBRARY_PATH)};
+        fs::path(ROCKETC_RUNTIME_LIBRARY_PATH),
+        nativeSysroot(target.compilationTarget)};
     if (!rocket::discoverTargetToolchain(request, selected, toolchainError)) {
       cliDiagnostic(toolchainError.code, toolchainError.message);
       return 2;

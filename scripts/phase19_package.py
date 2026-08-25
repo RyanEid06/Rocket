@@ -299,6 +299,14 @@ def wrapper(name: str, real_name: str) -> str:
 rocket_tool_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 rocket_sdk_root=$(CDPATH= cd -- "$rocket_tool_directory/.." && pwd)
 if [ "$(uname -s)" = "Darwin" ]; then
+    if [ -z "${{ROCKET_MACOS_SDK_ROOT:-}}" ]; then
+        ROCKET_MACOS_SDK_ROOT=$(/usr/bin/xcrun --sdk macosx --show-sdk-path) || exit $?
+    fi
+    if [ ! -d "$ROCKET_MACOS_SDK_ROOT" ]; then
+        echo "rocketc: active macOS SDK root is missing: $ROCKET_MACOS_SDK_ROOT" >&2
+        exit 2
+    fi
+    export ROCKET_MACOS_SDK_ROOT
     DYLD_LIBRARY_PATH="$rocket_sdk_root/lib${{DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}}"
     export DYLD_LIBRARY_PATH
 else
@@ -601,7 +609,9 @@ def verify_checksums(package: Path) -> int:
     return len(entries)
 
 
-def sanitized_environment(package: Path, work: Path, target: str) -> dict[str, str]:
+def sanitized_environment(
+    package: Path, work: Path, target: str, macos_sdk_root: Path | None
+) -> dict[str, str]:
     keep = {}
     for name in ("SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "NUMBER_OF_PROCESSORS"):
         if os.environ.get(name):
@@ -621,6 +631,9 @@ def sanitized_environment(package: Path, work: Path, target: str) -> dict[str, s
     if target.startswith("linux-"):
         keep["LD_LIBRARY_PATH"] = str(package / "lib")
     elif target == "macos-arm64":
+        if macos_sdk_root is None:
+            raise PackageFailure("macOS relocation requires an Apple SDK root")
+        keep["ROCKET_MACOS_SDK_ROOT"] = str(macos_sdk_root)
         keep["DYLD_LIBRARY_PATH"] = str(package / "lib")
     (work / "temp").mkdir(parents=True)
     (work / "home").mkdir(parents=True)
@@ -642,6 +655,11 @@ def verify_packaged_driver(
     command: list[str | Path] = [
         clang, f"--target={triple}", source, "-fuse-ld=lld",
     ]
+    if target == "macos-arm64":
+        sysroot = env.get("ROCKET_MACOS_SDK_ROOT")
+        if not sysroot:
+            raise PackageFailure("relocated macOS Clang probe has no Apple SDK root")
+        command.append(f"--sysroot={sysroot}")
     command.append(
         "-Wl,-no_uuid" if target == "macos-arm64" else "-Wl,--build-id=sha1"
     )
@@ -659,7 +677,9 @@ def verify_relocation(package: Path, arguments: argparse.Namespace) -> dict[str,
     shutil.copytree(package, relocation)
     work = relocation.parent / "work"
     work.mkdir()
-    env = sanitized_environment(relocation, work, arguments.target)
+    env = sanitized_environment(
+        relocation, work, arguments.target, arguments.macos_sdk_root
+    )
     suffix = TARGETS[arguments.target][1]
     compiler = relocation / "bin" / f"rocketc{suffix}"
     stage0 = relocation / "stage0" / f"rocketc-stage0{suffix}"
@@ -759,12 +779,22 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--channel", choices=("local", "nightly", "preview", "stable"), default="local")
     parser.add_argument("--windows-library-directory", action="append", default=[])
     parser.add_argument("--runtime-shared-library", action="append", default=[])
+    parser.add_argument("--macos-sdk-root", type=Path)
     return parser.parse_args()
 
 
 def main() -> int:
     arguments = parse_arguments()
     started = time.monotonic()
+    if arguments.macos_sdk_root is not None:
+        arguments.macos_sdk_root = arguments.macos_sdk_root.resolve()
+    if arguments.target == "macos-arm64":
+        if arguments.macos_sdk_root is None:
+            raise PackageFailure("macOS packaging requires --macos-sdk-root")
+        if not arguments.macos_sdk_root.is_dir():
+            raise PackageFailure(
+                f"missing macOS SDK root: {arguments.macos_sdk_root}"
+            )
     package, provenance = package_tree(arguments)
     covered = verify_checksums(package)
     relocation_report = verify_relocation(package, arguments)
