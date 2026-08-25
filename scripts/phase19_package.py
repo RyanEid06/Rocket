@@ -191,6 +191,13 @@ def macos_rpaths(path: Path) -> list[str]:
     return result
 
 
+def macos_has_uuid(path: Path) -> bool:
+    return any(
+        line.strip() == "cmd LC_UUID"
+        for line in capture(["/usr/bin/otool", "-l", path]).splitlines()
+    )
+
+
 def macos_system_library(value: str) -> bool:
     return value.startswith("/usr/lib/") or value.startswith("/System/Library/")
 
@@ -291,6 +298,10 @@ def bundle_macos_dependencies(package: Path, seeds: list[Path]) -> list[str]:
             "/usr/bin/codesign", "--force", "--sign", "-",
             "--timestamp=none", path,
         ])
+        if not macos_has_uuid(path):
+            raise PackageFailure(
+                f"packaged Mach-O image has no content UUID: {path}"
+            )
     return sorted(copied)
 
 
@@ -661,10 +672,15 @@ def verify_packaged_driver(
             raise PackageFailure("relocated macOS Clang probe has no Apple SDK root")
         command.append(f"--sysroot={sysroot}")
     command.append(
-        "-Wl,-no_uuid" if target == "macos-arm64" else "-Wl,--build-id=sha1"
+        "-Wl,-headerpad_max_install_names"
+        if target == "macos-arm64" else "-Wl,--build-id=sha1"
     )
     command.extend(["-o", executable])
     run(command, env=env, cwd=work)
+    if target == "macos-arm64" and not macos_has_uuid(executable):
+        raise PackageFailure(
+            f"relocated macOS linker produced an image without LC_UUID: {executable}"
+        )
     run([executable], env=env, cwd=work)
 
 

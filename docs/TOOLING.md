@@ -342,6 +342,9 @@ The macOS package does not copy or redistribute Apple's SDK. Its launchers
 resolve the active Xcode Command Line Tools SDK with `/usr/bin/xcrun`, export it
 as `ROCKET_MACOS_SDK_ROOT`, and every stage0, self-hosted, bootstrap, and
 relocation link passes that directory to Clang/LLD as the native sysroot.
+Mach-O products retain reproducible content-hash UUIDs and reserve install-name
+header padding; packaging verifies each rewritten image still has `LC_UUID`
+before checksumming and testing the relocated SDK.
 
 The preserved C++ bootstrap compiler is distributed separately as
 `stage0/rocketc-stage0` (with `.exe` on Windows). It remains the reproducible bootstrap compiler and

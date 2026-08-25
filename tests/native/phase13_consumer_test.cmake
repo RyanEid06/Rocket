@@ -44,6 +44,23 @@ else()
     endif()
     list(APPEND platform_compile_options
       -isysroot "$ENV{ROCKET_MACOS_SDK_ROOT}")
+    list(APPEND platform_libraries
+      -framework Security -framework CoreFoundation)
+    if(DEFINED DYNAMIC_LIBRARY AND NOT DYNAMIC_LIBRARY STREQUAL "")
+      if(NOT EXISTS "${DYNAMIC_LIBRARY}")
+        message(FATAL_ERROR
+          "Rocket dynamic library is missing: ${DYNAMIC_LIBRARY}")
+      endif()
+      execute_process(
+        COMMAND /usr/bin/otool -l "${DYNAMIC_LIBRARY}"
+        RESULT_VARIABLE uuid_status
+        OUTPUT_VARIABLE uuid_output
+        ERROR_VARIABLE uuid_error)
+      if(NOT uuid_status EQUAL 0 OR NOT uuid_output MATCHES "cmd LC_UUID")
+        message(FATAL_ERROR
+          "Rocket macOS dynamic library has no LC_UUID:\n${uuid_output}\n${uuid_error}")
+      endif()
+    endif()
   endif()
   execute_process(
     COMMAND "${CXX}" -std=c++20 "${SOURCE}" "-I${HEADER_DIRECTORY}"

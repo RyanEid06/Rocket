@@ -8471,7 +8471,7 @@ fn build_native_source_with_package(package: PackageInfo, source: String, artifa
         if selected.os == "linux":
             link_arguments = append(link_arguments, "-Wl,--build-id=sha1")
         else:
-            link_arguments = append(link_arguments, "-Wl,-no_uuid")
+            link_arguments = append(link_arguments, "-Wl,-headerpad_max_install_names")
     for index in 0..collections.length(toolchain.library_directories):
         link_arguments = append(link_arguments, "-L")
         link_arguments = append(link_arguments, toolchain.library_directories[index])

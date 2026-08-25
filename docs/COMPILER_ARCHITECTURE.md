@@ -301,6 +301,12 @@ order and do not include timestamps, paths, hashes, or unordered-container
 iteration. Stage0 and the Rocket compiler therefore produce byte-identical
 native interface artifacts.
 
+macOS executables and dynamic libraries retain LLD's default content-derived
+`LC_UUID`; suppressing it would make a `.dylib` invalid as an Apple linker input
+and disconnect native debug/crash-symbol identity. Every Rocket-controlled
+Mach-O link reserves maximum install-name header padding for the relocation
+rewrites performed by the native SDK packager.
+
 ## Rocket 1.4 raylib validation architecture
 
 Phase 14 validates the Phase 13 pipeline instead of adding a raylib-specific

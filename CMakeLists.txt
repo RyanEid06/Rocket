@@ -46,6 +46,9 @@ if(APPLE)
   endif()
   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>")
   include_directories(SYSTEM BEFORE "${ROCKET_CXX_STANDARD_INCLUDE}")
+  # Phase 19 rewrites packaged Mach-O dependency paths with install_name_tool.
+  # Reserve deterministic load-command space in every CMake-linked product.
+  add_link_options("-Wl,-headerpad_max_install_names")
   message(STATUS
     "Rocket macOS libc++ headers: ${ROCKET_CXX_STANDARD_INCLUDE}")
   message(STATUS

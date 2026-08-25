@@ -332,7 +332,7 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
 #else
   if (!assembly && outputKind != rocket::PackageOutputKind::StaticLibrary) {
 #if defined(__APPLE__)
-    arguments.push_back("-Wl,-no_uuid");
+    arguments.push_back("-Wl,-headerpad_max_install_names");
     for (const char* library : {"-lcurl", "-lcrypto", "-licuuc",
                                 "-licudata", "-pthread"})
       arguments.emplace_back(library);
@@ -873,7 +873,7 @@ int executeCompiler(const std::string& command, const CommandTarget& target,
                rocket::TargetOperatingSystem::Linux) {
       linkArguments.push_back("-Wl,--build-id=sha1");
     } else {
-      linkArguments.push_back("-Wl,-no_uuid");
+      linkArguments.push_back("-Wl,-headerpad_max_install_names");
     }
     for (const auto& directory : toolchain->libraryDirectories) {
       linkArguments.push_back("-L");

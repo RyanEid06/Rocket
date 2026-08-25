@@ -120,6 +120,15 @@ class Runner:
         return result.stdout
 
 
+def verify_macos_uuid(
+    runner: Runner, path: Path, environment: dict[str, str], label: str
+) -> None:
+    runner.run(
+        ["/usr/bin/otool", "-l", path], env=environment,
+        pattern=r"(?m)^\s*cmd LC_UUID\s*$", label=label,
+    )
+
+
 def compiler_environment(
     base: dict[str, str], arguments: argparse.Namespace, artifact_root: Path
 ) -> dict[str, str]:
@@ -188,7 +197,7 @@ def build_self_hosted_stage(
         )
     else:
         link.extend(
-            ["-Wl,-no_uuid", "-lcurl", "-lcrypto", "-licuuc",
+            ["-Wl,-headerpad_max_install_names", "-lcurl", "-lcrypto", "-licuuc",
              "-licudata", "-lpthread", "-lc++", "-lm", "-framework",
              "Security", "-framework", "CoreFoundation"]
         )
@@ -196,6 +205,10 @@ def build_self_hosted_stage(
     runner.run(link, env=environment, label=f"{stage}-link")
     if not executable.is_file():
         raise BootstrapFailure(f"{stage} executable was not produced: {executable}")
+    if arguments.target == "macos-arm64":
+        verify_macos_uuid(
+            runner, executable, environment, f"{stage}-mach-o-uuid"
+        )
     return executable
 
 
@@ -346,6 +359,21 @@ def validate_stages(
             pattern=re.escape(suffix), label=f"stage3-build-{package}"
         )
         validations += 1
+    if arguments.target == "macos-arm64":
+        dynamic_library = (
+            output / "validation-artifacts" / "stage3"
+            / "phase13_math_dynamic" / ".rocketc" / "targets"
+            / arguments.target / f"phase13_math_dynamic{dynamic_suffix}"
+        )
+        if not dynamic_library.is_file():
+            raise BootstrapFailure(
+                f"stage3 dynamic library was not produced: {dynamic_library}"
+            )
+        verify_macos_uuid(
+            runner, dynamic_library, stage3_env,
+            "stage3-phase13-dynamic-mach-o-uuid",
+        )
+        validations += 1
 
     generated = output / "generated-parity"
     generated.mkdir()
@@ -465,6 +493,10 @@ def main() -> int:
     stage_environment = compiler_environment(
         base_environment, arguments, arguments.output / "stage-artifacts"
     )
+    if arguments.target == "macos-arm64":
+        verify_macos_uuid(
+            runner, stage1, stage_environment, "stage1-mach-o-uuid"
+        )
     stage2 = build_self_hosted_stage(
         runner, stage1, "stage2", arguments, stage_environment, arguments.output
     )

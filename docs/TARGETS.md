@@ -129,6 +129,12 @@ Inactive target files do not affect the key.
 | Linux | none | `.so` | `.a` | `.o` |
 | macOS | none | `.dylib` | `.a` | `.o` |
 
+macOS final linked images retain the linker's default content-hash `LC_UUID`.
+Rocket does not suppress that load command: Apple uses it for dynamic-library
+consumption, debugger/crash-symbol identity, and reproducible builds. Mach-O
+links also reserve maximum install-name header padding so the native package
+workflow can replace dependency paths without invalidating the image layout.
+
 An installed native SDK bundles the matching `rocketc`, runtime, standard
 library, linker/toolchain components, target metadata, licenses, and checksum
 manifest. A normal native compile after installation must not require an

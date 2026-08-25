@@ -128,8 +128,10 @@ jobs:
           "$ROCKET_HOST_CXX_COMPILER" -std=c++20 -nostdinc++ \
             -isystem "$ROCKET_CXX_STANDARD_INCLUDE" \
             -isysroot "$ROCKET_MACOS_SDK_ROOT" \
-            -fuse-ld=lld -Wl,-no_uuid "$probe/main.cpp" \
+            -fuse-ld=lld -Wl,-headerpad_max_install_names "$probe/main.cpp" \
             "$ROCKET_CXX_STANDARD_LIBRARY" -o "$probe/macos-cxx-probe"
+          /usr/bin/otool -l "$probe/macos-cxx-probe" > "$probe/macos-cxx-probe.load-commands"
+          grep -q 'cmd LC_UUID' "$probe/macos-cxx-probe.load-commands"
           dependencies="$(otool -L "$probe/macos-cxx-probe")"
           printf '%s\n' "$dependencies" | tee \
             "out/phase19/evidence/macos-arm64/libcxx-preflight.txt"
@@ -138,6 +140,30 @@ jobs:
             exit 1
           fi
           "$probe/macos-cxx-probe"
+          printf '%s\n' \
+            'extern "C" int rocket_uuid_probe() { return 19; }' \
+            > "$probe/library.cpp"
+          "$ROCKET_HOST_CXX_COMPILER" -std=c++20 -nostdinc++ \
+            -isystem "$ROCKET_CXX_STANDARD_INCLUDE" \
+            -isysroot "$ROCKET_MACOS_SDK_ROOT" -fuse-ld=lld -shared \
+            -Wl,-headerpad_max_install_names "$probe/library.cpp" \
+            "$ROCKET_CXX_STANDARD_LIBRARY" \
+            -o "$probe/librocket-uuid-probe.dylib"
+          /usr/bin/otool -l "$probe/librocket-uuid-probe.dylib" \
+            > "$probe/macos-dylib-probe.load-commands"
+          grep -q 'cmd LC_UUID' "$probe/macos-dylib-probe.load-commands"
+          printf '%s\n' \
+            'extern "C" int rocket_uuid_probe();' \
+            'int main() { return rocket_uuid_probe() == 19 ? 0 : 1; }' \
+            > "$probe/consumer.cpp"
+          "$ROCKET_HOST_CXX_COMPILER" -std=c++20 -nostdinc++ \
+            -isystem "$ROCKET_CXX_STANDARD_INCLUDE" \
+            -isysroot "$ROCKET_MACOS_SDK_ROOT" -fuse-ld=lld \
+            -Wl,-headerpad_max_install_names "$probe/consumer.cpp" \
+            "$probe/librocket-uuid-probe.dylib" \
+            "$ROCKET_CXX_STANDARD_LIBRARY" -Wl,-rpath,"$probe" \
+            -o "$probe/macos-dylib-consumer"
+          "$probe/macos-dylib-consumer"
 
       - name: Record native host and pinned tool versions
         shell: bash

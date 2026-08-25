@@ -594,3 +594,9 @@ emulation, or CI configuration alone. Each target requires observed native
 build, bootstrap, complete-suite, packaging, installation, checksum, and
 relocation evidence in `PHASE_19_AUDIT.md`. The frozen Rocket 2.0 Windows SDK
 consumed by Scroll2Roll is an immutable safety boundary during Phase 19.
+
+macOS final images retain the linker's default content-hash `LC_UUID` rather
+than suppressing it. This preserves reproducibility while satisfying Apple
+dynamic-library, debugger, and crash-symbol identity requirements. Rocket-owned
+Mach-O links reserve install-name header padding for deterministic SDK
+relocation rewrites.

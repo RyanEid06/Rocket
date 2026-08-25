@@ -114,6 +114,45 @@ def main() -> int:
         '"$llvm/bin/dsymutil" --version' in workflow,
         "macOS workflow does not prove the pinned dSYM tool before building",
     )
+    check(
+        'librocket-uuid-probe.dylib' in workflow
+        and workflow.count("cmd LC_UUID") >= 2,
+        "macOS preflight does not prove UUID-bearing dynamic-library consumption",
+    )
+    check(
+        "otool -l" in workflow
+        and "otool -l \"$probe/macos-cxx-probe\" |" not in workflow
+        and "otool -l \"$probe/librocket-uuid-probe.dylib\" |" not in workflow,
+        "macOS UUID preflight risks a pipefail/SIGPIPE false failure",
+    )
+    cross_pairs = (
+        ("windows-x64", "linux-x64", "windows-2025-vs2026", "ubuntu-24.04"),
+        ("windows-x64", "linux-arm64", "windows-2025-vs2026", "ubuntu-24.04-arm"),
+        ("linux-x64", "linux-arm64", "ubuntu-24.04", "ubuntu-24.04-arm"),
+        ("linux-x64", "windows-x64", "ubuntu-24.04", "windows-2025-vs2026"),
+    )
+    for host, target, build_runner, execution_runner in cross_pairs:
+        pair = f"          - host: {host}\n            target: {target}\n"
+        check(
+            workflow.count(pair) == 2,
+            f"workflow does not carry {host} -> {target} through build and execution",
+        )
+        build_entry = pair + f"            runner: {build_runner}\n"
+        execution_entry = pair + f"            runner: {execution_runner}\n"
+        check(
+            build_entry in workflow and execution_entry in workflow,
+            f"workflow runner mapping differs for {host} -> {target}",
+        )
+    check(
+        workflow.count(
+            "rocket-phase19-cross-${{ matrix.host }}-to-${{ matrix.target }}"
+        ) == 2
+        and workflow.count("rocket-phase19-cross-input-${{ matrix.target }}") == 2
+        and "needs: native-acceptance" in workflow
+        and "needs: cross-acceptance" in workflow
+        and workflow.count("phase19-cross-ok") == 2,
+        "cross-build artifact handoff or native execution contract is incomplete",
+    )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
     bootstrap_tool = load("phase19_bootstrap", root / "scripts" / "phase19_bootstrap.py")
@@ -142,11 +181,24 @@ def main() -> int:
         and '"ROCKET_MACOS_SDK_ROOT=${ROCKET_MACOS_SDK_ROOT}"' in cmake,
         "macOS CMake configuration does not propagate its SDK to native compiler links",
     )
+    check(
+        'add_link_options("-Wl,-headerpad_max_install_names")' in cmake,
+        "CMake-linked macOS package images do not reserve relocation header space",
+    )
     consumer_test = (root / "tests" / "native" / "phase13_consumer_test.cmake").read_text()
     check(
         'ROCKET_MACOS_SDK_ROOT' in consumer_test
         and '-isysroot "$ENV{ROCKET_MACOS_SDK_ROOT}"' in consumer_test,
         "macOS C ABI consumers do not link through the accepted Apple SDK",
+    )
+    check(
+        "-framework Security -framework CoreFoundation" in consumer_test,
+        "macOS static C ABI consumers omit Rocket runtime frameworks",
+    )
+    check(
+        'COMMAND /usr/bin/otool -l "${DYNAMIC_LIBRARY}"' in consumer_test
+        and "cmd LC_UUID" in consumer_test,
+        "macOS dynamic C ABI consumers do not reject UUID-less dylibs",
     )
     portable_workflow = (root / "tests" / "portable_workflow_test.py").read_text()
     check(
@@ -205,6 +257,10 @@ def main() -> int:
     check(
         '"-delete_rpath"' in macos_bundle_source,
         "macOS packages retain absolute build-machine runtime paths",
+    )
+    check(
+        "macos_has_uuid(path)" in macos_bundle_source,
+        "macOS packaging does not require UUIDs after Mach-O rewriting",
     )
     check(
         '"/usr/bin/codesign"' in macos_bundle_source
@@ -320,6 +376,32 @@ def main() -> int:
     stage0_source = (root / "src" / "main.cpp").read_text()
     selfhost_source = (root / "compiler" / "src" / "main.rocket").read_text()
     bootstrap_source = (root / "scripts" / "phase19_bootstrap.py").read_text()
+    package_source = (root / "scripts" / "phase19_package.py").read_text()
+    macos_link_sources = {
+        "workflow": workflow,
+        "stage0": stage0_source,
+        "selfhost": selfhost_source,
+        "bootstrap": bootstrap_source,
+        "package": package_source,
+    }
+    for name, source in macos_link_sources.items():
+        check(
+            "-Wl,-no_uuid" not in source,
+            f"{name} still suppresses the required reproducible Mach-O UUID",
+        )
+        check(
+            "-Wl,-headerpad_max_install_names" in source,
+            f"{name} does not reserve deterministic Mach-O relocation header space",
+        )
+    for name, source in (
+        ("stage0", stage0_source),
+        ("selfhost", selfhost_source),
+        ("bootstrap", bootstrap_source),
+    ):
+        check(
+            "Security" in source and "CoreFoundation" in source,
+            f"{name} omits required macOS runtime frameworks",
+        )
     for library in ("-lstdc++", "-lc++", "-lm"):
         for name, source in (
             ("stage0", stage0_source),
@@ -336,6 +418,15 @@ def main() -> int:
             "ROCKET_MACOS_SDK_ROOT" in source and "sysroot" in source,
             f"{name} does not propagate the active Apple SDK to native links",
         )
+    check(
+        "verify_macos_uuid" in bootstrap_source
+        and "stage3-phase13-dynamic-mach-o-uuid" in bootstrap_source,
+        "macOS bootstrap does not verify compiler and dynamic-library UUIDs",
+    )
+    check(
+        "macos_has_uuid(executable)" in package_source,
+        "relocated macOS toolchain verification does not require LC_UUID",
+    )
     check(package_tool.verify_checksums(sample) == 2, "checksum coverage count differs")
     (sample / "PACKAGE.md").write_text("tampered\n", encoding="utf-8")
     try:

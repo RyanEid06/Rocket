@@ -36,5 +36,7 @@ Static Rocket libraries require consumers to link the matching target runtime
 (`rocket_runtime.lib` on Windows and `rocket_runtime.a` on Linux/macOS);
 dynamic Rocket libraries embed the runtime. ABI v1 is frozen for Rocket 2.x.
 The suffixes are `.dll/.lib` on Windows, `.so/.a` on Linux, and `.dylib/.a` on
-macOS. See `SPEC.md`, `TOOLING.md`, and `COMPILER_ARCHITECTURE.md` for the
-normative layouts, mangling, linker order, and generated-header contract.
+macOS. A macOS dynamic product carries the linker's reproducible content-hash
+`LC_UUID`, so Apple linkers and native debugging tools can consume it normally.
+See `SPEC.md`, `TOOLING.md`, and `COMPILER_ARCHITECTURE.md` for the normative
+layouts, mangling, linker order, and generated-header contract.

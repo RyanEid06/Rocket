@@ -3,11 +3,12 @@
 Rocket emits target-native source information for every LLVM executable or
 dynamic-library build. Windows x64 emits CodeView/PDB; Linux x64 and Linux
 ARM64 emit ELF/DWARF; macOS ARM64 emits Mach-O/DWARF debug maps that `dsymutil`
-materializes into the platform-standard `.dSYM` bundle. `--debug` selects
-unoptimized lowering; the default retains optimized debug locations. The
-adjacent `*.rocket.map.json` file uses schema `rocket-source-map-1` and records
-the optimization mode, native Rocket symbol, declaration, and executable source
-locations.
+materializes into the platform-standard `.dSYM` bundle. Each final macOS image
+keeps the linker's reproducible content-hash `LC_UUID`, which identifies the
+matching native debug image. `--debug` selects unoptimized lowering; the default
+retains optimized debug locations. The adjacent `*.rocket.map.json` file uses
+schema `rocket-source-map-1` and records the optimization mode, native Rocket
+symbol, declaration, and executable source locations.
 
 The workflow is editor neutral:
 
