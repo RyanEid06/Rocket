@@ -298,7 +298,9 @@ add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
 if(APPLE)
   target_compile_definitions(rocketc PRIVATE
-    ROCKETC_MACOS_SDK_ROOT="${ROCKET_MACOS_SDK_ROOT}")
+    ROCKETC_MACOS_SDK_ROOT="${ROCKET_MACOS_SDK_ROOT}"
+    ROCKETC_CXX_STANDARD_INCLUDE="${ROCKET_CXX_STANDARD_INCLUDE}"
+    ROCKETC_CXX_STANDARD_LIBRARY="${ROCKET_CXX_STANDARD_LIBRARY}")
 endif()
 
 add_executable(rocket_lsp src/language_server_main.cpp)

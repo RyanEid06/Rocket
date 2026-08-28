@@ -178,8 +178,10 @@ def main() -> int:
     )
     check(
         'ROCKETC_MACOS_SDK_ROOT="${ROCKET_MACOS_SDK_ROOT}"' in cmake
+        and 'ROCKETC_CXX_STANDARD_INCLUDE="${ROCKET_CXX_STANDARD_INCLUDE}"' in cmake
+        and 'ROCKETC_CXX_STANDARD_LIBRARY="${ROCKET_CXX_STANDARD_LIBRARY}"' in cmake
         and '"ROCKET_MACOS_SDK_ROOT=${ROCKET_MACOS_SDK_ROOT}"' in cmake,
-        "macOS CMake configuration does not propagate its SDK to native compiler links",
+        "macOS CMake configuration does not propagate its SDK and libc++ selection",
     )
     check(
         'add_link_options("-Wl,-headerpad_max_install_names")' in cmake,
@@ -377,6 +379,18 @@ def main() -> int:
     selfhost_source = (root / "compiler" / "src" / "main.rocket").read_text()
     bootstrap_source = (root / "scripts" / "phase19_bootstrap.py").read_text()
     package_source = (root / "scripts" / "phase19_package.py").read_text()
+    stage0_compile_begin = stage0_source.index("int compileBootstrap(")
+    stage0_compile_end = stage0_source.index(
+        "\n#ifdef ROCKETC_HAS_LLVM", stage0_compile_begin
+    )
+    stage0_compile_source = stage0_source[stage0_compile_begin:stage0_compile_end]
+    check(
+        '"-nostdinc++", "-isystem", ROCKETC_CXX_STANDARD_INCLUDE'
+        in stage0_compile_source
+        and '"-isysroot", ROCKETC_MACOS_SDK_ROOT' in stage0_compile_source
+        and "arguments.push_back(ROCKETC_CXX_STANDARD_LIBRARY)" in stage0_compile_source,
+        "macOS C++ stage0 does not compile and link with CMake's SDK libc++ selection",
+    )
     macos_link_sources = {
         "workflow": workflow,
         "stage0": stage0_source,
@@ -413,7 +427,12 @@ def main() -> int:
         "report_external_command_failure" in selfhost_source,
         "self-hosted native tool failures do not report the failed command",
     )
-    for name, source in (("stage0", stage0_source), ("selfhost", selfhost_source)):
+    check(
+        "ROCKETC_MACOS_SDK_ROOT" in stage0_compile_source
+        and "isysroot" in stage0_compile_source,
+        "stage0 does not propagate the active Apple SDK to native compilation",
+    )
+    for name, source in (("selfhost", selfhost_source),):
         check(
             "ROCKET_MACOS_SDK_ROOT" in source and "sysroot" in source,
             f"{name} does not propagate the active Apple SDK to native links",
