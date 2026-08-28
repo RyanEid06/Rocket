@@ -1,0 +1,197 @@
+# WP02 provisional color kernel. This module is not a public Rocket 3.0 API.
+
+pub struct Color:
+    red: Float
+    green: Float
+    blue: Float
+    alpha: Float
+
+pub fn rgb(red: Float, green: Float, blue: Float) -> Color:
+    return rgba(red, green, blue, 1.0)
+
+pub fn rgba(red: Float, green: Float, blue: Float, alpha: Float) -> Color:
+    return Color(clamp_unit(red), clamp_unit(green), clamp_unit(blue), clamp_unit(alpha))
+
+pub fn with_alpha(value: Color, alpha: Float) -> Color:
+    return Color(value.red, value.green, value.blue, clamp_unit(alpha))
+
+pub fn from_hex(text: String) -> Result[Color, String]:
+    let length = text.byte_length()
+    var prefix = 0
+    if length > 0 and text.byte_value_at(0) == 35:
+        prefix = 1
+    let digits = length - prefix
+    if length == 0 or(digits != 6 and digits != 8):
+        return Err("expected six or eight hexadecimal color digits")
+    let red = hex_byte(text, prefix)
+    let green = hex_byte(text, prefix + 2)
+    let blue = hex_byte(text, prefix + 4)
+    if red < 0 or green < 0 or blue < 0:
+        return Err("color contains a non-hexadecimal digit")
+    var alpha = 255
+    if digits == 8:
+        alpha = hex_byte(text, prefix + 6)
+        if alpha < 0:
+            return Err("color contains a non-hexadecimal digit")
+    return Ok(rgba(float_from_byte(red) / 255.0, float_from_byte(green) / 255.0, float_from_byte(blue) / 255.0, float_from_byte(alpha) / 255.0))
+
+pub fn from_hsv(hue: Float, saturation: Float, value: Float, alpha: Float) -> Color:
+    let normalized_hue = wrap_hue(hue)
+    let normalized_saturation = clamp_unit(saturation)
+    let normalized_value = clamp_unit(value)
+    let chroma = normalized_value * normalized_saturation
+    let sector = normalized_hue / 60.0
+    var second = 0.0
+    if sector < 1.0:
+        second = chroma * sector
+    else:
+        if sector < 2.0:
+            second = chroma *(2.0 - sector)
+        else:
+            if sector < 3.0:
+                second = chroma *(sector - 2.0)
+            else:
+                if sector < 4.0:
+                    second = chroma *(4.0 - sector)
+                else:
+                    if sector < 5.0:
+                        second = chroma *(sector - 4.0)
+                    else:
+                        second = chroma *(6.0 - sector)
+    let base = normalized_value - chroma
+    if sector < 1.0:
+        return rgba(chroma + base, second + base, base, alpha)
+    if sector < 2.0:
+        return rgba(second + base, chroma + base, base, alpha)
+    if sector < 3.0:
+        return rgba(base, chroma + base, second + base, alpha)
+    if sector < 4.0:
+        return rgba(base, second + base, chroma + base, alpha)
+    if sector < 5.0:
+        return rgba(second + base, base, chroma + base, alpha)
+    return rgba(chroma + base, base, second + base, alpha)
+
+pub fn mix(left: Color, right: Color, amount: Float) -> Color:
+    let progress = clamp_unit(amount)
+    return rgba(left.red +(right.red - left.red) * progress, left.green +(right.green - left.green) * progress, left.blue +(right.blue - left.blue) * progress, left.alpha +(right.alpha - left.alpha) * progress)
+
+pub fn lerp(left: Color, right: Color, amount: Float) -> Color:
+    return mix(left, right, amount)
+
+pub fn lighten(value: Color, amount: Float) -> Color:
+    return mix(value, Color(1.0, 1.0, 1.0, value.alpha), amount)
+
+pub fn darken(value: Color, amount: Float) -> Color:
+    return mix(value, Color(0.0, 0.0, 0.0, value.alpha), amount)
+
+pub fn saturate(value: Color, amount: Float) -> Color:
+    return with_saturation(value, saturation_of(value) + amount)
+
+pub fn desaturate(value: Color, amount: Float) -> Color:
+    return with_saturation(value, saturation_of(value) - amount)
+
+fn with_saturation(value: Color, saturation: Float) -> Color:
+    return from_hsv(hue_of(value), saturation, maximum_channel(value), value.alpha)
+
+fn saturation_of(value: Color) -> Float:
+    let maximum = maximum_channel(value)
+    if maximum == 0.0:
+        return 0.0
+    return(maximum - minimum_channel(value)) / maximum
+
+fn hue_of(value: Color) -> Float:
+    let maximum = maximum_channel(value)
+    let minimum = minimum_channel(value)
+    let delta = maximum - minimum
+    if delta == 0.0:
+        return 0.0
+    if maximum == value.red:
+        let hue = 60.0 *((value.green - value.blue) / delta)
+        return wrap_hue(hue)
+    if maximum == value.green:
+        return 60.0 *((value.blue - value.red) / delta + 2.0)
+    return 60.0 *((value.red - value.green) / delta + 4.0)
+
+fn maximum_channel(value: Color) -> Float:
+    return maximum(value.red, maximum(value.green, value.blue))
+
+fn minimum_channel(value: Color) -> Float:
+    return minimum(value.red, minimum(value.green, value.blue))
+
+fn hex_byte(text: String, offset: Int) -> Int:
+    let high = hex_nibble(text.byte_value_at(offset))
+    let low = hex_nibble(text.byte_value_at(offset + 1))
+    if high < 0 or low < 0:
+        return -1
+    return high * 16 + low
+
+fn hex_nibble(value: Int) -> Int:
+    if value >= 48 and value <= 57:
+        return value - 48
+    if value >= 65 and value <= 70:
+        return value - 65 + 10
+    if value >= 97 and value <= 102:
+        return value - 97 + 10
+    return -1
+
+fn float_from_byte(value: Int) -> Float:
+    var result = 0.0
+    var index = 0
+    while index < value:
+        result = result + 1.0
+        index = index + 1
+    return result
+
+fn clamp_unit(value: Float) -> Float:
+    if not is_finite(value):
+        if value > 0.0:
+            return 1.0
+        return 0.0
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+fn wrap_hue(value: Float) -> Float:
+    if not is_finite(value):
+        return 0.0
+    if value < 0.0:
+        let wrapped = wrap_positive_hue(-value)
+        if wrapped == 0.0:
+            return 0.0
+        return 360.0 - wrapped
+    return wrap_positive_hue(value)
+
+fn wrap_positive_hue(value: Float) -> Float:
+    if value < 360.0:
+        return value
+    var step = 360.0
+    var expansion_count = 0
+    while step <= value / 2.0 and expansion_count < 1024:
+        let doubled = step * 2.0
+        if not is_finite(doubled):
+            break
+        step = doubled
+        expansion_count = expansion_count + 1
+    var remainder = value
+    var reduction_count = 0
+    while step >= 360.0 and reduction_count < 1025:
+        if remainder >= step:
+            remainder = remainder - step
+        step = step / 2.0
+        reduction_count = reduction_count + 1
+    return remainder
+
+fn is_finite(value: Float) -> Bool:
+    return value - value == 0.0
+
+fn minimum(left: Float, right: Float) -> Float:
+    if left < right:
+        return left
+    return right
+
+fn maximum(left: Float, right: Float) -> Float:
+    if left > right:
+        return left
+    return right

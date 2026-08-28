@@ -1,0 +1,92 @@
+import src.color
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn same(left: color.Color, right: color.Color) -> Bool:
+    return close(left.red, right.red) and close(left.green, right.green) and close(left.blue, right.blue) and close(left.alpha, right.alpha)
+
+fn main() -> Int:
+    let clamped = color.rgba(1.5, -0.25, 0.5, 2.0)
+    if not same(clamped, color.Color(1.0, 0.0, 0.5, 1.0)):
+        return 1
+    if not same(color.rgb(0.25, 0.5, 0.75), color.Color(0.25, 0.5, 0.75, 1.0)):
+        return 2
+    if not same(color.with_alpha(color.rgb(0.2, 0.4, 0.6), -1.0), color.Color(0.2, 0.4, 0.6, 0.0)):
+        return 3
+
+    match color.from_hex("#3366CC"):
+        case Ok(value):
+            if not same(value, color.Color(0.2, 0.4, 0.8, 1.0)):
+                return 4
+        case Err(message):
+            return 5
+    match color.from_hex("3366CC80"):
+        case Ok(value):
+            if not same(value, color.Color(0.2, 0.4, 0.8, 128.0 / 255.0)):
+                return 6
+        case Err(message):
+            return 7
+    match color.from_hex("#12G45Z"):
+        case Ok(value):
+            return 8
+        case Err(message):
+            if message.byte_length() == 0:
+                return 9
+    match color.from_hex("#123"):
+        case Ok(value):
+            return 10
+        case Err(message):
+            if message.byte_length() == 0:
+                return 11
+    match color.from_hex("#3366CCG0"):
+        case Ok(value):
+            return 12
+        case Err(message):
+            if message.byte_length() == 0:
+                return 13
+
+    if not same(color.from_hsv(480.0, 2.0, 2.0, -1.0), color.Color(0.0, 1.0, 0.0, 0.0)):
+        return 14
+    if not same(color.from_hsv(-120.0, 1.0, 1.0, 1.0), color.Color(0.0, 0.0, 1.0, 1.0)):
+        return 15
+    let hsv_round_trip = color.from_hsv(210.0, 0.6, 0.75, 0.8)
+    if not same(color.saturate(hsv_round_trip, 0.0), hsv_round_trip):
+        return 16
+    let enormous = large_value()
+    let non_finite = enormous * enormous
+    if not same(color.rgba(non_finite, -non_finite, non_finite - non_finite, 1.0), color.Color(1.0, 0.0, 0.0, 1.0)):
+        return 17
+    if not same(color.from_hsv(non_finite, 1.0, 1.0, 1.0), color.Color(1.0, 0.0, 0.0, 1.0)):
+        return 18
+    if not same(color.from_hsv(386547056760.0, 1.0, 1.0, 1.0), color.Color(0.0, 1.0, 0.0, 1.0)):
+        return 26
+
+    let start = color.rgb(0.2, 0.4, 0.6)
+    let end = color.rgb(0.8, 0.6, 0.4)
+    if not same(color.mix(start, end, 0.25), color.Color(0.35, 0.45, 0.55, 1.0)):
+        return 19
+    if not same(color.lerp(start, end, -1.0), start):
+        return 20
+    if not same(color.lerp(start, end, 2.0), end):
+        return 21
+    if not same(color.lighten(start, 0.5), color.Color(0.6, 0.7, 0.8, 1.0)):
+        return 22
+    if not same(color.darken(start, 0.5), color.Color(0.1, 0.2, 0.3, 1.0)):
+        return 23
+    if not same(color.saturate(color.rgb(0.5, 0.25, 0.25), 1.0), color.rgb(0.5, 0.0, 0.0)):
+        return 24
+    if not same(color.desaturate(color.rgb(0.5, 0.0, 0.0), 1.0), color.Color(0.5, 0.5, 0.5, 1.0)):
+        return 25
+    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 300:
+        value = value * 10.0
+        index = index + 1
+    return value
