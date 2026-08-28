@@ -229,6 +229,39 @@ def main() -> int:
         and "ROCKET_MACOS_SDK_ROOT" in wrapper_source,
         "relocated macOS SDK launchers do not discover the active Apple SDK",
     )
+    check(
+        "DYLD_LIBRARY_PATH" not in wrapper_source,
+        "relocated macOS SDK launcher globally overrides Apple library lookup",
+    )
+    packaged_library_directory = work / "macos-packaged-libraries"
+    packaged_library_directory.mkdir()
+    (packaged_library_directory / "libunwind.1.dylib").write_bytes(b"private\n")
+    check(
+        package_tool.macos_packaged_dependency_name(
+            "/usr/lib/libunwind.1.dylib", packaged_library_directory,
+            {"libunwind.1.dylib"},
+        ) is None,
+        "macOS relocation replaces Apple's system unwind runtime",
+    )
+    check(
+        package_tool.macos_packaged_dependency_name(
+            "/opt/homebrew/lib/libcrypto.3.dylib", packaged_library_directory,
+            {"libcrypto.3.dylib"},
+        ) == "@rpath/libcrypto.3.dylib",
+        "macOS relocation does not rewrite bundled non-Apple dependencies",
+    )
+    fake_macos_sdk = work / "MacOSX.sdk"
+    fake_macos_sdk.mkdir()
+    sanitized_macos_environment = package_tool.sanitized_environment(
+        work / "fake-relocated-macos-sdk",
+        work / "macos-sanitized-environment",
+        "macos-arm64",
+        fake_macos_sdk,
+    )
+    check(
+        "DYLD_LIBRARY_PATH" not in sanitized_macos_environment,
+        "macOS relocation verification globally overrides Apple library lookup",
+    )
     copy_llvm_source = inspect.getsource(package_tool.copy_llvm)
     check(
         'destination = package / "bin" / installed_name' in copy_llvm_source,
@@ -259,6 +292,10 @@ def main() -> int:
     check(
         '"-delete_rpath"' in macos_bundle_source,
         "macOS packages retain absolute build-machine runtime paths",
+    )
+    check(
+        "macos_packaged_dependency_name(" in macos_bundle_source,
+        "macOS package rewriting does not preserve Apple system install names",
     )
     check(
         "macos_has_uuid(path)" in macos_bundle_source,

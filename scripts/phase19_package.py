@@ -202,6 +202,18 @@ def macos_system_library(value: str) -> bool:
     return value.startswith("/usr/lib/") or value.startswith("/System/Library/")
 
 
+def macos_packaged_dependency_name(
+    dependency: str, library_directory: Path, copied: set[str]
+) -> str | None:
+    """Return a package-relative install name without replacing Apple libraries."""
+    if macos_system_library(dependency):
+        return None
+    basename = Path(dependency).name
+    if basename in copied or (library_directory / basename).is_file():
+        return f"@rpath/{basename}"
+    return None
+
+
 def macos_cxx_runtime_library(name: str) -> bool:
     """Return whether a dylib belongs to Apple's system C++ ABI stack."""
     return (
@@ -276,11 +288,13 @@ def bundle_macos_dependencies(package: Path, seeds: list[Path]) -> list[str]:
         if path.parent == library_directory and path.suffix == ".dylib":
             capture(["/usr/bin/install_name_tool", "-id", f"@rpath/{path.name}", path])
         for dependency in dependencies:
-            basename = Path(dependency).name
-            if basename in copied or (library_directory / basename).is_file():
+            packaged_name = macos_packaged_dependency_name(
+                dependency, library_directory, copied
+            )
+            if packaged_name is not None and packaged_name != dependency:
                 capture([
                     "/usr/bin/install_name_tool", "-change", dependency,
-                    f"@rpath/{basename}", path,
+                    packaged_name, path,
                 ])
         rpath = "@loader_path" if path.parent == library_directory else "@loader_path/../lib"
         existing_rpaths = macos_rpaths(path)
@@ -318,8 +332,6 @@ if [ "$(uname -s)" = "Darwin" ]; then
         exit 2
     fi
     export ROCKET_MACOS_SDK_ROOT
-    DYLD_LIBRARY_PATH="$rocket_sdk_root/lib${{DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}}"
-    export DYLD_LIBRARY_PATH
 else
     LD_LIBRARY_PATH="$rocket_sdk_root/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"
     export LD_LIBRARY_PATH
@@ -391,7 +403,7 @@ def copy_llvm(arguments: argparse.Namespace, package: Path) -> list[str]:
                     and macos_cxx_runtime_library(name)):
                 # Xcode's libc++ headers and runtime are one matched ABI unit.
                 # Shipping LLVM's private libc++ beside an Xcode-ABI binary
-                # lets DYLD_LIBRARY_PATH substitute an incompatible runtime.
+                # creates an ambiguous @rpath candidate for Apple ABI images.
                 continue
             destination = package / "lib" / name
             shutil.copy2(source.resolve(), destination)
@@ -645,7 +657,6 @@ def sanitized_environment(
         if macos_sdk_root is None:
             raise PackageFailure("macOS relocation requires an Apple SDK root")
         keep["ROCKET_MACOS_SDK_ROOT"] = str(macos_sdk_root)
-        keep["DYLD_LIBRARY_PATH"] = str(package / "lib")
     (work / "temp").mkdir(parents=True)
     (work / "home").mkdir(parents=True)
     return keep
