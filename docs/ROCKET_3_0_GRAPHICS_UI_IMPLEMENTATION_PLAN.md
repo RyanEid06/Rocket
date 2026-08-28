@@ -41,7 +41,8 @@ final Phase 19 release.
 - Run builds and tests sequentially. Do not overlap Phase 19 validation. Stop
   and report a process over 4 GiB or one that grows continuously.
 - A packet handles one or two feature groups, updates its traceability rows,
-  commits its own files, and stops.
+  rotates the current next-chat prompt, commits those changes together, and
+  stops.
 
 ---
 
@@ -176,9 +177,29 @@ Every new chat must perform this sequence:
 - [ ] Implement only the packet's named feature(s).
 - [ ] Re-run focused tests and relevant formatting/static checks.
 - [ ] Update this plan's packet status and atomic traceability evidence.
+- [ ] After all required checks pass, select the lowest-numbered incomplete
+  packet whose dependencies are complete and whose isolation state permits it
+  to run.
+- [ ] Replace the completed packet's label and fenced block under
+  `Current next-chat prompt` with a complete prompt for that selected packet.
+  If no implementation packet is eligible, install a status-only holding
+  prompt that waits for or audits the condition that blocks the next packet.
 - [ ] Run `git diff --check` and review the scoped diff.
-- [ ] Commit only the packet's files with the prescribed message.
+- [ ] Commit only the packet's files and the plan/status/prompt rotation with
+  the prescribed message.
 - [ ] Stop. Do not begin the next packet in the same chat.
+
+Prompt rotation is a success-only handoff. If implementation, verification, or
+the checkpoint commit fails, do not advance the packet label or replace its
+prompt. Record the blocker outside the fenced prompt when useful, leave the
+same packet as current, and stop. The permanent launcher in section 10 never
+changes during ordinary packet work.
+
+Every replacement prompt must remain self-contained: repeat the exact worktree
+and branch, required document reads, clean/Phase-19 overlap checks, packet-only
+scope and exclusions, test and generated-output boundaries, resource-safety
+rules, checkpoint message, success-only rotation, and stop condition. The small
+launcher is a pointer to this full operational prompt, not a substitute for it.
 
 ## 5. Packet index
 
@@ -242,7 +263,8 @@ is `RED` until `WP09` accepts the final Phase 19 baseline.
 - [x] Every original graphics/UI/language requirement maps to a feature group.
 - [x] GREEN/YELLOW/RED and maturity rules are explicit.
 - [x] Work packets contain at most two feature groups.
-- [x] The first new-chat prompt is included verbatim below.
+- [x] The permanent launcher, prompt-rotation contract, and initial WP01 prompt
+  are included verbatim below.
 - [x] `git diff --check` passes with only the two planning files staged.
 
 **Checkpoint:** `docs: plan isolated Rocket 3.0 graphics and UI work`
@@ -667,9 +689,15 @@ file/test/doc/evidence links when executed.
 | F29 Platform/compatibility | WP09, WP34 | RED | WP34 |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
 
-## 9. First new-chat prompt
+## 9. Current next-chat prompt
 
-Copy the following into a new Rocket chat to execute only WP01:
+This is the single mutable handoff slot. It must contain exactly one current
+packet label and one fenced `text` prompt. A successful packet replaces both
+with the next eligible packet before committing. A failed or blocked packet
+does not rotate this slot. Do not preserve completed prompts here; Git history
+is their archive.
+
+**Current packet:** WP01 - Provisional geometry and hit testing
 
 ```text
 Work only in this existing isolated worktree:
@@ -701,11 +729,30 @@ timeout, and stop/report if a task process exceeds 4 GiB or keeps growing.
 Implement and test Vec2, Size, Rect, pure rectangle operations, rectangle hit
 testing, and circle hit testing exactly as WP01 specifies. Do not start Color,
 layout, VirtualCanvas, UI, native graphics, or any later packet. Run focused
-checks, git diff --check, review the scoped diff, update only WP01 status and its
-atomic traceability evidence, commit with:
+checks, update WP01's packet-index state and atomic traceability evidence, then
+follow the prompt-rotation contract in section 4. The next eligible packet will
+normally be WP02: replace the current packet label and this entire fenced block
+with a complete WP02 prompt. Run git diff --check, review the scoped diff, and
+commit the WP01 files plus plan/status/prompt rotation together with:
 
 feat: add provisional Rocket 3 geometry kernels
 
-Then stop and report the exact files, tests, results, commit, and remaining
-intentional provisional limitations. Do not begin WP02 in the same chat.
+Only rotate after every required WP01 check passes. If implementation,
+verification, or commit fails, leave WP01 as the current prompt and report the
+blocker. After a successful commit, stop and report the exact files, tests,
+results, commit, remaining intentional provisional limitations, and the packet
+prepared for the next chat. Do not begin WP02 in the same chat.
+```
+
+## 10. Permanent reusable launcher
+
+The owner may send this exact message at the start of every Rocket 3.0 packet
+chat. Do not customize it for individual packets; section 9 supplies the
+changing scope.
+
+```text
+Work only in the existing Rocket 3.0 provisional worktree. Read AGENTS.md and
+both Rocket 3.0 planning documents, then execute exactly the "Current next-chat
+prompt" in the implementation plan. After successful completion, replace it
+with the next eligible packet's prompt, commit everything, and stop.
 ```
