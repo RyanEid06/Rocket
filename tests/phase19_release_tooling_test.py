@@ -157,6 +157,10 @@ def main() -> int:
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
     bootstrap_tool = load("phase19_bootstrap", root / "scripts" / "phase19_bootstrap.py")
     cross_tool = load("phase19_cross_sdk", root / "scripts" / "phase19_cross_sdk.py")
+    sysroot_tool = load(
+        "phase19_export_linux_sysroot",
+        root / "scripts" / "phase19_export_linux_sysroot.py",
+    )
     package_tree_source = inspect.getsource(package_tool.package_tree)
     check(
         "else f\"librocket_runtime{runtime_suffix}\"" in package_tree_source,
@@ -517,6 +521,55 @@ def main() -> int:
         pass
     else:
         raise RuntimeError("package safety guard accepted the frozen Rocket 2.0 package")
+
+    arm64_source = work / "linux-arm64-source-root"
+    (arm64_source / "usr" / "include").mkdir(parents=True)
+    (arm64_source / "usr" / "include" / "stdio.h").write_text(
+        "/* test */\n", encoding="ascii"
+    )
+    (arm64_source / "usr" / "lib" / "aarch64-linux-gnu").mkdir(parents=True)
+    (arm64_source / "usr" / "lib" / "aarch64-linux-gnu" / "crt1.o").write_bytes(
+        b"crt\n"
+    )
+    (arm64_source / "usr" / "lib" / "aarch64-linux-gnu" / "libc.so").write_text(
+        "GROUP ( /lib/ld-linux-aarch64.so.1 )\n", encoding="ascii"
+    )
+    (arm64_source / "lib" / "aarch64-linux-gnu").mkdir(parents=True)
+    (arm64_source / "lib" / "aarch64-linux-gnu" / "libc.so.6").write_bytes(
+        b"libc\n"
+    )
+    (arm64_source / "lib" / "ld-linux-aarch64.so.1").write_bytes(b"loader\n")
+    (arm64_source / "usr" / "lib" / "gcc" / "aarch64-linux-gnu").mkdir(
+        parents=True
+    )
+    arm64_output = work / "linux-arm64-exported-sysroot"
+    real_sysroot_host_alias = sysroot_tool.host_alias
+    sysroot_tool.host_alias = lambda: "linux-arm64"
+    try:
+        arm64_report = sysroot_tool.export_sysroot(
+            "linux-arm64", arm64_output, arm64_source
+        )
+    finally:
+        sysroot_tool.host_alias = real_sysroot_host_alias
+    check(
+        (arm64_output / "lib" / "ld-linux-aarch64.so.1").read_bytes()
+        == b"loader\n"
+        and "lib/ld-linux-aarch64.so.1" in arm64_report["copied_roots"],
+        "Linux ARM64 sysroot omits the root loader required by libc.so",
+    )
+
+    check(
+        cross_tool.windows_library_copy_names(
+            "libcmt.lib", case_sensitive=True
+        ) == ("libcmt.lib", "LIBCMT.lib")
+        and cross_tool.windows_library_copy_names(
+            "KERNEL32.lib", case_sensitive=True
+        ) == ("KERNEL32.lib",)
+        and cross_tool.windows_library_copy_names(
+            "libcmt.lib", case_sensitive=False
+        ) == ("libcmt.lib",),
+        "case-sensitive Windows cross SDK omits lld-link library aliases",
+    )
 
     native_host = cross_tool.host_alias()
     cross_target = {

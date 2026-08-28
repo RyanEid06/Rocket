@@ -138,6 +138,15 @@ def copy_linux_sysroot(source: Path, destination: Path) -> None:
         )
 
 
+def windows_library_copy_names(
+    name: str, *, case_sensitive: bool
+) -> tuple[str, ...]:
+    alias = f"{Path(name).stem.upper()}{Path(name).suffix.lower()}"
+    if case_sensitive and alias != name:
+        return name, alias
+    return (name,)
+
+
 def all_regular_files(root: Path) -> list[Path]:
     return sorted(
         (path for path in root.rglob("*") if path.is_file()),
@@ -223,7 +232,10 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             destination = output / "lib" / name
             destination.mkdir()
             for library in libraries:
-                copy_file(library, destination / library.name)
+                for copy_name in windows_library_copy_names(
+                    library.name, case_sensitive=host != "windows-x64"
+                ):
+                    copy_file(library, destination / copy_name)
 
     (output / "share" / "rocket" / "target.txt").write_text(
         f"rocket-target-sdk-1\nalias={target}\ntriple={triple}\n",

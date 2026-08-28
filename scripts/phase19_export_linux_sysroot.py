@@ -17,6 +17,7 @@ LINUX_TARGETS = {
     "linux-x64": "x86_64-linux-gnu",
     "linux-arm64": "aarch64-linux-gnu",
 }
+LINUX_ARM64_LOADER = Path("lib/ld-linux-aarch64.so.1")
 
 
 class SysrootFailure(RuntimeError):
@@ -81,12 +82,16 @@ def export_sysroot(target: str, output: Path, source_root: Path = Path("/")) -> 
     ]
     if target == "linux-x64":
         roots.append(Path("lib64"))
+    else:
+        roots.append(LINUX_ARM64_LOADER)
     copied = [relative.as_posix() for relative in roots if copy_path(source_root, relative, output)]
     required = [
         output / "usr" / "include" / "stdio.h",
         output / "usr" / "lib" / multiarch / "crt1.o",
         output / "usr" / "lib" / multiarch / "libc.so",
     ]
+    if target == "linux-arm64":
+        required.append(output / LINUX_ARM64_LOADER)
     if not all(path.exists() for path in required):
         missing = [str(path.relative_to(output)) for path in required if not path.exists()]
         raise SysrootFailure(
