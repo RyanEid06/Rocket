@@ -1,0 +1,56 @@
+import src.geometry
+
+fn main() -> Int:
+    let left = geometry.Vec2(-2.0, 3.0)
+    let right = geometry.Vec2(5.0, -7.0)
+    let added = geometry.vec2_add(left, right)
+    if added.x != 3.0 or added.y != -4.0:
+        return 1
+    let subtracted = geometry.vec2_subtract(left, right)
+    if subtracted.x != -7.0 or subtracted.y != 10.0:
+        return 2
+    let scaled = geometry.vec2_scale(left, -0.5)
+    if scaled.x != 1.0 or scaled.y != -1.5:
+        return 3
+
+    let finite = geometry.Rect(-3.0, 4.0, 6.0, 2.0)
+    if not geometry.rect_is_finite(finite) or not geometry.rect_has_nonnegative_size(finite):
+        return 4
+    let negative = geometry.Rect(8.0, 9.0, -3.0, -4.0)
+    if geometry.rect_has_nonnegative_size(negative):
+        return 5
+    let large = large_value()
+    let non_finite = large * large
+    if geometry.rect_is_finite(geometry.Rect(non_finite, 0.0, 1.0, 1.0)):
+        return 6
+    let normalized = geometry.rect_normalized(negative)
+    if normalized.x != 5.0 or normalized.y != 5.0 or normalized.width != 3.0 or normalized.height != 4.0:
+        return 7
+    let translated = geometry.rect_translate(finite, geometry.Vec2(2.0, -6.0))
+    if translated.x != -1.0 or translated.y != -2.0 or translated.width != 6.0 or translated.height != 2.0:
+        return 8
+
+    match geometry.rect_intersection(geometry.Rect(0.0, 0.0, 5.0, 5.0), geometry.Rect(3.0, -1.0, 5.0, 4.0)):
+        case Some(overlap):
+            if overlap.x != 3.0 or overlap.y != 0.0 or overlap.width != 2.0 or overlap.height != 3.0:
+                return 9
+        case None:
+            return 10
+    match geometry.rect_intersection(geometry.Rect(0.0, 0.0, 2.0, 2.0), geometry.Rect(2.0, 0.0, 3.0, 2.0)):
+        case Some(overlap):
+            return 11
+        case None:
+            let disjoint = geometry.rect_intersection(geometry.Rect(0.0, 0.0, 1.0, 1.0), geometry.Rect(3.0, 3.0, 1.0, 1.0))
+            match disjoint:
+                case Some(overlap):
+                    return 12
+                case None:
+                    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 300:
+        value = value * 10.0
+        index = index + 1
+    return value

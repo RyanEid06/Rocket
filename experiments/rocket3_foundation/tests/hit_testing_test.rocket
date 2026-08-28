@@ -1,0 +1,49 @@
+import src.geometry
+import src.hit_testing
+
+fn main() -> Int:
+    let bounds = geometry.Rect(-2.0, 3.0, 5.0, 4.0)
+    if not hit_testing.point_in_rect(geometry.Vec2(-2.0, 3.0), bounds):
+        return 1
+    if not hit_testing.point_in_rect(geometry.Vec2(2.999, 6.999), bounds):
+        return 2
+    if hit_testing.point_in_rect(geometry.Vec2(3.0, 4.0), bounds):
+        return 3
+    if hit_testing.point_in_rect(geometry.Vec2(0.0, 7.0), bounds):
+        return 4
+    if hit_testing.point_in_rect(geometry.Vec2(0.0, 4.0), geometry.Rect(0.0, 0.0, 0.0, 2.0)):
+        return 5
+    if hit_testing.point_in_rect(geometry.Vec2(0.0, 0.0), geometry.Rect(0.0, 0.0, 2.0, 0.0)):
+        return 6
+
+    let center = geometry.Vec2(10.0, -20.0)
+    if not hit_testing.point_in_circle(center, center, 1.0):
+        return 7
+    if not hit_testing.point_in_circle(geometry.Vec2(center.x + 3.0, center.y + 4.0), center, 5.0):
+        return 8
+    if hit_testing.point_in_circle(geometry.Vec2(center.x + 3.1, center.y + 4.0), center, 5.0):
+        return 9
+    if hit_testing.point_in_circle(center, center, -1.0):
+        return 10
+    let large = large_value()
+    if hit_testing.point_in_circle(geometry.Vec2(large, large), geometry.Vec2(0.0, 0.0), large):
+        return 11
+    if not hit_testing.point_in_circle(geometry.Vec2(large, 0.0), geometry.Vec2(0.0, 0.0), large):
+        return 12
+    let non_finite = large * large
+    if hit_testing.point_in_circle(center, center, non_finite):
+        return 13
+    let tiny = 1.0 / large
+    if hit_testing.point_in_circle(geometry.Vec2(tiny, large), geometry.Vec2(0.0, large), tiny / 2.0):
+        return 15
+    if not hit_testing.point_in_rect(geometry.Vec2(100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0, 1.0), geometry.Rect(0.0, 0.0, 200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0, 2.0)):
+        return 14
+    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 300:
+        value = value * 10.0
+        index = index + 1
+    return value

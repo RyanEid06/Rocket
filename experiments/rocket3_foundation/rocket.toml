@@ -1,0 +1,7 @@
+[package]
+name = "rocket3_foundation_provisional"
+version = "0.0.0"
+entry = "src/main.rocket"
+
+[test]
+directory = "tests"

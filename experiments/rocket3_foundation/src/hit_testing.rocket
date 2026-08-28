@@ -1,0 +1,42 @@
+import src.geometry
+
+pub fn point_in_rect(point: geometry.Vec2, bounds: geometry.Rect) -> Bool:
+    if not geometry.vec2_is_finite(point) or not geometry.rect_has_nonnegative_size(bounds):
+        return false
+    if bounds.width == 0.0 or bounds.height == 0.0:
+        return false
+    return point.x >= bounds.x and point.x < bounds.x + bounds.width and point.y >= bounds.y and point.y < bounds.y + bounds.height
+
+pub fn point_in_circle(point: geometry.Vec2, center: geometry.Vec2, radius: Float) -> Bool:
+    if not geometry.vec2_is_finite(point) or not geometry.vec2_is_finite(center):
+        return false
+    if not float_is_finite(radius) or radius < 0.0:
+        return false
+    let dx = point.x - center.x
+    let dy = point.y - center.y
+    if not float_is_finite(dx) or not float_is_finite(dy):
+        return false
+    let dx_magnitude = absolute(dx)
+    let dy_magnitude = absolute(dy)
+    if dx_magnitude > radius or dy_magnitude > radius:
+        return false
+    let scale = maximum(dx_magnitude, dy_magnitude)
+    if scale == 0.0:
+        return true
+    let scaled_radius = radius / scale
+    let scaled_dx = dx / scale
+    let scaled_dy = dy / scale
+    return scaled_dx * scaled_dx + scaled_dy * scaled_dy <= scaled_radius * scaled_radius
+
+fn float_is_finite(value: Float) -> Bool:
+    return value - value == 0.0
+
+fn absolute(value: Float) -> Float:
+    if value < 0.0:
+        return -value
+    return value
+
+fn maximum(left: Float, right: Float) -> Float:
+    if left > right:
+        return left
+    return right

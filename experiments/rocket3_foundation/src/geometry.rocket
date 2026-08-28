@@ -1,0 +1,73 @@
+pub struct Vec2:
+    x: Float
+    y: Float
+
+pub struct Size:
+    width: Float
+    height: Float
+
+pub struct Rect:
+    x: Float
+    y: Float
+    width: Float
+    height: Float
+
+pub fn vec2_add(left: Vec2, right: Vec2) -> Vec2:
+    return Vec2(left.x + right.x, left.y + right.y)
+
+pub fn vec2_subtract(left: Vec2, right: Vec2) -> Vec2:
+    return Vec2(left.x - right.x, left.y - right.y)
+
+pub fn vec2_scale(value: Vec2, factor: Float) -> Vec2:
+    return Vec2(value.x * factor, value.y * factor)
+
+pub fn rect_is_finite(value: Rect) -> Bool:
+    return float_is_finite(value.x) and float_is_finite(value.y) and float_is_finite(value.width) and float_is_finite(value.height)
+
+pub fn rect_has_nonnegative_size(value: Rect) -> Bool:
+    return rect_is_finite(value) and value.width >= 0.0 and value.height >= 0.0
+
+pub fn rect_normalized(value: Rect) -> Rect:
+    var x = value.x
+    var y = value.y
+    var width = value.width
+    var height = value.height
+    if width < 0.0:
+        x = x + width
+        width = -width
+    if height < 0.0:
+        y = y + height
+        height = -height
+    return Rect(x, y, width, height)
+
+pub fn rect_translate(value: Rect, offset: Vec2) -> Rect:
+    return Rect(value.x + offset.x, value.y + offset.y, value.width, value.height)
+
+pub fn rect_intersection(left: Rect, right: Rect) -> Option[Rect]:
+    if not rect_has_nonnegative_size(left) or not rect_has_nonnegative_size(right):
+        return None()
+    let x = maximum(left.x, right.x)
+    let y = maximum(left.y, right.y)
+    let right_edge = minimum(left.x + left.width, right.x + right.width)
+    let bottom_edge = minimum(left.y + left.height, right.y + right.height)
+    let width = right_edge - x
+    let height = bottom_edge - y
+    if width <= 0.0 or height <= 0.0:
+        return None()
+    return Some(Rect(x, y, width, height))
+
+pub fn vec2_is_finite(value: Vec2) -> Bool:
+    return float_is_finite(value.x) and float_is_finite(value.y)
+
+fn float_is_finite(value: Float) -> Bool:
+    return value - value == 0.0
+
+fn minimum(left: Float, right: Float) -> Float:
+    if left < right:
+        return left
+    return right
+
+fn maximum(left: Float, right: Float) -> Float:
+    if left > right:
+        return left
+    return right

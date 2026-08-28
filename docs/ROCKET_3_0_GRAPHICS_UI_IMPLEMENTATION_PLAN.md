@@ -210,11 +210,11 @@ is `RED` until `WP09` accepts the final Phase 19 baseline.
 | Packet | Feature groups | Maximum scope | Current state |
 | --- | --- | --- | --- |
 | WP00 | F01, F30 planning | Requirements and live plan only | COMPLETE / PROVISIONAL |
-| WP01 | F12, F15 | Provisional geometry and hit-testing kernels | READY / GREEN |
-| WP02 | F13 | Provisional color kernel | BLOCKED BY WP01 / GREEN |
-| WP03 | F19, F17 | Provisional layout and VirtualCanvas math | BLOCKED BY WP01 / GREEN |
+| WP01 | F12, F15 | Provisional geometry and hit-testing kernels | COMPLETE / PROVISIONAL |
+| WP02 | F13 | Provisional color kernel | READY / GREEN |
+| WP03 | F19, F17 | Provisional layout and VirtualCanvas math | READY / GREEN |
 | WP04 | F20 | Provisional theme/style data | BLOCKED BY WP02 / GREEN |
-| WP05 | F18, F25 | Provisional widget IDs and bounded state | BLOCKED BY WP01 / GREEN |
+| WP05 | F18, F25 | Provisional widget IDs and bounded state | READY / GREEN |
 | WP06 | F06 | Provisional reduced-motion state kernel only | BLOCKED BY WP05 / GREEN |
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | READY / GREEN |
 | WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | BLOCKED BY WP07 / GREEN |
@@ -325,6 +325,16 @@ to check/test only this package and direct all generated state to
 `out/rocket3-provisional/wp01`. Do not add top-level CMake/CTest registration.
 
 **Checkpoint:** `feat: add provisional Rocket 3 geometry kernels`
+
+**WP01 evidence (2026-08-29):** The isolated `rocket3_foundation_provisional`
+package provides local `Vec2`, `Size`, and `Rect` values plus the F12 geometry
+math and F15 pure hit-testing kernels. The required red run failed because
+`src.geometry` and `src.hit_testing` did not yet exist. The focused native
+suite then passed `geometry_test.rocket` and `hit_testing_test.rocket` (2/2),
+with `ROCKET_ARTIFACT_ROOT` set below `out/rocket3-provisional/wp01`; the
+focused formatter check also passed. This is PROVISIONAL kernel evidence only:
+there is no public API, SDK registration, native input integration, renderer,
+or final non-finite-input constructor surface.
 
 ### WP02 - Provisional color kernel
 
@@ -669,10 +679,10 @@ file/test/doc/evidence links when executed.
 | F09 Render targets/scopes | WP16 | RED | WP34 |
 | F10 Shaders | WP17 | RED | WP34 |
 | F11 Display quality | WP18 | RED | WP34 |
-| F12 Graphics core types | WP01, WP19 | kernel GREEN | WP34 |
+| F12 Graphics core types | WP01, WP19 | WP01 PROVISIONAL geometry kernel: `experiments/rocket3_foundation/src/geometry.rocket`; focused native test and formatter evidence recorded above | WP34 |
 | F13 Color | WP02, WP19 | kernel GREEN | WP34 |
 | F14 Shape API | WP20 | RED | WP34 |
-| F15 Input/hit testing | WP01, WP20 | hit kernel GREEN | WP34 |
+| F15 Input/hit testing | WP01, WP20 | WP01 PROVISIONAL pure hit kernel: `experiments/rocket3_foundation/src/hit_testing.rocket`; focused native test and formatter evidence recorded above | WP34 |
 | F16 Typography | WP22 | RED | WP34 |
 | F17 VirtualCanvas | WP03, WP21 | math kernel GREEN | WP34 |
 | F18 UI context/IDs | WP05, WP23 | ID kernel GREEN | WP34 |
@@ -697,7 +707,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP01 - Provisional geometry and hit testing
+**Current packet:** WP02 - Provisional color kernel
 
 ```text
 Work only in this existing isolated worktree:
@@ -711,37 +721,42 @@ Verify that the branch is codex/rocket-3-provisional and begin from a clean
 worktree. Phase 19 is still active on master. Refresh the Phase 19 overlap from
 the recorded base SHA before editing. Do not modify master, Phase 19 evidence,
 compiler/runtime/stdlib registration, native adapters, top-level CMake/CTest,
-SDK/package outputs, version files, tags, or release artifacts. If WP01 now
+SDK/package outputs, version files, tags, or release artifacts. If WP02 now
 touches a Phase-19-owned file or contract, classify it RED and stop with the
 evidence.
 
-Execute only WP01: provisional geometry and hit testing (F12 subset plus F15
-pure subset). Use test-driven development and the exact provisional behavior in
-the plan. Create only the isolated experiments/rocket3_foundation package and
-WP01 files. Keep all APIs explicitly provisional; do not freeze final Rocket
-3.0 constructors, named/default arguments, module layout, or public SDK surface.
+Execute only WP02: provisional color kernel (F13). Use test-driven development
+and the exact provisional behavior in the plan. Create only
+experiments/rocket3_foundation/src/color.rocket and
+experiments/rocket3_foundation/tests/color_test.rocket, plus this plan's
+WP02-only status, traceability evidence, and prompt rotation. Keep all APIs
+explicitly provisional; do not freeze final Rocket 3.0 constructors,
+named/default arguments, module layout, renderer conversion, or public SDK
+surface.
 
 Before running Rocket commands, confirm no Phase 19 build/test processes are
 active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp01 inside this worktree, never automatically retry a
+out/rocket3-provisional/wp02 inside this worktree, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing.
 
-Implement and test Vec2, Size, Rect, pure rectangle operations, rectangle hit
-testing, and circle hit testing exactly as WP01 specifies. Do not start Color,
-layout, VirtualCanvas, UI, native graphics, or any later packet. Run focused
-checks, update WP01's packet-index state and atomic traceability evidence, then
-follow the prompt-rotation contract in section 4. The next eligible packet will
-normally be WP02: replace the current packet label and this entire fenced block
-with a complete WP02 prompt. Run git diff --check, review the scoped diff, and
-commit the WP01 files plus plan/status/prompt rotation together with:
+Implement and test the RGBA channel model; RGB/RGBA/hex/HSV construction;
+alpha replacement; mix/lerp; lighten/darken; saturate/desaturate; deterministic
+clamping and hue wrapping; and malformed-hex `Result` behavior using stable
+numeric vectors. Do not bind raylib colors or start layout, VirtualCanvas, UI,
+native graphics, or any later packet. Run focused checks, update WP02's
+packet-index state and atomic traceability evidence, then follow the prompt-
+rotation contract in section 4. The next eligible packet will normally be WP03:
+replace the current packet label and this entire fenced block with a complete
+WP03 prompt. Run git diff --check, review the scoped diff, and commit the WP02
+files plus plan/status/prompt rotation together with:
 
-feat: add provisional Rocket 3 geometry kernels
+feat: add provisional Rocket 3 color kernel
 
-Only rotate after every required WP01 check passes. If implementation,
-verification, or commit fails, leave WP01 as the current prompt and report the
+Only rotate after every required WP02 check passes. If implementation,
+verification, or commit fails, leave WP02 as the current prompt and report the
 blocker. After a successful commit, stop and report the exact files, tests,
 results, commit, remaining intentional provisional limitations, and the packet
-prepared for the next chat. Do not begin WP02 in the same chat.
+prepared for the next chat. Do not begin WP03 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher
