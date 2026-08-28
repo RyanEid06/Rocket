@@ -2,11 +2,17 @@ name: Rocket Phase 19 native acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      native_run_id:
+        description: Reuse native cross-input artifacts from this successful run
+        required: false
+        type: string
   push:
     branches: [master, main]
   pull_request:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -16,6 +22,7 @@ concurrency:
 jobs:
   native-acceptance:
     name: ${{ matrix.target }} native acceptance
+    if: github.event_name != 'workflow_dispatch' || inputs.native_run_id == ''
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -359,6 +366,7 @@ jobs:
   cross-acceptance:
     name: ${{ matrix.host }} to ${{ matrix.target }} cross acceptance
     needs: native-acceptance
+    if: ${{ always() && (needs.native-acceptance.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.native_run_id != '' && needs.native-acceptance.result == 'skipped')) }}
     timeout-minutes: 180
     strategy:
       fail-fast: false
@@ -426,11 +434,22 @@ jobs:
           echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
           echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
 
-      - name: Download destination runtime and SDK inputs
+      - name: Download destination runtime and SDK inputs from this run
+        if: github.event_name != 'workflow_dispatch' || inputs.native_run_id == ''
         uses: actions/download-artifact@v4
         with:
           name: rocket-phase19-cross-input-${{ matrix.target }}
           path: out/phase19/cross-input/${{ matrix.target }}
+
+      - name: Download destination runtime and SDK inputs from an accepted native run
+        if: github.event_name == 'workflow_dispatch' && inputs.native_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: rocket-phase19-cross-input-${{ matrix.target }}
+          path: out/phase19/cross-input/${{ matrix.target }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.native_run_id }}
 
       - name: Build the Windows host compiler
         if: matrix.host == 'windows-x64'

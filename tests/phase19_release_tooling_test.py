@@ -147,11 +147,19 @@ def main() -> int:
         workflow.count(
             "rocket-phase19-cross-${{ matrix.host }}-to-${{ matrix.target }}"
         ) == 2
-        and workflow.count("rocket-phase19-cross-input-${{ matrix.target }}") == 2
+        and workflow.count("rocket-phase19-cross-input-${{ matrix.target }}") == 3
         and "needs: native-acceptance" in workflow
         and "needs: cross-acceptance" in workflow
         and workflow.count("phase19-cross-ok") == 2,
         "cross-build artifact handoff or native execution contract is incomplete",
+    )
+    check(
+        "native_run_id:" in workflow
+        and "actions: read" in workflow
+        and "run-id: ${{ inputs.native_run_id }}" in workflow
+        and "github-token: ${{ github.token }}" in workflow
+        and "needs.native-acceptance.result == 'skipped'" in workflow,
+        "manual cross-only acceptance cannot reuse an observed native run",
     )
 
     package_tool = load("phase19_package", root / "scripts" / "phase19_package.py")
@@ -563,12 +571,25 @@ def main() -> int:
             "libcmt.lib", case_sensitive=True
         ) == ("libcmt.lib", "LIBCMT.lib")
         and cross_tool.windows_library_copy_names(
-            "KERNEL32.lib", case_sensitive=True
-        ) == ("KERNEL32.lib",)
+            "kernel32.Lib", case_sensitive=True
+        ) == ("kernel32.Lib", "kernel32.lib", "KERNEL32.lib")
+        and cross_tool.windows_library_copy_names(
+            "Uuid.Lib", case_sensitive=True
+        ) == ("Uuid.Lib", "uuid.lib", "UUID.lib")
         and cross_tool.windows_library_copy_names(
             "libcmt.lib", case_sensitive=False
         ) == ("libcmt.lib",),
         "case-sensitive Windows cross SDK omits lld-link library aliases",
+    )
+
+    mixed_case_libraries = work / "mixed-case-windows-libraries"
+    mixed_case_libraries.mkdir()
+    for name in ("kernel32.Lib", "Uuid.Lib", "ignored.txt"):
+        (mixed_case_libraries / name).write_bytes(name.encode("ascii"))
+    check(
+        [path.name for path in cross_tool.windows_libraries(mixed_case_libraries)]
+        == ["kernel32.Lib", "Uuid.Lib"],
+        "Windows cross SDK ignores mixed-case .Lib inputs on Linux",
     )
 
     native_host = cross_tool.host_alias()

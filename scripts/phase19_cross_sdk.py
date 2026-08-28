@@ -141,10 +141,21 @@ def copy_linux_sysroot(source: Path, destination: Path) -> None:
 def windows_library_copy_names(
     name: str, *, case_sensitive: bool
 ) -> tuple[str, ...]:
-    alias = f"{Path(name).stem.upper()}{Path(name).suffix.lower()}"
-    if case_sensitive and alias != name:
-        return name, alias
-    return (name,)
+    if not case_sensitive:
+        return (name,)
+    stem = Path(name).stem
+    candidates = (name, f"{stem.lower()}.lib", f"{stem.upper()}.lib")
+    return tuple(dict.fromkeys(candidates))
+
+
+def windows_libraries(source: Path) -> list[Path]:
+    return sorted(
+        (
+            path for path in source.iterdir()
+            if path.is_file() and path.suffix.lower() == ".lib"
+        ),
+        key=lambda path: (path.name.lower(), path.name),
+    )
 
 
 def all_regular_files(root: Path) -> list[Path]:
@@ -226,7 +237,7 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             strict=True,
         ):
             source = Path(source_name).resolve()
-            libraries = sorted(source.glob("*.lib"))
+            libraries = windows_libraries(source)
             if not libraries:
                 raise CrossSdkFailure(f"no Windows libraries found in {source}")
             destination = output / "lib" / name
