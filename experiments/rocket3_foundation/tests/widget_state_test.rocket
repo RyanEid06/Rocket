@@ -1,0 +1,85 @@
+import std.collections
+import std.string
+import src.widget_state
+
+fn same_text(left: String, right: String) -> Bool:
+    return left == right
+
+fn main() -> Int:
+    let root = widget_state.compose_id("", "panel")
+    let child = widget_state.compose_id(root.path, "button")
+    let same_child = widget_state.compose_id("panel", "button")
+    if not same_text(child.path, "panel/button") or child.hash != same_child.hash:
+        return 1
+
+    match widget_state.new_state(3):
+        case Ok(initial):
+            var state = widget_state.begin_frame(initial)
+            let first = widget_state.register(state, root)
+            if not first.accepted or first.duplicate:
+                return 2
+            state = first.state
+            let second = widget_state.register(state, child)
+            if not second.accepted or second.duplicate:
+                return 3
+            state = second.state
+            let duplicate = widget_state.register(state, child)
+            if duplicate.accepted or not duplicate.duplicate:
+                return 4
+            state = duplicate.state
+            state = widget_state.set_active(state, child.hash)
+            state = widget_state.set_focused(state, root.hash)
+            state = widget_state.end_frame(state)
+            if widget_state.count(state) != 2 or widget_state.active(state) != child.hash or widget_state.focused(state) != root.hash:
+                return 5
+
+            state = widget_state.begin_frame(state)
+            let third = widget_state.register(state, widget_state.compose_id("", "new"))
+            if not third.accepted:
+                return 6
+            state = widget_state.end_frame(third.state)
+            if widget_state.count(state) != 1 or widget_state.active(state) != -1 or widget_state.focused(state) != -1:
+                return 7
+
+            state = widget_state.begin_frame(state)
+            let a = widget_state.register(state, root)
+            state = a.state
+            let b = widget_state.register(state, child)
+            state = b.state
+            let c = widget_state.register(state, same_child)
+            state = c.state
+            let full = widget_state.register(state, widget_state.compose_id("", "fourth"))
+            if full.accepted or full.duplicate:
+                return 8
+            state = widget_state.end_frame(full.state)
+            if widget_state.count(state) != 2:
+                return 9
+        case Err(message):
+            return 10
+
+    match widget_state.new_state(0):
+        case Ok(value):
+            return 11
+        case Err(message):
+            if message.byte_length() == 0:
+                return 12
+    match widget_state.new_state(100001):
+        case Ok(value):
+            return 13
+        case Err(message):
+            if message.byte_length() == 0:
+                return 14
+
+    match widget_state.new_state(100000):
+        case Ok(initial):
+            var stress = widget_state.begin_frame(initial)
+            match widget_state.register_many(stress, "stress", 100000):
+                case Ok(value):
+                    stress = value
+                case Err(message):
+                    return 15
+            if widget_state.count(stress) != 100000:
+                return 16
+        case Err(message):
+            return 17
+    return 0

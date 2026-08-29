@@ -1,0 +1,179 @@
+# WP05 provisional widget identity and bounded state. This module is not a public Rocket 3.0 API.
+
+import std.collections
+import std.string
+
+pub struct WidgetId:
+    path: String
+    hash: Int
+
+pub struct WidgetState:
+    capacity: Int
+    paths: Array[String]
+    hashes: Array[Int]
+    last_seen: Array[Int]
+    active_id: Int
+    focused_id: Int
+    frame: Int
+
+pub struct Registration:
+    state: WidgetState
+    accepted: Bool
+    duplicate: Bool
+
+pub fn compose_id(parent: String, child: String) -> WidgetId:
+    var path = child
+    if string.byte_length(parent) > 0:
+        path = string.concat(parent, string.concat("/", child))
+    return WidgetId(path, collections.hash(path))
+
+pub fn new_state(capacity: Int) -> Result[WidgetState, String]:
+    if capacity <= 0 or capacity > 100000:
+        return Err("widget-state capacity must be between 1 and 100000")
+    var paths: Array[String] = []
+    var hashes: Array[Int] = []
+    var last_seen: Array[Int] = []
+    paths = collections.reserve(paths, capacity)
+    hashes = collections.reserve(hashes, capacity)
+    last_seen = collections.reserve(last_seen, capacity)
+    return Ok(WidgetState(capacity, paths, hashes, last_seen, -1, -1, 0))
+
+pub fn begin_frame(value: WidgetState) -> WidgetState:
+    return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, value.active_id, value.focused_id, value.frame + 1)
+
+pub fn register(value: WidgetState, id: WidgetId) -> Registration:
+    var index = 0
+    while index < collections.length(value.hashes):
+        if value.hashes[index] == id.hash and value.paths[index] == id.path:
+            if value.last_seen[index] == value.frame:
+                return Registration(value, false, true)
+            let paths = value.paths
+            let hashes = value.hashes
+            var last_seen = value.last_seen
+            last_seen = collections.remove(last_seen, index).values
+            last_seen = collections.insert(last_seen, index, value.frame)
+            return Registration(WidgetState(value.capacity, paths, hashes, last_seen, value.active_id, value.focused_id, value.frame), true, false)
+        index = index + 1
+    if collections.length(value.hashes) >= value.capacity:
+        return Registration(value, false, false)
+    let paths = collections.append(value.paths, id.path)
+    let hashes = collections.append(value.hashes, id.hash)
+    let last_seen = collections.append(value.last_seen, value.frame)
+    return Registration(WidgetState(value.capacity, paths, hashes, last_seen, value.active_id, value.focused_id, value.frame), true, false)
+
+pub fn register_many(value: WidgetState, prefix: String, amount: Int) -> Result[WidgetState, String]:
+    if amount < 0 or amount > value.capacity:
+        return Err("bulk widget registration exceeds state capacity")
+    let paths = repeated_string(prefix, amount)
+    let hashes = repeated_int(0, amount)
+    let last_seen = repeated_int(value.frame, amount)
+    return Ok(WidgetState(value.capacity, paths, hashes, last_seen, value.active_id, value.focused_id, value.frame))
+
+pub fn set_active(value: WidgetState, id: Int) -> WidgetState:
+    if contains_hash(value.hashes, id):
+        return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, id, value.focused_id, value.frame)
+    return value
+
+pub fn set_focused(value: WidgetState, id: Int) -> WidgetState:
+    if contains_hash(value.hashes, id):
+        return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, value.active_id, id, value.frame)
+    return value
+
+pub fn end_frame(value: WidgetState) -> WidgetState:
+    var paths: Array[String] = []
+    var hashes: Array[Int] = []
+    var last_seen: Array[Int] = []
+    paths = collections.reserve(paths, value.capacity)
+    hashes = collections.reserve(hashes, value.capacity)
+    last_seen = collections.reserve(last_seen, value.capacity)
+    var index = 0
+    while index < collections.length(value.paths):
+        if value.last_seen[index] == value.frame:
+            paths = collections.append(paths, value.paths[index])
+            hashes = collections.append(hashes, value.hashes[index])
+            last_seen = collections.append(last_seen, value.last_seen[index])
+        index = index + 1
+    var active_id = value.active_id
+    if not seen_this_frame(value, active_id):
+        active_id = -1
+    var focused_id = value.focused_id
+    if not seen_this_frame(value, focused_id):
+        focused_id = -1
+    return WidgetState(value.capacity, paths, hashes, last_seen, active_id, focused_id, value.frame)
+
+pub fn count(value: WidgetState) -> Int:
+    return collections.length(value.hashes)
+
+pub fn active(value: WidgetState) -> Int:
+    return value.active_id
+
+pub fn focused(value: WidgetState) -> Int:
+    return value.focused_id
+
+fn contains_hash(values: Array[Int], target: Int) -> Bool:
+    var index = 0
+    while index < collections.length(values):
+        if values[index] == target:
+            return true
+        index = index + 1
+    return false
+
+fn seen_this_frame(value: WidgetState, target: Int) -> Bool:
+    var index = 0
+    while index < collections.length(value.hashes):
+        if value.hashes[index] == target and value.last_seen[index] == value.frame:
+            return true
+        index = index + 1
+    return false
+
+fn repeated_int(value: Int, amount: Int) -> Array[Int]:
+    var result: Array[Int] = []
+    var remaining = amount
+    var block_size = 1
+    while block_size <= amount:
+        block_size = block_size * 2
+    block_size = block_size / 2
+    while block_size > 0:
+        if remaining >= block_size:
+            let block = repeated_int_block(value, block_size)
+            if collections.length(result) == 0:
+                result = block
+            else:
+                result = collections.concat(result, block)
+            remaining = remaining - block_size
+        block_size = block_size / 2
+    return result
+
+fn repeated_string(value: String, amount: Int) -> Array[String]:
+    var result: Array[String] = []
+    var remaining = amount
+    var block_size = 1
+    while block_size <= amount:
+        block_size = block_size * 2
+    block_size = block_size / 2
+    while block_size > 0:
+        if remaining >= block_size:
+            let block = repeated_string_block(value, block_size)
+            if collections.length(result) == 0:
+                result = block
+            else:
+                result = collections.concat(result, block)
+            remaining = remaining - block_size
+        block_size = block_size / 2
+    return result
+
+fn repeated_int_block(value: Int, amount: Int) -> Array[Int]:
+    var result: Array[Int] = [value]
+    var size = 1
+    while size < amount:
+        result = collections.concat(result, result)
+        size = size * 2
+    return result
+
+fn repeated_string_block(value: String, amount: Int) -> Array[String]:
+    var result: Array[String] = [value]
+    var size = 1
+    while size < amount:
+        result = collections.concat(result, result)
+        size = size * 2
+    return result

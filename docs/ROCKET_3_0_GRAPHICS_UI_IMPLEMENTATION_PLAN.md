@@ -204,8 +204,8 @@ operational prompt, not a substitute for it.
 
 ## 5. Packet index
 
-`WP00` is the planning checkpoint and `WP01` through `WP03` are complete
-foundation packets. WP04 remains the lowest-numbered eligible packet. WP09 is
+`WP00` is the planning checkpoint and `WP01` through `WP05` are complete
+foundation packets. WP06 remains the lowest-numbered eligible packet. WP09 is
 the integration audit after WP08; it no longer waits for Phase 19.
 
 | Packet | Feature groups | Maximum scope | Current state |
@@ -215,8 +215,8 @@ the integration audit after WP08; it no longer waits for Phase 19.
 | WP02 | F13 | Provisional color kernel | COMPLETE / PROVISIONAL |
 | WP03 | F19, F17 | Provisional layout and VirtualCanvas math | COMPLETE / PROVISIONAL |
 | WP04 | F20 | Provisional theme/style data | COMPLETE / PROVISIONAL |
-| WP05 | F18, F25 | Provisional widget IDs and bounded state | READY / GREEN |
-| WP06 | F06 | Provisional reduced-motion state kernel only | BLOCKED BY WP05 / GREEN |
+| WP05 | F18, F25 | Provisional widget IDs and bounded state | COMPLETE / PROVISIONAL |
+| WP06 | F06 | Provisional reduced-motion state kernel only | READY / GREEN |
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | READY / GREEN |
 | WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | BLOCKED BY WP07 / GREEN |
 | WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | BLOCKED BY WP08 / YELLOW |
@@ -442,6 +442,27 @@ cleanup, and a 100,000-ID stress fixture. Capacity values remain measured
 configuration, not public constants. No native input or public `Context` API.
 
 **Checkpoint:** `feat: add provisional Rocket 3 widget state kernel`
+
+**WP05 evidence (2026-08-29):** The main `master` checkout now provides a
+local, explicitly provisional F18/F25 widget-state kernel in
+`experiments/rocket3_foundation/src/widget_state.rocket`. It composes stable
+hierarchical paths and hashes, detects duplicate registration within a frame,
+retains IDs seen in the prior frame, evicts unseen IDs at `end_frame`, and
+clears active/focused IDs when they are not seen. Capacity is validated from 1
+through 100,000 and registrations beyond capacity are rejected. The test
+fixture covers nested identity, duplicate detection, active/focus cleanup,
+capacity rejection, invalid capacities, and a 100,000-entry bounded stress
+fixture. The implementation uses logarithmic concatenation for that fixture
+because the existing persistent `std.collections.append` contract clones on
+every append; no unbounded or native storage was introduced. The required red
+run failed because `src.widget_state` did not exist. The final focused native
+package suite passed `widget_state_test.rocket`, `theme_test.rocket`,
+`color_test.rocket`, `geometry_test.rocket`, `hit_testing_test.rocket`,
+`layout_test.rocket`, and `virtual_canvas_test.rocket` (7/7), with
+`ROCKET_ARTIFACT_ROOT` set below `out/rocket3-provisional/wp05`; the focused
+formatter check and `git diff --check` also passed. This remains PROVISIONAL
+kernel evidence only: there is no public `Context`, `UiFrame`, `Response`,
+native input, keyboard/focus system, modal capture, or public SDK surface.
 
 ### WP06 - Provisional reduced-motion kernel
 
@@ -738,14 +759,14 @@ file/test/doc/evidence links when executed.
 | F15 Input/hit testing | WP01, WP20 | WP01 PROVISIONAL pure hit kernel: `experiments/rocket3_foundation/src/hit_testing.rocket`; focused native test and formatter evidence recorded above | WP34 |
 | F16 Typography | WP22 | RED | WP34 |
 | F17 VirtualCanvas | WP03, WP21 | WP03 PROVISIONAL math kernel: `experiments/rocket3_foundation/src/virtual_canvas.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
-| F18 UI context/IDs | WP05, WP23 | ID kernel GREEN | WP34 |
+| F18 UI context/IDs | WP05, WP23 | WP05 PROVISIONAL ID kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; focused native package and formatter evidence recorded above | WP34 |
 | F19 Layout | WP03, WP24 | WP03 PROVISIONAL layout kernel: `experiments/rocket3_foundation/src/layout.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
 | F20 Themes/styles | WP04, WP25 | WP04 PROVISIONAL data kernel: `experiments/rocket3_foundation/src/theme.rocket`; focused native package and formatter evidence recorded above | WP34 |
 | F21 Controls | WP26 | RED | WP34 |
 | F22 Containers/transient UI | WP27 | RED | WP34 |
 | F23 Asset store | WP28 | RED | WP34 |
 | F24 Errors/lifetimes | WP29 | RED | WP34 |
-| F25 Bounded state | WP05, WP30 | kernel GREEN | WP34 |
+| F25 Bounded state | WP05, WP30 | WP05 PROVISIONAL bounded-state kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; focused native package and formatter evidence recorded above | WP34 |
 | F26 Performance | WP08, WP31 | schema GREEN | WP34 |
 | F27 Visual regression | WP07, WP08, WP32 | comparator/schema GREEN | WP34 |
 | F28 Examples/showcase | WP33 | RED | WP34 |
@@ -760,7 +781,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP05 - Provisional widget IDs and bounded state
+**Current packet:** WP06 - Provisional reduced-motion kernel
 
 ```text
 Work only in the main Rocket checkout:
@@ -772,49 +793,49 @@ docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
 Verify that the branch is master, begin from a clean checkout, and confirm it
 contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP05 may use
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP06 may use
 current Rocket code and normal build/test paths, but must not expand beyond the
-WP05 packet scope. If `git status --short --branch` shows
+WP06 packet scope. If `git status --short --branch` shows
 an unpushed Rocket 3 checkpoint, push it before editing.
 
-Recommended model: GPT-5.6 Terra with High reasoning.
+Recommended model: GPT-5.6 Luna with Medium reasoning.
 
-Execute only WP05: provisional widget IDs and bounded state (F18 ID subset and
-F25). Use test-driven development and the exact provisional behavior in the
-plan. Create only experiments/rocket3_foundation/src/widget_state.rocket and
-experiments/rocket3_foundation/tests/widget_state_test.rocket, plus this plan's
-WP05-only status, traceability evidence, and prompt rotation. Keep all APIs
-explicitly provisional; do not freeze final Context, UiFrame, Response,
-public constructors, named/default arguments, or public SDK surface.
+Execute only WP06: provisional reduced-motion kernel (F06 reduced-motion
+subset). Use test-driven development and the exact provisional behavior in the
+plan. Create only experiments/rocket3_foundation/src/reduced_motion.rocket and
+experiments/rocket3_foundation/tests/reduced_motion_test.rocket, plus this
+plan's WP06-only status, traceability evidence, and prompt rotation. Keep all
+APIs explicitly provisional; do not freeze the public timeline API, easing
+names, tween constructors, arbitrary state mutation, or public SDK surface.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp05 inside this checkout, never automatically retry a
+out/rocket3-provisional/wp06 inside this checkout, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
 current `rocketc.exe` is not present, first inspect the repository build guidance;
 before starting any build that could use more than 20 GiB, stop and ask the owner.
 
-Implement and test deterministic hierarchical widget-ID composition, duplicate
-detection within a frame, frame-seen tracking, bounded capacity, unseen-frame
-eviction, active/focus cleanup, and a 100,000-ID stress fixture. Capacity
-values remain measured configuration, not public constants. Do not add native
-input, keyboard handling, modal capture, public Context/UI frame APIs, or
-later-packet work. Run focused checks, update WP05's packet-index state and
-atomic traceability evidence, then follow the prompt-rotation contract in
-section 4. The next eligible packet will normally be WP06: replace the current
-packet label and this entire fenced block with a complete WP06 prompt. Run git
-diff --check, review the scoped diff, commit the WP05 files plus plan/status/
-prompt rotation together with:
+Implement and test classification of essential and nonessential transitions,
+snapping nonessential motion to its final state, deterministic progress for
+allowed reduced transitions, zero/negative duration behavior, and large time
+deltas. Keep application state explicitly owned; do not add the public timeline
+API, arbitrary object mutation, easing families, or later-packet work. Run
+focused checks, update WP06's packet-index state and atomic traceability
+evidence, then follow the prompt-rotation contract in section 4. The next
+eligible packet will normally be WP07: replace the current packet label and
+this entire fenced block with a complete WP07 prompt. Run git diff --check,
+review the scoped diff, and commit the WP06 files plus plan/status/prompt
+rotation together with:
 
-feat: add provisional Rocket 3 widget state kernel
+feat: add provisional Rocket 3 reduced motion policy
 
-Only rotate after every required WP05 check passes. If implementation or
-verification fails, leave WP05 as the current prompt and report the blocker.
+Only rotate after every required WP06 check passes. If implementation or
+verification fails, leave WP06 as the current prompt and report the blocker.
 After committing, push `master` to `origin`. If push fails,
-do not begin WP06; report the push blocker and preserve the committed handoff.
+do not begin WP07; report the push blocker and preserve the committed handoff.
 After a successful push, stop and report the exact files, tests, results,
 commit, push result, remaining intentional provisional limitations, and the
-packet prepared for the next chat. Do not begin WP06 in the same chat.
+packet prepared for the next chat. Do not begin WP07 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher
