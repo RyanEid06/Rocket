@@ -1,0 +1,55 @@
+# WP03 provisional VirtualCanvas math kernel. This module is not a public Rocket 3.0 API.
+
+import src.geometry
+
+pub struct Bars:
+    left: Float
+    top: Float
+    right: Float
+    bottom: Float
+
+pub struct CanvasMapping:
+    scale: Float
+    viewport: geometry.Rect
+    bars: Bars
+
+pub fn create(logical: geometry.Size, physical: geometry.Size) -> Result[CanvasMapping, String]:
+    if not valid_size(logical) or not valid_size(physical):
+        return Err("logical and physical canvas sizes must be finite and positive")
+    let width_scale = physical.width / logical.width
+    let height_scale = physical.height / logical.height
+    let scale = minimum(width_scale, height_scale)
+    let viewport_width = logical.width * scale
+    let viewport_height = logical.height * scale
+    if not is_finite(scale) or not is_finite(viewport_width) or not is_finite(viewport_height):
+        return Err("canvas mapping is not finite")
+    let left =(physical.width - viewport_width) / 2.0
+    let top =(physical.height - viewport_height) / 2.0
+    let viewport = geometry.Rect(left, top, viewport_width, viewport_height)
+    return Ok(CanvasMapping(scale, viewport, Bars(left, top, physical.width - viewport_width - left, physical.height - viewport_height - top)))
+
+pub fn logical_to_physical(mapping: CanvasMapping, logical: geometry.Vec2) -> geometry.Vec2:
+    return geometry.Vec2(mapping.viewport.x + logical.x * mapping.scale, mapping.viewport.y + logical.y * mapping.scale)
+
+pub fn physical_to_logical(mapping: CanvasMapping, physical: geometry.Vec2) -> Option[geometry.Vec2]:
+    if not valid_mapping(mapping) or not geometry.vec2_is_finite(physical):
+        return None()
+    let right = mapping.viewport.x + mapping.viewport.width
+    let bottom = mapping.viewport.y + mapping.viewport.height
+    if physical.x < mapping.viewport.x or physical.x > right or physical.y < mapping.viewport.y or physical.y > bottom:
+        return None()
+    return Some(geometry.Vec2((physical.x - mapping.viewport.x) / mapping.scale,(physical.y - mapping.viewport.y) / mapping.scale))
+
+fn is_finite(value: Float) -> Bool:
+    return value - value == 0.0
+
+fn minimum(left: Float, right: Float) -> Float:
+    if left < right:
+        return left
+    return right
+
+fn valid_mapping(mapping: CanvasMapping) -> Bool:
+    return is_finite(mapping.scale) and mapping.scale > 0.0 and geometry.rect_has_nonnegative_size(mapping.viewport)
+
+fn valid_size(value: geometry.Size) -> Bool:
+    return is_finite(value.width) and is_finite(value.height) and value.width > 0.0 and value.height > 0.0

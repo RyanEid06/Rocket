@@ -1,0 +1,114 @@
+# WP03 provisional layout kernel. This module is not a public Rocket 3.0 API.
+
+import src.geometry
+
+pub struct Anchor:
+    horizontal: Int
+    vertical: Int
+
+pub struct Sizing:
+    mode: Int
+    amount: Float
+
+pub struct Insets:
+    left: Float
+    top: Float
+    right: Float
+    bottom: Float
+
+pub fn anchor_rect(bounds: geometry.Rect, child: geometry.Size, anchor: Anchor) -> geometry.Rect:
+    if not geometry.rect_has_nonnegative_size(bounds):
+        return empty_rect()
+    let width = nonnegative(child.width)
+    let height = nonnegative(child.height)
+    let horizontal = anchor_factor(anchor.horizontal)
+    let vertical = anchor_factor(anchor.vertical)
+    return finite_rect_or_empty(geometry.Rect(bounds.x +(bounds.width - width) * horizontal, bounds.y +(bounds.height - height) * vertical, width, height))
+
+pub fn resolve_size(policy: Sizing, available: Float, content: Float) -> Float:
+    if policy.mode == 0:
+        return nonnegative(policy.amount)
+    if policy.mode == 1:
+        return nonnegative(available)
+    if policy.mode == 2:
+        return nonnegative(content)
+    if policy.mode == 3:
+        return nonnegative(available) * clamp_unit(policy.amount)
+    return 0.0
+
+pub fn inset_rect(bounds: geometry.Rect, insets: Insets) -> geometry.Rect:
+    if not geometry.rect_has_nonnegative_size(bounds):
+        return empty_rect()
+    let left = nonnegative(insets.left)
+    let top = nonnegative(insets.top)
+    let right = nonnegative(insets.right)
+    let bottom = nonnegative(insets.bottom)
+    return finite_rect_or_empty(geometry.Rect(bounds.x + left, bounds.y + top, nonnegative(bounds.width - left - right), nonnegative(bounds.height - top - bottom)))
+
+pub fn row_item_rect(bounds: geometry.Rect, count: Int, index: Int, gap: Float) -> geometry.Rect:
+    if not geometry.rect_has_nonnegative_size(bounds) or not valid_count(count) or index < 0 or index >= count:
+        return empty_rect()
+    let safe_gap = nonnegative(gap)
+    let unit = nonnegative(bounds.width - safe_gap * int_to_float(count - 1)) / int_to_float(count)
+    return finite_rect_or_empty(geometry.Rect(bounds.x + int_to_float(index) *(unit + safe_gap), bounds.y, unit, bounds.height))
+
+pub fn column_item_rect(bounds: geometry.Rect, count: Int, index: Int, gap: Float) -> geometry.Rect:
+    if not geometry.rect_has_nonnegative_size(bounds) or not valid_count(count) or index < 0 or index >= count:
+        return empty_rect()
+    let safe_gap = nonnegative(gap)
+    let unit = nonnegative(bounds.height - safe_gap * int_to_float(count - 1)) / int_to_float(count)
+    return finite_rect_or_empty(geometry.Rect(bounds.x, bounds.y + int_to_float(index) *(unit + safe_gap), bounds.width, unit))
+
+pub fn grid_item_rect(bounds: geometry.Rect, columns: Int, rows: Int, index: Int, gap: Float) -> geometry.Rect:
+    if not geometry.rect_has_nonnegative_size(bounds) or not valid_count(columns) or not valid_count(rows) or index < 0 or index >= columns * rows:
+        return empty_rect()
+    let safe_gap = nonnegative(gap)
+    let width = nonnegative(bounds.width - safe_gap * int_to_float(columns - 1)) / int_to_float(columns)
+    let height = nonnegative(bounds.height - safe_gap * int_to_float(rows - 1)) / int_to_float(rows)
+    let row = index / columns
+    let column = index - row * columns
+    return finite_rect_or_empty(geometry.Rect(bounds.x + int_to_float(column) *(width + safe_gap), bounds.y + int_to_float(row) *(height + safe_gap), width, height))
+
+pub fn stack_item_rect(bounds: geometry.Rect, child: geometry.Size, anchor: Anchor) -> geometry.Rect:
+    return anchor_rect(bounds, child, anchor)
+
+fn anchor_factor(value: Int) -> Float:
+    if value <= 0:
+        return 0.0
+    if value == 1:
+        return 0.5
+    return 1.0
+
+fn clamp_unit(value: Float) -> Float:
+    if not is_finite(value) or value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+fn empty_rect() -> geometry.Rect:
+    return geometry.Rect(0.0, 0.0, 0.0, 0.0)
+
+fn finite_rect_or_empty(value: geometry.Rect) -> geometry.Rect:
+    if not geometry.rect_has_nonnegative_size(value):
+        return empty_rect()
+    return value
+
+fn int_to_float(value: Int) -> Float:
+    var result = 0.0
+    var remaining = value
+    while remaining > 0:
+        result = result + 1.0
+        remaining = remaining - 1
+    return result
+
+fn is_finite(value: Float) -> Bool:
+    return value - value == 0.0
+
+fn nonnegative(value: Float) -> Float:
+    if not is_finite(value) or value < 0.0:
+        return 0.0
+    return value
+
+fn valid_count(value: Int) -> Bool:
+    return value > 0 and value <= 100000

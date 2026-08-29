@@ -1,0 +1,78 @@
+import src.geometry
+import src.virtual_canvas
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn main() -> Int:
+    match virtual_canvas.create(geometry.Size(1920.0, 1080.0), geometry.Size(1280.0, 1024.0)):
+        case Ok(mapping):
+            if not close(mapping.scale, 1280.0 / 1920.0):
+                return 1
+            if not close(mapping.viewport.x, 0.0) or not close(mapping.viewport.y, 152.0):
+                return 2
+            if not close(mapping.viewport.width, 1280.0) or not close(mapping.viewport.height, 720.0):
+                return 3
+            if not close(mapping.bars.left, 0.0) or not close(mapping.bars.top, 152.0) or not close(mapping.bars.right, 0.0) or not close(mapping.bars.bottom, 152.0):
+                return 4
+            let physical = virtual_canvas.logical_to_physical(mapping, geometry.Vec2(960.0, 540.0))
+            if not close(physical.x, 640.0) or not close(physical.y, 512.0):
+                return 5
+            match virtual_canvas.physical_to_logical(mapping, physical):
+                case Some(logical):
+                    if not close(logical.x, 960.0) or not close(logical.y, 540.0):
+                        return 6
+                case None:
+                    return 7
+            match virtual_canvas.physical_to_logical(mapping, geometry.Vec2(640.0, 100.0)):
+                case Some(logical):
+                    return 8
+                case None:
+                    let wide = virtual_canvas.create(geometry.Size(100.0, 100.0), geometry.Size(300.0, 100.0))
+                    match wide:
+                        case Ok(wide_mapping):
+                            if not close(wide_mapping.viewport.x, 100.0) or not close(wide_mapping.viewport.width, 100.0):
+                                return 9
+                            match virtual_canvas.physical_to_logical(wide_mapping, geometry.Vec2(100.0, 50.0)):
+                                case Some(edge):
+                                    if not close(edge.x, 0.0) or not close(edge.y, 50.0):
+                                        return 10
+                                case None:
+                                    return 11
+                        case Err(message):
+                            return 12
+        case Err(message):
+            return 13
+
+    match virtual_canvas.create(geometry.Size(0.0, 1080.0), geometry.Size(1280.0, 720.0)):
+        case Ok(mapping):
+            return 14
+        case Err(message):
+            if message.byte_length() == 0:
+                return 15
+    match virtual_canvas.create(geometry.Size(1920.0, 1080.0), geometry.Size(-1.0, 720.0)):
+        case Ok(mapping):
+            return 16
+        case Err(message):
+            if message.byte_length() == 0:
+                return 17
+    let large = large_value()
+    let non_finite = large * large
+    match virtual_canvas.create(geometry.Size(non_finite, 1080.0), geometry.Size(1280.0, 720.0)):
+        case Ok(mapping):
+            return 18
+        case Err(message):
+            if message.byte_length() == 0:
+                return 19
+    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 300:
+        value = value * 10.0
+        index = index + 1
+    return value

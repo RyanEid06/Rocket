@@ -212,7 +212,7 @@ is `RED` until `WP09` accepts the final Phase 19 baseline.
 | WP00 | F01, F30 planning | Requirements and live plan only | COMPLETE / PROVISIONAL |
 | WP01 | F12, F15 | Provisional geometry and hit-testing kernels | COMPLETE / PROVISIONAL |
 | WP02 | F13 | Provisional color kernel | COMPLETE / PROVISIONAL |
-| WP03 | F19, F17 | Provisional layout and VirtualCanvas math | READY / GREEN |
+| WP03 | F19, F17 | Provisional layout and VirtualCanvas math | COMPLETE / PROVISIONAL |
 | WP04 | F20 | Provisional theme/style data | READY / GREEN |
 | WP05 | F18, F25 | Provisional widget IDs and bounded state | READY / GREEN |
 | WP06 | F06 | Provisional reduced-motion state kernel only | BLOCKED BY WP05 / GREEN |
@@ -379,6 +379,24 @@ placement; aspect-preserving viewport, scale, bars, and reversible coordinate
 mapping. No render textures, window input, native calls, or public UI types.
 
 **Checkpoint:** `feat: add provisional Rocket 3 layout and canvas kernels`
+
+**WP03 evidence (2026-08-29):** The isolated
+`rocket3_foundation_provisional` package now provides local, deterministic F19
+layout and pure F17 VirtualCanvas kernels. Layout covers the nine anchor
+positions; fixed, fill, content, and percentage sizing; Insets for padding and
+margin composition; gap-aware Row, Column, and Grid item placement; and Stack
+placement. VirtualCanvas computes an aspect-preserving viewport, scale,
+letterbox/pillarbox bars, logical-to-physical conversion, and an explicit
+outside-viewport `None` result for physical-to-logical mapping; invalid or
+non-finite dimensions return `Err` before division. The required red run failed
+because `src.layout` and `src.virtual_canvas` did not yet exist. The final
+focused native package suite passed `layout_test.rocket`,
+`virtual_canvas_test.rocket`, and the prior geometry/color/hit-testing tests
+(5/5), with `ROCKET_ARTIFACT_ROOT` set below
+`out/rocket3-provisional/wp03`; the focused formatter check also passed. This
+remains PROVISIONAL kernel evidence only: there is no public UI API, native
+window/input connection, render texture, SDK registration, renderer conversion,
+or final constructor/named/default-argument surface.
 
 ### WP04 - Provisional theme and style data
 
@@ -700,9 +718,9 @@ file/test/doc/evidence links when executed.
 | F14 Shape API | WP20 | RED | WP34 |
 | F15 Input/hit testing | WP01, WP20 | WP01 PROVISIONAL pure hit kernel: `experiments/rocket3_foundation/src/hit_testing.rocket`; focused native test and formatter evidence recorded above | WP34 |
 | F16 Typography | WP22 | RED | WP34 |
-| F17 VirtualCanvas | WP03, WP21 | math kernel GREEN | WP34 |
+| F17 VirtualCanvas | WP03, WP21 | WP03 PROVISIONAL math kernel: `experiments/rocket3_foundation/src/virtual_canvas.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
 | F18 UI context/IDs | WP05, WP23 | ID kernel GREEN | WP34 |
-| F19 Layout | WP03, WP24 | kernel GREEN | WP34 |
+| F19 Layout | WP03, WP24 | WP03 PROVISIONAL layout kernel: `experiments/rocket3_foundation/src/layout.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
 | F20 Themes/styles | WP04, WP25 | data kernel GREEN | WP34 |
 | F21 Controls | WP26 | RED | WP34 |
 | F22 Containers/transient UI | WP27 | RED | WP34 |
@@ -723,7 +741,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP03 - Provisional layout and VirtualCanvas mathematics
+**Current packet:** WP04 - Provisional theme and style data
 
 ```text
 Work only in this existing isolated worktree:
@@ -737,43 +755,42 @@ Verify that the branch is codex/rocket-3-provisional and begin from a clean
 worktree. Phase 19 is still active on master. Refresh the Phase 19 overlap from
 the recorded base SHA before editing. Do not modify master, Phase 19 evidence,
 compiler/runtime/stdlib registration, native adapters, top-level CMake/CTest,
-SDK/package outputs, version files, tags, or release artifacts. If WP03 now
+SDK/package outputs, version files, tags, or release artifacts. If WP04 now
 touches a Phase-19-owned file or contract, classify it RED and stop with the
 evidence.
 
-Execute only WP03: provisional layout and VirtualCanvas mathematics (F19 and
-the pure F17 subset). Use test-driven development and the exact provisional
-behavior in the plan. Create only
-experiments/rocket3_foundation/src/layout.rocket,
-experiments/rocket3_foundation/src/virtual_canvas.rocket, and their focused
-tests in the same provisional package, plus this plan's WP03-only status,
-traceability evidence, and prompt rotation. Keep all APIs explicitly
-provisional; do not freeze final Rocket 3.0 constructors, named/default
-arguments, module layout, renderer conversion, or public SDK surface.
+Execute only WP04: provisional theme and style data (F20). Use test-driven
+development and the exact provisional behavior in the plan. Create only
+experiments/rocket3_foundation/src/theme.rocket and
+experiments/rocket3_foundation/tests/theme_test.rocket, plus this plan's
+WP04-only status, traceability evidence, and prompt rotation. Keep all APIs
+explicitly provisional; do not freeze final Rocket 3.0 constructors,
+named/default arguments, module layout, style hierarchy, inheritance model,
+renderer conversion, or public SDK surface.
 
 Before running Rocket commands, confirm no Phase 19 build/test processes are
 active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp03 inside this worktree, never automatically retry a
+out/rocket3-provisional/wp04 inside this worktree, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing.
 
-Implement and test nine anchors; fixed/fill/content/percentage sizing
-calculations; Insets, padding, margin, and gap math; deterministic
-Row/Column/Grid/Stack placement; and aspect-preserving viewport, scale, bars,
-and reversible coordinate mapping. Do not add render textures, window input,
+Implement and test internal semantic color, spacing, radius, typography-size,
+and motion-duration tokens; normal, hovered, pressed, disabled, and focused
+style-state data; deterministic override/merge resolution; and validation of
+invalid token or style data. Do not add UI controls, inheritance, rendering,
 native calls, public UI types, or later-packet work. Run focused checks, update
-WP03's packet-index state and atomic traceability evidence, then follow the
+WP04's packet-index state and atomic traceability evidence, then follow the
 prompt-rotation contract in section 4. The next eligible packet will normally
-be WP04: replace the current packet label and this entire fenced block with a
-complete WP04 prompt. Run git diff --check, review the scoped diff, and commit
-the WP03 files plus plan/status/prompt rotation together with:
+be WP05: replace the current packet label and this entire fenced block with a
+complete WP05 prompt. Run git diff --check, review the scoped diff, and commit
+the WP04 files plus plan/status/prompt rotation together with:
 
-feat: add provisional Rocket 3 layout and canvas kernels
+feat: add provisional Rocket 3 theme data
 
-Only rotate after every required WP03 check passes. If implementation,
-verification, or commit fails, leave WP03 as the current prompt and report the
+Only rotate after every required WP04 check passes. If implementation,
+verification, or commit fails, leave WP04 as the current prompt and report the
 blocker. After a successful commit, stop and report the exact files, tests,
 results, commit, remaining intentional provisional limitations, and the packet
-prepared for the next chat. Do not begin WP04 in the same chat.
+prepared for the next chat. Do not begin WP05 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher

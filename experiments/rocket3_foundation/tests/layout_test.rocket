@@ -1,0 +1,94 @@
+import src.geometry
+import src.layout
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn same_rect(left: geometry.Rect, right: geometry.Rect) -> Bool:
+    return close(left.x, right.x) and close(left.y, right.y) and close(left.width, right.width) and close(left.height, right.height)
+
+fn main() -> Int:
+    let bounds = geometry.Rect(10.0, 20.0, 120.0, 90.0)
+    let child = geometry.Size(20.0, 10.0)
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(0, 0)), geometry.Rect(10.0, 20.0, 20.0, 10.0)):
+        return 1
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(1, 0)), geometry.Rect(60.0, 20.0, 20.0, 10.0)):
+        return 2
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(2, 0)), geometry.Rect(110.0, 20.0, 20.0, 10.0)):
+        return 3
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(0, 1)), geometry.Rect(10.0, 60.0, 20.0, 10.0)):
+        return 4
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(1, 1)), geometry.Rect(60.0, 60.0, 20.0, 10.0)):
+        return 5
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(2, 1)), geometry.Rect(110.0, 60.0, 20.0, 10.0)):
+        return 6
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(0, 2)), geometry.Rect(10.0, 100.0, 20.0, 10.0)):
+        return 7
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(1, 2)), geometry.Rect(60.0, 100.0, 20.0, 10.0)):
+        return 8
+    if not same_rect(layout.anchor_rect(bounds, child, layout.Anchor(2, 2)), geometry.Rect(110.0, 100.0, 20.0, 10.0)):
+        return 9
+
+    if not close(layout.resolve_size(layout.Sizing(0, 35.0), 100.0, 15.0), 35.0):
+        return 10
+    if not close(layout.resolve_size(layout.Sizing(1, 0.0), 100.0, 15.0), 100.0):
+        return 11
+    if not close(layout.resolve_size(layout.Sizing(2, 0.0), 100.0, 15.0), 15.0):
+        return 12
+    if not close(layout.resolve_size(layout.Sizing(3, 0.25), 100.0, 15.0), 25.0):
+        return 13
+    if not close(layout.resolve_size(layout.Sizing(3, 2.0), 100.0, 15.0), 100.0):
+        return 14
+
+    let inset = layout.Insets(2.0, 3.0, 5.0, 7.0)
+    if not same_rect(layout.inset_rect(bounds, inset), geometry.Rect(12.0, 23.0, 113.0, 80.0)):
+        return 15
+    let outer = layout.inset_rect(bounds, layout.Insets(4.0, 4.0, 4.0, 4.0))
+    if not same_rect(layout.inset_rect(outer, layout.Insets(2.0, 3.0, 2.0, 3.0)), geometry.Rect(16.0, 27.0, 108.0, 76.0)):
+        return 16
+
+    let row = geometry.Rect(0.0, 0.0, 100.0, 20.0)
+    if not same_rect(layout.row_item_rect(row, 3, 1, 4.0), geometry.Rect(34.6666666667, 0.0, 30.6666666667, 20.0)):
+        return 17
+    let column = geometry.Rect(0.0, 0.0, 20.0, 100.0)
+    if not same_rect(layout.column_item_rect(column, 4, 2, 5.0), geometry.Rect(0.0, 52.5, 20.0, 21.25)):
+        return 18
+    let grid = geometry.Rect(0.0, 0.0, 100.0, 60.0)
+    if not same_rect(layout.grid_item_rect(grid, 3, 2, 4, 4.0), geometry.Rect(34.6666666667, 32.0, 30.6666666667, 28.0)):
+        return 19
+    if not same_rect(layout.stack_item_rect(bounds, child, layout.Anchor(1, 1)), geometry.Rect(60.0, 60.0, 20.0, 10.0)):
+        return 20
+    if not same_rect(layout.row_item_rect(row, 0, 0, 4.0), geometry.Rect(0.0, 0.0, 0.0, 0.0)):
+        return 21
+    if not same_rect(layout.anchor_rect(geometry.Rect(0.0, 0.0, -1.0, 1.0), child, layout.Anchor(1, 1)), geometry.Rect(0.0, 0.0, 0.0, 0.0)):
+        return 22
+    if not same_rect(layout.column_item_rect(column, 2, -1, 0.0), geometry.Rect(0.0, 0.0, 0.0, 0.0)):
+        return 23
+    if not same_rect(layout.grid_item_rect(grid, 0, 2, 0, 0.0), geometry.Rect(0.0, 0.0, 0.0, 0.0)):
+        return 24
+    if not same_rect(layout.grid_item_rect(grid, 3, 2, 6, 0.0), geometry.Rect(0.0, 0.0, 0.0, 0.0)):
+        return 25
+    let large = large_value()
+    let non_finite = large * large
+    if not close(layout.resolve_size(layout.Sizing(0, non_finite), 100.0, 15.0), 0.0):
+        return 26
+    if not close(layout.resolve_size(layout.Sizing(1, 0.0), non_finite, 15.0), 0.0):
+        return 27
+    if not close(layout.resolve_size(layout.Sizing(2, 0.0), 100.0, non_finite), 0.0):
+        return 28
+    if not same_rect(layout.anchor_rect(geometry.Rect(large, 0.0, large, 1.0), geometry.Size(0.0, 1.0), layout.Anchor(2, 0)), geometry.Rect(0.0, 0.0, 0.0, 0.0)):
+        return 29
+    if not same_rect(layout.grid_item_rect(grid, 2, 9223372036854775807, 1, 0.0), geometry.Rect(0.0, 0.0, 0.0, 0.0)):
+        return 30
+    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 308:
+        value = value * 10.0
+        index = index + 1
+    return value
