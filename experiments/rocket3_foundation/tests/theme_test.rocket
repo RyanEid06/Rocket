@@ -1,0 +1,96 @@
+import src.color
+import src.theme
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn same_color(left: color.Color, right: color.Color) -> Bool:
+    return close(left.red, right.red) and close(left.green, right.green) and close(left.blue, right.blue) and close(left.alpha, right.alpha)
+
+fn same_tokens(left: theme.TokenSet, right: theme.TokenSet) -> Bool:
+    return same_color(left.color, right.color) and close(left.spacing, right.spacing) and close(left.radius, right.radius) and close(left.typography_size, right.typography_size) and close(left.motion_duration, right.motion_duration)
+
+fn main() -> Int:
+    let base = theme.TokenSet(color.rgb(0.2, 0.3, 0.4), 8.0, 4.0, 16.0, 0.2)
+    let hover = theme.TokenOverride(true, color.rgb(0.8, 0.7, 0.6), false, 0.0, true, 6.0, false, 0.0, false, 0.0)
+    let merged = theme.merge(base, hover)
+    if not same_tokens(merged, theme.TokenSet(color.rgb(0.8, 0.7, 0.6), 8.0, 6.0, 16.0, 0.2)):
+        return 1
+
+    let states = theme.StyleStates(theme.TokenOverride(false, color.rgb(0.0, 0.0, 0.0), false, 0.0, false, 0.0, false, 0.0, false, 0.0), hover, theme.TokenOverride(false, color.rgb(0.0, 0.0, 0.0), true, 12.0, false, 0.0, false, 0.0, true, 0.0), theme.TokenOverride(true, color.rgb(0.1, 0.1, 0.1), false, 0.0, false, 0.0, true, 12.0, false, 0.0), theme.TokenOverride(false, color.rgb(0.0, 0.0, 0.0), false, 0.0, true, 5.0, false, 0.0, false, 0.0))
+    match theme.resolve(states, 0, base):
+        case Ok(value):
+            if not same_tokens(value, base):
+                return 2
+        case Err(message):
+            return 3
+    match theme.resolve(states, 1, base):
+        case Ok(value):
+            if not same_tokens(value, merged):
+                return 4
+        case Err(message):
+            return 5
+    match theme.resolve(states, 2, base):
+        case Ok(value):
+            if not same_tokens(value, theme.TokenSet(base.color, 12.0, base.radius, base.typography_size, 0.0)):
+                return 6
+        case Err(message):
+            return 7
+    match theme.resolve(states, 3, base):
+        case Ok(value):
+            if not same_tokens(value, theme.TokenSet(color.rgb(0.1, 0.1, 0.1), base.spacing, base.radius, 12.0, base.motion_duration)):
+                return 8
+        case Err(message):
+            return 9
+    match theme.resolve(states, 4, base):
+        case Ok(value):
+            if not same_tokens(value, theme.TokenSet(base.color, base.spacing, 5.0, base.typography_size, base.motion_duration)):
+                return 10
+        case Err(message):
+            return 11
+    match theme.resolve(states, 5, base):
+        case Ok(value):
+            return 12
+        case Err(message):
+            if message.byte_length() == 0:
+                return 13
+
+    match theme.validate_tokens(theme.TokenSet(base.color, -1.0, base.radius, base.typography_size, base.motion_duration)):
+        case Ok(value):
+            return 14
+        case Err(message):
+            if message.byte_length() == 0:
+                return 15
+    let enormous = large_value()
+    let non_finite = enormous * enormous
+    match theme.validate_tokens(theme.TokenSet(base.color, base.spacing, base.radius, base.typography_size, non_finite)):
+        case Ok(value):
+            return 16
+        case Err(message):
+            if message.byte_length() == 0:
+                return 17
+    let invalid_override = theme.TokenOverride(false, base.color, false, 0.0, true, -2.0, false, 0.0, false, 0.0)
+    match theme.validate_override(invalid_override):
+        case Ok(value):
+            return 18
+        case Err(message):
+            if message.byte_length() == 0:
+                return 19
+    match theme.validate_style(states):
+        case Ok(value):
+            if not value:
+                return 20
+        case Err(message):
+            return 21
+    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 308:
+        value = value * 10.0
+        index = index + 1
+    return value

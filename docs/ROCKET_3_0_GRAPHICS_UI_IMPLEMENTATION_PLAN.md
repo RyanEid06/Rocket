@@ -214,7 +214,7 @@ the integration audit after WP08; it no longer waits for Phase 19.
 | WP01 | F12, F15 | Provisional geometry and hit-testing kernels | COMPLETE / PROVISIONAL |
 | WP02 | F13 | Provisional color kernel | COMPLETE / PROVISIONAL |
 | WP03 | F19, F17 | Provisional layout and VirtualCanvas math | COMPLETE / PROVISIONAL |
-| WP04 | F20 | Provisional theme/style data | READY / GREEN |
+| WP04 | F20 | Provisional theme/style data | COMPLETE / PROVISIONAL |
 | WP05 | F18, F25 | Provisional widget IDs and bounded state | READY / GREEN |
 | WP06 | F06 | Provisional reduced-motion state kernel only | BLOCKED BY WP05 / GREEN |
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | READY / GREEN |
@@ -410,6 +410,25 @@ merge resolution, and validation. Do not freeze final module names,
 constructors, style hierarchy, inheritance, or named/default call surfaces.
 
 **Checkpoint:** `feat: add provisional Rocket 3 theme data`
+
+**WP04 evidence (2026-08-29):** The main `master` checkout now provides a
+local, explicitly provisional F20 theme kernel in
+`experiments/rocket3_foundation/src/theme.rocket`. `TokenSet` stores semantic
+color, spacing, radius, typography-size, and motion-duration values;
+`TokenOverride` represents explicit per-token state overrides; and
+`StyleStates` stores normal, hovered, pressed, disabled, and focused data.
+Merge resolution is deterministic and preserves base values for omitted
+overrides. Validation rejects non-finite or negative numeric tokens, invalid
+color channels, and invalid active override values; state resolution rejects
+unknown state identifiers. The required red run failed because `src.theme`
+did not exist. The final focused native package suite passed
+`theme_test.rocket`, `color_test.rocket`, `geometry_test.rocket`,
+`hit_testing_test.rocket`, `layout_test.rocket`, and
+`virtual_canvas_test.rocket` (6/6), with `ROCKET_ARTIFACT_ROOT` set below
+`out/rocket3-provisional/wp04`; the focused formatter check and
+`git diff --check` also passed. This remains PROVISIONAL data-kernel evidence:
+there are no public constructors, named/default arguments, inheritance,
+renderer conversion, native calls, UI controls, or SDK registration.
 
 ### WP05 - Provisional widget IDs and bounded state
 
@@ -721,7 +740,7 @@ file/test/doc/evidence links when executed.
 | F17 VirtualCanvas | WP03, WP21 | WP03 PROVISIONAL math kernel: `experiments/rocket3_foundation/src/virtual_canvas.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
 | F18 UI context/IDs | WP05, WP23 | ID kernel GREEN | WP34 |
 | F19 Layout | WP03, WP24 | WP03 PROVISIONAL layout kernel: `experiments/rocket3_foundation/src/layout.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
-| F20 Themes/styles | WP04, WP25 | data kernel GREEN | WP34 |
+| F20 Themes/styles | WP04, WP25 | WP04 PROVISIONAL data kernel: `experiments/rocket3_foundation/src/theme.rocket`; focused native package and formatter evidence recorded above | WP34 |
 | F21 Controls | WP26 | RED | WP34 |
 | F22 Containers/transient UI | WP27 | RED | WP34 |
 | F23 Asset store | WP28 | RED | WP34 |
@@ -741,7 +760,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP04 - Provisional theme and style data
+**Current packet:** WP05 - Provisional widget IDs and bounded state
 
 ```text
 Work only in the main Rocket checkout:
@@ -753,49 +772,49 @@ docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
 Verify that the branch is master, begin from a clean checkout, and confirm it
 contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP04 may use
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP05 may use
 current Rocket code and normal build/test paths, but must not expand beyond the
-WP04 packet scope. If `git status --short --branch` shows
+WP05 packet scope. If `git status --short --branch` shows
 an unpushed Rocket 3 checkpoint, push it before editing.
 
-Recommended model: GPT-5.6 Luna with Medium reasoning.
+Recommended model: GPT-5.6 Terra with High reasoning.
 
-Execute only WP04: provisional theme and style data (F20). Use test-driven
-development and the exact provisional behavior in the plan. Create only
-experiments/rocket3_foundation/src/theme.rocket and
-experiments/rocket3_foundation/tests/theme_test.rocket, plus this plan's
-WP04-only status, traceability evidence, and prompt rotation. Keep all APIs
-explicitly provisional; do not freeze final Rocket 3.0 constructors,
-named/default arguments, module layout, style hierarchy, inheritance model,
-renderer conversion, or public SDK surface.
+Execute only WP05: provisional widget IDs and bounded state (F18 ID subset and
+F25). Use test-driven development and the exact provisional behavior in the
+plan. Create only experiments/rocket3_foundation/src/widget_state.rocket and
+experiments/rocket3_foundation/tests/widget_state_test.rocket, plus this plan's
+WP05-only status, traceability evidence, and prompt rotation. Keep all APIs
+explicitly provisional; do not freeze final Context, UiFrame, Response,
+public constructors, named/default arguments, or public SDK surface.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp04 inside this checkout, never automatically retry a
+out/rocket3-provisional/wp05 inside this checkout, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
 current `rocketc.exe` is not present, first inspect the repository build guidance;
 before starting any build that could use more than 20 GiB, stop and ask the owner.
 
-Implement and test internal semantic color, spacing, radius, typography-size,
-and motion-duration tokens; normal, hovered, pressed, disabled, and focused
-style-state data; deterministic override/merge resolution; and validation of
-invalid token or style data. Do not add UI controls, inheritance, rendering,
-native calls, public UI types, or later-packet work. Run focused checks, update
-WP04's packet-index state and atomic traceability evidence, then follow the
-prompt-rotation contract in section 4. The next eligible packet will normally
-be WP05: replace the current packet label and this entire fenced block with a
-complete WP05 prompt. Run git diff --check, review the scoped diff, commit the
-WP04 files plus plan/status/prompt rotation together with:
+Implement and test deterministic hierarchical widget-ID composition, duplicate
+detection within a frame, frame-seen tracking, bounded capacity, unseen-frame
+eviction, active/focus cleanup, and a 100,000-ID stress fixture. Capacity
+values remain measured configuration, not public constants. Do not add native
+input, keyboard handling, modal capture, public Context/UI frame APIs, or
+later-packet work. Run focused checks, update WP05's packet-index state and
+atomic traceability evidence, then follow the prompt-rotation contract in
+section 4. The next eligible packet will normally be WP06: replace the current
+packet label and this entire fenced block with a complete WP06 prompt. Run git
+diff --check, review the scoped diff, commit the WP05 files plus plan/status/
+prompt rotation together with:
 
-feat: add provisional Rocket 3 theme data
+feat: add provisional Rocket 3 widget state kernel
 
-Only rotate after every required WP04 check passes. If implementation or
-verification fails, leave WP04 as the current prompt and report the blocker.
+Only rotate after every required WP05 check passes. If implementation or
+verification fails, leave WP05 as the current prompt and report the blocker.
 After committing, push `master` to `origin`. If push fails,
-do not begin WP05; report the push blocker and preserve the committed handoff.
+do not begin WP06; report the push blocker and preserve the committed handoff.
 After a successful push, stop and report the exact files, tests, results,
 commit, push result, remaining intentional provisional limitations, and the
-packet prepared for the next chat. Do not begin WP05 in the same chat.
+packet prepared for the next chat. Do not begin WP06 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher

@@ -1,0 +1,126 @@
+# WP04 provisional theme and style data. This module is not a public Rocket 3.0 API.
+
+import src.color
+
+pub struct TokenSet:
+    color: color.Color
+    spacing: Float
+    radius: Float
+    typography_size: Float
+    motion_duration: Float
+
+pub struct TokenOverride:
+    has_color: Bool
+    color: color.Color
+    has_spacing: Bool
+    spacing: Float
+    has_radius: Bool
+    radius: Float
+    has_typography_size: Bool
+    typography_size: Float
+    has_motion_duration: Bool
+    motion_duration: Float
+
+pub struct StyleStates:
+    normal: TokenOverride
+    hovered: TokenOverride
+    pressed: TokenOverride
+    disabled: TokenOverride
+    focused: TokenOverride
+
+pub fn merge(base: TokenSet, override: TokenOverride) -> TokenSet:
+    var result_color = base.color
+    var result_spacing = base.spacing
+    var result_radius = base.radius
+    var result_typography_size = base.typography_size
+    var result_motion_duration = base.motion_duration
+    if override.has_color:
+        result_color = override.color
+    if override.has_spacing:
+        result_spacing = override.spacing
+    if override.has_radius:
+        result_radius = override.radius
+    if override.has_typography_size:
+        result_typography_size = override.typography_size
+    if override.has_motion_duration:
+        result_motion_duration = override.motion_duration
+    return TokenSet(result_color, result_spacing, result_radius, result_typography_size, result_motion_duration)
+
+pub fn resolve(states: StyleStates, state: Int, base: TokenSet) -> Result[TokenSet, String]:
+    if state == 0:
+        return Ok(merge(base, states.normal))
+    if state == 1:
+        return Ok(merge(base, states.hovered))
+    if state == 2:
+        return Ok(merge(base, states.pressed))
+    if state == 3:
+        return Ok(merge(base, states.disabled))
+    if state == 4:
+        return Ok(merge(base, states.focused))
+    return Err("style state must be normal, hovered, pressed, disabled, or focused")
+
+pub fn validate_tokens(value: TokenSet) -> Result[Bool, String]:
+    if not valid_color(value.color):
+        return Err("theme color channels must be finite and within 0.0 to 1.0")
+    if not valid_nonnegative(value.spacing):
+        return Err("theme spacing must be finite and nonnegative")
+    if not valid_nonnegative(value.radius):
+        return Err("theme radius must be finite and nonnegative")
+    if not valid_nonnegative(value.typography_size):
+        return Err("theme typography size must be finite and nonnegative")
+    if not valid_nonnegative(value.motion_duration):
+        return Err("theme motion duration must be finite and nonnegative")
+    return Ok(true)
+
+pub fn validate_override(value: TokenOverride) -> Result[Bool, String]:
+    if value.has_color and not valid_color(value.color):
+        return Err("style color override is invalid")
+    if value.has_spacing and not valid_nonnegative(value.spacing):
+        return Err("style spacing override is invalid")
+    if value.has_radius and not valid_nonnegative(value.radius):
+        return Err("style radius override is invalid")
+    if value.has_typography_size and not valid_nonnegative(value.typography_size):
+        return Err("style typography-size override is invalid")
+    if value.has_motion_duration and not valid_nonnegative(value.motion_duration):
+        return Err("style motion-duration override is invalid")
+    return Ok(true)
+
+pub fn validate_style(value: StyleStates) -> Result[Bool, String]:
+    match validate_override(value.normal):
+        case Ok(result):
+            let normal_valid = result
+        case Err(message):
+            return Err(message)
+    match validate_override(value.hovered):
+        case Ok(result):
+            let hovered_valid = result
+        case Err(message):
+            return Err(message)
+    match validate_override(value.pressed):
+        case Ok(result):
+            let pressed_valid = result
+        case Err(message):
+            return Err(message)
+    match validate_override(value.disabled):
+        case Ok(result):
+            let disabled_valid = result
+        case Err(message):
+            return Err(message)
+    match validate_override(value.focused):
+        case Ok(result):
+            let focused_valid = result
+        case Err(message):
+            return Err(message)
+    return Ok(true)
+
+fn valid_color(value: color.Color) -> Bool:
+    return valid_channel(value.red) and valid_channel(value.green) and valid_channel(value.blue) and valid_channel(value.alpha)
+
+fn valid_channel(value: Float) -> Bool:
+    return is_finite(value) and value >= 0.0 and value <= 1.0
+
+fn valid_nonnegative(value: Float) -> Bool:
+    return is_finite(value) and value >= 0.0
+
+fn is_finite(value: Float) -> Bool:
+    return value - value == 0.0
