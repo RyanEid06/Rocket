@@ -8,13 +8,11 @@ Read this file at the start of every new Rocket chat. Update it after completing
 - **Compiler:** `rocketc`
 - **Source extension:** `.rocket`
 - **Primary target:** Windows x64
-- **Goal:** Preserve the completed and frozen, beginner-friendly, statically
-  typed, LLVM-native Rocket 2.0 Windows x64 language while Phase 19 delivers
-  the additive Rocket 2.1 portability release without changing ABI v1.
-- **Possible casino goal after Rocket 2.0:** A separate local, single-player,
-  play-money desktop application may be planned after the owner's final
-  post-Rocket step and explicit direction. No casino implementation belongs to
-  the frozen Rocket 2.0 milestone.
+- **Goal:** Maintain the completed, beginner-friendly, statically typed,
+  LLVM-native Rocket 2.1 language across Windows x64, Linux x64, Linux ARM64,
+  and macOS ARM64 without changing ABI v1.
+- **Possible casino goal:** A separate local, single-player, play-money desktop
+  application may be planned independently of Rocket language work.
 
 ## Locked decisions
 
@@ -25,8 +23,7 @@ Read this file at the start of every new Rocket chat. Update it after completing
 - Syntax: indentation blocks, explicit `let`/`var`, inferred local types, typed function boundaries.
 - Error model: `Option[T]`, `Result[T, E]`, and `?`; never universal null or exceptions.
 - Extensibility: official curated syntax sugar only; no arbitrary user macros in Rocket 1.0.
-- The complete Rocket 2.0 language-maturity roadmap comes before casino work.
-- Graphics after self-hosting: safe Rocket bindings over raylib.
+- Graphics: safe Rocket bindings over raylib.
 - Casino scope: no real money, payments, accounts, or online multiplayer in version 1.
 - Success means a coherent and trustworthy language used for substantial maintained
   software; matching the total feature count or decades-old ecosystem size of
@@ -37,8 +34,8 @@ Read this file at the start of every new Rocket chat. Update it after completing
 Rocket 2.0 security, performance, compatibility, and trust work is complete on
 the Rocket 1.5 standard library, Rocket 1.6 package ecosystem, Rocket 1.7
 professional tooling, and Rocket 1.8 ownership/concurrency release. Phase 19
-multi-platform work resumed by owner direction on 2026-08-20 as the additive
-Rocket 2.1 release. The production `rocketc` is written in Rocket,
+completed on 2026-08-29 as the additive Rocket 2.1 portability release. The
+production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
@@ -152,10 +149,9 @@ Implemented:
 Not implemented yet:
 
 - Broader native calling conventions and the full raylib surface remain optional
-  only where `FFI_GUIDE.md` and the Phase 19 audit classify them as outside the
-  portable C surface. Native dynamic loading and the four Phase 19 targets are
-  under active implementation/acceptance; independent external production use
-  remains an ongoing maturity signal. No casino implementation has begun.
+  where `FFI_GUIDE.md` and the Phase 19 audit classify them as outside the
+  portable C surface. The four Phase 19 targets are complete; independent
+  external production use remains an ongoing maturity signal.
 
 ## Canonical build commands
 
@@ -198,9 +194,9 @@ Build output is in `out/build/windows-debug` and `out/build/windows-release`. Th
     documentation tools, native debugging, profiling, benchmarking, and coverage.
 18. Add robust ownership and concurrency: weak references, cycle handling,
     thread-sharing rules, tasks, channels, structured concurrency, and async I/O.
-19. Active by owner direction: add target triples, Linux and macOS support,
-    ARM64, supported cross-compilation paths, and complete multi-platform
-    native validation without modifying the frozen Rocket 2.0 SDK.
+19. Completed: add target triples, Linux and macOS support, ARM64, supported
+    cross-compilation paths, and multi-platform native validation without
+    modifying the frozen Rocket 2.0 SDK.
 20. Completed: freeze Rocket 2.0 with bounded-input hardening, fuzzing,
     sanitizer/minimization workflows, caching and scale validation,
     compatibility tests, signed reproducible release tooling, and complete
@@ -866,11 +862,11 @@ Known limitations remain those in the implementation-state list above; no langua
   groups, tracing collection, or multi-platform event support.
 
 **Phase 20 - Rocket 2.0 security, performance, compatibility, and trust
-(completed 2026-08-02; Phase 19 deferred)**
+(completed 2026-08-02; Phase 19 completed 2026-08-29)**
 
-- Recorded owner decision D033: Windows x64 remains the only supported target,
-  runtime ABI v1 and the cumulative Rocket 1.0-1.8 surface are frozen for 2.x,
-  C++ stage0 remains permanent, and Phase 19 portability is retained for later.
+- Recorded owner decision D033: the Rocket 2.0 Windows x64 release freezes its
+  runtime ABI v1 and cumulative Rocket 1.0-1.8 surface; C++ stage0 remains
+  permanent. Rocket 2.1 later completed the portable target set.
 - Added deterministic `R1003` limits for 4 MiB sources/overlays, 4,096-module,
   64 MiB, and 64-level import graphs, 1 MiB manifests, 64 KiB manifest lines, 4,096 entries,
   1,024 dependencies, and bounded source discovery in both compilers.
@@ -930,8 +926,8 @@ Known limitations remain those in the implementation-state list above; no langua
 - The VSIX connects `.rocket` content to the existing `rocket-lsp` process and
   launches the native Visual Studio debugger only after validating the Rocket
   executable, PDB, and source map. It preserves the frozen Rocket 2.0 compiler,
-  runtime, stage0, LSP, CodeView, and sidecar contracts; Phase 19 remains
-  deferred and no casino work is included.
+  runtime, stage0, LSP, CodeView, and sidecar contracts; Phase 19 later
+  completed and no casino work is included in this historical integration.
 - Focused extension tests cover package/standalone discovery, JSON diagnostics
   and summaries, source maps, Windows argument parsing, and hidden redirected
   processes. VSIX inspection preserves identity/version/assets and rejects
@@ -992,14 +988,11 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Phase 19 is active as Rocket 2.1 portability work. The frozen Rocket 2.0
-Windows x64 SDK and Visual Studio Community 2026 integration remain immutable
-compatibility baselines. Finish the isolated native-host acceptance matrix for
-Windows x64, Linux x64, Linux ARM64, and macOS ARM64; record direct evidence in
-`PHASE_19_AUDIT.md`; then close the roadmap truthfully. Do not begin casino work
-or unrelated language features. Treat Visual Studio extension 2.0.3, its
-reproducible CMake/script fallbacks, and the preserved owner demo edit as
-current baseline state.**
+**Phase 19 is complete as Rocket 2.1 portability work. Native acceptance passed
+on Windows x64, Linux x64, Linux ARM64, and macOS ARM64; the completion evidence
+is recorded in `PHASE_19_AUDIT.md`. Future work is selected by owner direction.
+Visual Studio extension 2.0.3, its reproducible CMake/script fallbacks, and the
+preserved owner demo edit remain current baseline state.**
 
 ## New-chat prompt
 
@@ -1007,7 +1000,7 @@ Use this at the beginning of a new Rocket chat:
 
 ```text
 Read AGENTS.md and docs/PROJECT_CONTEXT.md first. We are working on Rocket.
-Continue from the "Current next task" section, inspect the repository before editing,
-preserve existing user changes, implement only the stated phase, run its validation,
-update PROJECT_CONTEXT.md, and commit the completed milestone.
+Inspect the repository before editing, preserve existing user changes, implement the
+requested work, run relevant validation, update PROJECT_CONTEXT.md when needed, and
+commit completed work.
 ```

@@ -1,11 +1,9 @@
 # Rocket Master Roadmap
 
-**Current status (updated 2026-08-24):** Rocket 2.0 remains frozen on Windows
-x64, including the compatible Visual Studio Community 2026 integration. By
-owner direction, Phase 19 is active as the additive Rocket 2.1 portability
-release. Its roadmap closes only after Windows x64, Linux x64, Linux ARM64,
-and macOS ARM64 have direct native-host acceptance evidence. The casino remains
-a separate future project and is not part of Rocket Phase 19.
+**Current status (updated 2026-08-29):** Rocket 2.1 portability is complete.
+Windows x64, Linux x64, Linux ARM64, and macOS ARM64 native acceptance passed,
+and the supported cross-build paths are green. The Rocket 2.0 Windows x64 SDK
+remains available as the stable compatibility archive.
 
 ## Long-term objective
 
@@ -33,23 +31,13 @@ validation.
 
 ## Release principles
 
-1. Complete one phase at a time. Do not begin a later phase while an earlier
-   phase has unfinished correctness, specification, bootstrap, or documentation
-   work.
-2. Prefer a small coherent feature set over compatibility-driven feature
+1. Prefer a small coherent feature set over compatibility-driven feature
    accumulation. Rocket does not need every construct found in another language.
-3. Keep source compatibility within a stable release line. Incompatible syntax,
+2. Keep source compatibility within a stable release line. Incompatible syntax,
    semantics, or ABI changes are reserved for a major release.
-4. Every feature requires specification, stage0 and self-hosted compiler work,
-   HIR/MIR/backend/runtime work as applicable, positive and negative tests,
-   documentation, and deterministic bootstrap validation.
-5. Treat libraries, packages, editor support, diagnostics, debugging, security,
+3. Treat libraries, packages, editor support, diagnostics, debugging, security,
    and release engineering as part of the language product rather than optional
    extras.
-6. Do not begin the casino product during this roadmap. Raylib is used as a real
-   interoperability and graphics validation project in Phase 14. Rocket 2.0 is
-   now accepted and frozen; a casino remains a separate project that begins
-   only after the owner's final post-Rocket step and explicit direction.
 
 ## Completed foundation
 
@@ -518,14 +506,12 @@ Rocket's default programming model understandable and safe.
   hashes, package metadata, and deliberate limits are recorded in
   `PROJECT_CONTEXT.md` and `PHASE_18_AUDIT.md`.
 
-### Phase 19 - Rocket 2.1: multi-platform compiler and runtime - Active
+### Phase 19 - Rocket 2.1: multi-platform compiler and runtime - Completed
 
-**Status:** Resumed by owner direction on 2026-08-20. The frozen Rocket 2.0
-Windows x64 SDK remains an immutable compatibility boundary. Phase 19 is an
-additive 2.1 release and cannot close on implementation or CI configuration
-alone: every production target needs direct observed native-host Debug/Release,
-stage0-stage3, package, relocation, and complete-suite evidence in
-`PHASE_19_AUDIT.md`.
+**Completed 2026-08-29.** Rocket 2.1 is the additive portability release.
+Windows x64, Linux x64, Linux ARM64, and macOS ARM64 passed their native
+acceptance matrices, and all supported cross-build paths passed. The full
+completion record is in `PHASE_19_AUDIT.md`.
 
 **Purpose:** Make Rocket a portable language rather than a Windows-only tool.
 
@@ -533,31 +519,24 @@ stage0-stage3, package, relocation, and complete-suite evidence in
 
 - Add explicit target triples, conditional compilation, target feature queries,
   and platform-specific package sections.
-- Support Linux x64 and ARM64, then macOS ARM64, with Windows ARM64 evaluated
-  after the runtime and toolchain are stable.
+- Support Linux x64, Linux ARM64, and macOS ARM64, with Windows ARM64 retained
+  as an evaluated target.
 - Port filesystem, process, time, networking, async, debugger, packaging, and
   standard-library behavior with documented platform differences.
 - Add host/target separation and supported cross-compilation paths.
 - Establish continuous build, test, bootstrap, package, and application matrices
   on every supported target.
-- Evaluate WebAssembly only after native targets are production-quality; JIT
-  compilation remains an optional separate project.
+- Keep WebAssembly and JIT as optional separate future work.
 
-**Acceptance gate:**
-
-- Self-hosting, conformance, FFI, package, standard-library, and substantial
-  application suites pass on every supported platform.
-- Platform-specific behavior is represented in specifications and APIs rather
-  than hidden behind inconsistent implementations.
-- Published compiler packages install and run without requiring an unrelated
-  system compiler toolchain.
-- Windows ARM64 is an evaluated non-production target until its own native
-  acceptance matrix exists; WebAssembly and JIT are separate future work.
+**Completion evidence:** Native Debug/Release, LLVM-disabled stage0,
+stage0-stage3 bootstrap, package, relocation, and complete-suite validation
+passed on all four production targets. The accepted results and remaining
+optional limitations are recorded in `PHASE_19_AUDIT.md`.
 
 ### Phase 20 - Rocket 2.0: security, performance, compatibility, and trust - Completed
 
 **Completed 2026-08-02.** Owner direction accepted the technical Windows x64
-release while Phase 19 remains deferred. Rocket 2.0 freezes the cumulative
+release. Rocket 2.0 freezes the cumulative
 Rocket 1.0-1.8 source, ownership, standard-library, package, tooling, runtime
 ABI v1, and FFI contracts without adding grammar.
 
