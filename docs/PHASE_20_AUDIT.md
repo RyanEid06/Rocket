@@ -1,9 +1,9 @@
 # Rocket Phase 20 Audit
 
-Phase 20 is complete for Rocket 2.0 on its supported Windows x64 target. Phase
-19 portability was explicitly deferred by owner direction; this audit does not
-claim Linux, macOS, ARM64, cross-compilation, official certificate signing, or
-independent production adoption.
+Phase 20 is complete for Rocket 2.0 on its supported Windows x64 target. At
+the time of this audit, Phase 19 portability was deferred; its later completion
+is recorded in `PHASE_19_AUDIT.md`. This historical audit does not claim
+official certificate signing or independent production adoption.
 
 Post-audit note (2026-08-08): the compatible Visual Studio Community 2026 VSIX
 integration was completed after the Phase 20 language freeze. It consumes the
@@ -63,7 +63,8 @@ bootstrap authority.
 
 ## Deliberate limits and honest claims
 
-- Windows x64 is the only supported target; Phase 19 remains deferred.
+- At the time of this audit, Windows x64 was the only supported target; the
+  later Rocket 2.1 target set is recorded in `PHASE_19_AUDIT.md`.
 - The compiler cache is conservative whole-package reuse, not per-module code
   generation. The LSP retains its independent incremental analysis graph.
 - One compiler process is single-process; parallel validation uses independent

@@ -3,14 +3,13 @@
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
 Rocket 2.0 security, performance, compatibility, and trust work is complete on
-the cumulative Rocket 1.0-1.8 language. Phase 19 is the additive Rocket 2.1
-portability release: it preserves valid Rocket 2.0 source and runtime ABI v1
-while adding explicit target selection, native Linux and macOS hosts, and
-documented cross-compilation paths. Windows x64 has completed its isolated
-Phase 19 acceptance; Linux x64, Linux ARM64, and macOS ARM64 remain acceptance
-pending until their native-host matrices are observed. Do not treat a committed
-workflow or cross-built artifact as support evidence. Exact status is recorded
-in [`PHASE_19_AUDIT.md`](docs/PHASE_19_AUDIT.md),
+the cumulative Rocket 1.0-1.8 language. Phase 19, the additive Rocket 2.1
+portability release, is complete: it preserves valid Rocket 2.0 source and
+runtime ABI v1 while adding explicit target selection, native Linux and macOS
+hosts, and documented cross-compilation paths. The Windows x64, Linux x64,
+Linux ARM64, and macOS ARM64 native matrices and the supported cross-build
+paths have passed. Exact evidence and the remaining optional limitations are
+recorded in [`PHASE_19_AUDIT.md`](docs/PHASE_19_AUDIT.md),
 [`TARGETS.md`](docs/TARGETS.md), and [`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md).
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
@@ -141,9 +140,8 @@ invalid suspension with stable `R4101`-`R4106` diagnostics.
 ## Packaging and release status
 
 The frozen Rocket 2.0 Windows x64 archive remains the stable SDK consumed by
-Scroll2Roll. Phase 19 packages are deliberately generated only under
-`out/phase19` until each native target passes its complete acceptance gate.
-Use the target-aware package workflow documented in
+Scroll2Roll. Rocket 2.1 packages are generated under `out/phase19` and do not
+overwrite that frozen SDK. Use the target-aware package workflow documented in
 [the Rocket 2.1 release contract](docs/RELEASE_2_1.md); it must not overwrite
 the frozen SDK.
 

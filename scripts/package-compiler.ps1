@@ -148,7 +148,8 @@ stage2/stage3 proof; ``RELEASE-PROVENANCE.json`` records the source/tool
 identity; and ``SHA256SUMS.txt`` covers every distributed file except itself
 and its optional detached signature.
 
-Supported target: Windows x64. Phase 19 portability is explicitly deferred.
+This Rocket 2.0 archive supports Windows x64. Rocket 2.1 portable packages are
+documented separately in ``docs\RELEASE_2_1.md``.
 See ``docs\RELEASE_2_0.md``, ``SECURITY.md``, and
 ``docs\PROJECT_CONTEXT.md`` for the frozen contracts, support policy,
 limitations, and validation matrix. Release channel: $ReleaseChannel.

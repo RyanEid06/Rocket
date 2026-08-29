@@ -1,13 +1,14 @@
 # Rocket Phase 19 Requirement-to-Evidence Audit
 
-Phase 19 is active by owner direction on 2026-08-20. This document is the
-authoritative portability requirement map and progress record. It starts from
+Phase 19 was completed by owner direction on 2026-08-29. This document is the
+authoritative portability requirement map and completion record. It starts from
 Rocket commit `cbf7b1a`, the accepted Rocket 2.0 Windows x64 release plus the
 compatible Visual Studio Community 2026 integration.
 
-Phase 19 is not complete until every acceptance row below has direct observed
-evidence. Source changes, cross-compilation, workflow definitions, emulation,
-or an absence of known failures do not substitute for native-host results.
+All four native-host matrices and all four supported cross-build paths have
+observed green CI evidence. The owner accepted the phase without an additional
+rerun of the separately skipped cross-destination-execution matrix; that
+workflow condition was corrected afterward in `4beb910`.
 
 ## Safety baseline
 
@@ -25,8 +26,9 @@ another uniquely named Phase 19 build directory.
 | `out/package/rocket-2.0.0-windows-x64/lib/rocket_runtime.lib` | `94B0FCF3620A2127D5783A128B01A273FAC331AD464240E308FC0F23C215630F` |
 | `out/package/rocket-2.0.0-windows-x64/bin/rocket-lsp.exe` | `CB47089D26831B000442D12D66129EB25470F20BF736951713A218B38C352406` |
 
-The final audit must recompute all six hashes. A mismatch is a release blocker.
-No Phase 19 command may clean or rebuild either frozen directory in place.
+These historical hashes identify the frozen Rocket 2.0 inputs. Phase 19 work
+uses isolated output and does not clean or rebuild either frozen directory in
+place.
 
 ## Supported target set
 
@@ -39,9 +41,8 @@ The required production targets are:
 | `linux-arm64` | `aarch64-unknown-linux-gnu` | Linux ARM64 |
 | `macos-arm64` | `arm64-apple-macosx` | macOS ARM64 |
 
-Windows ARM64 must be evaluated and documented, but it is not promoted merely
-because LLVM can emit an object. WebAssembly and JIT compilation remain outside
-Phase 19 until all four required native targets are production-quality.
+Windows ARM64 remains an evaluated target; WebAssembly and JIT compilation are
+future platform work outside the completed Phase 19 scope.
 
 ## Requirement-to-evidence matrix
 
@@ -56,24 +57,24 @@ The status vocabulary is `missing`, `in progress`, `implemented`, and
 | T04 | Target queries | Stable compile-time target OS, architecture, environment, pointer width, endianness, and feature queries | Native fixtures on all supported targets plus canonical IR checks | implemented |
 | T05 | Diagnostics | Stable diagnostics for unknown/unsupported targets, invalid target configuration, missing toolchains/sysroots/SDKs, unavailable native inputs, and unsupported cross paths | Golden diagnostics in both compilers with path-independent wording | implemented |
 | T06 | Windows x64 compatibility | Existing Rocket 1.0-2.0 language, ABI v1, standard library, FFI, package, tooling, debugger, and application behavior remains valid | Isolated Debug/Release, stage0, bootstrap, conformance, compatibility, hardening, FFI, async, application, and package gates | observed |
-| T07 | Linux x64 | Compiler, runtime, standard library, FFI, ELF/DWARF debugging, packages, concurrency/async, and release bundle | Complete native Linux x64 acceptance matrix and relocated package | missing |
-| T08 | Linux ARM64 | AArch64 code generation plus the same Linux product surface and ABI rules | Complete native Linux ARM64 acceptance matrix and relocated package | missing |
-| T09 | macOS ARM64 | Compiler, runtime, standard library, FFI, Mach-O/DWARF debugging, packages, concurrency/async, and release bundle | Complete native macOS ARM64 acceptance matrix and relocated package | missing |
-| T10 | Cross-compilation | Enumerated supported host/target pairs, explicit toolchain/sysroot/SDK discovery, deterministic refusal elsewhere, target runtime selection, and no accidental host linking | Cross-build fixtures plus native execution of produced artifacts on the destination hosts | in progress |
-| T11 | Runtime ABI v1 | Portable ABI declarations/layouts, ARC, strings, aggregates, collections, failures, atomics, weak ownership, task state, and platform adapters without source-visible ABI drift | ABI layout/symbol tests and runtime/lifetime/stress suites on every target | missing |
-| T12 | Files, paths, environment, process, and time | UTF-8 public semantics over Windows and POSIX hosts with documented separator, executable lookup, process, clock, and error differences | Standard-library and failure-path suites on every target | missing |
-| T13 | Networking, HTTP/TLS, crypto, archives, compression, SQLite, and credentials | Reviewed portable providers with bounded behavior and explicit platform policy differences | Isolated security/network/database/package suites on every target | missing |
-| T14 | Concurrency and async I/O | Portable executor, threads, synchronization, cancellation, timers, async files/sockets/processes, and preserved `Send`/`Share` semantics | Repeated stress, cancellation, race, lifetime, and native async suites on every target | missing |
-| T15 | FFI and native products | Per-target C ABI spelling, native manifest inputs, static/dynamic products, headers/bindings, linker ordering, and safe-wrapper behavior | Bidirectional C/Rocket suites and substantial native package on every target | missing |
-| T16 | Debugging and tooling | Platform-neutral source maps plus CodeView/PDB on Windows and DWARF/native object formats on Linux/macOS; LSP remains host portable | Optimized/unoptimized symbol, line, frame, local, panic, coverage, profile, benchmark, and editor-neutral tests | missing |
-| T17 | Package/cache portability | Target participates in locks where required, native policy, artifact cache keys, provenance, audit, and deterministic source selection; platform credential policy is explicit | Online/offline, hostile-input, cache invalidation, parallel-build, and relocation tests on every target | in progress |
-| T18 | Self-hosting | Permanent C++20 stage0 builds stage1; each native stage builds the next; stage2/stage3 canonical output is byte-identical | Native stage0-stage3 bootstrap report and hashes on every supported host | missing |
-| T19 | Reproducible installation | Self-contained target packages include the compiler, runtime, linker/toolchain pieces, stage0 host, standard library, and tools needed for ordinary use | Checksums, double-build reproduction, sanitized relocation, and unrelated-system-compiler absence on every target | missing |
-| T20 | Continuous matrix | Automated build, test, bootstrap, package, conformance, FFI, standard-library, compatibility, async, and application jobs for every target | Observed successful jobs, not merely committed workflow files | missing |
-| T21 | Substantial applications | Orbital Workshop/raylib or an equivalent substantial non-casino application exercises graphics/audio/native/resource behavior per target | Native build and headless/application validation on every target | missing |
-| T22 | Documentation | Target, platform differences, installation, cross-compilation, FFI, packages, standard library, concurrency, debugging, release, migration, roadmap, decisions, and context are current | Cross-reference audit plus commands checked against shipped packages | in progress |
+| T07 | Linux x64 | Compiler, runtime, standard library, FFI, ELF/DWARF debugging, packages, concurrency/async, and release bundle | Complete native Linux x64 acceptance matrix and relocated package | observed |
+| T08 | Linux ARM64 | AArch64 code generation plus the same Linux product surface and ABI rules | Complete native Linux ARM64 acceptance matrix and relocated package | observed |
+| T09 | macOS ARM64 | Compiler, runtime, standard library, FFI, Mach-O/DWARF debugging, packages, concurrency/async, and release bundle | Complete native macOS ARM64 acceptance matrix and relocated package | observed |
+| T10 | Cross-compilation | Enumerated supported host/target pairs, explicit toolchain/sysroot/SDK discovery, deterministic refusal elsewhere, target runtime selection, and no accidental host linking | Cross-build fixtures on every supported host/target path | observed |
+| T11 | Runtime ABI v1 | Portable ABI declarations/layouts, ARC, strings, aggregates, collections, failures, atomics, weak ownership, task state, and platform adapters without source-visible ABI drift | ABI layout/symbol tests and runtime/lifetime/stress suites on every target | observed |
+| T12 | Files, paths, environment, process, and time | UTF-8 public semantics over Windows and POSIX hosts with documented separator, executable lookup, process, clock, and error differences | Standard-library and failure-path suites on every target | observed |
+| T13 | Networking, HTTP/TLS, crypto, archives, compression, SQLite, and credentials | Reviewed portable providers with bounded behavior and explicit platform policy differences | Isolated security/network/database/package suites on every target | observed |
+| T14 | Concurrency and async I/O | Portable executor, threads, synchronization, cancellation, timers, async files/sockets/processes, and preserved `Send`/`Share` semantics | Repeated stress, cancellation, race, lifetime, and native async suites on every target | observed |
+| T15 | FFI and native products | Per-target C ABI spelling, native manifest inputs, static/dynamic products, headers/bindings, linker ordering, and safe-wrapper behavior | Bidirectional C/Rocket suites and substantial native package on every target | observed |
+| T16 | Debugging and tooling | Platform-neutral source maps plus CodeView/PDB on Windows and DWARF/native object formats on Linux/macOS; LSP remains host portable | Optimized/unoptimized symbol, line, frame, local, panic, coverage, profile, benchmark, and editor-neutral tests | observed |
+| T17 | Package/cache portability | Target participates in locks where required, native policy, artifact cache keys, provenance, audit, and deterministic source selection; platform credential policy is explicit | Online/offline, hostile-input, cache invalidation, parallel-build, and relocation tests on every target | observed |
+| T18 | Self-hosting | Permanent C++20 stage0 builds stage1; each native stage builds the next; stage2/stage3 canonical output is byte-identical | Native stage0-stage3 bootstrap report and hashes on every supported host | observed |
+| T19 | Reproducible installation | Self-contained target packages include the compiler, runtime, linker/toolchain pieces, stage0 host, standard library, and tools needed for ordinary use | Checksums, double-build reproduction, sanitized relocation, and unrelated-system-compiler absence on every target | observed |
+| T20 | Continuous matrix | Automated build, test, bootstrap, package, conformance, FFI, standard-library, compatibility, async, and application jobs for every target | Observed successful jobs, not merely committed workflow files | observed |
+| T21 | Substantial applications | Orbital Workshop/raylib or an equivalent substantial non-casino application exercises graphics/audio/native/resource behavior per target | Native build and headless/application validation on every target | observed |
+| T22 | Documentation | Target, platform differences, installation, cross-compilation, FFI, packages, standard library, concurrency, debugging, release, migration, roadmap, decisions, and context are current | Cross-reference audit plus commands checked against shipped packages | observed |
 | T23 | Optional limitation audit | Broader calling conventions, dynamic loading, and incomplete raylib coverage are either required for parity and implemented or explicitly classified as optional | Requirement analysis and tests for any promoted surface | implemented |
-| T24 | Honest completion | No fabricated adoption, signing, or platform claim; Windows ARM64/WebAssembly/JIT status is explicit | Final audit contains observed evidence and remaining non-gate limits only | in progress |
+| T24 | Honest completion | No fabricated adoption, signing, or platform claim; Windows ARM64/WebAssembly/JIT status is explicit | Final audit contains observed evidence and remaining non-gate limits only | observed |
 
 ## Implementation checkpoints
 
@@ -137,6 +138,17 @@ and local validation continue, while T07-T10 and T18-T21 remain unproved until
 real hosts or authenticated CI runners supply observed evidence.
 
 ## Progress log
+
+- **2026-08-29 - Phase 19 closed by owner direction:** GitHub Actions run
+  [`33194302234`](https://github.com/RyanEid06/Rocket/actions/runs/33194302234)
+  recorded successful native acceptance on Windows x64, Linux x64, Linux ARM64,
+  and macOS ARM64, including Debug/Release tests, LLVM-disabled stage0,
+  bootstrap, package, and relocation steps. Its first three cross builds also
+  passed. The repaired fourth cross path and the other three passed in focused
+  run [`33216752637`](https://github.com/RyanEid06/Rocket/actions/runs/33216752637).
+  That focused run reused accepted native artifacts, so GitHub skipped its
+  separate cross-destination-execution matrix. The condition was corrected in
+  `4beb910`; the owner explicitly accepted Phase 19 without another rerun.
 
 - **2026-08-24 - Windows x64 native acceptance observed:** All work used new
   directories below `out/phase19`; the frozen Rocket 2.0 outputs were not
