@@ -204,9 +204,10 @@ operational prompt, not a substitute for it.
 
 ## 5. Packet index
 
-`WP00` is the planning checkpoint and `WP01` through `WP05` are complete
-foundation packets. WP06 remains the lowest-numbered eligible packet. WP09 is
-the integration audit after WP08; it no longer waits for Phase 19.
+`WP00` is the planning checkpoint and `WP01` through `WP08` are complete
+foundation packets. WP09 is the lowest-numbered eligible packet and is the
+integration audit after the provisional foundation work; it no longer waits
+for Phase 19.
 
 | Packet | Feature groups | Maximum scope | Current state |
 | --- | --- | --- | --- |
@@ -218,8 +219,8 @@ the integration audit after WP08; it no longer waits for Phase 19.
 | WP05 | F18, F25 | Provisional widget IDs and bounded state | COMPLETE / PROVISIONAL |
 | WP06 | F06 | Provisional reduced-motion state kernel only | COMPLETE / PROVISIONAL |
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | COMPLETE / PROVISIONAL |
-| WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | READY / GREEN |
-| WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | BLOCKED BY WP08 / YELLOW |
+| WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | COMPLETE / PROVISIONAL |
+| WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | READY / YELLOW |
 | WP10 | F02 | Named arguments | WAIT FOR WP09 / RED |
 | WP11 | F03 | Default arguments | WAIT FOR WP10 / RED |
 | WP12 | F04 | Complete `std.math` | WAIT FOR WP11 / RED |
@@ -549,6 +550,27 @@ final budgets or register global performance/visual tests.
 
 **Checkpoint:** `test: define provisional Rocket 3 visual performance evidence`
 
+**WP08 evidence (2026-08-29):** The standalone C++20 comparator experiment now
+provides versioned value-only evidence schemas in
+`experiments/rocket3_visual_compare/src/evidence_schema.h` and `.cpp`. The
+schemas define deterministic scene and metric identities, environment metadata,
+allocation/cache/upload/state-switch/FFI counters, measured (not final-budget)
+thresholds, explicit failure-artifact manifest entries, and a golden approval
+record whose synthetic fixture defaults to `Proposed` with automatic updates
+disabled. `evidence_schema_tests.cpp` covers deterministic identity,
+environment fields, all counters, threshold pass/fail boundaries, manifest
+entries, and golden approval state. The required red configure/build first
+failed because `src/evidence_schema.cpp` did not yet exist. The final sequential
+MSVC/Ninja build and CTest run passed `comparator_tests` and
+`evidence_schema_tests` (2/2); the focused provisional foundation package
+regression passed all 8 tests after the identical command was rerun with
+narrow elevation for the known `clang.exe: permission denied` linker issue; and
+the focused formatter check passed with `ROCKET_ARTIFACT_ROOT` below
+`out/rocket3-provisional/wp08`. This remains PROVISIONAL schema evidence only:
+there are no final performance budgets, PNG/image capture, global visual or
+performance registration, automatic golden updates, CI gates, or public SDK
+integration.
+
 ## 7. Public integration and release packets
 
 Each packet below receives its own new chat and a packet-specific detailed TDD
@@ -800,8 +822,8 @@ file/test/doc/evidence links when executed.
 | F23 Asset store | WP28 | RED | WP34 |
 | F24 Errors/lifetimes | WP29 | RED | WP34 |
 | F25 Bounded state | WP05, WP30 | WP05 PROVISIONAL bounded-state kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; focused native package and formatter evidence recorded above | WP34 |
-| F26 Performance | WP08, WP31 | schema GREEN | WP34 |
-| F27 Visual regression | WP07, WP08, WP32 | WP07 PROVISIONAL raw-RGBA comparator: `experiments/rocket3_visual_compare/src/comparator.h`; standalone CMake/CTest evidence recorded above | WP34 |
+| F26 Performance | WP08, WP31 | WP08 PROVISIONAL evidence schema: `experiments/rocket3_visual_compare/src/evidence_schema.h`; deterministic environment/counter records and measured thresholds, with focused CTest/formatter evidence recorded above | WP34 |
+| F27 Visual regression | WP07, WP08, WP32 | WP07 PROVISIONAL raw-RGBA comparator plus WP08 PROVISIONAL evidence schema: `experiments/rocket3_visual_compare/src/comparator.h` and `src/evidence_schema.h`; standalone CMake/CTest evidence recorded above | WP34 |
 | F28 Examples/showcase | WP33 | RED | WP34 |
 | F29 Platform/compatibility | WP09, WP34 | RED | WP34 |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
@@ -814,7 +836,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP08 - Provisional performance and golden schemas
+**Current packet:** WP09 - Rocket 2.1 baseline audit and foundation integration
 
 ```text
 Work only in the main Rocket checkout:
@@ -826,53 +848,47 @@ docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
 Verify that the branch is master, begin from a clean checkout, and confirm it
 contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP08 may use
-current Rocket code and normal build/test paths, but must not expand beyond the
-WP08 packet scope. If `git status --short --branch` shows
-an unpushed Rocket 3 checkpoint, push it before editing.
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP09 may use
+current Rocket code and normal audit/build/test paths, but must not expand
+beyond the WP09 packet scope. If `git status --short --branch` shows an
+unpushed Rocket 3 checkpoint, push it before editing.
 
-Recommended model: GPT-5.6 Luna with Medium reasoning.
+Recommended model: GPT-5.6 Sol with XHigh reasoning.
 
-Execute only WP08: provisional performance and golden schemas (F26/F27
-infrastructure subset). Use test-driven development for executable behavior
-and the exact provisional boundaries in the plan. Add versioned schema
-definitions, synthetic fixtures, and focused tests only within the provisional
-comparator/foundation areas, plus this plan's WP08-only status, traceability
-evidence, and prompt rotation. Keep all APIs and budgets explicitly
-provisional; do not register global performance/visual tests or freeze final
-budgets.
+Execute only WP09: Rocket 2.1 baseline audit and foundation integration
+(F01/F29). Record the accepted Rocket 2.1 commit, clean status, supported
+targets, toolchain, runtime ABI, SDK/module layout, packages, raylib, tests,
+release evidence, and frozen hashes. Review each rebased Rocket 3 foundation
+commit against the current architecture and retain, rework, or discard it only
+with interface and compatibility evidence. Run focused compatibility checks
+before marking valid kernels `INTEGRATION-READY`. Update only this plan's WP09
+status, traceability evidence, and prompt rotation; do not begin WP10 language
+features or public graphics/UI promotion.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp08 inside this checkout, never automatically retry a
+out/rocket3-provisional/wp09 inside this checkout, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
 current compiler/toolchain is not present, first inspect the repository build
 guidance; before starting any build that could use more than 20 GiB, stop and ask
 the owner.
 
-Implement and test deterministic scene/metric identity, environment metadata,
-allocation/cache/upload/switch/FFI counters, comparison thresholds as measured
-data, a failure-artifact manifest, and an explicit golden approval/update
-record. Use synthetic deterministic fixtures and connect only to the
-provisional comparator/foundation areas needed to validate the schemas. Do not
-set final performance budgets, add PNG/image capture, register global
-performance or visual tests, or begin WP09 integration-audit work. Run the
-focused checks required by the selected provisional areas, update WP08's
-packet-index state and atomic traceability evidence, then follow the
+Run the audit's focused compatibility, package, and provenance checks, update
+WP09's packet-index state and atomic traceability evidence, then follow the
 prompt-rotation contract in section 4. The next eligible packet will normally
-be WP09 after WP08: replace the current packet label and this entire fenced
-block with a complete WP09 prompt. Run git diff --check, review the scoped
-diff, and commit the WP08 files plus plan/status/prompt rotation together with:
+be WP10 after WP09: replace the current packet label and this entire fenced
+block with a complete WP10 prompt. Run git diff --check, review the scoped
+diff, and commit the WP09 files plus plan/status/prompt rotation together with:
 
-test: define provisional Rocket 3 visual performance evidence
+chore: establish final Rocket 3 integration baseline
 
-Only rotate after every required WP08 check passes. If implementation or
-verification fails, leave WP08 as the current prompt and report the blocker.
-After committing, push `master` to `origin`. If push fails, do not begin WP09;
+Only rotate after every required WP09 check passes. If implementation or
+verification fails, leave WP09 as the current prompt and report the blocker.
+After committing, push `master` to `origin`. If push fails, do not begin WP10;
 report the push blocker and preserve the committed handoff. After a successful
-push, stop and report the exact files, tests, results, commit, push result,
-remaining intentional provisional limitations, and the packet prepared for the
-next chat. Do not begin WP09 in the same chat.
+push, stop and report the exact files, audit checks, results, commit, push
+result, remaining intentional provisional limitations, and the packet prepared
+for the next chat. Do not begin WP10 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher
