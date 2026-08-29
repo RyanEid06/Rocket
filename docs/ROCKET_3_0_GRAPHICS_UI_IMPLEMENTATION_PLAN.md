@@ -809,7 +809,10 @@ Work only in the main Rocket checkout on `master`. Read AGENTS.md and
 both Rocket 3.0 planning documents, then execute exactly the "Current next-chat
 prompt" in the implementation plan. After successful completion, replace it
 with the next eligible packet's prompt, commit everything, push `master` to
-origin, and stop.
+origin, and verify `git status --short --branch` reports no unpushed commits.
+Do not stop after a local-only commit. If the push fails, do not begin the next
+packet: report the push blocker and preserve the committed handoff. Stop only
+after the push has succeeded.
 ```
 
 ## 11. Packet model routing
