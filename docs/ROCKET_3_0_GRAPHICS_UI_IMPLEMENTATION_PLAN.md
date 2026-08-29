@@ -220,12 +220,12 @@ for Phase 19.
 | WP06 | F06 | Provisional reduced-motion state kernel only | COMPLETE / PROVISIONAL |
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | COMPLETE / PROVISIONAL |
 | WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | COMPLETE / PROVISIONAL |
-| WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | READY / YELLOW |
-| WP10 | F02 | Named arguments | WAIT FOR WP09 / RED |
+| WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | COMPLETE / INTEGRATION-READY |
+| WP10 | F02 | Named arguments | READY / RED |
 | WP11 | F03 | Default arguments | WAIT FOR WP10 / RED |
 | WP12 | F04 | Complete `std.math` | WAIT FOR WP11 / RED |
 | WP13 | F05, F06 | Easing plus complete motion/timelines | WAIT FOR WP12 / RED |
-| WP14 | F07 | Safe raylib geometry expansion | WAIT FOR WP09 / RED |
+| WP14 | F07 | Safe raylib geometry expansion | READY / RED |
 | WP15 | F08 | Advanced textures/filtering | WAIT FOR WP14 / RED |
 | WP16 | F09 | Render targets, clipping, blending | WAIT FOR WP15 / RED |
 | WP17 | F10 | Safe shader subset | WAIT FOR WP16 / RED |
@@ -588,6 +588,77 @@ focused compatibility checks before marking valid kernels `INTEGRATION-READY`.
 
 **Checkpoint:** `chore: establish final Rocket 3 integration baseline`
 
+**WP09 evidence (2026-08-29):** The audit began from clean, synchronized
+`master` at `08cdb92ca509b4f8063ae9adb2cc26ccf9188557`, with accepted Rocket
+2.1 baseline `19596db860d4105d2226c98be2693edc5632aaf0` confirmed as an
+ancestor. The permanent C++20 stage0 remains in `src/`, the Rocket-written
+compiler remains `compiler/src/main.rocket`, runtime ABI v1 remains declared
+by `src/runtime.h` and implemented by `src/runtime.cpp`, virtual standard
+modules remain compiler/runtime owned with the authored `std.testing` module
+under `stdlib/`, and target packaging remains in
+`scripts/phase19_package.py` and `scripts/package-compiler.ps1`. The reviewed
+raylib 6.0 surface remains the primitive adapter and safe Rocket package under
+`examples/raylib_showcase`; none of the Rocket 3 foundation experiments is
+registered in top-level CMake, the SDK, or a release package.
+
+Fresh dependency verification passed with Git 2.54.0.windows.1, CMake 4.3.2,
+Ninja 1.13.1, Clang/LLVM 22.1.6, MSVC 19.51.36256 x64, and raylib 6.0. A fresh
+sequential Release configure/build completed 97/97 steps below
+`out/rocket3-provisional/wp09`. Its `rocketc 2.1.0` reported native
+`windows-x64` and triple `x86_64-pc-windows-msvc`; the runtime ABI v1 test
+passed 1/1; and the focused compatibility/package/provenance selection passed
+20/20 tests. That selection covered Phase 19 release tooling, target queries
+and stage0/self-host parity; Rocket 2.0 compatibility and build-cache behavior;
+Phase 16 dependency, registry, and self-hosted package workflows; runtime; and
+the stage0/self-hosted raylib adapter, reference package, and generated-binding
+parity. The complete fresh Release matrix then passed 222/222 tests in 88.82
+seconds with zero failures.
+
+The foundation package passed all 8/8 native tests plus its formatter check
+with artifacts below the WP09 root. The standalone raw-RGBA comparator and
+evidence-schema experiment passed 2/2 CTest tests in both fresh Debug and
+Release builds, preserving always-active Release checks. Review of every
+rebased foundation commit produced the following disposition:
+
+| Foundation packet | Reviewed commits | WP09 disposition |
+| --- | --- | --- |
+| WP01 geometry/hit testing | `d1d5be5` | Retain / INTEGRATION-READY pure kernels; public graphics types and native input remain deferred. |
+| WP02 Color | `8538712` | Retain / INTEGRATION-READY deterministic value kernel; renderer conversion and final constructors remain deferred. |
+| WP03 layout/VirtualCanvas | `eb7c771` | Retain / INTEGRATION-READY pure layout and mapping kernels; window, render-target, DPI, and pointer integration remain deferred. |
+| WP04 theme/style data | `5d09776` | Retain / INTEGRATION-READY value and resolution rules; public hierarchy and constructors remain deferred. |
+| WP05 widget state | `4def1c9`, `da85f6a`, `875eb39` | Retain / INTEGRATION-READY corrected full-identity, bounded-state kernel; public context, input, focus, and calibrated retention remain deferred. |
+| WP06 reduced motion | `bc5c559` | Retain / INTEGRATION-READY policy kernel; easing, tweens, and timelines remain deferred. |
+| WP07 comparator | `28cc31a`, `f4bb026` | Retain / INTEGRATION-READY raw-RGBA tool kernel with Release-active checks; image I/O, capture, and CI remain deferred. |
+| WP08 evidence schemas | `ee73c35` | Retain / INTEGRATION-READY versioned synthetic schema; final budgets, platform goldens, and automatic integration remain deferred. |
+
+The immutable Rocket 2.0 Windows x64 consumer SDK under
+`out/package/rocket-2.0.0-windows-x64` verified all 927 checksum records and
+runtime ABI v1 provenance. Its compiler, runtime, and language-server hashes
+remain `d2009a5dd0e6745fff75c902c53323dc72a4fb9ff3c8bea83360fdc675bf618e`,
+`94b0fcf3620a2127d5783a128b01a273fac331ad464240e308fc0f23c215630f`,
+and `cb47089d26831b000442d12d66129eb25470f20bf736951713a218b38c352406`.
+The historical `out/build/windows-release` hashes in the Phase 19 safety table
+identify the former Rocket 2.0 build outputs; that mutable build tree now
+reports Rocket 2.1.0 and is not the frozen consumer SDK. The accepted Rocket
+2.1 Windows package verified all 954 checksum records, provenance for compiler
+`7ebfc94924b50d3320236b89e34df67b8114cafd543f12297397e2165307b24f`,
+runtime `ded59834e44c07f1b0ce5355c27d367ce7cd72baa2eb1aa786366a12e7c8d1f2`,
+and stage0 `18be13779c554af0aaeca7de40481ed4dfd9894671f1e65f928220d724575928`,
+and the 278,930,687-byte archive SHA-256
+`ccc8a1a7ba33bbd6f0dd0ecfadfa341d589204aee182476e9f08cb25b34fedcc`.
+
+The accepted production targets remain `windows-x64`
+(`x86_64-pc-windows-msvc`), `linux-x64`
+(`x86_64-unknown-linux-gnu`), `linux-arm64`
+(`aarch64-unknown-linux-gnu`), and `macos-arm64`
+(`arm64-apple-macosx`). Their complete native/cross acceptance remains the
+observed Phase 19 evidence recorded in `docs/PHASE_19_AUDIT.md`; WP09 adds
+fresh Windows compatibility evidence, not a replacement all-target release
+matrix. All retained Rocket 3 work remains internal and INTEGRATION-READY only:
+no public names, SDK registration, ABI change, final cache/retention values,
+final performance budgets, renderer/window integration, or visual goldens are
+claimed.
+
 ### WP10 - Named arguments
 
 **Feature:** F02. Implement the complete grammar-to-tooling vertical slice in
@@ -797,35 +868,35 @@ file/test/doc/evidence links when executed.
 
 | Feature | Owning packet(s) | Foundation state | Final acceptance packet |
 | --- | --- | --- | --- |
-| F01 Governance | WP00, WP09 | documented | WP35 |
+| F01 Governance | WP00, WP09 | WP09 INTEGRATION-READY baseline: accepted Rocket 2.1 ancestry, target/toolchain/ABI/SDK/package/raylib layout, frozen-package hashes, and focused compatibility evidence recorded above | WP35 |
 | F02 Named arguments | WP10 | RED | WP34 |
 | F03 Default arguments | WP11 | RED | WP34 |
 | F04 `std.math` | WP12 | RED | WP34 |
 | F05 Easing | WP13 | RED | WP34 |
-| F06 Motion/reduced motion | WP06, WP13 | WP06 PROVISIONAL reduced-motion policy: `experiments/rocket3_foundation/src/reduced_motion.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
+| F06 Motion/reduced motion | WP06, WP13 | WP09 retained the WP06 reduced-motion policy as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/reduced_motion.rocket`; fresh native package and formatter evidence recorded above | WP34 |
 | F07 Safe geometry backend | WP14 | RED | WP34 |
 | F08 Textures/filtering | WP15 | RED | WP34 |
 | F09 Render targets/scopes | WP16 | RED | WP34 |
 | F10 Shaders | WP17 | RED | WP34 |
 | F11 Display quality | WP18 | RED | WP34 |
-| F12 Graphics core types | WP01, WP19 | WP01 PROVISIONAL geometry kernel: `experiments/rocket3_foundation/src/geometry.rocket`; focused native test and formatter evidence recorded above | WP34 |
-| F13 Color | WP02, WP19 | WP02 PROVISIONAL color kernel: `experiments/rocket3_foundation/src/color.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
+| F12 Graphics core types | WP01, WP19 | WP09 retained the WP01 geometry kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/geometry.rocket`; fresh native package and formatter evidence recorded above | WP34 |
+| F13 Color | WP02, WP19 | WP09 retained the WP02 color kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/color.rocket`; fresh native package and formatter evidence recorded above | WP34 |
 | F14 Shape API | WP20 | RED | WP34 |
-| F15 Input/hit testing | WP01, WP20 | WP01 PROVISIONAL pure hit kernel: `experiments/rocket3_foundation/src/hit_testing.rocket`; focused native test and formatter evidence recorded above | WP34 |
+| F15 Input/hit testing | WP01, WP20 | WP09 retained the WP01 pure hit kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/hit_testing.rocket`; fresh native package and formatter evidence recorded above | WP34 |
 | F16 Typography | WP22 | RED | WP34 |
-| F17 VirtualCanvas | WP03, WP21 | WP03 PROVISIONAL math kernel: `experiments/rocket3_foundation/src/virtual_canvas.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
-| F18 UI context/IDs | WP05, WP23 | WP05 PROVISIONAL ID kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; focused native package and formatter evidence recorded above | WP34 |
-| F19 Layout | WP03, WP24 | WP03 PROVISIONAL layout kernel: `experiments/rocket3_foundation/src/layout.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
-| F20 Themes/styles | WP04, WP25 | WP04 PROVISIONAL data kernel: `experiments/rocket3_foundation/src/theme.rocket`; focused native package and formatter evidence recorded above | WP34 |
+| F17 VirtualCanvas | WP03, WP21 | WP09 retained the WP03 mapping math as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/virtual_canvas.rocket`; fresh native package and formatter evidence recorded above | WP34 |
+| F18 UI context/IDs | WP05, WP23 | WP09 retained the corrected WP05 full-identity kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; fresh native package and formatter evidence recorded above | WP34 |
+| F19 Layout | WP03, WP24 | WP09 retained the WP03 layout math as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/layout.rocket`; fresh native package and formatter evidence recorded above | WP34 |
+| F20 Themes/styles | WP04, WP25 | WP09 retained the WP04 value/resolution data as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/theme.rocket`; fresh native package and formatter evidence recorded above | WP34 |
 | F21 Controls | WP26 | RED | WP34 |
 | F22 Containers/transient UI | WP27 | RED | WP34 |
 | F23 Asset store | WP28 | RED | WP34 |
 | F24 Errors/lifetimes | WP29 | RED | WP34 |
-| F25 Bounded state | WP05, WP30 | WP05 PROVISIONAL bounded-state kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; focused native package and formatter evidence recorded above | WP34 |
-| F26 Performance | WP08, WP31 | WP08 PROVISIONAL evidence schema: `experiments/rocket3_visual_compare/src/evidence_schema.h`; deterministic environment/counter records and measured thresholds, with focused CTest/formatter evidence recorded above | WP34 |
-| F27 Visual regression | WP07, WP08, WP32 | WP07 PROVISIONAL raw-RGBA comparator plus WP08 PROVISIONAL evidence schema: `experiments/rocket3_visual_compare/src/comparator.h` and `src/evidence_schema.h`; standalone CMake/CTest evidence recorded above | WP34 |
+| F25 Bounded state | WP05, WP30 | WP09 retained the corrected WP05 bounded-state kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; capacity/retention calibration remains deferred | WP34 |
+| F26 Performance | WP08, WP31 | WP09 retained the WP08 synthetic evidence schema as INTEGRATION-READY internal tooling: `experiments/rocket3_visual_compare/src/evidence_schema.h`; fresh Debug/Release CTest evidence recorded above and final budgets remain deferred | WP34 |
+| F27 Visual regression | WP07, WP08, WP32 | WP09 retained the WP07 raw-RGBA comparator and WP08 evidence schema as INTEGRATION-READY internal tooling: `experiments/rocket3_visual_compare/src/comparator.h` and `src/evidence_schema.h`; fresh Debug/Release CTest evidence recorded above | WP34 |
 | F28 Examples/showcase | WP33 | RED | WP34 |
-| F29 Platform/compatibility | WP09, WP34 | RED | WP34 |
+| F29 Platform/compatibility | WP09, WP34 | WP09 INTEGRATION-READY baseline: four accepted target identities, observed Phase 19 native/cross evidence, and fresh Windows target/self-host/compatibility/package/raylib checks recorded above; full Rocket 3 acceptance remains RED | WP34 |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
 
 ## 9. Current next-chat prompt
@@ -836,7 +907,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP09 - Rocket 2.1 baseline audit and foundation integration
+**Current packet:** WP10 - Named arguments
 
 ```text
 Work only in the main Rocket checkout:
@@ -848,47 +919,65 @@ docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
 Verify that the branch is master, begin from a clean checkout, and confirm it
 contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP09 may use
-current Rocket code and normal audit/build/test paths, but must not expand
-beyond the WP09 packet scope. If `git status --short --branch` shows an
-unpushed Rocket 3 checkpoint, push it before editing.
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 and WP09 are complete;
+the retained Rocket 3 foundation kernels are internal INTEGRATION-READY inputs,
+not public APIs. If `git status --short --branch` shows an unpushed Rocket 3
+checkpoint, push it before editing.
 
-Recommended model: GPT-5.6 Sol with XHigh reasoning.
+Recommended model: GPT-5.6 Sol with High reasoning.
 
-Execute only WP09: Rocket 2.1 baseline audit and foundation integration
-(F01/F29). Record the accepted Rocket 2.1 commit, clean status, supported
-targets, toolchain, runtime ABI, SDK/module layout, packages, raylib, tests,
-release evidence, and frozen hashes. Review each rebased Rocket 3 foundation
-commit against the current architecture and retain, rework, or discard it only
-with interface and compatibility evidence. Run focused compatibility checks
-before marking valid kernels `INTEGRATION-READY`. Update only this plan's WP09
-status, traceability evidence, and prompt rotation; do not begin WP10 language
-features or public graphics/UI promotion.
+Execute only WP10: named arguments (F02). Implement the complete
+grammar-to-tooling vertical slice in both the permanent C++20 stage0 and the
+Rocket-written compiler. Preserve positional-only calls; allow all-named calls
+and positional arguments followed by named arguments; reject every positional
+argument after the first named argument. Bind reordered names to declared
+parameter names and produce stable compile-time diagnostics for unknown,
+duplicate, missing, positional/named-conflicting, and wrong-typed arguments,
+using the existing typo-suggestion support where applicable.
+
+The initial callable set is direct functions, methods, extern functions, and
+struct constructors. Document and test every excluded callable category.
+Represent public parameter names in the cross-module/interface metadata used by
+calls. Keep receiver/callee and written-argument evaluation order explicit,
+normalize named calls before lower-level calling conventions, and preserve
+runtime ABI v1 and backend ABI behavior. Stage0, the self-hosted compiler,
+formatter, LSP, documentation generator, and every currently supported editor
+integration must agree on syntax, semantics, formatting, metadata, and
+diagnostics. Update the applicable language/compiler/tooling specifications and
+atomic traceability. Do not implement default arguments (WP11), `std.math`, or
+any public graphics/UI/native integration.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
-task are active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp09 inside this checkout, never automatically retry a
-timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
-current compiler/toolchain is not present, first inspect the repository build
-guidance; before starting any build that could use more than 20 GiB, stop and ask
-the owner.
+task are active. Use test-driven development: add focused positive/negative
+tests first, run them, and capture the expected failure before implementation.
+Run commands sequentially, write all generated state only below
+out/rocket3-provisional/wp10 inside this checkout, never automatically retry a
+timeout, and stop/report if a task process exceeds 4 GiB or keeps growing.
+Inspect the current build guidance before configuring compiler/bootstrap
+matrices, estimate their combined disk use, and stop to ask the owner before
+any operation that could use more than 20 GiB.
 
-Run the audit's focused compatibility, package, and provenance checks, update
-WP09's packet-index state and atomic traceability evidence, then follow the
-prompt-rotation contract in section 4. The next eligible packet will normally
-be WP10 after WP09: replace the current packet label and this entire fenced
-block with a complete WP10 prompt. Run git diff --check, review the scoped
-diff, and commit the WP09 files plus plan/status/prompt rotation together with:
+Run focused parser, AST/HIR/binding/type-checking, MIR/backend, metadata,
+cross-module, diagnostic, formatter, LSP/tooling, stage0, and self-hosted parity
+checks. Then run the RED packet's required predecessor-compatibility,
+LLVM-disabled stage0, Debug/Release, and deterministic stage0-to-stage3
+bootstrap evidence without weakening or deleting any existing gate. Update
+WP10's packet-index state, detailed evidence, and atomic traceability, then
+follow the success-only prompt-rotation contract in section 4. The next
+eligible packet will normally be WP11 after WP10: replace the current packet
+label and this entire fenced block with a complete WP11 prompt. Run
+`git diff --check`, review the scoped diff, and commit the WP10 implementation,
+tests, docs, evidence, and prompt rotation together with:
 
-chore: establish final Rocket 3 integration baseline
+feat: add named arguments
 
-Only rotate after every required WP09 check passes. If implementation or
-verification fails, leave WP09 as the current prompt and report the blocker.
-After committing, push `master` to `origin`. If push fails, do not begin WP10;
+Only rotate after every required WP10 check passes. If implementation or
+verification fails, leave WP10 as the current prompt and report the blocker.
+After committing, push `master` to `origin`. If push fails, do not begin WP11;
 report the push blocker and preserve the committed handoff. After a successful
-push, stop and report the exact files, audit checks, results, commit, push
-result, remaining intentional provisional limitations, and the packet prepared
-for the next chat. Do not begin WP10 in the same chat.
+push, stop and report the exact files, tests, results, commit, push result,
+remaining intentional limitations, and the packet prepared for the next chat.
+Do not begin WP11 or any other packet in the same chat.
 ```
 
 ## 10. Permanent reusable launcher
