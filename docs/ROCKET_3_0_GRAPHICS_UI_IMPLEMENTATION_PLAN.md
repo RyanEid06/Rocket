@@ -905,7 +905,12 @@ with the next eligible packet's prompt, commit everything, push `master` to
 origin, and verify `git status --short --branch` reports no unpushed commits.
 Do not stop after a local-only commit. If the push fails, do not begin the next
 packet: report the push blocker and preserve the committed handoff. Stop only
-after the push has succeeded.
+after the push has succeeded. If this launcher is invoked with `/goal`, treat
+it as permission for exactly this one current packet only: after the intended
+packet's push and final synchronization check succeed, call `update_goal` with
+status `complete` immediately and stop. The rotated next-packet prompt is a
+handoff for a future chat, not approval to start that packet, and `/goal` must
+never be used to infer that approval.
 ```
 
 ## 11. Packet model routing
