@@ -530,7 +530,10 @@ exist. The final sequential Ninja build succeeded and CTest passed
 external image dependency, raylib capture, top-level CMake/CTest registration,
 golden references, or CI was added. This remains PROVISIONAL comparator-kernel
 evidence only: PNG/image I/O, capture, approved goldens, budgets, and final
-visual-regression integration are deferred.
+visual-regression integration are deferred. The later corrective regression
+replaced `assert`-only checks with always-active test checks: an intentionally
+wrong bounds expectation failed in a Release (`NDEBUG`) build, and both Debug
+and Release CTest runs then passed 1/1 with the correct expectation.
 
 ### WP08 - Provisional performance and golden schemas
 
