@@ -530,6 +530,7 @@ jobs:
   cross-destination-execution:
     name: Execute ${{ matrix.host }} to ${{ matrix.target }} artifact natively
     needs: cross-acceptance
+    if: ${{ always() && needs.cross-acceptance.result == 'success' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
