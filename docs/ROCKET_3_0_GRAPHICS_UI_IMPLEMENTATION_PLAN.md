@@ -445,17 +445,17 @@ configuration, not public constants. No native input or public `Context` API.
 
 **WP05 evidence (2026-08-29, corrected):** The main `master` checkout provides
 a local, explicitly provisional F18/F25 widget-state kernel in
-`experiments/rocket3_foundation/src/widget_state.rocket`. Hierarchical ID
-segments use byte-length prefixes, so embedded separators cannot alias a
-different hierarchy. Active/focused state retains and validates the complete
+`experiments/rocket3_foundation/src/widget_state.rocket`. Hierarchical IDs
+encode byte-length-prefixed parent and child boundaries, so embedded separators
+or raw parent strings cannot alias a different hierarchy. Active/focused state retains and validates the complete
 `(path, hash)` identity rather than a hash alone, including deliberate hash
 collisions. Capacity is validated from 1 through 100,000 and registrations
 beyond capacity are rejected. The bulk stress helper now builds a balanced set
 of 100,000 distinct deterministic IDs, rejects a same-frame re-registration as
 a duplicate, and uses balanced concatenation again during full-frame retention;
 it does not fabricate repeated path/hash pairs. Corrective regressions first
-failed for ambiguous slash composition, missing full-identity state behavior,
-and the false bulk-duplicate claim. The final focused native package suite
+failed for ambiguous slash/raw-parent composition, missing full-identity state
+behavior, and the false bulk-duplicate claim. The final focused native package suite
 passed `widget_state_test.rocket`, `theme_test.rocket`, `color_test.rocket`,
 `geometry_test.rocket`, `hit_testing_test.rocket`, `layout_test.rocket`, and
 `virtual_canvas_test.rocket` (7/7), with `ROCKET_ARTIFACT_ROOT` set below

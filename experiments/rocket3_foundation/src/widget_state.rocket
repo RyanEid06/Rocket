@@ -32,7 +32,7 @@ struct BulkRecords:
 
 pub fn compose_id(parent: String, child: String) -> WidgetId:
     let segment = string.concat(string.from_int(string.byte_length(child)), string.concat(":", child))
-    let path = string.concat(parent, segment)
+    let path = string.concat(string.from_int(string.byte_length(parent)), string.concat(":", string.concat(parent, segment)))
     return WidgetId(path, collections.hash(path))
 
 pub fn new_state(capacity: Int) -> Result[WidgetState, String]:

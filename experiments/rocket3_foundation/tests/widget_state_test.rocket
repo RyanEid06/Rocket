@@ -9,14 +9,18 @@ fn main() -> Int:
     let root = widget_state.compose_id("", "panel")
     let child = widget_state.compose_id(root.path, "button")
     let same_child = widget_state.compose_id(root.path, "button")
-    if not same_text(child.path, "5:panel6:button") or child.hash != same_child.hash:
+    if not same_text(child.path, "9:0:5:panel6:button") or child.hash != same_child.hash:
         return 1
     let slash_parent = widget_state.compose_id("", "a/b")
     let slash_child = widget_state.compose_id(slash_parent.path, "c")
     let nested_parent = widget_state.compose_id("", "a")
     let nested_child = widget_state.compose_id(nested_parent.path, "b/c")
-    if slash_child.path == nested_child.path or slash_child.hash == nested_child.hash:
+    if slash_child.path == nested_child.path:
         return 18
+    let raw_parent_first = widget_state.compose_id("seed", "x2:ab")
+    let raw_parent_second = widget_state.compose_id("seed5:x", "ab")
+    if raw_parent_first.path == raw_parent_second.path:
+        return 24
 
     match widget_state.new_state(3):
         case Ok(initial):
