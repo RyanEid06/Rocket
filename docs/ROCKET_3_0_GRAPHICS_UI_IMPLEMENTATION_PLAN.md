@@ -10,8 +10,8 @@
 **Goal:** Deliver Rocket 3.0's additive language ergonomics and complete, safe,
 portable, game-oriented graphics/UI stack on the accepted Rocket 2.1 baseline.
 
-**Architecture:** The Rocket 3.0 branch is rebased on the accepted Rocket 2.1
-portability baseline. Foundation kernels stay intentionally internal until their
+**Architecture:** Rocket 3.0 work proceeds directly on `master`, which contains
+the accepted Rocket 2.1 portability baseline. Foundation kernels stay intentionally internal until their
 named public-integration packets; compiler, native, SDK, platform, package, and
 release work are available whenever a packet owns them. WP09 audits the rebased
 foundation before public promotion, and all work remains in narrow vertical
@@ -34,7 +34,7 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 - Phase 19 is complete. A packet may modify any Rocket subsystem it owns,
   including compiler, runtime, standard-library, native, SDK, build, package,
   or release code; it must still preserve predecessor compatibility and meet its
-  named validation scope. Do not merge into `master` without owner approval.
+  named validation scope.
 - Do not introduce cloud, paid, subscription, API-key, or per-use graphics
   dependencies. raylib 6.0 remains the renderer.
 - Do not migrate Scroll2Roll in this plan.
@@ -42,7 +42,7 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
   that grows continuously.
 - A packet handles one or two feature groups, updates its traceability rows,
   rotates the current next-chat prompt, commits those changes together, pushes
-  the branch to `origin`, and stops.
+  `master` to `origin`, and stops.
 
 ---
 
@@ -50,22 +50,20 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 
 | Field | Recorded value |
 | --- | --- |
-| Rocket 3 branch | `codex/rocket-3-provisional` |
-| Linked worktree | `C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional` |
+| Active branch | `master` |
+| Active checkout | `C:\Users\Administrator\Desktop\Projects\Rocket` |
 | Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
 | Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
-| Branch integration state | rebased on the accepted Rocket 2.1 baseline before this transition |
-| Packet generated output | `out/rocket3-provisional/` inside the linked worktree |
-| Delivery policy | every successful packet commits and pushes to `origin`; merge to `master` requires owner approval |
+| Branch integration state | Rocket 3.0 foundation commits fast-forwarded into `master` on 2026-08-29 |
+| Packet generated output | `out/rocket3-provisional/` inside the active checkout |
+| Delivery policy | every successful packet commits and pushes `master` to `origin` |
 
 The accepted baseline is provenance for Rocket 3.0 compatibility. Before every
 packet, verify the branch is clean and still contains the accepted baseline:
 
 ```powershell
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' status --short
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' rev-parse master
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional' status --short --branch
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional' merge-base --is-ancestor 19596db HEAD
+git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' status --short --branch
+git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' merge-base --is-ancestor 19596db HEAD
 ```
 
 The accepted Phase 19 baseline no longer blocks files or tests. Use the packet's
@@ -84,7 +82,7 @@ bootstrap, platform, package, or release checks.
 
 ### Maturity
 
-- `PROVISIONAL`: tested internal kernel or tool on the isolated branch; public
+- `PROVISIONAL`: tested internal kernel or tool; public
   API and release support are not claimed.
 - `INTEGRATION-READY`: audited against the accepted Rocket 2.1 baseline and
   compatibility checked.
@@ -165,9 +163,9 @@ Every new chat must perform this sequence:
 
 - [ ] Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, both Rocket 3.0 documents,
   and only the existing code/specifications relevant to the packet.
-- [ ] Verify the worktree path, branch, clean starting state, and accepted
+- [ ] Verify the active checkout, `master`, clean starting state, and accepted
   Rocket 2.1 baseline.
-- [ ] Verify the Rocket 3 branch has no unpushed checkpoint; push any existing
+- [ ] Verify `master` has no unpushed checkpoint; push any existing
   committed work before editing.
 - [ ] Refresh GREEN/YELLOW/RED classification before editing.
 - [ ] Confirm no Rocket build/test processes from this task are active before
@@ -186,7 +184,7 @@ Every new chat must perform this sequence:
   prompt that waits for or audits the condition that blocks the next packet.
 - [ ] Run `git diff --check` and review the scoped diff.
 - [ ] Commit only the packet's files and the plan/status/prompt rotation with
-  the prescribed message, then push the branch to `origin`.
+  the prescribed message, then push `master` to `origin`.
 - [ ] Stop after a successful push. Do not begin the next packet in the same
   chat.
 
@@ -197,7 +195,7 @@ stop. If the checkpoint commit succeeds but push fails, do not begin a new
 packet: preserve the committed rotation and resolve the push before continuing.
 The permanent launcher in section 10 never changes during ordinary packet work.
 
-Every replacement prompt must remain self-contained: repeat the exact worktree
+Every replacement prompt must remain self-contained: repeat the exact checkout
 and branch, required document reads, clean/baseline checks, packet-only scope
 and exclusions, test and generated-output boundaries, resource-safety rules,
 recommended model and reasoning effort, checkpoint message, success-only
@@ -746,18 +744,18 @@ is their archive.
 **Current packet:** WP04 - Provisional theme and style data
 
 ```text
-Work only in this existing isolated worktree:
-C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional
+Work only in the main Rocket checkout:
+C:\Users\Administrator\Desktop\Projects\Rocket
 
 Set that path as the working directory first. Then read AGENTS.md,
 docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and
 docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
-Verify that the branch is codex/rocket-3-provisional, begin from a clean
-worktree, and confirm it contains the accepted Rocket 2.1 baseline
+Verify that the branch is master, begin from a clean checkout, and confirm it
+contains the accepted Rocket 2.1 baseline
 19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP04 may use
 current Rocket code and normal build/test paths, but must not expand beyond the
-WP04 packet scope or merge into master. If `git status --short --branch` shows
+WP04 packet scope. If `git status --short --branch` shows
 an unpushed Rocket 3 checkpoint, push it before editing.
 
 Recommended model: GPT-5.6 Luna with Medium reasoning.
@@ -773,7 +771,7 @@ renderer conversion, or public SDK surface.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp04 inside this worktree, never automatically retry a
+out/rocket3-provisional/wp04 inside this checkout, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
 current `rocketc.exe` is not present, first inspect the repository build guidance;
 before starting any build that could use more than 20 GiB, stop and ask the owner.
@@ -793,7 +791,7 @@ feat: add provisional Rocket 3 theme data
 
 Only rotate after every required WP04 check passes. If implementation or
 verification fails, leave WP04 as the current prompt and report the blocker.
-After committing, push `codex/rocket-3-provisional` to `origin`. If push fails,
+After committing, push `master` to `origin`. If push fails,
 do not begin WP05; report the push blocker and preserve the committed handoff.
 After a successful push, stop and report the exact files, tests, results,
 commit, push result, remaining intentional provisional limitations, and the
@@ -807,10 +805,10 @@ chat. Do not customize it for individual packets; section 9 supplies the
 changing scope.
 
 ```text
-Work only in the existing Rocket 3.0 provisional worktree. Read AGENTS.md and
+Work only in the main Rocket checkout on `master`. Read AGENTS.md and
 both Rocket 3.0 planning documents, then execute exactly the "Current next-chat
 prompt" in the implementation plan. After successful completion, replace it
-with the next eligible packet's prompt, commit everything, push the branch to
+with the next eligible packet's prompt, commit everything, push `master` to
 origin, and stop.
 ```
 

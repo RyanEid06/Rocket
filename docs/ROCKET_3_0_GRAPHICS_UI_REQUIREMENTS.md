@@ -86,15 +86,15 @@ documentation, supported targets, and acceptance evidence.
 
 ### Integrated development and delivery discipline
 
-- `R3-ISO-001`: Rocket 3.0 work occurs on `codex/rocket-3-provisional` in its
-  linked worktree, rebased on the accepted Rocket 2.1 baseline. Each successful
-  packet commits and pushes its code, evidence, and rotated handoff prompt.
+- `R3-ISO-001`: Rocket 3.0 work occurs on `master` in the main Rocket checkout,
+  which contains the accepted Rocket 2.1 baseline. Each successful packet
+  commits and pushes its code, evidence, and rotated handoff prompt.
 - `R3-ISO-002`: Phase 19 is complete and no longer restricts Rocket 3.0 file
   eligibility. Compiler, runtime, standard-library, native adapter, SDK, build,
   package, and release files may be changed when they are within the named
   packet's scope and receive the required validation.
 - `R3-ISO-003`: Generated packet output belongs below
-  `out/rocket3-provisional` inside the Rocket 3.0 worktree and is never tracked.
+  `out/rocket3-provisional` inside the main Rocket checkout and is never tracked.
 - `R3-ISO-004`: `GREEN`, `YELLOW`, and `RED` describe engineering risk rather
   than Phase 19 ownership: `GREEN` is a self-contained change, `YELLOW` crosses
   an existing subsystem and requires focused regression coverage, and `RED`
@@ -583,7 +583,7 @@ Each implementation packet must:
 
 1. Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, this requirements file, and the
    companion implementation plan.
-2. Confirm the rebased Rocket 3.0 branch/worktree and clean upstream state.
+2. Confirm `master`, the main Rocket checkout, and clean upstream state.
 3. Push any existing committed Rocket 3.0 checkpoint before editing.
 4. Limit itself to one or two feature groups named by the packet.
 5. Write focused failing tests before implementation where executable behavior
@@ -592,7 +592,7 @@ Each implementation packet must:
    risk classification requires.
 7. Update atomic traceability and maturity without claiming public acceptance.
 8. Commit the packet's files, evidence, and rotated handoff prompt with its
-   scoped message, then push the branch to `origin`.
+   scoped message, then push `master` to `origin`.
 9. Stop after the push; a later chat handles the next packet. If the push fails,
    do not begin another packet until the existing commit is pushed or the
    blocker is resolved.
