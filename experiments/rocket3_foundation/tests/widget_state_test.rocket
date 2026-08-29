@@ -8,9 +8,15 @@ fn same_text(left: String, right: String) -> Bool:
 fn main() -> Int:
     let root = widget_state.compose_id("", "panel")
     let child = widget_state.compose_id(root.path, "button")
-    let same_child = widget_state.compose_id("panel", "button")
-    if not same_text(child.path, "panel/button") or child.hash != same_child.hash:
+    let same_child = widget_state.compose_id(root.path, "button")
+    if not same_text(child.path, "5:panel6:button") or child.hash != same_child.hash:
         return 1
+    let slash_parent = widget_state.compose_id("", "a/b")
+    let slash_child = widget_state.compose_id(slash_parent.path, "c")
+    let nested_parent = widget_state.compose_id("", "a")
+    let nested_child = widget_state.compose_id(nested_parent.path, "b/c")
+    if slash_child.path == nested_child.path or slash_child.hash == nested_child.hash:
+        return 18
 
     match widget_state.new_state(3):
         case Ok(initial):
@@ -27,19 +33,25 @@ fn main() -> Int:
             if duplicate.accepted or not duplicate.duplicate:
                 return 4
             state = duplicate.state
-            state = widget_state.set_active(state, child.hash)
-            state = widget_state.set_focused(state, root.hash)
+            state = widget_state.set_active(state, child)
+            state = widget_state.set_focused(state, root)
             state = widget_state.end_frame(state)
-            if widget_state.count(state) != 2 or widget_state.active(state) != child.hash or widget_state.focused(state) != root.hash:
+            if widget_state.count(state) != 2:
                 return 5
+            if not widget_state.active_is(state, child):
+                return 19
+            if not widget_state.focused_is(state, root):
+                return 20
 
             state = widget_state.begin_frame(state)
             let third = widget_state.register(state, widget_state.compose_id("", "new"))
             if not third.accepted:
                 return 6
             state = widget_state.end_frame(third.state)
-            if widget_state.count(state) != 1 or widget_state.active(state) != -1 or widget_state.focused(state) != -1:
+            if widget_state.count(state) != 1:
                 return 7
+            if widget_state.has_active(state) or widget_state.has_focused(state):
+                return 21
 
             state = widget_state.begin_frame(state)
             let a = widget_state.register(state, root)
@@ -56,6 +68,32 @@ fn main() -> Int:
                 return 9
         case Err(message):
             return 10
+
+    let colliding_left = widget_state.WidgetId("left", 7)
+    let colliding_right = widget_state.WidgetId("right", 7)
+    match widget_state.new_state(2):
+        case Ok(initial):
+            var collision = widget_state.begin_frame(initial)
+            let left = widget_state.register(collision, colliding_left)
+            if not left.accepted:
+                return 25
+            collision = left.state
+            let right = widget_state.register(collision, colliding_right)
+            if not right.accepted:
+                return 26
+            collision = right.state
+            collision = widget_state.set_active(collision, colliding_left)
+            collision = widget_state.set_focused(collision, colliding_right)
+            collision = widget_state.end_frame(collision)
+            collision = widget_state.begin_frame(collision)
+            let seen_right = widget_state.register(collision, colliding_right)
+            collision = widget_state.end_frame(seen_right.state)
+            if widget_state.has_active(collision):
+                return 22
+            if not widget_state.focused_is(collision, colliding_right):
+                return 23
+        case Err(message):
+            return 30
 
     match widget_state.new_state(0):
         case Ok(value):
@@ -80,6 +118,12 @@ fn main() -> Int:
                     return 15
             if widget_state.count(stress) != 100000:
                 return 16
+            let repeated = widget_state.register(stress, widget_state.compose_id("stress", "99999"))
+            if repeated.accepted or not repeated.duplicate:
+                return 17
+            stress = widget_state.end_frame(repeated.state)
+            if widget_state.count(stress) != 100000:
+                return 18
         case Err(message):
-            return 17
+            return 19
     return 0

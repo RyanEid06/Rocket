@@ -12,8 +12,12 @@ pub struct WidgetState:
     paths: Array[String]
     hashes: Array[Int]
     last_seen: Array[Int]
-    active_id: Int
-    focused_id: Int
+    active_present: Bool
+    active_path: String
+    active_hash: Int
+    focused_present: Bool
+    focused_path: String
+    focused_hash: Int
     frame: Int
 
 pub struct Registration:
@@ -21,10 +25,14 @@ pub struct Registration:
     accepted: Bool
     duplicate: Bool
 
+struct BulkRecords:
+    paths: Array[String]
+    hashes: Array[Int]
+    last_seen: Array[Int]
+
 pub fn compose_id(parent: String, child: String) -> WidgetId:
-    var path = child
-    if string.byte_length(parent) > 0:
-        path = string.concat(parent, string.concat("/", child))
+    let segment = string.concat(string.from_int(string.byte_length(child)), string.concat(":", child))
+    let path = string.concat(parent, segment)
     return WidgetId(path, collections.hash(path))
 
 pub fn new_state(capacity: Int) -> Result[WidgetState, String]:
@@ -36,10 +44,10 @@ pub fn new_state(capacity: Int) -> Result[WidgetState, String]:
     paths = collections.reserve(paths, capacity)
     hashes = collections.reserve(hashes, capacity)
     last_seen = collections.reserve(last_seen, capacity)
-    return Ok(WidgetState(capacity, paths, hashes, last_seen, -1, -1, 0))
+    return Ok(WidgetState(capacity, paths, hashes, last_seen, false, "", 0, false, "", 0, 0))
 
 pub fn begin_frame(value: WidgetState) -> WidgetState:
-    return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, value.active_id, value.focused_id, value.frame + 1)
+    return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, value.active_present, value.active_path, value.active_hash, value.focused_present, value.focused_path, value.focused_hash, value.frame + 1)
 
 pub fn register(value: WidgetState, id: WidgetId) -> Registration:
     var index = 0
@@ -52,128 +60,100 @@ pub fn register(value: WidgetState, id: WidgetId) -> Registration:
             var last_seen = value.last_seen
             last_seen = collections.remove(last_seen, index).values
             last_seen = collections.insert(last_seen, index, value.frame)
-            return Registration(WidgetState(value.capacity, paths, hashes, last_seen, value.active_id, value.focused_id, value.frame), true, false)
+            return Registration(WidgetState(value.capacity, paths, hashes, last_seen, value.active_present, value.active_path, value.active_hash, value.focused_present, value.focused_path, value.focused_hash, value.frame), true, false)
         index = index + 1
     if collections.length(value.hashes) >= value.capacity:
         return Registration(value, false, false)
     let paths = collections.append(value.paths, id.path)
     let hashes = collections.append(value.hashes, id.hash)
     let last_seen = collections.append(value.last_seen, value.frame)
-    return Registration(WidgetState(value.capacity, paths, hashes, last_seen, value.active_id, value.focused_id, value.frame), true, false)
+    return Registration(WidgetState(value.capacity, paths, hashes, last_seen, value.active_present, value.active_path, value.active_hash, value.focused_present, value.focused_path, value.focused_hash, value.frame), true, false)
 
 pub fn register_many(value: WidgetState, prefix: String, amount: Int) -> Result[WidgetState, String]:
-    if amount < 0 or amount > value.capacity:
+    let used = collections.length(value.hashes)
+    if amount < 0 or amount > value.capacity - used:
         return Err("bulk widget registration exceeds state capacity")
-    let paths = repeated_string(prefix, amount)
-    let hashes = repeated_int(0, amount)
-    let last_seen = repeated_int(value.frame, amount)
-    return Ok(WidgetState(value.capacity, paths, hashes, last_seen, value.active_id, value.focused_id, value.frame))
+    let records = generated_records(prefix, 0, amount, value.frame)
+    var index = 0
+    while index < amount:
+        if contains_id(value.paths, value.hashes, WidgetId(records.paths[index], records.hashes[index])):
+            return Err("bulk widget registration duplicates an existing ID")
+        index = index + 1
+    return Ok(WidgetState(value.capacity, collections.concat(value.paths, records.paths), collections.concat(value.hashes, records.hashes), collections.concat(value.last_seen, records.last_seen), value.active_present, value.active_path, value.active_hash, value.focused_present, value.focused_path, value.focused_hash, value.frame))
 
-pub fn set_active(value: WidgetState, id: Int) -> WidgetState:
-    if contains_hash(value.hashes, id):
-        return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, id, value.focused_id, value.frame)
+pub fn set_active(value: WidgetState, id: WidgetId) -> WidgetState:
+    if contains_id(value.paths, value.hashes, id):
+        return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, true, id.path, id.hash, value.focused_present, value.focused_path, value.focused_hash, value.frame)
     return value
 
-pub fn set_focused(value: WidgetState, id: Int) -> WidgetState:
-    if contains_hash(value.hashes, id):
-        return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, value.active_id, id, value.frame)
+pub fn set_focused(value: WidgetState, id: WidgetId) -> WidgetState:
+    if contains_id(value.paths, value.hashes, id):
+        return WidgetState(value.capacity, value.paths, value.hashes, value.last_seen, value.active_present, value.active_path, value.active_hash, true, id.path, id.hash, value.frame)
     return value
 
 pub fn end_frame(value: WidgetState) -> WidgetState:
-    var paths: Array[String] = []
-    var hashes: Array[Int] = []
-    var last_seen: Array[Int] = []
-    paths = collections.reserve(paths, value.capacity)
-    hashes = collections.reserve(hashes, value.capacity)
-    last_seen = collections.reserve(last_seen, value.capacity)
-    var index = 0
-    while index < collections.length(value.paths):
-        if value.last_seen[index] == value.frame:
-            paths = collections.append(paths, value.paths[index])
-            hashes = collections.append(hashes, value.hashes[index])
-            last_seen = collections.append(last_seen, value.last_seen[index])
-        index = index + 1
-    var active_id = value.active_id
-    if not seen_this_frame(value, active_id):
-        active_id = -1
-    var focused_id = value.focused_id
-    if not seen_this_frame(value, focused_id):
-        focused_id = -1
-    return WidgetState(value.capacity, paths, hashes, last_seen, active_id, focused_id, value.frame)
+    let records = retained_records(value, 0, collections.length(value.paths))
+    var active_present = value.active_present
+    if active_present and not seen_this_frame(value, value.active_path, value.active_hash):
+        active_present = false
+    var focused_present = value.focused_present
+    if focused_present and not seen_this_frame(value, value.focused_path, value.focused_hash):
+        focused_present = false
+    return WidgetState(value.capacity, records.paths, records.hashes, records.last_seen, active_present, value.active_path, value.active_hash, focused_present, value.focused_path, value.focused_hash, value.frame)
 
 pub fn count(value: WidgetState) -> Int:
     return collections.length(value.hashes)
 
-pub fn active(value: WidgetState) -> Int:
-    return value.active_id
+pub fn has_active(value: WidgetState) -> Bool:
+    return value.active_present
 
-pub fn focused(value: WidgetState) -> Int:
-    return value.focused_id
+pub fn active_is(value: WidgetState, id: WidgetId) -> Bool:
+    return value.active_present and value.active_hash == id.hash and value.active_path == id.path
 
-fn contains_hash(values: Array[Int], target: Int) -> Bool:
+pub fn has_focused(value: WidgetState) -> Bool:
+    return value.focused_present
+
+pub fn focused_is(value: WidgetState, id: WidgetId) -> Bool:
+    return value.focused_present and value.focused_hash == id.hash and value.focused_path == id.path
+
+fn contains_id(paths: Array[String], hashes: Array[Int], target: WidgetId) -> Bool:
     var index = 0
-    while index < collections.length(values):
-        if values[index] == target:
+    while index < collections.length(hashes):
+        if hashes[index] == target.hash and paths[index] == target.path:
             return true
         index = index + 1
     return false
 
-fn seen_this_frame(value: WidgetState, target: Int) -> Bool:
+fn seen_this_frame(value: WidgetState, path: String, hash: Int) -> Bool:
     var index = 0
     while index < collections.length(value.hashes):
-        if value.hashes[index] == target and value.last_seen[index] == value.frame:
+        if value.hashes[index] == hash and value.paths[index] == path and value.last_seen[index] == value.frame:
             return true
         index = index + 1
     return false
 
-fn repeated_int(value: Int, amount: Int) -> Array[Int]:
-    var result: Array[Int] = []
-    var remaining = amount
-    var block_size = 1
-    while block_size <= amount:
-        block_size = block_size * 2
-    block_size = block_size / 2
-    while block_size > 0:
-        if remaining >= block_size:
-            let block = repeated_int_block(value, block_size)
-            if collections.length(result) == 0:
-                result = block
-            else:
-                result = collections.concat(result, block)
-            remaining = remaining - block_size
-        block_size = block_size / 2
-    return result
+fn generated_records(prefix: String, start: Int, amount: Int, frame: Int) -> BulkRecords:
+    if amount <= 0:
+        return BulkRecords([], [], [])
+    if amount == 1:
+        let id = compose_id(prefix, string.from_int(start))
+        return BulkRecords([id.path], [id.hash], [frame])
+    let left_amount = amount / 2
+    let left = generated_records(prefix, start, left_amount, frame)
+    let right = generated_records(prefix, start + left_amount, amount - left_amount, frame)
+    return join_records(left, right)
 
-fn repeated_string(value: String, amount: Int) -> Array[String]:
-    var result: Array[String] = []
-    var remaining = amount
-    var block_size = 1
-    while block_size <= amount:
-        block_size = block_size * 2
-    block_size = block_size / 2
-    while block_size > 0:
-        if remaining >= block_size:
-            let block = repeated_string_block(value, block_size)
-            if collections.length(result) == 0:
-                result = block
-            else:
-                result = collections.concat(result, block)
-            remaining = remaining - block_size
-        block_size = block_size / 2
-    return result
+fn retained_records(value: WidgetState, start: Int, end: Int) -> BulkRecords:
+    if start >= end:
+        return BulkRecords([], [], [])
+    if end - start == 1:
+        if value.last_seen[start] == value.frame:
+            return BulkRecords([value.paths[start]], [value.hashes[start]], [value.last_seen[start]])
+        return BulkRecords([], [], [])
+    let middle = start +(end - start) / 2
+    let left = retained_records(value, start, middle)
+    let right = retained_records(value, middle, end)
+    return join_records(left, right)
 
-fn repeated_int_block(value: Int, amount: Int) -> Array[Int]:
-    var result: Array[Int] = [value]
-    var size = 1
-    while size < amount:
-        result = collections.concat(result, result)
-        size = size * 2
-    return result
-
-fn repeated_string_block(value: String, amount: Int) -> Array[String]:
-    var result: Array[String] = [value]
-    var size = 1
-    while size < amount:
-        result = collections.concat(result, result)
-        size = size * 2
-    return result
+fn join_records(left: BulkRecords, right: BulkRecords) -> BulkRecords:
+    return BulkRecords(collections.concat(left.paths, right.paths), collections.concat(left.hashes, right.hashes), collections.concat(left.last_seen, right.last_seen))

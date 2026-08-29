@@ -443,26 +443,26 @@ configuration, not public constants. No native input or public `Context` API.
 
 **Checkpoint:** `feat: add provisional Rocket 3 widget state kernel`
 
-**WP05 evidence (2026-08-29):** The main `master` checkout now provides a
-local, explicitly provisional F18/F25 widget-state kernel in
-`experiments/rocket3_foundation/src/widget_state.rocket`. It composes stable
-hierarchical paths and hashes, detects duplicate registration within a frame,
-retains IDs seen in the prior frame, evicts unseen IDs at `end_frame`, and
-clears active/focused IDs when they are not seen. Capacity is validated from 1
-through 100,000 and registrations beyond capacity are rejected. The test
-fixture covers nested identity, duplicate detection, active/focus cleanup,
-capacity rejection, invalid capacities, and a 100,000-entry bounded stress
-fixture. The implementation uses logarithmic concatenation for that fixture
-because the existing persistent `std.collections.append` contract clones on
-every append; no unbounded or native storage was introduced. The required red
-run failed because `src.widget_state` did not exist. The final focused native
-package suite passed `widget_state_test.rocket`, `theme_test.rocket`,
-`color_test.rocket`, `geometry_test.rocket`, `hit_testing_test.rocket`,
-`layout_test.rocket`, and `virtual_canvas_test.rocket` (7/7), with
-`ROCKET_ARTIFACT_ROOT` set below `out/rocket3-provisional/wp05`; the focused
-formatter check and `git diff --check` also passed. This remains PROVISIONAL
-kernel evidence only: there is no public `Context`, `UiFrame`, `Response`,
-native input, keyboard/focus system, modal capture, or public SDK surface.
+**WP05 evidence (2026-08-29, corrected):** The main `master` checkout provides
+a local, explicitly provisional F18/F25 widget-state kernel in
+`experiments/rocket3_foundation/src/widget_state.rocket`. Hierarchical ID
+segments use byte-length prefixes, so embedded separators cannot alias a
+different hierarchy. Active/focused state retains and validates the complete
+`(path, hash)` identity rather than a hash alone, including deliberate hash
+collisions. Capacity is validated from 1 through 100,000 and registrations
+beyond capacity are rejected. The bulk stress helper now builds a balanced set
+of 100,000 distinct deterministic IDs, rejects a same-frame re-registration as
+a duplicate, and uses balanced concatenation again during full-frame retention;
+it does not fabricate repeated path/hash pairs. Corrective regressions first
+failed for ambiguous slash composition, missing full-identity state behavior,
+and the false bulk-duplicate claim. The final focused native package suite
+passed `widget_state_test.rocket`, `theme_test.rocket`, `color_test.rocket`,
+`geometry_test.rocket`, `hit_testing_test.rocket`, `layout_test.rocket`, and
+`virtual_canvas_test.rocket` (7/7), with `ROCKET_ARTIFACT_ROOT` set below
+`out/rocket3-provisional/wp05/finalfix`; the focused formatter check and
+`git diff --check` passed. This remains PROVISIONAL kernel evidence only: there
+is no public `Context`, `UiFrame`, `Response`, native input, keyboard/focus
+system, modal capture, or public SDK surface.
 
 ### WP06 - Provisional reduced-motion kernel
 
