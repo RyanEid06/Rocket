@@ -216,7 +216,7 @@ the integration audit after WP08; it no longer waits for Phase 19.
 | WP03 | F19, F17 | Provisional layout and VirtualCanvas math | COMPLETE / PROVISIONAL |
 | WP04 | F20 | Provisional theme/style data | COMPLETE / PROVISIONAL |
 | WP05 | F18, F25 | Provisional widget IDs and bounded state | COMPLETE / PROVISIONAL |
-| WP06 | F06 | Provisional reduced-motion state kernel only | READY / GREEN |
+| WP06 | F06 | Provisional reduced-motion state kernel only | COMPLETE / PROVISIONAL |
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | READY / GREEN |
 | WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | BLOCKED BY WP07 / GREEN |
 | WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | BLOCKED BY WP08 / YELLOW |
@@ -476,6 +476,22 @@ transitions; test zero/negative duration and large deltas. Do not implement the
 public timeline API or arbitrary state mutation.
 
 **Checkpoint:** `feat: add provisional Rocket 3 reduced motion policy`
+
+**WP06 evidence (2026-08-29):** The main `master` checkout now provides a
+local, explicitly provisional F06 reduced-motion policy in
+`experiments/rocket3_foundation/src/reduced_motion.rocket`. `Policy` keeps
+reduced-motion mode and the explicit essential-transition allowance;
+`Transition` and `Sample` keep application state value-owned. Nonessential
+transitions snap to their final value in reduced mode, while allowed essential
+transitions use deterministic linearly clamped progress. Zero/negative or
+non-finite durations complete at the final value, and negative or very large
+elapsed deltas are bounded. The required red run failed because
+`src.reduced_motion` did not yet exist. The final focused native package suite
+passed `reduced_motion_test.rocket` plus the prior foundation tests (8/8), and
+the focused formatter check passed with `ROCKET_ARTIFACT_ROOT` set below
+`out/rocket3-provisional/wp06`. This remains PROVISIONAL kernel evidence only:
+there is no public timeline API, easing family, tween constructor, arbitrary
+object mutation, native integration, or public SDK surface.
 
 ### WP07 - Provisional visual-comparator kernel
 
@@ -747,7 +763,7 @@ file/test/doc/evidence links when executed.
 | F03 Default arguments | WP11 | RED | WP34 |
 | F04 `std.math` | WP12 | RED | WP34 |
 | F05 Easing | WP13 | RED | WP34 |
-| F06 Motion/reduced motion | WP06, WP13 | kernel GREEN | WP34 |
+| F06 Motion/reduced motion | WP06, WP13 | WP06 PROVISIONAL reduced-motion policy: `experiments/rocket3_foundation/src/reduced_motion.rocket`; focused native package suite and formatter evidence recorded above | WP34 |
 | F07 Safe geometry backend | WP14 | RED | WP34 |
 | F08 Textures/filtering | WP15 | RED | WP34 |
 | F09 Render targets/scopes | WP16 | RED | WP34 |
@@ -781,7 +797,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP06 - Provisional reduced-motion kernel
+**Current packet:** WP07 - Provisional visual-comparator kernel
 
 ```text
 Work only in the main Rocket checkout:
@@ -793,49 +809,54 @@ docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
 Verify that the branch is master, begin from a clean checkout, and confirm it
 contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP06 may use
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP07 may use
 current Rocket code and normal build/test paths, but must not expand beyond the
-WP06 packet scope. If `git status --short --branch` shows
+WP07 packet scope. If `git status --short --branch` shows
 an unpushed Rocket 3 checkpoint, push it before editing.
 
-Recommended model: GPT-5.6 Luna with Medium reasoning.
+Recommended model: GPT-5.6 Terra with Medium reasoning.
 
-Execute only WP06: provisional reduced-motion kernel (F06 reduced-motion
-subset). Use test-driven development and the exact provisional behavior in the
-plan. Create only experiments/rocket3_foundation/src/reduced_motion.rocket and
-experiments/rocket3_foundation/tests/reduced_motion_test.rocket, plus this
-plan's WP06-only status, traceability evidence, and prompt rotation. Keep all
-APIs explicitly provisional; do not freeze the public timeline API, easing
-names, tween constructors, arbitrary state mutation, or public SDK surface.
+Execute only WP07: provisional visual-comparator kernel (F27 raw-data subset).
+Use test-driven development and the exact provisional behavior in the plan.
+Create only experiments/rocket3_visual_compare/CMakeLists.txt,
+experiments/rocket3_visual_compare/README.md,
+experiments/rocket3_visual_compare/src/comparator.h,
+experiments/rocket3_visual_compare/src/comparator.cpp, and
+experiments/rocket3_visual_compare/tests/comparator_tests.cpp, plus this
+plan's WP07-only status, traceability evidence, and prompt rotation. Keep all
+APIs explicitly provisional; do not add PNG/image dependencies, raylib
+capture, top-level CMake/CTest registration, approved goldens, or CI.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp06 inside this checkout, never automatically retry a
+out/rocket3-provisional/wp07 inside this checkout, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
-current `rocketc.exe` is not present, first inspect the repository build guidance;
-before starting any build that could use more than 20 GiB, stop and ask the owner.
+current compiler/toolchain is not present, first inspect the repository build
+guidance; before starting any build that could use more than 20 GiB, stop and ask
+the owner.
 
-Implement and test classification of essential and nonessential transitions,
-snapping nonessential motion to its final state, deterministic progress for
-allowed reduced transitions, zero/negative duration behavior, and large time
-deltas. Keep application state explicitly owned; do not add the public timeline
-API, arbitrary object mutation, easing families, or later-packet work. Run
-focused checks, update WP06's packet-index state and atomic traceability
-evidence, then follow the prompt-rotation contract in section 4. The next
-eligible packet will normally be WP07: replace the current packet label and
-this entire fenced block with a complete WP07 prompt. Run git diff --check,
-review the scoped diff, and commit the WP06 files plus plan/status/prompt
-rotation together with:
+Implement and test equal-sized raw RGBA buffers, an ignored per-channel delta,
+mean absolute error, changed-pixel ratio, difference/heat values,
+changed-region bounds, and deterministic error results for invalid dimensions
+or buffer lengths. Keep the comparator independent of external image formats
+and preserve explicit input-buffer ownership. Do not add PNG, raylib capture,
+top-level build registration, approved goldens, CI, or WP08 schema/budget work.
+Run focused CMake/CTest checks from the standalone experiment, update WP07's
+packet-index state and atomic traceability evidence, then follow the
+prompt-rotation contract in section 4. The next eligible packet will normally
+be WP08: replace the current packet label and this entire fenced block with a
+complete WP08 prompt. Run git diff --check, review the scoped diff, and commit
+the WP07 files plus plan/status/prompt rotation together with:
 
-feat: add provisional Rocket 3 reduced motion policy
+test: add provisional Rocket 3 visual comparator kernel
 
-Only rotate after every required WP06 check passes. If implementation or
-verification fails, leave WP06 as the current prompt and report the blocker.
-After committing, push `master` to `origin`. If push fails,
-do not begin WP07; report the push blocker and preserve the committed handoff.
-After a successful push, stop and report the exact files, tests, results,
-commit, push result, remaining intentional provisional limitations, and the
-packet prepared for the next chat. Do not begin WP07 in the same chat.
+Only rotate after every required WP07 check passes. If implementation or
+verification fails, leave WP07 as the current prompt and report the blocker.
+After committing, push `master` to `origin`. If push fails, do not begin WP08;
+report the push blocker and preserve the committed handoff. After a successful
+push, stop and report the exact files, tests, results, commit, push result,
+remaining intentional provisional limitations, and the packet prepared for the
+next chat. Do not begin WP08 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher

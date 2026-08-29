@@ -1,0 +1,46 @@
+# WP06 provisional reduced-motion policy. This module is not a public Rocket 3.0 API.
+
+pub struct Policy:
+    reduced: Bool
+    allow_essential: Bool
+
+pub struct Transition:
+    essential: Bool
+    start: Float
+    finish: Float
+    duration: Float
+
+pub struct Sample:
+    value: Float
+    progress: Float
+    complete: Bool
+    snapped: Bool
+
+pub fn policy(reduced: Bool, allow_essential: Bool) -> Policy:
+    return Policy(reduced, allow_essential)
+
+pub fn transition(essential: Bool, start: Float, finish: Float, duration: Float) -> Transition:
+    return Transition(essential, start, finish, duration)
+
+pub fn is_essential(value: Transition) -> Bool:
+    return value.essential
+
+pub fn sample(mode: Policy, value: Transition, elapsed: Float) -> Sample:
+    if mode.reduced:
+        if not value.essential or not mode.allow_essential:
+            return Sample(value.finish, 1.0, true, true)
+    if value.duration <= 0.0 or not is_finite(value.duration):
+        return Sample(value.finish, 1.0, true, false)
+    let progress = clamp_progress(elapsed / value.duration)
+    let current = value.start +(value.finish - value.start) * progress
+    return Sample(current, progress, progress >= 1.0, false)
+
+fn clamp_progress(value: Float) -> Float:
+    if not is_finite(value) or value <= 0.0:
+        return 0.0
+    if value >= 1.0:
+        return 1.0
+    return value
+
+fn is_finite(value: Float) -> Bool:
+    return value - value == 0.0

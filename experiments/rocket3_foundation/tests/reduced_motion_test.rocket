@@ -1,0 +1,47 @@
+import src.reduced_motion
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn main() -> Int:
+    let normal = reduced_motion.policy(false, true)
+    let reduced = reduced_motion.policy(true, true)
+    let essential = reduced_motion.transition(true, 0.0, 100.0, 10.0)
+    let nonessential = reduced_motion.transition(false, 0.0, 100.0, 10.0)
+
+    if not reduced_motion.is_essential(essential) or reduced_motion.is_essential(nonessential):
+        return 1
+
+    let normal_sample = reduced_motion.sample(normal, nonessential, 5.0)
+    if not close(normal_sample.value, 50.0) or not close(normal_sample.progress, 0.5) or normal_sample.complete or normal_sample.snapped:
+        return 2
+
+    let snapped = reduced_motion.sample(reduced, nonessential, 5.0)
+    if not close(snapped.value, 100.0) or not close(snapped.progress, 1.0) or not snapped.complete or not snapped.snapped:
+        return 3
+
+    let allowed = reduced_motion.sample(reduced, essential, 5.0)
+    if not close(allowed.value, 50.0) or not close(allowed.progress, 0.5) or allowed.complete or allowed.snapped:
+        return 4
+
+    let before = reduced_motion.sample(normal, essential, -5.0)
+    if not close(before.value, 0.0) or not close(before.progress, 0.0) or before.complete:
+        return 5
+    let after = reduced_motion.sample(normal, essential, 1000.0)
+    if not close(after.value, 100.0) or not close(after.progress, 1.0) or not after.complete:
+        return 6
+
+    let zero = reduced_motion.sample(normal, reduced_motion.transition(true, 4.0, 9.0, 0.0), 0.0)
+    if not close(zero.value, 9.0) or not close(zero.progress, 1.0) or not zero.complete:
+        return 7
+    let negative = reduced_motion.sample(normal, reduced_motion.transition(true, 4.0, 9.0, -2.0), 100.0)
+    if not close(negative.value, 9.0) or not close(negative.progress, 1.0) or not negative.complete:
+        return 8
+
+    let disallowed = reduced_motion.sample(reduced_motion.policy(true, false), essential, 5.0)
+    if not close(disallowed.value, 100.0) or not disallowed.complete or not disallowed.snapped:
+        return 9
+    return 0
