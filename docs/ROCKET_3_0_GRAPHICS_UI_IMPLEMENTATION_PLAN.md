@@ -217,8 +217,8 @@ the integration audit after WP08; it no longer waits for Phase 19.
 | WP04 | F20 | Provisional theme/style data | COMPLETE / PROVISIONAL |
 | WP05 | F18, F25 | Provisional widget IDs and bounded state | COMPLETE / PROVISIONAL |
 | WP06 | F06 | Provisional reduced-motion state kernel only | COMPLETE / PROVISIONAL |
-| WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | READY / GREEN |
-| WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | BLOCKED BY WP07 / GREEN |
+| WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | COMPLETE / PROVISIONAL |
+| WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | READY / GREEN |
 | WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | BLOCKED BY WP08 / YELLOW |
 | WP10 | F02 | Named arguments | WAIT FOR WP09 / RED |
 | WP11 | F03 | Default arguments | WAIT FOR WP10 / RED |
@@ -518,6 +518,20 @@ part of this packet.
 
 **Checkpoint:** `feat: add provisional Rocket 3 visual comparator kernel`
 
+**WP07 evidence (2026-08-29):** The standalone C++20 experiment in
+`experiments/rocket3_visual_compare/` provides a provisional raw-RGBA
+comparator with equal-dimension and buffer-length validation, an ignored
+per-channel threshold, mean absolute error, changed-pixel ratio, maximum
+channel delta, raw difference bytes, thresholded heat bytes, and changed-region
+bounds. Invalid dimensions and lengths return deterministic explicit errors.
+The required red configure failed because `src/comparator.cpp` did not yet
+exist. The final sequential Ninja build succeeded and CTest passed
+`comparator_tests` (1/1, 100%) under `out/rocket3-provisional/wp07`; no
+external image dependency, raylib capture, top-level CMake/CTest registration,
+golden references, or CI was added. This remains PROVISIONAL comparator-kernel
+evidence only: PNG/image I/O, capture, approved goldens, budgets, and final
+visual-regression integration are deferred.
+
 ### WP08 - Provisional performance and golden schemas
 
 **Features:** F26 plus F27 infrastructure subset.
@@ -784,7 +798,7 @@ file/test/doc/evidence links when executed.
 | F24 Errors/lifetimes | WP29 | RED | WP34 |
 | F25 Bounded state | WP05, WP30 | WP05 PROVISIONAL bounded-state kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; focused native package and formatter evidence recorded above | WP34 |
 | F26 Performance | WP08, WP31 | schema GREEN | WP34 |
-| F27 Visual regression | WP07, WP08, WP32 | comparator/schema GREEN | WP34 |
+| F27 Visual regression | WP07, WP08, WP32 | WP07 PROVISIONAL raw-RGBA comparator: `experiments/rocket3_visual_compare/src/comparator.h`; standalone CMake/CTest evidence recorded above | WP34 |
 | F28 Examples/showcase | WP33 | RED | WP34 |
 | F29 Platform/compatibility | WP09, WP34 | RED | WP34 |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
@@ -797,7 +811,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP07 - Provisional visual-comparator kernel
+**Current packet:** WP08 - Provisional performance and golden schemas
 
 ```text
 Work only in the main Rocket checkout:
@@ -809,54 +823,53 @@ docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
 Verify that the branch is master, begin from a clean checkout, and confirm it
 contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP07 may use
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP08 may use
 current Rocket code and normal build/test paths, but must not expand beyond the
-WP07 packet scope. If `git status --short --branch` shows
+WP08 packet scope. If `git status --short --branch` shows
 an unpushed Rocket 3 checkpoint, push it before editing.
 
-Recommended model: GPT-5.6 Terra with Medium reasoning.
+Recommended model: GPT-5.6 Luna with Medium reasoning.
 
-Execute only WP07: provisional visual-comparator kernel (F27 raw-data subset).
-Use test-driven development and the exact provisional behavior in the plan.
-Create only experiments/rocket3_visual_compare/CMakeLists.txt,
-experiments/rocket3_visual_compare/README.md,
-experiments/rocket3_visual_compare/src/comparator.h,
-experiments/rocket3_visual_compare/src/comparator.cpp, and
-experiments/rocket3_visual_compare/tests/comparator_tests.cpp, plus this
-plan's WP07-only status, traceability evidence, and prompt rotation. Keep all
-APIs explicitly provisional; do not add PNG/image dependencies, raylib
-capture, top-level CMake/CTest registration, approved goldens, or CI.
+Execute only WP08: provisional performance and golden schemas (F26/F27
+infrastructure subset). Use test-driven development for executable behavior
+and the exact provisional boundaries in the plan. Add versioned schema
+definitions, synthetic fixtures, and focused tests only within the provisional
+comparator/foundation areas, plus this plan's WP08-only status, traceability
+evidence, and prompt rotation. Keep all APIs and budgets explicitly
+provisional; do not register global performance/visual tests or freeze final
+budgets.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Run commands sequentially, write generated state only below
-out/rocket3-provisional/wp07 inside this checkout, never automatically retry a
+out/rocket3-provisional/wp08 inside this checkout, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
 current compiler/toolchain is not present, first inspect the repository build
 guidance; before starting any build that could use more than 20 GiB, stop and ask
 the owner.
 
-Implement and test equal-sized raw RGBA buffers, an ignored per-channel delta,
-mean absolute error, changed-pixel ratio, difference/heat values,
-changed-region bounds, and deterministic error results for invalid dimensions
-or buffer lengths. Keep the comparator independent of external image formats
-and preserve explicit input-buffer ownership. Do not add PNG, raylib capture,
-top-level build registration, approved goldens, CI, or WP08 schema/budget work.
-Run focused CMake/CTest checks from the standalone experiment, update WP07's
+Implement and test deterministic scene/metric identity, environment metadata,
+allocation/cache/upload/switch/FFI counters, comparison thresholds as measured
+data, a failure-artifact manifest, and an explicit golden approval/update
+record. Use synthetic deterministic fixtures and connect only to the
+provisional comparator/foundation areas needed to validate the schemas. Do not
+set final performance budgets, add PNG/image capture, register global
+performance or visual tests, or begin WP09 integration-audit work. Run the
+focused checks required by the selected provisional areas, update WP08's
 packet-index state and atomic traceability evidence, then follow the
 prompt-rotation contract in section 4. The next eligible packet will normally
-be WP08: replace the current packet label and this entire fenced block with a
-complete WP08 prompt. Run git diff --check, review the scoped diff, and commit
-the WP07 files plus plan/status/prompt rotation together with:
+be WP09 after WP08: replace the current packet label and this entire fenced
+block with a complete WP09 prompt. Run git diff --check, review the scoped
+diff, and commit the WP08 files plus plan/status/prompt rotation together with:
 
-test: add provisional Rocket 3 visual comparator kernel
+test: define provisional Rocket 3 visual performance evidence
 
-Only rotate after every required WP07 check passes. If implementation or
-verification fails, leave WP07 as the current prompt and report the blocker.
-After committing, push `master` to `origin`. If push fails, do not begin WP08;
+Only rotate after every required WP08 check passes. If implementation or
+verification fails, leave WP08 as the current prompt and report the blocker.
+After committing, push `master` to `origin`. If push fails, do not begin WP09;
 report the push blocker and preserve the committed handoff. After a successful
 push, stop and report the exact files, tests, results, commit, push result,
 remaining intentional provisional limitations, and the packet prepared for the
-next chat. Do not begin WP08 in the same chat.
+next chat. Do not begin WP09 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher
