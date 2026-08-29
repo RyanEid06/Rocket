@@ -1,11 +1,11 @@
 # Rocket 3.0 Graphics, UI, and Language-Ergonomics Requirements
 
-**Status:** Approved requirements baseline for provisional development while
-Phase 19 remains active.
+**Status:** Approved requirements baseline for integrated Rocket 3.0 development
+on the accepted Rocket 2.1 portability baseline.
 
-**Release identity:** The work defined here targets Rocket 3.0.0. The release
-produced by Phase 19 is referred to only as **the final Phase 19 release** until
-its version, commit, and tag are accepted in the repository.
+**Release identity:** The work defined here targets Rocket 3.0.0. Its predecessor
+is the accepted Rocket 2.1 portability baseline at
+`19596db860d4105d2226c98be2693edc5632aaf0`.
 
 **Companion plan:** `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`
 
@@ -65,7 +65,7 @@ documentation, supported targets, and acceptance evidence.
 
 - `R3-GOV-001`: Rocket 3.0 is authorized to add backward-compatible
   named-argument and default-argument grammar.
-- `R3-GOV-002`: Every valid program accepted by the final Phase 19 release must
+- `R3-GOV-002`: Every valid program accepted by the Rocket 2.1 baseline must
   remain valid with the same observable behavior unless a separately approved
   Rocket 3.0 decision identifies an unavoidable incompatibility.
 - `R3-GOV-003`: Runtime ABI v1 remains the default hard boundary. Any proposed
@@ -84,34 +84,32 @@ documentation, supported targets, and acceptance evidence.
   of approximately 95 percent or greater fidelity against approved Scroll2Roll
   references; Rocket's internal showcase is not evidence of that result.
 
-### Dual-track isolation while Phase 19 is active
+### Integrated development and delivery discipline
 
-- `R3-ISO-001`: Provisional Rocket 3.0 work occurs only on
-  `codex/rocket-3-provisional` in its linked worktree. It is never merged into
-  `master` while Phase 19 is active.
-- `R3-ISO-002`: Rocket 3.0 must not alter Phase 19 evidence, accepted hashes,
-  release artifacts, tags, target matrices, or output under `out/phase19`.
-- `R3-ISO-003`: Provisional generated output belongs below
+- `R3-ISO-001`: Rocket 3.0 work occurs on `codex/rocket-3-provisional` in its
+  linked worktree, rebased on the accepted Rocket 2.1 baseline. Each successful
+  packet commits and pushes its code, evidence, and rotated handoff prompt.
+- `R3-ISO-002`: Phase 19 is complete and no longer restricts Rocket 3.0 file
+  eligibility. Compiler, runtime, standard-library, native adapter, SDK, build,
+  package, and release files may be changed when they are within the named
+  packet's scope and receive the required validation.
+- `R3-ISO-003`: Generated packet output belongs below
   `out/rocket3-provisional` inside the Rocket 3.0 worktree and is never tracked.
-- `R3-ISO-004`: Before every provisional packet, compare its intended paths and
-  contracts with all Phase 19 changes made since the recorded Rocket 3.0 base.
-  The overlap set is refreshed rather than copied as a stale fixed file list.
-- `R3-ISO-005`: Work is `GREEN` only when it is a standalone deterministic
-  kernel or tool that neither modifies nor registers with Phase 19-owned code.
-  `YELLOW` work depends on Phase 19 behavior without changing it. `RED` work
-  changes a Phase 19-owned file, contract, SDK surface, test matrix, package, or
-  release artifact and is deferred.
-- `R3-ISO-006`: All pre-completion code begins as `PROVISIONAL`. It becomes
-  `INTEGRATION-READY` only after promotion onto the final Phase 19 baseline and
-  compatibility checks, `PUBLIC` only after its Rocket 3.0 API gate, and
-  `ACCEPTED` only after all release gates pass.
-- `R3-ISO-007`: After Phase 19 closes, create a fresh Rocket 3.0 integration
-  branch from the accepted Phase 19 tag and selectively promote only still-valid
-  provisional commits. Do not preserve code merely because it was written.
-- `R3-ISO-008`: Rocket 3.0 validation must not overlap Phase 19 builds or tests.
-  Confirm no relevant build/test processes remain, run commands sequentially,
-  do not automatically retry timeouts, and stop/report a task process that
-  exceeds 4 GiB or continues growing rapidly.
+- `R3-ISO-004`: `GREEN`, `YELLOW`, and `RED` describe engineering risk rather
+  than Phase 19 ownership: `GREEN` is a self-contained change, `YELLOW` crosses
+  an existing subsystem and requires focused regression coverage, and `RED`
+  changes ABI, compiler/bootstrap, supported-target, package, or release
+  behavior and requires its packet's full acceptance evidence.
+- `R3-ISO-005`: Internal foundation code begins `PROVISIONAL`.
+  `INTEGRATION-READY` means audited against the accepted Rocket 2.1 baseline;
+  `PUBLIC` means its Rocket 3.0 API gate is accepted; `ACCEPTED` means all
+  release gates pass.
+- `R3-ISO-006`: WP09 audits the rebased foundation commits against current
+  architecture before public promotion. Code is retained only when its tests,
+  interfaces, and ownership model remain valid.
+- `R3-ISO-007`: Confirm no Rocket build/test process from this task remains,
+  run commands sequentially, do not automatically retry timeouts, and stop and
+  report a task process that exceeds 4 GiB or continues growing rapidly.
 
 ## 4. Ownership and layer boundaries
 
@@ -136,7 +134,7 @@ documentation, supported targets, and acceptance evidence.
 
 The catalog contains 30 independently traceable feature groups. Public names
 shown here describe the required developer-facing concepts. Exact signatures
-are frozen only at the post-Phase-19 public API gate.
+are frozen only at the designated public API gate.
 
 ### F01 - Release governance and compatibility
 
@@ -308,7 +306,7 @@ are frozen only at the post-Phase-19 public API gate.
   inclusion.
 - `R3-F12-003`: `Transform2D` defines translation, rotation, scale, pivot, and
   composition order.
-- `R3-F12-004`: Pre-Phase-19 implementations are internal kernels; final
+- `R3-F12-004`: Foundation implementations are internal kernels; final
   constructors, module names, and named/default parameters are frozen only at
   the public API gate.
 
@@ -384,7 +382,7 @@ are frozen only at the post-Phase-19 public API gate.
   centralized rather than reimplemented by applications.
 - `R3-F18-004`: Invalid context/frame nesting, use outside a frame, and stale
   responses are detectable contract violations.
-- `R3-F18-005`: Pre-Phase-19 ID/state kernels do not freeze final public UI
+- `R3-F18-005`: Foundation ID/state kernels do not freeze final public UI
   constructors or module layout.
 
 ### F19 - Layout
@@ -410,7 +408,7 @@ are frozen only at the post-Phase-19 public API gate.
   `ButtonStyle`, `BorderStyle`, `ShadowStyle`, and `ImageStyle`.
 - `R3-F20-004`: Style resolution supports normal, hovered, pressed, disabled,
   and focused control states.
-- `R3-F20-005`: Pre-Phase-19 work may stabilize data and merge/resolution rules
+- `R3-F20-005`: Foundation work may stabilize data and merge/resolution rules
   but not final constructors, hierarchy, module placement, or names.
 
 ### F21 - Controls
@@ -445,7 +443,7 @@ are frozen only at the post-Phase-19 public API gate.
 - `R3-F23-004`: Centralized cleanup is explicit, dependency-safe, idempotent,
   and compatible with Rocket ownership.
 - `R3-F23-005`: Asset paths preserve package-root security, relocation, and
-  offline behavior established by the final Phase 19 release.
+  offline behavior established by the accepted Rocket 2.1 baseline.
 
 ### F24 - Graphics/UI error and lifetime contracts
 
@@ -482,11 +480,12 @@ are frozen only at the post-Phase-19 public API gate.
 - `R3-F26-002`: A warmed steady-state scene creates no unexpected native
   resources, performs no repeated texture uploads, and exhibits no unbounded
   state/cache growth.
-- `R3-F26-003`: Budgets are calibrated from final post-Phase-19 infrastructure,
+- `R3-F26-003`: Budgets are calibrated from final integrated infrastructure,
   recorded with method and environment, and never weakened solely to make a
   regression pass.
-- `R3-F26-004`: Provisional performance tooling uses synthetic deterministic
-  kernels and does not register with Phase 19's global test/release matrix.
+- `R3-F26-004`: Foundation performance tooling uses synthetic deterministic
+  kernels and is not registered with the repository-wide performance/release
+  matrix until WP31 defines final budgets and evidence.
 
 ### F27 - Visual regression and comparator
 
@@ -506,9 +505,9 @@ are frozen only at the post-Phase-19 public API gate.
   starting observations only.
 - `R3-F27-006`: Platform-specific references/tolerances require evidence for
   font, GPU/driver, DPI, or shader differences and may not hide regressions.
-- `R3-F27-007`: Pre-Phase-19 comparator work is limited to deterministic raw
-  RGBA kernels and synthetic fixtures; PNG, screenshot, CMake/CTest, and CI
-  integration remain deferred.
+- `R3-F27-007`: Foundation comparator work starts with deterministic raw RGBA
+  kernels and synthetic fixtures; WP32 adds PNG, screenshot, CMake/CTest, and CI
+  integration with the final visual-regression acceptance surface.
 
 ### F28 - Examples and capability showcase
 
@@ -536,8 +535,8 @@ are frozen only at the post-Phase-19 public API gate.
   predecessor programs, runtime ABI v1, stage0 behavior, self-host parity,
   bootstrap determinism, package security, and release hardening.
 - `R3-F29-004`: Target acceptance uses direct native-host evidence required by
-  the final Phase 19 contract; workflow configuration or cross-compilation alone
-  is not native evidence.
+  the accepted Rocket 2.1 portability contract; workflow configuration or
+  cross-compilation alone is not native evidence.
 - `R3-F29-005`: No no-op, placeholder, hard-coded test path, fake handle,
   bypassed validation, skipped cleanup, weakened test, deleted failing test, or
   historical-only result counts as completion.
@@ -556,9 +555,10 @@ are frozen only at the post-Phase-19 public API gate.
 - `R3-F30-004`: Rocket 3.0 is not declared complete until all atomic IDs are
   `ACCEPTED` or explicitly removed by an approved replacement decision.
 
-## 6. Pre-Phase-19 provisional scope
+## 6. Foundation scope and packet sequencing
 
-Only the following kernel/tool work is eligible before Phase 19 completes:
+The following kernel/tool packets establish internal behavior before their
+designated public-integration packets:
 
 | Provisional slice | Atomic coverage | Allowed now | Deferred integration |
 | --- | --- | --- | --- |
@@ -573,9 +573,9 @@ Only the following kernel/tool work is eligible before Phase 19 completes:
 | Comparator kernel | F27 raw RGBA metrics | Synthetic buffers and artifacts model | PNG, capture, CMake/CTest, CI |
 | Performance/golden schema | F26/F27 metrics | Deterministic schema and synthetic checks | Final budgets, scenes, platform goldens |
 
-Anything outside this table is `RED` until the final Phase 19 release is
-accepted. A provisional slice that unexpectedly requires a Phase 19-owned file
-or contract is reclassified `RED` and stops.
+The table does not prohibit a later packet from touching any Rocket subsystem.
+It keeps the foundation packets small; public ownership, native integration,
+and repository-wide registration occur in their designated packets.
 
 ## 7. Acceptance model
 
@@ -583,15 +583,20 @@ Each implementation packet must:
 
 1. Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, this requirements file, and the
    companion implementation plan.
-2. Confirm the isolated branch/worktree and refresh Phase 19 overlap.
-3. Limit itself to one or two feature groups named by the packet.
-4. Write focused failing tests before implementation where executable behavior
+2. Confirm the rebased Rocket 3.0 branch/worktree and clean upstream state.
+3. Push any existing committed Rocket 3.0 checkpoint before editing.
+4. Limit itself to one or two feature groups named by the packet.
+5. Write focused failing tests before implementation where executable behavior
    is involved.
-5. Run only the focused tests needed for that packet while Phase 19 is active.
-6. Update atomic traceability and maturity without claiming public acceptance.
-7. Commit only the packet's files with a scoped message.
-8. Stop after the packet; a later chat handles the next one.
+6. Run the focused tests required by that packet, then all broader checks its
+   risk classification requires.
+7. Update atomic traceability and maturity without claiming public acceptance.
+8. Commit the packet's files, evidence, and rotated handoff prompt with its
+   scoped message, then push the branch to `origin`.
+9. Stop after the push; a later chat handles the next packet. If the push fails,
+   do not begin another packet until the existing commit is pushed or the
+   blocker is resolved.
 
-After Phase 19 closes, provisional work is promoted selectively, then receives
-the full public API, supported-target, compatibility, bootstrap, packaging,
-documentation, performance, and visual-acceptance gates.
+Foundation work is audited selectively by WP09, then receives the full public
+API, supported-target, compatibility, bootstrap, packaging, documentation,
+performance, and visual-acceptance gates.

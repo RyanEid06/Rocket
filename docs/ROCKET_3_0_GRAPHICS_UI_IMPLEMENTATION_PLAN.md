@@ -7,89 +7,87 @@
 > for subagents. Each work packet is executed in a fresh chat and contains no
 > more than two feature groups.
 
-**Goal:** Deliver Rocket 3.0's additive language ergonomics and complete,
-safe, portable, game-oriented graphics/UI stack without contaminating active
-Phase 19 work.
+**Goal:** Deliver Rocket 3.0's additive language ergonomics and complete, safe,
+portable, game-oriented graphics/UI stack on the accepted Rocket 2.1 baseline.
 
-**Architecture:** Work proceeds on an isolated provisional branch while Phase
-19 is active. Only deterministic internal kernels and standalone tooling are
-allowed before the final Phase 19 release. After Phase 19 is accepted, selected
-provisional commits are promoted onto a fresh integration branch, public APIs
-are frozen, and compiler/native/platform/release work proceeds in narrow
-vertical packets.
+**Architecture:** The Rocket 3.0 branch is rebased on the accepted Rocket 2.1
+portability baseline. Foundation kernels stay intentionally internal until their
+named public-integration packets; compiler, native, SDK, platform, package, and
+release work are available whenever a packet owns them. WP09 audits the rebased
+foundation before public promotion, and all work remains in narrow vertical
+packets.
 
 **Tech stack:** Rocket, C++20 permanent stage0, Rocket self-hosted compiler,
-LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from the
-final Phase 19 release.
+LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
+2.1.
 
 **Spec:** `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md`
 
 ## Global constraints
 
-- Rocket 3.0 is the target release. The predecessor is called **the final Phase
-  19 release** until its accepted tag and version exist.
+- Rocket 3.0 is the target release. Its accepted predecessor is Rocket 2.1 at
+  `19596db860d4105d2226c98be2693edc5632aaf0`.
 - Preserve every valid predecessor program and runtime ABI v1 unless the owner
   separately approves a specific Rocket 3.0 incompatibility decision.
 - Preserve C++20 stage0, self-host equivalence, and deterministic stage2/stage3
   bootstrap.
-- Do not merge Rocket 3.0 into `master`, modify Phase 19 evidence, rebuild
-  frozen outputs, retag releases, or change release artifacts while Phase 19 is
-  active.
+- Phase 19 is complete. A packet may modify any Rocket subsystem it owns,
+  including compiler, runtime, standard-library, native, SDK, build, package,
+  or release code; it must still preserve predecessor compatibility and meet its
+  named validation scope. Do not merge into `master` without owner approval.
 - Do not introduce cloud, paid, subscription, API-key, or per-use graphics
   dependencies. raylib 6.0 remains the renderer.
 - Do not migrate Scroll2Roll in this plan.
-- Run builds and tests sequentially. Do not overlap Phase 19 validation. Stop
-  and report a process over 4 GiB or one that grows continuously.
+- Run builds and tests sequentially. Stop and report a process over 4 GiB or one
+  that grows continuously.
 - A packet handles one or two feature groups, updates its traceability rows,
-  rotates the current next-chat prompt, commits those changes together, and
-  stops.
+  rotates the current next-chat prompt, commits those changes together, pushes
+  the branch to `origin`, and stops.
 
 ---
 
-## 1. Current provisional baseline
+## 1. Current integrated baseline
 
 | Field | Recorded value |
 | --- | --- |
-| Provisional branch | `codex/rocket-3-provisional` |
+| Rocket 3 branch | `codex/rocket-3-provisional` |
 | Linked worktree | `C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional` |
-| Starting Phase 19 commit | `5314abf9da7ed0be2daa5b6978744c93b8020b27` |
-| Starting commit subject | `Fix Phase 19 cross SDK library layouts` |
-| Starting worktree state | clean before these planning files |
-| Phase 19 state | active; release version and final tag intentionally unresolved |
-| Provisional generated output | `out/rocket3-provisional/` inside the linked worktree |
-| Merge policy | never merge provisional work to `master` while Phase 19 is active |
+| Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
+| Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
+| Branch integration state | rebased on the accepted Rocket 2.1 baseline before this transition |
+| Packet generated output | `out/rocket3-provisional/` inside the linked worktree |
+| Delivery policy | every successful packet commits and pushes to `origin`; merge to `master` requires owner approval |
 
-The starting SHA is provenance, not a claim that Phase 19 is complete. Before
-every provisional packet, refresh the active overlap with:
+The accepted baseline is provenance for Rocket 3.0 compatibility. Before every
+packet, verify the branch is clean and still contains the accepted baseline:
 
 ```powershell
 git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' status --short
 git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' rev-parse master
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' diff --name-only 5314abf..master
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional' status --short
+git -C 'C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional' status --short --branch
+git -C 'C:\Users\Administrator\Desktop\Projects\Rocket\out\worktrees\rocket-3-provisional' merge-base --is-ancestor 19596db HEAD
 ```
 
-If the intended packet touches any newly changed Phase 19 file or alters a
-Phase 19 contract/test/package/release surface, reclassify it `RED` and stop.
+The accepted Phase 19 baseline no longer blocks files or tests. Use the packet's
+scope and risk classification to select the appropriate compatibility,
+bootstrap, platform, package, or release checks.
 
 ## 2. Maturity and isolation states
 
 ### Isolation
 
-- `GREEN`: standalone deterministic code or tooling; no Phase 19-owned files,
-  global registration, SDK inclusion, native binding, or release effect.
-- `YELLOW`: reads or depends on Phase 19 behavior but does not modify it. It may
-  be specified or tested read-only, but is not promoted while Phase 19 is active.
-- `RED`: changes the compiler, runtime, standard-library registration, native
-  adapters, SDK/module lookup, top-level build/test matrix, target behavior,
-  packaging, release docs, evidence, hashes, or any Phase 19-owned path.
+- `GREEN`: standalone deterministic code or tooling with focused tests.
+- `YELLOW`: change that crosses an existing subsystem and requires focused
+  regression coverage in that subsystem.
+- `RED`: compiler/bootstrap, ABI, supported-target, package, or release change
+  that requires the packet's full acceptance evidence before handoff.
 
 ### Maturity
 
 - `PROVISIONAL`: tested internal kernel or tool on the isolated branch; public
   API and release support are not claimed.
-- `INTEGRATION-READY`: selectively promoted onto the final Phase 19 baseline,
-  audited, and compatibility checked.
+- `INTEGRATION-READY`: audited against the accepted Rocket 2.1 baseline and
+  compatibility checked.
 - `PUBLIC`: final Rocket 3.0 names, signatures, ownership, errors, docs, and
   target support are approved.
 - `ACCEPTED`: complete tests, bootstrap, packaging, performance, visual,
@@ -104,7 +102,7 @@ Phase 19 contract/test/package/release surface, reclassify it `RED` and stop.
 - `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`: live HOW/WHEN, packet
   status, evidence, checkpoints, and integration state.
 
-### Provisional files permitted before Phase 19 completion
+### Foundation files and generated output
 
 The first implementation packet creates the package skeleton. Later packets
 add only their named files:
@@ -138,12 +136,12 @@ experiments/rocket3_visual_compare/
     synthetic fixture and comparator-kernel sources chosen by its packet
 ```
 
-These directories are explicitly non-SDK, non-release, and non-public. They are
-not registered in top-level CMake/CTest or added to packaged standard modules
-while Phase 19 is active. Focused checks use the existing compiler directly and
-write only below the provisional output directory.
+These directories are explicitly non-SDK, non-release, and non-public until
+their named public-integration packets. They are not registered in top-level
+CMake/CTest or added to packaged standard modules until those packets own that
+registration. Focused checks write only below the packet output directory.
 
-### Post-Phase-19 public ownership
+### Intended public ownership
 
 The integration audit confirms exact repository locations before promotion.
 The intended module boundaries are:
@@ -158,8 +156,8 @@ stdlib/rocket/assets
 tools/rocket-visual-compare
 ```
 
-If the final Phase 19 SDK uses a different bundled-module layout, the
-integration packet updates these paths once, before any public promotion.
+WP09 confirms the accepted Rocket 2.1 SDK layout before public promotion and
+updates these locations only when the current repository requires it.
 
 ## 4. Per-packet execution protocol
 
@@ -167,11 +165,13 @@ Every new chat must perform this sequence:
 
 - [ ] Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, both Rocket 3.0 documents,
   and only the existing code/specifications relevant to the packet.
-- [ ] Verify the worktree path, branch, clean starting state, and current
-  Phase 19 SHA.
+- [ ] Verify the worktree path, branch, clean starting state, and accepted
+  Rocket 2.1 baseline.
+- [ ] Verify the Rocket 3 branch has no unpushed checkpoint; push any existing
+  committed work before editing.
 - [ ] Refresh GREEN/YELLOW/RED classification before editing.
-- [ ] Confirm no Phase 19 build/test processes are active before running a
-  Rocket command.
+- [ ] Confirm no Rocket build/test processes from this task are active before
+  running a Rocket command.
 - [ ] Write focused failing tests for the packet's behavior.
 - [ ] Run the tests and capture the expected failure.
 - [ ] Implement only the packet's named feature(s).
@@ -186,26 +186,29 @@ Every new chat must perform this sequence:
   prompt that waits for or audits the condition that blocks the next packet.
 - [ ] Run `git diff --check` and review the scoped diff.
 - [ ] Commit only the packet's files and the plan/status/prompt rotation with
-  the prescribed message.
-- [ ] Stop. Do not begin the next packet in the same chat.
+  the prescribed message, then push the branch to `origin`.
+- [ ] Stop after a successful push. Do not begin the next packet in the same
+  chat.
 
-Prompt rotation is a success-only handoff. If implementation, verification, or
-the checkpoint commit fails, do not advance the packet label or replace its
-prompt. Record the blocker outside the fenced prompt when useful, leave the
-same packet as current, and stop. The permanent launcher in section 10 never
-changes during ordinary packet work.
+Prompt rotation is a success-only handoff. If implementation or verification
+fails, do not advance the packet label or replace its prompt. Record the blocker
+outside the fenced prompt when useful, leave the same packet as current, and
+stop. If the checkpoint commit succeeds but push fails, do not begin a new
+packet: preserve the committed rotation and resolve the push before continuing.
+The permanent launcher in section 10 never changes during ordinary packet work.
 
 Every replacement prompt must remain self-contained: repeat the exact worktree
-and branch, required document reads, clean/Phase-19 overlap checks, packet-only
-scope and exclusions, test and generated-output boundaries, resource-safety
-rules, checkpoint message, success-only rotation, and stop condition. The small
-launcher is a pointer to this full operational prompt, not a substitute for it.
+and branch, required document reads, clean/baseline checks, packet-only scope
+and exclusions, test and generated-output boundaries, resource-safety rules,
+recommended model and reasoning effort, checkpoint message, success-only
+rotation, push, and stop condition. The small launcher is a pointer to this full
+operational prompt, not a substitute for it.
 
 ## 5. Packet index
 
-`WP00` is this approved planning checkpoint. `WP01` through `WP08` are the only
-implementation packets eligible while Phase 19 is active. Every later packet
-is `RED` until `WP09` accepts the final Phase 19 baseline.
+`WP00` is the planning checkpoint and `WP01` through `WP03` are complete
+foundation packets. WP04 remains the lowest-numbered eligible packet. WP09 is
+the integration audit after WP08; it no longer waits for Phase 19.
 
 | Packet | Feature groups | Maximum scope | Current state |
 | --- | --- | --- | --- |
@@ -218,7 +221,7 @@ is `RED` until `WP09` accepts the final Phase 19 baseline.
 | WP06 | F06 | Provisional reduced-motion state kernel only | BLOCKED BY WP05 / GREEN |
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | READY / GREEN |
 | WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | BLOCKED BY WP07 / GREEN |
-| WP09 | F01, F29 | Final Phase 19 integration audit and selective promotion | WAIT FOR PHASE 19 / RED |
+| WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | BLOCKED BY WP08 / YELLOW |
 | WP10 | F02 | Named arguments | WAIT FOR WP09 / RED |
 | WP11 | F03 | Default arguments | WAIT FOR WP10 / RED |
 | WP12 | F04 | Complete `std.math` | WAIT FOR WP11 / RED |
@@ -246,7 +249,7 @@ is `RED` until `WP09` accepts the final Phase 19 baseline.
 | WP34 | F29 | Full compiler/platform/compatibility acceptance | WAIT FOR WP33 / RED |
 | WP35 | F30 | Documentation, release, traceability closure | WAIT FOR WP34 / RED |
 
-## 6. Provisional work packets
+## 6. Foundation work packets
 
 ### WP00 - Requirements and implementation-plan checkpoint
 
@@ -475,21 +478,20 @@ final budgets or register global performance/visual tests.
 
 **Checkpoint:** `test: define provisional Rocket 3 visual performance evidence`
 
-## 7. Post-Phase-19 packets
+## 7. Public integration and release packets
 
 Each packet below receives its own new chat and a packet-specific detailed TDD
-checklist after `WP09` refreshes exact final paths and commands.
+checklist after its dependencies establish the exact current paths and commands.
 
-### WP09 - Final baseline audit and selective promotion
+### WP09 - Rocket 2.1 baseline audit and foundation integration
 
 **Features:** F01 and F29.
 
-Record the final Phase 19 tag/version/commit, clean status, targets, toolchain,
-runtime ABI, SDK/module layout, packages, raylib, tests, release evidence, and
-frozen hashes. Create a fresh `codex/rocket-3-integration` branch from that tag.
-Review every provisional commit against the final architecture, then cherry-pick
-only valid commits. Rework or discard the rest. Run focused compatibility checks
-before marking promoted kernels `INTEGRATION-READY`.
+Record the accepted Rocket 2.1 commit, clean status, targets, toolchain, runtime
+ABI, SDK/module layout, packages, raylib, tests, release evidence, and frozen
+hashes. Review each rebased foundation commit against current architecture;
+retain, rework, or discard it based on interface and compatibility evidence. Run
+focused compatibility checks before marking valid kernels `INTEGRATION-READY`.
 
 **Checkpoint:** `chore: establish final Rocket 3 integration baseline`
 
@@ -700,7 +702,7 @@ and tag only after a clean accepted release state.
 This table is the group-level index. Each packet expands its atomic IDs with
 file/test/doc/evidence links when executed.
 
-| Feature | Owning packet(s) | Pre-Phase-19 state | Final acceptance packet |
+| Feature | Owning packet(s) | Foundation state | Final acceptance packet |
 | --- | --- | --- | --- |
 | F01 Governance | WP00, WP09 | documented | WP35 |
 | F02 Named arguments | WP10 | RED | WP34 |
@@ -751,13 +753,14 @@ Set that path as the working directory first. Then read AGENTS.md,
 docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and
 docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
-Verify that the branch is codex/rocket-3-provisional and begin from a clean
-worktree. Phase 19 is still active on master. Refresh the Phase 19 overlap from
-the recorded base SHA before editing. Do not modify master, Phase 19 evidence,
-compiler/runtime/stdlib registration, native adapters, top-level CMake/CTest,
-SDK/package outputs, version files, tags, or release artifacts. If WP04 now
-touches a Phase-19-owned file or contract, classify it RED and stop with the
-evidence.
+Verify that the branch is codex/rocket-3-provisional, begin from a clean
+worktree, and confirm it contains the accepted Rocket 2.1 baseline
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 is complete. WP04 may use
+current Rocket code and normal build/test paths, but must not expand beyond the
+WP04 packet scope or merge into master. If `git status --short --branch` shows
+an unpushed Rocket 3 checkpoint, push it before editing.
+
+Recommended model: GPT-5.6 Luna with Medium reasoning.
 
 Execute only WP04: provisional theme and style data (F20). Use test-driven
 development and the exact provisional behavior in the plan. Create only
@@ -768,10 +771,12 @@ explicitly provisional; do not freeze final Rocket 3.0 constructors,
 named/default arguments, module layout, style hierarchy, inheritance model,
 renderer conversion, or public SDK surface.
 
-Before running Rocket commands, confirm no Phase 19 build/test processes are
-active. Run commands sequentially, write generated state only below
+Before running Rocket commands, confirm no Rocket build/test processes from this
+task are active. Run commands sequentially, write generated state only below
 out/rocket3-provisional/wp04 inside this worktree, never automatically retry a
-timeout, and stop/report if a task process exceeds 4 GiB or keeps growing.
+timeout, and stop/report if a task process exceeds 4 GiB or keeps growing. If a
+current `rocketc.exe` is not present, first inspect the repository build guidance;
+before starting any build that could use more than 20 GiB, stop and ask the owner.
 
 Implement and test internal semantic color, spacing, radius, typography-size,
 and motion-duration tokens; normal, hovered, pressed, disabled, and focused
@@ -781,16 +786,18 @@ native calls, public UI types, or later-packet work. Run focused checks, update
 WP04's packet-index state and atomic traceability evidence, then follow the
 prompt-rotation contract in section 4. The next eligible packet will normally
 be WP05: replace the current packet label and this entire fenced block with a
-complete WP05 prompt. Run git diff --check, review the scoped diff, and commit
-the WP04 files plus plan/status/prompt rotation together with:
+complete WP05 prompt. Run git diff --check, review the scoped diff, commit the
+WP04 files plus plan/status/prompt rotation together with:
 
 feat: add provisional Rocket 3 theme data
 
-Only rotate after every required WP04 check passes. If implementation,
-verification, or commit fails, leave WP04 as the current prompt and report the
-blocker. After a successful commit, stop and report the exact files, tests,
-results, commit, remaining intentional provisional limitations, and the packet
-prepared for the next chat. Do not begin WP05 in the same chat.
+Only rotate after every required WP04 check passes. If implementation or
+verification fails, leave WP04 as the current prompt and report the blocker.
+After committing, push `codex/rocket-3-provisional` to `origin`. If push fails,
+do not begin WP05; report the push blocker and preserve the committed handoff.
+After a successful push, stop and report the exact files, tests, results,
+commit, push result, remaining intentional provisional limitations, and the
+packet prepared for the next chat. Do not begin WP05 in the same chat.
 ```
 
 ## 10. Permanent reusable launcher
@@ -803,5 +810,26 @@ changing scope.
 Work only in the existing Rocket 3.0 provisional worktree. Read AGENTS.md and
 both Rocket 3.0 planning documents, then execute exactly the "Current next-chat
 prompt" in the implementation plan. After successful completion, replace it
-with the next eligible packet's prompt, commit everything, and stop.
+with the next eligible packet's prompt, commit everything, push the branch to
+origin, and stop.
 ```
+
+## 11. Packet model routing
+
+Select the recommended model before sending the permanent launcher. The current
+prompt repeats the applicable choice so the user does not need to infer it from
+the packet number.
+
+| Model and reasoning effort | Packets |
+| --- | --- |
+| GPT-5.6 Luna / Medium | WP04, WP06, WP08 |
+| GPT-5.6 Terra / Medium | WP01, WP02, WP07 |
+| GPT-5.6 Terra / High | WP03, WP05, WP12, WP13, WP15, WP20, WP25, WP26, WP33 |
+| GPT-5.6 Sol / High | WP10, WP14, WP16-WP19, WP21, WP22, WP24, WP27, WP30-WP32, WP35 |
+| GPT-5.6 Sol / XHigh | WP09, WP11, WP23, WP28, WP29, WP34 |
+
+Use `Max` only after an `XHigh` attempt produces a specific unresolved
+correctness problem. If Luna fails once for a technical reason, retry that
+packet with Terra Medium; if Terra High cannot resolve a design or correctness
+issue after one serious attempt, continue with Sol High instead of repeatedly
+retrying the lower tier.
