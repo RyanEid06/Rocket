@@ -206,7 +206,9 @@ operational prompt, not a substitute for it.
 
 `WP00` is the planning checkpoint, `WP01` through `WP08` are complete
 foundation packets, and WP09 completed their integration audit. WP10 is now
-complete, making WP11 the lowest-numbered eligible packet.
+complete, making WP11 the lowest-numbered eligible packet. Suffixed packets
+sort immediately after their numeric packet: WP11A is the mandatory successor
+to WP11 and must complete before WP12 becomes eligible.
 
 | Packet | Feature groups | Maximum scope | Current state |
 | --- | --- | --- | --- |
@@ -222,7 +224,8 @@ complete, making WP11 the lowest-numbered eligible packet.
 | WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | COMPLETE / INTEGRATION-READY |
 | WP10 | F02 | Named arguments | COMPLETE / GREEN |
 | WP11 | F03 | Default arguments | READY / RED |
-| WP12 | F04 | Complete `std.math` | WAIT FOR WP11 / RED |
+| WP11A | F02 | Complete named-callable parity | WAIT FOR WP11 / RED |
+| WP12 | F04 | Complete `std.math` | WAIT FOR WP11A / RED |
 | WP13 | F05, F06 | Easing plus complete motion/timelines | WAIT FOR WP12 / RED |
 | WP14 | F07 | Safe raylib geometry expansion | READY / RED |
 | WP15 | F08 | Advanced textures/filtering | WAIT FOR WP14 / RED |
@@ -701,6 +704,36 @@ negative tests, specifications, and deterministic bootstrap.
 
 **Checkpoint:** `feat: add default arguments`
 
+### WP11A - Complete named-callable parity
+
+**Feature:** F02 completion after F03. Remove every callable-category exclusion
+recorded by WP10 without folding this work into WP11. Add stable named arguments
+for standard-library intrinsics, compiler built-ins, closure values, and
+immediately invoked lambdas. Extend enum variant declarations with explicit
+labeled payload syntax; labeled variants accept positional, named, and mixed
+construction, while legacy anonymous payloads remain valid and positional-only
+and a single variant may not mix labeled and anonymous entries.
+
+Carry compiler-owned intrinsic/built-in names, closure parameter names, and
+public enum-payload labels through the permanent C++20 stage0, Rocket self-host,
+cross-module metadata, formatter, LSP signature help, documentation generator,
+and supported editor integrations. Reuse WP10 diagnostics, typo suggestions,
+evaluation-order rules, and pre-MIR positional normalization. Preserve runtime
+ABI v1 and backend ABI behavior. Test every newly supported callable in
+positional, all-named, reordered, and positional-then-named forms plus unknown,
+duplicate, missing, conflicting, wrong-typed, and anonymous-enum rejection
+cases. Run predecessor compatibility, LLVM-disabled stage0, Debug/Release,
+stage0/self-host parity, and deterministic stage0-to-stage3 bootstrap evidence.
+Default arguments for enum payloads and the other exclusions retained by F03
+remain outside WP11A.
+
+**Dependency:** WP11 must be complete. WP11A is the only eligible successor to
+WP11 and blocks WP12.
+
+**Generated output:** `out/rocket3-provisional/wp11a`
+
+**Checkpoint:** `feat: complete named callable parity`
+
 ### WP12 - Complete `std.math`
 
 **Feature:** F04. Implement the full required function inventory, target/domain
@@ -895,7 +928,7 @@ file/test/doc/evidence links when executed.
 | Feature | Owning packet(s) | Foundation state | Final acceptance packet |
 | --- | --- | --- | --- |
 | F01 Governance | WP00, WP09 | WP09 INTEGRATION-READY baseline: accepted Rocket 2.1 ancestry, target/toolchain/ABI/SDK/package/raylib layout, frozen-package hashes, and focused compatibility evidence recorded above | WP35 |
-| F02 Named arguments | WP10 | GREEN: C++20 stage0 and Rocket self-host implement direct function/generic/method/extern/struct named calls with parameter metadata, deterministic diagnostics, explicit evaluation order, positional ABI normalization, formatter/LSP/docs parity, Debug/Release `224/224`, LLVM-disabled `17/17`, and matching stage2/stage3 IR `0494ec1b44ff163d17045c83c564a6489cc0a3ffcd9d7a6a64c6e9d7a7e3559a`; closure/std-intrinsic/enum/builtin exclusions are documented and tested | WP34 |
+| F02 Named arguments | WP10, WP11A | PARTIAL: WP10 GREEN for direct function/generic/method/extern/struct named calls with parameter metadata, deterministic diagnostics, explicit evaluation order, positional ABI normalization, formatter/LSP/docs parity, Debug/Release `224/224`, LLVM-disabled `17/17`, and matching stage2/stage3 IR `0494ec1b44ff163d17045c83c564a6489cc0a3ffcd9d7a6a64c6e9d7a7e3559a`; WP11A RED and owns closure, std-intrinsic, enum-constructor, and built-in callable parity after WP11 | WP34 |
 | F03 Default arguments | WP11 | RED | WP34 |
 | F04 `std.math` | WP12 | RED | WP34 |
 | F05 Easing | WP13 | RED | WP34 |
@@ -978,8 +1011,9 @@ self-hosted compiler, formatter, LSP, documentation generator, and every
 currently supported editor integration must agree on declaration syntax,
 semantics, formatting, metadata, and diagnostics. Update the applicable
 language/compiler/tooling specifications and atomic traceability. Preserve all
-WP10 named-argument behavior. Do not implement `std.math` (WP12) or any public
-graphics/UI/native integration.
+WP10 named-argument behavior. Do not implement named-callable parity for
+closures, standard-library intrinsics, enum constructors, or built-ins
+(WP11A), `std.math` (WP12), or any public graphics/UI/native integration.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Use test-driven development: add focused positive/negative
@@ -999,21 +1033,21 @@ Then run the RED packet's required predecessor-compatibility, LLVM-disabled
 stage0, Debug/Release, and deterministic stage0-to-stage3 bootstrap evidence
 without weakening or deleting any existing gate. Update WP11's packet-index
 state, detailed evidence, and atomic traceability, then follow the success-only
-prompt-rotation contract in section 4. The next eligible packet will normally
-be WP12 after WP11: replace the current packet label and this entire fenced
-block with a complete WP12 prompt. Run `git diff --check`, review the scoped
-diff, and commit the WP11 implementation,
+prompt-rotation contract in section 4. The next eligible packet is WP11A after
+WP11: replace the current packet label and this entire fenced block with a
+complete WP11A prompt. WP12 remains blocked until WP11A completes. Run
+`git diff --check`, review the scoped diff, and commit the WP11 implementation,
 tests, docs, evidence, and prompt rotation together with:
 
 feat: add default arguments
 
 Only rotate after every required WP11 check passes. If implementation or
 verification fails, leave WP11 as the current prompt and report the blocker.
-After committing, push `master` to `origin`. If push fails, do not begin WP12;
+After committing, push `master` to `origin`. If push fails, do not begin WP11A;
 report the push blocker and preserve the committed handoff. After a successful
 push, stop and report the exact files, tests, results, commit, push result,
 remaining intentional limitations, and the packet prepared for the next chat.
-Do not begin WP12 or any other packet in the same chat.
+Do not begin WP11A or any other packet in the same chat.
 ```
 
 ## 10. Permanent reusable launcher
@@ -1050,7 +1084,7 @@ the packet number.
 | GPT-5.6 Terra / Medium | WP01, WP02, WP07 |
 | GPT-5.6 Terra / High | WP03, WP05, WP12, WP13, WP15, WP20, WP25, WP26, WP33 |
 | GPT-5.6 Sol / High | WP10, WP14, WP16-WP19, WP21, WP22, WP24, WP27, WP30-WP32, WP35 |
-| GPT-5.6 Sol / XHigh | WP09, WP11, WP23, WP28, WP29, WP34 |
+| GPT-5.6 Sol / XHigh | WP09, WP11, WP11A, WP23, WP28, WP29, WP34 |
 
 Use `Max` only after an `XHigh` attempt produces a specific unresolved
 correctness problem. If Luna fails once for a technical reason, retry that

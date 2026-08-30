@@ -166,6 +166,27 @@ are frozen only at the designated public API gate.
 - `R3-F02-007`: Stage0, the self-hosted compiler, formatter, LSP, documentation
   generator, and every currently supported editor integration agree on syntax,
   semantics, formatting, and diagnostics.
+- `R3-F02-008`: After the default-argument foundation is complete,
+  standard-library intrinsics and compiler built-ins accept named arguments
+  through explicit, stable compiler-owned parameter names; their names are
+  surfaced consistently in signature help and generated documentation.
+- `R3-F02-009`: Closure values and immediately invoked lambdas accept named
+  arguments using their declared parameter names. Closure parameter names are
+  local source contracts and are not promoted to exported runtime ABI symbols.
+- `R3-F02-010`: Enum variants may declare labeled payloads such as
+  `Value(amount: Int, label: String)`. Labeled variants accept positional,
+  named, and positional-then-named construction; legacy anonymous payloads
+  remain valid and positional-only, and labeled and anonymous payload entries
+  may not be mixed within one variant.
+- `R3-F02-011`: Public enum-payload labels are source-compatibility
+  commitments represented in cross-module metadata. Unknown, duplicate,
+  missing, conflicting, and wrong-typed enum-constructor arguments use the
+  same stable diagnostics and typo suggestions as other named calls.
+- `R3-F02-012`: Completing callable parity preserves receiver/callee and
+  written-argument evaluation order, normalizes before MIR/backend calling
+  conventions, changes neither runtime ABI v1 nor backend ABI, and is verified
+  in stage0, self-host, formatter, LSP, documentation, editor, compatibility,
+  and deterministic-bootstrap evidence.
 
 ### F03 - Default arguments
 
