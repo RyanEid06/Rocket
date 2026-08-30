@@ -188,6 +188,130 @@ int main() {
   rocket::test::expect(!invalidMethod.has_value() && invalidMethodDiagnostics.hasErrors(),
                        "method receivers must exactly match their impl owner", failures);
 
+  rocket::Diagnostics namedDiagnostics;
+  auto named = rocket::test::lowerToHir(
+      "struct Pair:\n"
+      "    first: Int\n"
+      "    second: Int\n"
+      "fn combine(left: Int, right: Int) -> Int:\n"
+      "    return left * 10 + right\n"
+      "fn main() -> Int:\n"
+      "    let pair = Pair(second: 2, first: 1)\n"
+      "    return combine(right: 4, left: 3)\n",
+      namedDiagnostics);
+  rocket::test::expect(named.has_value(),
+                       "reordered function and struct named arguments lower to HIR",
+                       failures);
+  if (named.has_value()) {
+    const auto& aggregateBinding = static_cast<const rocket::HirBindingStmt&>(
+        *named->functions[1].body[0]);
+    const auto& aggregate = static_cast<const rocket::HirAggregateExpr&>(
+        *aggregateBinding.initializer);
+    const auto& returned = static_cast<const rocket::HirReturnStmt&>(
+        *named->functions[1].body[1]);
+    const auto& call = static_cast<const rocket::HirCallExpr&>(*returned.value);
+    rocket::test::expect(
+        aggregate.argumentOrder == std::vector<std::size_t>{1, 0} &&
+            call.argumentOrder == std::vector<std::size_t>{1, 0} &&
+            named->symbols[call.callee].parameterNames ==
+                std::vector<std::string>{"left", "right"},
+        "HIR preserves written evaluation order and public parameter-name metadata",
+        failures);
+  }
+
+  rocket::Diagnostics callableDiagnostics;
+  auto callables = rocket::test::lowerToHir(
+      "struct Counter:\n"
+      "    value: Int\n"
+      "impl Counter:\n"
+      "    fn adjusted(self: Counter, amount: Int, factor: Int) -> Int:\n"
+      "        return self.value + amount * factor\n"
+      "extern fn native_add(left: Int, right: Int) -> Int\n"
+      "fn main() -> Int:\n"
+      "    let counter = Counter(value: 10)\n"
+      "    let adjusted = counter.adjusted(factor: 2, amount: 3)\n"
+      "    unsafe:\n"
+      "        return native_add(right: adjusted, left: 1)\n",
+      callableDiagnostics);
+  rocket::test::expect(callables.has_value(),
+                       "methods and extern functions accept named arguments",
+                       failures);
+
+  auto hasDiagnostic = [](const rocket::Diagnostics& diagnostics,
+                          rocket::DiagnosticCode code,
+                          const std::string& fragment) {
+    for (const auto& diagnostic : diagnostics.all())
+      if (diagnostic.code == code &&
+          diagnostic.message.find(fragment) != std::string::npos)
+        return true;
+    return false;
+  };
+  auto expectNamedFailure = [&](const std::string& call,
+                                rocket::DiagnosticCode code,
+                                const std::string& fragment,
+                                const std::string& label) {
+    rocket::Diagnostics localDiagnostics;
+    const std::string source =
+        "fn combine(left: Int, right: Int) -> Int:\n"
+        "    return left + right\n"
+        "fn main() -> Int:\n"
+        "    return " + call + "\n";
+    auto result = rocket::test::lowerToHir(source, localDiagnostics);
+    rocket::test::expect(!result.has_value() &&
+                             hasDiagnostic(localDiagnostics, code, fragment),
+                         label, failures);
+  };
+  expectNamedFailure("combine(rght: 2, left: 1)",
+                     rocket::DiagnosticCode::Name,
+                     "unknown named argument 'rght'; did you mean 'right'?",
+                     "unknown named arguments use deterministic typo suggestions");
+  expectNamedFailure("combine(left: 1, left: 2)",
+                     rocket::DiagnosticCode::Arity,
+                     "duplicate named argument 'left'",
+                     "duplicate named arguments are rejected");
+  expectNamedFailure("combine(left: 1)", rocket::DiagnosticCode::Arity,
+                     "missing required argument 'right'",
+                     "missing named arguments identify the required parameter");
+  expectNamedFailure("combine(1, left: 2)", rocket::DiagnosticCode::Arity,
+                     "argument 'left' is already supplied positionally",
+                     "positional and named arguments cannot bind the same parameter");
+  expectNamedFailure("combine(right: 2, left: \"wrong\")",
+                     rocket::DiagnosticCode::Type,
+                     "argument 'left' has type String, expected Int",
+                     "wrong-typed named arguments identify their declared parameter");
+
+  auto expectExcluded = [&](const std::string& source,
+                            const std::string& category) {
+    rocket::Diagnostics localDiagnostics;
+    auto result = rocket::test::lowerToHir(source, localDiagnostics);
+    rocket::test::expect(
+        !result.has_value() &&
+            hasDiagnostic(localDiagnostics, rocket::DiagnosticCode::Arity,
+                          "named arguments are not supported for " + category),
+        "named arguments reject excluded " + category + " callables", failures);
+  };
+  expectExcluded(
+      "fn main() -> Int:\n"
+      "    let identity = fn(value: Int) -> Int => value\n"
+      "    return identity(value: 1)\n",
+      "closure values");
+  expectExcluded(
+      "fn main() -> Int:\n"
+      "    return std.string.byte_length(value: \"rocket\")\n",
+      "standard-library intrinsics");
+  expectExcluded(
+      "enum Choice:\n"
+      "    Value(Int)\n"
+      "fn main() -> Int:\n"
+      "    let choice = Value(value: 1)\n"
+      "    return 0\n",
+      "enum constructors");
+  expectExcluded(
+      "fn main() -> Int:\n"
+      "    print(value: 1)\n"
+      "    return 0\n",
+      "built-in functions");
+
   rocket::Diagnostics genericLambdaDiagnostics;
   auto genericLambdas = rocket::test::lowerToHir(
       "fn through_lambda[T](value: T) -> T:\n"

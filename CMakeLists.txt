@@ -446,6 +446,17 @@ add_rocketc_test(native)
 add_rocketc_test(hardening)
 set_tests_properties(hardening PROPERTIES LABELS "phase20;hardening;fuzz")
 
+add_test(NAME rocket3_named_arguments_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp10/${CMAKE_BUILD_TYPE}/stage0"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_arguments_test.cmake")
+set_tests_properties(rocket3_named_arguments_stage0 PROPERTIES
+  LABELS "rocket3;wp10;named-arguments;stage0"
+  TIMEOUT 180
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_executable(rocket_phase14_raylib_adapter_tests
   tests/native/phase14_raylib_adapter_tests.cpp)
 target_link_libraries(rocket_phase14_raylib_adapter_tests PRIVATE
@@ -702,6 +713,17 @@ add_test(NAME cli_run_self_hosted_parser_tests
 set_tests_properties(cli_run_self_hosted_parser_tests PROPERTIES
   PASS_REGULAR_EXPRESSION "self-hosted parser tests passed"
   FIXTURES_REQUIRED self_hosted_compiler)
+add_test(NAME rocket3_named_arguments_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp10/${CMAKE_BUILD_TYPE}/self-hosted"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_arguments_test.cmake")
+set_tests_properties(rocket3_named_arguments_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp10;named-arguments;selfhost"
+  TIMEOUT 240
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME cli_run_self_hosted_syntax_check
   COMMAND "${ROCKET_SELFHOST_COMPILER}" --check-syntax
     "${CMAKE_SOURCE_DIR}/examples/hello.rocket")

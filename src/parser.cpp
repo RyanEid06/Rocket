@@ -668,8 +668,27 @@ std::unique_ptr<Expr> Parser::parseCall() {
     if (match(TokenKind::LParen)) {
       const Location location = previous().location;
       std::vector<std::unique_ptr<Expr>> arguments;
+      bool sawNamedArgument = false;
       if (!at(TokenKind::RParen)) {
-        do { arguments.push_back(parseExpression()); } while (match(TokenKind::Comma));
+        do {
+          if (at(TokenKind::Identifier) && index_ + 1 < tokens_.size() &&
+              tokens_[index_ + 1].kind == TokenKind::Colon) {
+            const Token name = current();
+            ++index_;
+            consume(TokenKind::Colon, "expected ':' after named argument");
+            arguments.push_back(std::make_unique<NamedArgumentExpr>(
+                name.location, name.text, parseExpression()));
+            sawNamedArgument = true;
+          } else {
+            auto argument = parseExpression();
+            if (sawNamedArgument)
+              diagnostics_.error(
+                  argument->location,
+                  "positional argument cannot follow a named argument",
+                  DiagnosticCode::Syntax);
+            arguments.push_back(std::move(argument));
+          }
+        } while (match(TokenKind::Comma));
       }
       consume(TokenKind::RParen, "expected ')' after arguments");
       expression = std::make_unique<CallExpr>(location, std::move(expression),

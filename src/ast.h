@@ -11,8 +11,8 @@ namespace rocket {
 struct Parameter { std::string name; std::string typeName; Location location; };
 
 enum class ExprKind {
-  Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, Array, Index, Slice,
-  Field, Propagate, Lambda, Await
+  Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, NamedArgument,
+  Array, Index, Slice, Field, Propagate, Lambda, Await
 };
 
 struct Expr {
@@ -52,6 +52,15 @@ struct CallExpr final : Expr {
         arguments(std::move(arguments)) {}
   std::unique_ptr<Expr> callee;
   std::vector<std::unique_ptr<Expr>> arguments;
+};
+
+struct NamedArgumentExpr final : Expr {
+  NamedArgumentExpr(Location location, std::string name,
+                    std::unique_ptr<Expr> value)
+      : Expr(ExprKind::NamedArgument, std::move(location)),
+        name(std::move(name)), value(std::move(value)) {}
+  std::string name;
+  std::unique_ptr<Expr> value;
 };
 
 struct ArrayExpr final : Expr {

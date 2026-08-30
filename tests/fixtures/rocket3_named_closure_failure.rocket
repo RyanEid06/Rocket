@@ -1,0 +1,3 @@
+fn main() -> Int:
+    let identity = fn(value: Int) -> Int => value
+    return identity(value: 1)

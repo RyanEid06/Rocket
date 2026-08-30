@@ -263,6 +263,7 @@ struct HirSymbol {
   bool mutableBinding = false;
   Location location;
   std::vector<Type> parameterTypes;
+  std::vector<std::string> parameterNames;
   Intrinsic intrinsic = Intrinsic::None;
   bool nativeImport = false;
   bool nativeExport = false;
@@ -323,20 +324,33 @@ struct HirBinaryExpr final : HirExpr {
 
 struct HirCallExpr final : HirExpr {
   HirCallExpr(Location location, Type type, SymbolId callee,
-              std::vector<std::unique_ptr<HirExpr>> arguments)
+              std::vector<std::unique_ptr<HirExpr>> arguments,
+              std::vector<std::size_t> argumentOrder = {})
       : HirExpr(HirExprKind::Call, std::move(location), type), callee(callee),
-        arguments(std::move(arguments)) {}
+        arguments(std::move(arguments)), argumentOrder(std::move(argumentOrder)) {
+    if (this->argumentOrder.empty())
+      for (std::size_t index = 0; index < this->arguments.size(); ++index)
+        this->argumentOrder.push_back(index);
+  }
   SymbolId callee;
   std::vector<std::unique_ptr<HirExpr>> arguments;
+  std::vector<std::size_t> argumentOrder;
 };
 
 struct HirAsyncCallExpr final : HirExpr {
   HirAsyncCallExpr(Location location, Type type, SymbolId callee,
-                   std::vector<std::unique_ptr<HirExpr>> arguments)
+                   std::vector<std::unique_ptr<HirExpr>> arguments,
+                   std::vector<std::size_t> argumentOrder = {})
       : HirExpr(HirExprKind::AsyncCall, std::move(location), std::move(type)),
-        callee(callee), arguments(std::move(arguments)) {}
+        callee(callee), arguments(std::move(arguments)),
+        argumentOrder(std::move(argumentOrder)) {
+    if (this->argumentOrder.empty())
+      for (std::size_t index = 0; index < this->arguments.size(); ++index)
+        this->argumentOrder.push_back(index);
+  }
   SymbolId callee = InvalidSymbol;
   std::vector<std::unique_ptr<HirExpr>> arguments;
+  std::vector<std::size_t> argumentOrder;
 };
 
 struct HirArrayExpr final : HirExpr {
@@ -367,12 +381,19 @@ struct HirSliceExpr final : HirExpr {
 
 struct HirAggregateExpr final : HirExpr {
   HirAggregateExpr(Location location, Type type, std::uint32_t declaration,
-                   std::uint32_t tag, std::vector<std::unique_ptr<HirExpr>> arguments)
+                   std::uint32_t tag, std::vector<std::unique_ptr<HirExpr>> arguments,
+                   std::vector<std::size_t> argumentOrder = {})
       : HirExpr(HirExprKind::Aggregate, std::move(location), std::move(type)),
-        declaration(declaration), tag(tag), arguments(std::move(arguments)) {}
+        declaration(declaration), tag(tag), arguments(std::move(arguments)),
+        argumentOrder(std::move(argumentOrder)) {
+    if (this->argumentOrder.empty())
+      for (std::size_t index = 0; index < this->arguments.size(); ++index)
+        this->argumentOrder.push_back(index);
+  }
   std::uint32_t declaration = 0;
   std::uint32_t tag = 0;
   std::vector<std::unique_ptr<HirExpr>> arguments;
+  std::vector<std::size_t> argumentOrder;
 };
 
 struct HirFieldExpr final : HirExpr {
@@ -653,6 +674,10 @@ private:
   std::unique_ptr<HirExpr> lowerResolvedCall(
       const std::string& name, const Location& location,
       std::vector<std::unique_ptr<HirExpr>> arguments);
+  std::unique_ptr<HirExpr> lowerNamedUserCall(
+      const std::string& name, const Location& location,
+      std::vector<std::unique_ptr<HirExpr>> leadingArguments,
+      const std::vector<std::unique_ptr<Expr>>& sourceArguments);
   Type resolveType(const std::string& spelling, const Location& location,
                    const Substitutions& substitutions = {});
   Type resolveParsedType(const Type& parsed, const Location& location,

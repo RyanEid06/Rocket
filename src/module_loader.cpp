@@ -469,6 +469,11 @@ private:
       }
       break;
     }
+    case ExprKind::NamedArgument:
+      rewriteExpression(module,
+                        static_cast<NamedArgumentExpr&>(*expression).value,
+                        typeParameters);
+      break;
     case ExprKind::Array:
       for (auto& element : static_cast<ArrayExpr&>(*expression).elements)
         rewriteExpression(module, element, typeParameters);

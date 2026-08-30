@@ -1,0 +1,21 @@
+struct Pair:
+    first: Int
+    second: Int
+
+impl Pair:
+    fn score(self: Pair, multiplier: Int, bonus: Int) -> Int:
+        return (self.first * 10 + self.second) * multiplier + bonus
+
+fn mark(value: Int) -> Int:
+    print(value)
+    return value
+
+fn combine(left: Int, right: Int) -> Int:
+    return left * 10 + right
+
+fn main() -> Int:
+    let pair = Pair(second: mark(2), first: mark(1))
+    print(combine(right: mark(4), left: mark(3)))
+    print(combine(5, right: 6))
+    print(pair.score(bonus: 7, multiplier: 2))
+    return 0

@@ -137,6 +137,57 @@ int main() {
                          "MIR explicitly represents aggregate construction and matching",
                          failures);
   }
+
+  rocket::Diagnostics namedDiagnostics;
+  auto namedMir = rocket::test::lowerToMir(
+      "fn first() -> Int:\n"
+      "    return 1\n"
+      "fn second() -> Int:\n"
+      "    return 2\n"
+      "fn combine(left: Int, right: Int) -> Int:\n"
+      "    return left * 10 + right\n"
+      "fn main() -> Int:\n"
+      "    return combine(right: second(), left: first())\n",
+      namedDiagnostics);
+  rocket::test::expect(namedMir.has_value(),
+                       "named calls lower to MIR", failures);
+  if (namedMir.has_value()) {
+    const auto& mainFunction = namedMir->functions.back();
+    rocket::MirLocalId secondResult = 0;
+    rocket::MirLocalId firstResult = 0;
+    bool sawSecond = false;
+    bool sawFirst = false;
+    bool normalized = false;
+    for (const auto& block : mainFunction.blocks) {
+      for (const auto& instruction : block.instructions) {
+        if (instruction.value.kind != rocket::MirRvalueKind::Call) continue;
+        const std::string& callee =
+            namedMir->symbols[instruction.value.callee].name;
+        if (callee == "second") {
+          sawSecond = true;
+          secondResult = instruction.destination;
+        } else if (callee == "first") {
+          sawFirst = true;
+          firstResult = instruction.destination;
+          rocket::test::expect(sawSecond,
+                               "written named arguments evaluate left-to-right",
+                               failures);
+        } else if (callee == "combine" &&
+                   instruction.value.arguments.size() == 2) {
+          normalized =
+              instruction.value.arguments[0].kind ==
+                  rocket::MirOperandKind::Local &&
+              instruction.value.arguments[0].local == firstResult &&
+              instruction.value.arguments[1].kind ==
+                  rocket::MirOperandKind::Local &&
+              instruction.value.arguments[1].local == secondResult;
+        }
+      }
+    }
+    rocket::test::expect(sawSecond && sawFirst && normalized,
+                         "MIR normalizes named calls to positional ABI order after evaluation",
+                         failures);
+  }
   rocket::Diagnostics asyncDiagnostics;
   auto asyncMir = rocket::test::lowerToMir(
       "async fn leaf(value: Int) -> Result[Int, String]:\n"

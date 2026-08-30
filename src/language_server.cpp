@@ -1004,8 +1004,13 @@ void mergeHir(const HirModule& hir, const Module& ast,
         publicDeclarations.contains(symbolKey(symbol.location, symbol.name,
                                               "function"));
     if (kind == "function") {
-      for (const auto& parameter : symbol.parameterTypes)
-        indexed.parameters.push_back(typeName(parameter));
+      for (std::size_t parameter = 0; parameter < symbol.parameterTypes.size(); ++parameter) {
+        std::string label;
+        if (parameter < symbol.parameterNames.size())
+          label = symbol.parameterNames[parameter] + ": ";
+        label += typeName(symbol.parameterTypes[parameter]);
+        indexed.parameters.push_back(std::move(label));
+      }
       std::ostringstream detail;
       detail << "fn " << indexed.shortName << '(';
       for (std::size_t parameter = 0; parameter < indexed.parameters.size();

@@ -243,8 +243,8 @@ cancellation, deadlines, and failure behavior are normative in
 
 ## Structs and generics
 
-Structs are immutable product values with positional construction and named
-field access:
+Structs are immutable product values with positional or named construction and
+named field access:
 
 ```rocket
 pub struct Pair[T]:
@@ -254,11 +254,12 @@ pub struct Pair[T]:
 fn identity[T](value: T) -> T:
     return value
 
-let pair = Pair(identity(10), 20)
+let pair = Pair(second: 20, first: identity(10))
 print(pair.first)
 ```
 
-Every constructor argument must match its declared field. Type arguments are
+Every constructor argument must match its declared field. Named struct arguments
+bind to field names and may be reordered. Type arguments are
 inferred from constructor values or supplied by an expected type. Fields cannot
 be assigned after construction. Aggregate equality is intentionally not
 implicit; programs match enums or compare individual fields.
@@ -340,11 +341,21 @@ zero-argument direct function, so initialization is deterministic and adds no
 global storage or runtime ABI. Trait and generic-impl associated constants are
 reserved.
 
-Rocket 1.2 parameters remain positional, required, and fixed-arity. Default,
-named, and variadic arguments are intentionally reserved until their evaluation
-order and C-ABI interaction can be specified without ambiguity. User generic
-specialization is deterministic and capped at 4,096 generated instances per
-compilation.
+Parameters remain required and fixed-arity. Direct functions, methods, extern
+functions, and Rocket struct constructors accept positional arguments, all-named
+arguments, or positional arguments followed by named arguments. A named argument
+uses `parameter: expression`; names bind to declared parameters and may be
+reordered. No positional argument may follow the first named argument.
+
+The callee or method receiver is evaluated first, followed by argument
+expressions in written order. HIR records that order while normalizing operands
+to declaration order before MIR and the unchanged runtime/native ABI v1 calling
+convention. Unknown names use deterministic typo suggestions; duplicate,
+missing, positional/named-conflicting, and wrong-typed arguments are compile
+errors. Closure values, enum constructors, built-in functions, and
+standard-library intrinsics do not accept named arguments. Default and variadic
+arguments remain reserved. User generic specialization is deterministic and
+capped at 4,096 generated instances per compilation.
 
 ## Native interoperability (Rocket 1.3)
 

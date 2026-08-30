@@ -50,6 +50,18 @@ int main() {
               "impl[T] Box[T]:\n    fn get(self: Box[T]) -> T:\n        return self.value\n",
       "formatter preserves the generic impl owner separator", failures);
 
+  rocket::Diagnostics namedDiagnostics;
+  auto namedFormatted = rocket::formatSource(
+      "named.rocket",
+      "fn main()->Int:\n    return combine( right :2,left: 1 )\n",
+      namedDiagnostics);
+  rocket::test::expect(
+      namedFormatted.has_value() &&
+          *namedFormatted ==
+              "fn main() -> Int:\n    return combine(right: 2, left: 1)\n",
+      "formatter canonicalizes named argument spacing and preserves names",
+      failures);
+
   rocket::Diagnostics invalidDiagnostics;
   auto invalid = rocket::formatSource("invalid.rocket", "fn main() -> Int:\n\treturn 0\n",
                                       invalidDiagnostics);

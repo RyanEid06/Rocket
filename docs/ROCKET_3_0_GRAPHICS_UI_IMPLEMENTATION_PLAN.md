@@ -204,10 +204,9 @@ operational prompt, not a substitute for it.
 
 ## 5. Packet index
 
-`WP00` is the planning checkpoint and `WP01` through `WP08` are complete
-foundation packets. WP09 is the lowest-numbered eligible packet and is the
-integration audit after the provisional foundation work; it no longer waits
-for Phase 19.
+`WP00` is the planning checkpoint, `WP01` through `WP08` are complete
+foundation packets, and WP09 completed their integration audit. WP10 is now
+complete, making WP11 the lowest-numbered eligible packet.
 
 | Packet | Feature groups | Maximum scope | Current state |
 | --- | --- | --- | --- |
@@ -221,8 +220,8 @@ for Phase 19.
 | WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | COMPLETE / PROVISIONAL |
 | WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | COMPLETE / PROVISIONAL |
 | WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | COMPLETE / INTEGRATION-READY |
-| WP10 | F02 | Named arguments | READY / RED |
-| WP11 | F03 | Default arguments | WAIT FOR WP10 / RED |
+| WP10 | F02 | Named arguments | COMPLETE / GREEN |
+| WP11 | F03 | Default arguments | READY / RED |
 | WP12 | F04 | Complete `std.math` | WAIT FOR WP11 / RED |
 | WP13 | F05, F06 | Easing plus complete motion/timelines | WAIT FOR WP12 / RED |
 | WP14 | F07 | Safe raylib geometry expansion | READY / RED |
@@ -667,6 +666,33 @@ support where present, tests, specifications, and deterministic bootstrap.
 
 **Checkpoint:** `feat: add named arguments`
 
+**Completed evidence (2026-08-30):** The permanent C++20 stage0 and the
+Rocket-written compiler now parse dedicated named-argument nodes, retain public
+parameter names in HIR/interface metadata, bind positional-plus-named calls,
+and preserve receiver/callee plus written-argument evaluation order while
+normalizing operands before the unchanged runtime ABI v1/backend ABI. Direct
+functions, generic functions, methods, extern functions, and struct
+constructors are covered. Closure values, standard-library intrinsics, enum
+constructors, and built-in functions are explicit documented/tested
+exclusions. Stable tests cover reordered, unknown-with-suggestion, duplicate,
+missing, positional/named-conflicting, wrong-typed, and positional-after-named
+calls; formatter, LSP signature help/cross-file calls, and documentation search
+metadata carry the same syntax and names.
+
+Fresh focused parser/HIR/MIR/formatter/language-server tests passed `5/5`.
+The final WP10 stage0/self-hosted matrices passed `3/3` in Debug and `3/3` in
+Release, including the self-host compiler fixture. The fresh full Debug suite
+passed `224/224` in 128.61 seconds and the fresh full Release suite passed
+`224/224` in 116.12 seconds. The coherent LLVM-disabled Release stage0 and
+predecessor-compatibility selection passed `17/17` in 9.68 seconds. The
+isolated Windows x64 Release bootstrap produced stage1 through stage3 below
+`out/rocket3-provisional/wp10`; all six stage1-stage3 lexer/parser self-tests,
+the stage3 HIR/MIR checks, and the stage3 WP10 matrix passed. Stage2 and stage3
+LLVM IR matched at SHA-256
+`0494ec1b44ff163d17045c83c564a6489cc0a3ffcd9d7a6a64c6e9d7a7e3559a`.
+Native toolchain working set remained below 1 GiB, and every generated artifact
+remained inside the packet output root.
+
 ### WP11 - Default arguments
 
 **Feature:** F03. Implement declaration checking, evaluation order, generic and
@@ -869,7 +895,7 @@ file/test/doc/evidence links when executed.
 | Feature | Owning packet(s) | Foundation state | Final acceptance packet |
 | --- | --- | --- | --- |
 | F01 Governance | WP00, WP09 | WP09 INTEGRATION-READY baseline: accepted Rocket 2.1 ancestry, target/toolchain/ABI/SDK/package/raylib layout, frozen-package hashes, and focused compatibility evidence recorded above | WP35 |
-| F02 Named arguments | WP10 | RED | WP34 |
+| F02 Named arguments | WP10 | GREEN: C++20 stage0 and Rocket self-host implement direct function/generic/method/extern/struct named calls with parameter metadata, deterministic diagnostics, explicit evaluation order, positional ABI normalization, formatter/LSP/docs parity, Debug/Release `224/224`, LLVM-disabled `17/17`, and matching stage2/stage3 IR `0494ec1b44ff163d17045c83c564a6489cc0a3ffcd9d7a6a64c6e9d7a7e3559a`; closure/std-intrinsic/enum/builtin exclusions are documented and tested | WP34 |
 | F03 Default arguments | WP11 | RED | WP34 |
 | F04 `std.math` | WP12 | RED | WP34 |
 | F05 Easing | WP13 | RED | WP34 |
@@ -907,7 +933,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP10 - Named arguments
+**Current packet:** WP11 - Default arguments
 
 ```text
 Work only in the main Rocket checkout:
@@ -919,65 +945,75 @@ docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
 
 Verify that the branch is master, begin from a clean checkout, and confirm it
 contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 and WP09 are complete;
-the retained Rocket 3 foundation kernels are internal INTEGRATION-READY inputs,
-not public APIs. If `git status --short --branch` shows an unpushed Rocket 3
-checkpoint, push it before editing.
+19596db860d4105d2226c98be2693edc5632aaf0. Phase 19, WP09, and WP10 are
+complete; named arguments and their public parameter-name metadata are
+predecessor behavior for this packet. The retained Rocket 3 foundation kernels
+are internal INTEGRATION-READY inputs, not public APIs. If
+`git status --short --branch` shows an unpushed Rocket 3 checkpoint, push it
+before editing.
 
-Recommended model: GPT-5.6 Sol with High reasoning.
+Recommended model: GPT-5.6 Sol with XHigh reasoning.
 
-Execute only WP10: named arguments (F02). Implement the complete
-grammar-to-tooling vertical slice in both the permanent C++20 stage0 and the
-Rocket-written compiler. Preserve positional-only calls; allow all-named calls
-and positional arguments followed by named arguments; reject every positional
-argument after the first named argument. Bind reordered names to declared
-parameter names and produce stable compile-time diagnostics for unknown,
-duplicate, missing, positional/named-conflicting, and wrong-typed arguments,
-using the existing typo-suggestion support where applicable.
+Execute only WP11: default arguments (F03). Implement the complete
+declaration-to-tooling vertical slice in both the permanent C++20 stage0 and
+the Rocket-written compiler. Allow ordinary functions and methods to declare
+defaults, require every required parameter to precede defaulted parameters,
+and keep omitted required arguments as compile errors. Explicit positional or
+named arguments override defaults.
 
-The initial callable set is direct functions, methods, extern functions, and
-struct constructors. Document and test every excluded callable category.
-Represent public parameter names in the cross-module/interface metadata used by
-calls. Keep receiver/callee and written-argument evaluation order explicit,
-normalize named calls before lower-level calling conventions, and preserve
-runtime ABI v1 and backend ABI behavior. Stage0, the self-hosted compiler,
-formatter, LSP, documentation generator, and every currently supported editor
-integration must agree on syntax, semantics, formatting, metadata, and
-diagnostics. Update the applicable language/compiler/tooling specifications and
-atomic traceability. Do not implement default arguments (WP11), `std.math`, or
-any public graphics/UI/native integration.
+Type-check default expressions in declaration context. Permit legal references
+to earlier parameters and declaration-scope functions/constants, specify and
+test source lookup and diagnostic locations, and make generic specialization
+behavior predictable. Preserve this exact evaluation order: receiver/callee,
+written arguments left-to-right, then omitted defaults in parameter order.
+Normalize combined named/default calls before MIR and lower-level calling
+conventions so runtime ABI v1 and backend ABI behavior remain unchanged.
+Represent cross-module defaults in the interface metadata used by calls and
+document the source/API-versioning consequences of changing a public default.
+
+The initial exclusions are lambda defaults, callback defaults,
+trait-declaration defaults, enum-payload defaults, extern defaults, and
+struct-field defaults. Document and test every excluded category. Stage0, the
+self-hosted compiler, formatter, LSP, documentation generator, and every
+currently supported editor integration must agree on declaration syntax,
+semantics, formatting, metadata, and diagnostics. Update the applicable
+language/compiler/tooling specifications and atomic traceability. Preserve all
+WP10 named-argument behavior. Do not implement `std.math` (WP12) or any public
+graphics/UI/native integration.
 
 Before running Rocket commands, confirm no Rocket build/test processes from this
 task are active. Use test-driven development: add focused positive/negative
 tests first, run them, and capture the expected failure before implementation.
 Run commands sequentially, write all generated state only below
-out/rocket3-provisional/wp10 inside this checkout, never automatically retry a
+out/rocket3-provisional/wp11 inside this checkout, never automatically retry a
 timeout, and stop/report if a task process exceeds 4 GiB or keeps growing.
 Inspect the current build guidance before configuring compiler/bootstrap
 matrices, estimate their combined disk use, and stop to ask the owner before
 any operation that could use more than 20 GiB.
 
-Run focused parser, AST/HIR/binding/type-checking, MIR/backend, metadata,
-cross-module, diagnostic, formatter, LSP/tooling, stage0, and self-hosted parity
-checks. Then run the RED packet's required predecessor-compatibility,
-LLVM-disabled stage0, Debug/Release, and deterministic stage0-to-stage3
-bootstrap evidence without weakening or deleting any existing gate. Update
-WP10's packet-index state, detailed evidence, and atomic traceability, then
-follow the success-only prompt-rotation contract in section 4. The next
-eligible packet will normally be WP11 after WP10: replace the current packet
-label and this entire fenced block with a complete WP11 prompt. Run
-`git diff --check`, review the scoped diff, and commit the WP10 implementation,
+Run focused parser, declaration/HIR/default binding/type-checking, evaluation-
+order MIR/backend, generic, metadata, cross-module, diagnostic, formatter,
+LSP/tooling, stage0, and self-hosted parity checks. Include side-effect tests
+that distinguish written-argument order from omitted-default parameter order.
+Then run the RED packet's required predecessor-compatibility, LLVM-disabled
+stage0, Debug/Release, and deterministic stage0-to-stage3 bootstrap evidence
+without weakening or deleting any existing gate. Update WP11's packet-index
+state, detailed evidence, and atomic traceability, then follow the success-only
+prompt-rotation contract in section 4. The next eligible packet will normally
+be WP12 after WP11: replace the current packet label and this entire fenced
+block with a complete WP12 prompt. Run `git diff --check`, review the scoped
+diff, and commit the WP11 implementation,
 tests, docs, evidence, and prompt rotation together with:
 
-feat: add named arguments
+feat: add default arguments
 
-Only rotate after every required WP10 check passes. If implementation or
-verification fails, leave WP10 as the current prompt and report the blocker.
-After committing, push `master` to `origin`. If push fails, do not begin WP11;
+Only rotate after every required WP11 check passes. If implementation or
+verification fails, leave WP11 as the current prompt and report the blocker.
+After committing, push `master` to `origin`. If push fails, do not begin WP12;
 report the push blocker and preserve the committed handoff. After a successful
 push, stop and report the exact files, tests, results, commit, push result,
 remaining intentional limitations, and the packet prepared for the next chat.
-Do not begin WP11 or any other packet in the same chat.
+Do not begin WP12 or any other packet in the same chat.
 ```
 
 ## 10. Permanent reusable launcher

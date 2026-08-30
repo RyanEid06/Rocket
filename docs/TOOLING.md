@@ -215,6 +215,13 @@ The precise transport, lifecycle, diagnostic, and security contract is in
 `LANGUAGE_SERVER.md`, including multi-file analysis, hover, completion,
 navigation, rename, semantic tokens, and code actions.
 
+Named-argument syntax is editor-neutral: the shared formatter canonicalizes
+`name: expression`, diagnostics use the same stable codes in every client, and
+signature help exposes declared parameter names across package modules. VS Code
+and Visual Studio use the same `rocket-lsp` analysis and need no editor-specific
+semantic fork; their existing Rocket grammars already tokenize identifiers and
+colons used by declarations and named calls.
+
 ## Visual Studio 2026
 
 The supported Windows IDE is Visual Studio Community 2026 on Windows x64. The

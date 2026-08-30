@@ -467,18 +467,18 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
   }
   case HirExprKind::Call: {
     const auto& call = static_cast<const HirCallExpr&>(expression);
-    std::vector<MirOperand> arguments;
-    for (const auto& argument : call.arguments)
-      arguments.push_back(lowerExpression(*argument, current));
+    std::vector<MirOperand> arguments(call.arguments.size());
+    for (const std::size_t index : call.argumentOrder)
+      arguments[index] = lowerExpression(*call.arguments[index], current);
     const MirLocalId result = addInstruction(
         current, MirRvalue::call(call.type, call.callee, std::move(arguments)));
     return MirOperand::localValue(call.type, result);
   }
   case HirExprKind::AsyncCall: {
     const auto& call = static_cast<const HirAsyncCallExpr&>(expression);
-    std::vector<MirOperand> arguments;
-    for (const auto& argument : call.arguments)
-      arguments.push_back(lowerExpression(*argument, current));
+    std::vector<MirOperand> arguments(call.arguments.size());
+    for (const std::size_t index : call.argumentOrder)
+      arguments[index] = lowerExpression(*call.arguments[index], current);
     const MirLocalId result = addInstruction(
         current, MirRvalue::asyncCall(call.type, call.callee, std::move(arguments)));
     return MirOperand::localValue(call.type, result);
@@ -520,9 +520,9 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
   }
   case HirExprKind::Aggregate: {
     const auto& aggregate = static_cast<const HirAggregateExpr&>(expression);
-    std::vector<MirOperand> arguments;
-    for (const auto& argument : aggregate.arguments)
-      arguments.push_back(lowerExpression(*argument, current));
+    std::vector<MirOperand> arguments(aggregate.arguments.size());
+    for (const std::size_t index : aggregate.argumentOrder)
+      arguments[index] = lowerExpression(*aggregate.arguments[index], current);
     const MirLocalId result = addInstruction(
         current, MirRvalue::aggregate(aggregate.type, aggregate.declaration,
                                      aggregate.tag, std::move(arguments)));

@@ -23,6 +23,7 @@ struct ApiItem {
   std::string documentation;
   int line = 1;
   std::vector<std::string> relatedTypes;
+  std::vector<std::string> parameters;
 };
 
 std::string trim(std::string value) {
@@ -165,12 +166,14 @@ bool generatePackageDocumentation(const Package& package,
                              ? "const"
                              : function.nativeImport ? "extern-fn" : "fn";
       std::vector<std::string> related{function.returnType};
+      std::vector<std::string> parameters;
       for (const auto& parameter : function.parameters)
-        related.push_back(parameter.typeName);
+        related.push_back(parameter.typeName), parameters.push_back(parameter.name);
       items.push_back({modulePath, kind, function.name,
                        sourceLine(function.location.line),
                        documentationBefore(lines, function.location.line),
-                       function.location.line, std::move(related)});
+                       function.location.line, std::move(related),
+                       std::move(parameters)});
     }
     for (const auto& structure : module.structs) {
       if (!structure.publicDeclaration) continue;
@@ -294,7 +297,12 @@ bool generatePackageDocumentation(const Package& package,
            << json(item.module) << "\", \"line\": " << item.line
            << ", \"declaration\": \"" << json(item.declaration)
            << "\", \"documentation\": \"" << json(item.documentation)
-           << "\", \"packageVersion\": \"" << json(package.version)
+           << "\", \"parameters\": [";
+    for (std::size_t parameter = 0; parameter < item.parameters.size(); ++parameter)
+      search << (parameter ? ", " : "") << "\""
+             << json(item.parameters[parameter]) << "\"";
+    search << "]"
+           << ", \"packageVersion\": \"" << json(package.version)
            << "\", \"href\": \"index.html#" << json(anchor(item)) << "\"}";
   }
   search << (items.empty() ? "" : "\n  ") << "]\n}\n";

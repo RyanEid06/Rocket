@@ -195,6 +195,47 @@ int main() {
                          "await has a dedicated prefix-expression AST node", failures);
   }
 
+  rocket::Diagnostics namedDiagnostics;
+  auto named = rocket::test::parse(
+      "fn combine(left: Int, right: Int) -> Int:\n"
+      "    return left * 10 + right\n"
+      "fn main() -> Int:\n"
+      "    return combine(right: 2, left: 1)\n",
+      namedDiagnostics);
+  rocket::test::expect(!namedDiagnostics.hasErrors(),
+                       "named call arguments parse", failures);
+  if (!namedDiagnostics.hasErrors()) {
+    const auto& returned = static_cast<const rocket::ReturnStmt&>(
+        *named.functions[1].body[0]);
+    const auto& call = static_cast<const rocket::CallExpr&>(*returned.value);
+    rocket::test::expect(
+        call.arguments.size() == 2 &&
+            call.arguments[0]->kind == rocket::ExprKind::NamedArgument &&
+            call.arguments[1]->kind == rocket::ExprKind::NamedArgument &&
+            static_cast<const rocket::NamedArgumentExpr&>(*call.arguments[0]).name ==
+                "right" &&
+            static_cast<const rocket::NamedArgumentExpr&>(*call.arguments[1]).name ==
+                "left",
+        "named argument AST nodes preserve written names and order", failures);
+  }
+
+  rocket::Diagnostics positionalAfterNamedDiagnostics;
+  rocket::test::parse(
+      "fn combine(left: Int, right: Int) -> Int:\n"
+      "    return left + right\n"
+      "fn main() -> Int:\n"
+      "    return combine(left: 1, 2)\n",
+      positionalAfterNamedDiagnostics);
+  rocket::test::expect(
+      positionalAfterNamedDiagnostics.hasErrors() &&
+          positionalAfterNamedDiagnostics.all().front().code ==
+              rocket::DiagnosticCode::Syntax &&
+          positionalAfterNamedDiagnostics.all().front().message.find(
+              "positional argument cannot follow a named argument") !=
+              std::string::npos,
+      "positional arguments after named arguments are rejected during parsing",
+      failures);
+
   rocket::Diagnostics indentationDiagnostics;
   rocket::test::parse("    return 0\n", indentationDiagnostics);
   rocket::test::expect(indentationDiagnostics.hasErrors(),

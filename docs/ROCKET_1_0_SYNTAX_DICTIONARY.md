@@ -118,6 +118,16 @@ function must return a value on every path.
 Calls are positional. Rocket 1.0 has no named, default, variadic, lambda, or
 closure syntax.
 
+Rocket 3 adds named arguments to direct functions, methods, extern functions,
+and struct constructors without changing this Rocket 1.0 positional syntax:
+
+```rocket
+let answer = add(right: 22, left: 20)
+```
+
+Positional arguments may precede named arguments, but none may follow the first
+named argument. Default arguments remain unavailable.
+
 ```rocket
 let answer = add(20, 22)
 announce("done")

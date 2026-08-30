@@ -1,0 +1,5 @@
+fn combine(left: Int, right: Int) -> Int:
+    return left + right
+
+fn main() -> Int:
+    return combine(right: 2, left: "wrong")

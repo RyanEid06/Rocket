@@ -87,6 +87,106 @@ std::string libraryMethodFunction(const Type& receiver, const std::string& metho
   return {};
 }
 
+const Expr& callArgumentValue(const Expr& argument) {
+  if (argument.kind == ExprKind::NamedArgument)
+    return *static_cast<const NamedArgumentExpr&>(argument).value;
+  return argument;
+}
+
+bool hasNamedArguments(const std::vector<std::unique_ptr<Expr>>& arguments) {
+  return std::any_of(arguments.begin(), arguments.end(), [](const auto& argument) {
+    return argument->kind == ExprKind::NamedArgument;
+  });
+}
+
+std::size_t editDistance(const std::string& left, const std::string& right) {
+  std::vector<std::size_t> previous(right.size() + 1);
+  std::vector<std::size_t> current(right.size() + 1);
+  for (std::size_t index = 0; index <= right.size(); ++index) previous[index] = index;
+  for (std::size_t leftIndex = 0; leftIndex < left.size(); ++leftIndex) {
+    current[0] = leftIndex + 1;
+    for (std::size_t rightIndex = 0; rightIndex < right.size(); ++rightIndex) {
+      const std::size_t replacement = previous[rightIndex] +
+          (left[leftIndex] == right[rightIndex] ? 0u : 1u);
+      current[rightIndex + 1] = std::min(
+          {previous[rightIndex + 1] + 1, current[rightIndex] + 1, replacement});
+    }
+    previous.swap(current);
+  }
+  return previous.back();
+}
+
+struct NamedArgumentBinding {
+  std::vector<std::optional<std::size_t>> sourceToParameter;
+  std::vector<std::optional<std::size_t>> parameterToSource;
+  std::vector<std::size_t> evaluationOrder;
+};
+
+NamedArgumentBinding bindNamedArguments(
+    const std::vector<std::unique_ptr<Expr>>& arguments,
+    const std::vector<std::string>& parameterNames, const Location& callLocation,
+    Diagnostics& diagnostics) {
+  NamedArgumentBinding result;
+  result.sourceToParameter.resize(arguments.size());
+  result.parameterToSource.resize(parameterNames.size());
+  std::size_t nextPositional = 0;
+  for (std::size_t source = 0; source < arguments.size(); ++source) {
+    const Expr& argument = *arguments[source];
+    std::optional<std::size_t> parameter;
+    if (argument.kind == ExprKind::NamedArgument) {
+      const auto& named = static_cast<const NamedArgumentExpr&>(argument);
+      auto found = std::find(parameterNames.begin(), parameterNames.end(), named.name);
+      if (found == parameterNames.end()) {
+        std::string message = "unknown named argument '" + named.name + "'";
+        std::size_t bestDistance = static_cast<std::size_t>(-1);
+        std::string best;
+        for (const auto& candidate : parameterNames) {
+          const std::size_t distance = editDistance(named.name, candidate);
+          if (distance < bestDistance ||
+              (distance == bestDistance && (best.empty() || candidate < best))) {
+            bestDistance = distance;
+            best = candidate;
+          }
+        }
+        if (!best.empty() && bestDistance <= 2)
+          message += "; did you mean '" + best + "'?";
+        diagnostics.error(named.location, std::move(message), DiagnosticCode::Name);
+        continue;
+      }
+      parameter = static_cast<std::size_t>(found - parameterNames.begin());
+    } else {
+      if (nextPositional >= parameterNames.size()) {
+        diagnostics.error(argument.location, "too many positional arguments",
+                          DiagnosticCode::Arity);
+        continue;
+      }
+      parameter = nextPositional++;
+    }
+    if (result.parameterToSource[*parameter].has_value()) {
+      const std::size_t previousSource = *result.parameterToSource[*parameter];
+      const bool previousNamed =
+          arguments[previousSource]->kind == ExprKind::NamedArgument;
+      const std::string& name = parameterNames[*parameter];
+      diagnostics.error(
+          argument.location,
+          previousNamed ? "duplicate named argument '" + name + "'"
+                        : "argument '" + name +
+                              "' is already supplied positionally",
+          DiagnosticCode::Arity);
+      continue;
+    }
+    result.sourceToParameter[source] = parameter;
+    result.parameterToSource[*parameter] = source;
+    result.evaluationOrder.push_back(*parameter);
+  }
+  for (std::size_t parameter = 0; parameter < parameterNames.size(); ++parameter)
+    if (!result.parameterToSource[parameter].has_value())
+      diagnostics.error(callLocation,
+                        "missing required argument '" + parameterNames[parameter] + "'",
+                        DiagnosticCode::Arity);
+  return result;
+}
+
 } // namespace
 
 SymbolId HirLowerer::addSymbol(SymbolKind kind, const std::string& name, Type type,
@@ -94,7 +194,7 @@ SymbolId HirLowerer::addSymbol(SymbolKind kind, const std::string& name, Type ty
                                std::vector<Type> parameterTypes, Intrinsic intrinsic) {
   const SymbolId id = static_cast<SymbolId>(hir_.symbols.size());
   hir_.symbols.push_back({id, kind, name, std::move(type), mutableBinding, location,
-                          std::move(parameterTypes), intrinsic});
+                          std::move(parameterTypes), {}, intrinsic});
   return id;
 }
 
@@ -1094,6 +1194,8 @@ std::optional<HirModule> HirLowerer::lower() {
     const Type result = resolveType(function.returnType, function.location);
     const SymbolId symbol = addSymbol(SymbolKind::Function, function.name, result, false,
                                       function.location, parameters);
+    for (const auto& parameter : function.parameters)
+      hir_.symbols[symbol].parameterNames.push_back(parameter.name);
     hir_.symbols[symbol].nativeImport = function.nativeImport;
     hir_.symbols[symbol].nativeExport = function.nativeExport;
     hir_.symbols[symbol].nativeName = function.nativeName;
@@ -1761,6 +1863,8 @@ SymbolId HirLowerer::specializeFunction(
   Type result = substitute(resultPattern, inferred);
   const SymbolId symbol = addSymbol(SymbolKind::Function, key, result, false,
                                     function.location, parameters);
+  for (const auto& parameter : function.parameters)
+    hir_.symbols[symbol].parameterNames.push_back(parameter.name);
   hir_.symbols[symbol].asynchronous = function.asynchronous;
   if (function.asynchronous && !asyncSuccessType(result).has_value())
     diagnostics_.error(location,
@@ -1802,6 +1906,10 @@ void HirLowerer::collectLambdaCaptures(
       collectLambdaCaptures(*argument, parameters, captures);
     break;
   }
+  case ExprKind::NamedArgument:
+    collectLambdaCaptures(*static_cast<const NamedArgumentExpr&>(expression).value,
+                          parameters, captures);
+    break;
   case ExprKind::Array:
     for (const auto& element : static_cast<const ArrayExpr&>(expression).elements)
       collectLambdaCaptures(*element, parameters, captures);
@@ -2013,7 +2121,99 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
         callee, std::move(arguments));
   }
   return std::make_unique<HirCallExpr>(location, signature.type, callee,
-                                      std::move(arguments));
+                                       std::move(arguments));
+}
+
+std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
+    const std::string& name, const Location& location,
+    std::vector<std::unique_ptr<HirExpr>> leadingArguments,
+    const std::vector<std::unique_ptr<Expr>>& sourceArguments) {
+  const Function* genericDeclaration = nullptr;
+  const HirSymbol* signature = nullptr;
+  if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end())
+    genericDeclaration = generic->second;
+  else if (auto found = functions_.find(name); found != functions_.end())
+    signature = &hir_.symbol(found->second);
+  else {
+    diagnostics_.error(location, "unknown method '" + name + "'", DiagnosticCode::Name);
+    return std::make_unique<HirCallExpr>(location, Type::Invalid, InvalidSymbol,
+                                         std::move(leadingArguments));
+  }
+
+  std::vector<std::string> allNames;
+  std::vector<Type> parameterTypes;
+  if (genericDeclaration) {
+    for (const auto& parameter : genericDeclaration->parameters)
+      allNames.push_back(parameter.name);
+  } else {
+    allNames = signature->parameterNames;
+    parameterTypes = signature->parameterTypes;
+  }
+  const std::size_t leadingCount = leadingArguments.size();
+  if (allNames.size() < leadingCount) {
+    diagnostics_.error(location, "named argument metadata is unavailable for '" + name + "'",
+                       DiagnosticCode::Arity);
+    return std::make_unique<HirCallExpr>(location, Type::Invalid, InvalidSymbol,
+                                         std::move(leadingArguments));
+  }
+  std::vector<std::string> explicitNames(allNames.begin() + leadingCount, allNames.end());
+  const NamedArgumentBinding binding =
+      bindNamedArguments(sourceArguments, explicitNames, location, diagnostics_);
+  std::vector<std::unique_ptr<HirExpr>> arguments(allNames.size());
+  std::vector<std::size_t> evaluationOrder;
+  for (std::size_t index = 0; index < leadingCount; ++index) {
+    arguments[index] = std::move(leadingArguments[index]);
+    evaluationOrder.push_back(index);
+  }
+  for (std::size_t source = 0; source < sourceArguments.size(); ++source) {
+    if (!binding.sourceToParameter[source].has_value()) {
+      (void)lowerExpression(callArgumentValue(*sourceArguments[source]));
+      continue;
+    }
+    const std::size_t parameter = leadingCount + *binding.sourceToParameter[source];
+    std::optional<Type> expected;
+    if (!genericDeclaration && parameter < parameterTypes.size())
+      expected = parameterTypes[parameter];
+    arguments[parameter] = lowerExpression(callArgumentValue(*sourceArguments[source]), expected);
+    evaluationOrder.push_back(parameter);
+  }
+  for (auto& argument : arguments)
+    if (!argument)
+      argument = std::make_unique<HirLiteralExpr>(location, Type::Invalid, "0");
+
+  SymbolId callee = InvalidSymbol;
+  if (genericDeclaration)
+    callee = specializeFunction(*genericDeclaration, arguments, location);
+  else
+    callee = signature->id;
+  const HirSymbol* resolved = callee == InvalidSymbol ? nullptr : &hir_.symbol(callee);
+  if (resolved && resolved->nativeImport && unsafeDepth_ == 0)
+    diagnostics_.error(location, "call to extern function '" + name +
+                                     "' requires an explicit unsafe block");
+  if (resolved) {
+    for (std::size_t index = 0;
+         index < arguments.size() && index < resolved->parameterTypes.size(); ++index)
+      if (arguments[index]->type != Type::Invalid &&
+          arguments[index]->type != resolved->parameterTypes[index])
+        diagnostics_.error(arguments[index]->location,
+                           "argument '" + allNames[index] + "' has type " +
+                               typeName(arguments[index]->type) + ", expected " +
+                               typeName(resolved->parameterTypes[index]));
+  }
+  if (resolved && resolved->asynchronous) {
+    const auto success = asyncSuccessType(resolved->type);
+    diagnoseAsyncArguments(arguments, location);
+    if (success.has_value() && !isSendType(*success))
+      diagnostics_.error(location, "async task result type " + typeName(*success) +
+                                       " does not satisfy Send",
+                         DiagnosticCode::SendConstraint);
+    return std::make_unique<HirAsyncCallExpr>(
+        location, success.has_value() ? taskType(*success) : Type::Invalid,
+        callee, std::move(arguments), std::move(evaluationOrder));
+  }
+  return std::make_unique<HirCallExpr>(
+      location, resolved ? resolved->type : Type::Invalid, callee,
+      std::move(arguments), std::move(evaluationOrder));
 }
 
 std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
@@ -2188,6 +2388,33 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
   }
   case ExprKind::Call: {
     const auto& call = static_cast<const CallExpr&>(expression);
+    const bool namedArguments = hasNamedArguments(call.arguments);
+    auto lowerWrittenArguments = [&]() {
+      std::vector<std::unique_ptr<HirExpr>> result;
+      for (const auto& argument : call.arguments)
+        result.push_back(lowerExpression(callArgumentValue(*argument)));
+      return result;
+    };
+    std::string writtenCallee;
+    std::vector<std::string> writtenMembers;
+    const Expr* writtenTarget = call.callee.get();
+    while (writtenTarget->kind == ExprKind::Field) {
+      const auto& field = static_cast<const FieldExpr&>(*writtenTarget);
+      writtenMembers.push_back(field.field);
+      writtenTarget = field.value.get();
+    }
+    if (writtenTarget->kind == ExprKind::Name) {
+      writtenCallee = static_cast<const LiteralExpr&>(*writtenTarget).value;
+      for (auto member = writtenMembers.rbegin(); member != writtenMembers.rend(); ++member)
+        writtenCallee += "." + *member;
+    }
+    if (namedArguments && writtenCallee.rfind("std.", 0) == 0) {
+      diagnostics_.error(expression.location,
+                         "named arguments are not supported for standard-library intrinsics",
+                         DiagnosticCode::Arity);
+      return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
+                                           InvalidSymbol, lowerWrittenArguments());
+    }
     if (call.callee->kind == ExprKind::Name) {
       const std::string& name = static_cast<const LiteralExpr&>(*call.callee).value;
       const SymbolId variable = findVariable(name);
@@ -2195,23 +2422,31 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         const Type closureType = hir_.symbol(variable).type;
         if (closureType.kind == TypeKind::Struct &&
             closureType.declaration.rfind("$closure.", 0) == 0) {
+          if (namedArguments)
+            diagnostics_.error(expression.location,
+                               "named arguments are not supported for closure values",
+                               DiagnosticCode::Arity);
           std::vector<std::unique_ptr<HirExpr>> arguments;
           arguments.push_back(std::make_unique<HirNameExpr>(
               call.callee->location, closureType, variable));
           for (const auto& argument : call.arguments)
-            arguments.push_back(lowerExpression(*argument));
+            arguments.push_back(lowerExpression(callArgumentValue(*argument)));
           return lowerResolvedCall(closureType.declaration + ".call",
                                    expression.location, std::move(arguments));
         }
       }
     }
     if (call.callee->kind == ExprKind::Lambda) {
+      if (namedArguments)
+        diagnostics_.error(expression.location,
+                           "named arguments are not supported for closure values",
+                           DiagnosticCode::Arity);
       auto closure = lowerExpression(*call.callee);
       const Type closureType = closure->type;
       std::vector<std::unique_ptr<HirExpr>> arguments;
       arguments.push_back(std::move(closure));
       for (const auto& argument : call.arguments)
-        arguments.push_back(lowerExpression(*argument));
+        arguments.push_back(lowerExpression(callArgumentValue(*argument)));
       return lowerResolvedCall(closureType.declaration + ".call",
                                expression.location, std::move(arguments));
     }
@@ -2221,6 +2456,17 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         const std::string owner = static_cast<const LiteralExpr&>(*field.value).value;
         const std::string associated = owner + "." + field.field;
         if (typeDeclarations_.contains(owner) || owner == "String") {
+          const std::string target = associatedLibraryFunction(associated);
+          if (namedArguments) {
+            if (standardFunctions_.contains(target)) {
+              diagnostics_.error(expression.location,
+                                 "named arguments are not supported for standard-library intrinsics",
+                                 DiagnosticCode::Arity);
+              return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
+                                                   InvalidSymbol, lowerWrittenArguments());
+            }
+            return lowerNamedUserCall(target, expression.location, {}, call.arguments);
+          }
           std::vector<std::unique_ptr<HirExpr>> arguments;
           for (const auto& argument : call.arguments)
             arguments.push_back(lowerExpression(*argument));
@@ -2231,9 +2477,6 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       std::vector<std::unique_ptr<HirExpr>> arguments;
       auto receiver = lowerExpression(*field.value);
       const Type receiverType = receiver->type;
-      arguments.push_back(std::move(receiver));
-      for (const auto& argument : call.arguments)
-        arguments.push_back(lowerExpression(*argument));
       std::string target = libraryMethodFunction(receiverType, field.field);
       if (target.empty() &&
           (receiverType.kind == TypeKind::Struct || receiverType.kind == TypeKind::Enum))
@@ -2245,11 +2488,28 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
           (receiverType.kind == TypeKind::Struct || receiverType.kind == TypeKind::Enum))
         target = traitMethodTarget(receiverType, field.field, expression.location);
       if (target.empty()) target = typeName(receiverType) + "." + field.field;
+      if (namedArguments) {
+        if (standardFunctions_.contains(target)) {
+          diagnostics_.error(expression.location,
+                             "named arguments are not supported for standard-library intrinsics",
+                             DiagnosticCode::Arity);
+          auto lowered = lowerWrittenArguments();
+          lowered.insert(lowered.begin(), std::move(receiver));
+          return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
+                                               InvalidSymbol, std::move(lowered));
+        }
+        std::vector<std::unique_ptr<HirExpr>> leading;
+        leading.push_back(std::move(receiver));
+        return lowerNamedUserCall(target, expression.location, std::move(leading),
+                                  call.arguments);
+      }
+      arguments.push_back(std::move(receiver));
+      for (const auto& argument : call.arguments)
+        arguments.push_back(lowerExpression(*argument));
       return lowerResolvedCall(target, expression.location, std::move(arguments));
     }
     if (call.callee->kind != ExprKind::Name) {
-      std::vector<std::unique_ptr<HirExpr>> arguments;
-      for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
+      auto arguments = lowerWrittenArguments();
       diagnostics_.error(expression.location,
                          "call target must be a function or constructor name",
                          DiagnosticCode::Name);
@@ -2277,6 +2537,14 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
 
     if (aggregateDeclaration.has_value()) {
       const auto& declaration = hir_.typeDeclarations[*aggregateDeclaration];
+      if (namedArguments && !structConstructor) {
+        diagnostics_.error(expression.location,
+                           "named arguments are not supported for enum constructors",
+                           DiagnosticCode::Arity);
+        return std::make_unique<HirAggregateExpr>(
+            expression.location, Type::Invalid, *aggregateDeclaration, tag,
+            lowerWrittenArguments());
+      }
       std::vector<Type> patterns;
       if (structConstructor) {
         for (const auto& field : declaration.fields) patterns.push_back(field.type);
@@ -2289,17 +2557,42 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         for (std::size_t index = 0; index < declaration.typeParameters.size(); ++index)
           substitutions.emplace(declaration.typeParameters[index], expected->arguments[index]);
       std::vector<std::unique_ptr<HirExpr>> arguments;
-      for (std::size_t index = 0; index < call.arguments.size(); ++index) {
+      std::vector<std::size_t> argumentOrder;
+      NamedArgumentBinding binding;
+      if (namedArguments) {
+        std::vector<std::string> fieldNames;
+        for (const auto& field : declaration.fields) fieldNames.push_back(field.name);
+        binding = bindNamedArguments(call.arguments, fieldNames, expression.location,
+                                     diagnostics_);
+        arguments.resize(patterns.size());
+      }
+      for (std::size_t source = 0; source < call.arguments.size(); ++source) {
+        const std::size_t index = namedArguments && binding.sourceToParameter[source].has_value()
+                                      ? *binding.sourceToParameter[source]
+                                      : source;
+        if (namedArguments && !binding.sourceToParameter[source].has_value()) {
+          (void)lowerExpression(callArgumentValue(*call.arguments[source]));
+          continue;
+        }
         std::optional<Type> argumentExpected;
         if (index < patterns.size()) {
           Type candidate = substitute(patterns[index], substitutions);
           if (!containsTypeParameter(candidate)) argumentExpected = candidate;
         }
-        arguments.push_back(lowerExpression(*call.arguments[index], argumentExpected));
+        auto lowered = lowerExpression(callArgumentValue(*call.arguments[source]), argumentExpected);
+        if (namedArguments) {
+          arguments[index] = std::move(lowered);
+          argumentOrder.push_back(index);
+        } else {
+          arguments.push_back(std::move(lowered));
+        }
         if (index < patterns.size())
-          inferTypeArguments(patterns[index], arguments.back()->type, substitutions,
-                             arguments.back()->location);
+          inferTypeArguments(patterns[index], arguments[index]->type, substitutions,
+                             arguments[index]->location);
       }
+      for (auto& argument : arguments)
+        if (!argument)
+          argument = std::make_unique<HirLiteralExpr>(expression.location, Type::Invalid, "0");
       if (arguments.size() != patterns.size())
         diagnostics_.error(expression.location, "constructor '" + name + "' expects " +
                                                  std::to_string(patterns.size()) + " argument(s)",
@@ -2319,9 +2612,14 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       for (std::size_t index = 0; index < arguments.size() && index < patterns.size(); ++index) {
         const Type required = substitute(patterns[index], substitutions);
         if (arguments[index]->type != Type::Invalid && arguments[index]->type != required)
-          diagnostics_.error(arguments[index]->location, "constructor argument type is " +
-                                                          typeName(arguments[index]->type) +
-                                                          ", expected " + typeName(required));
+          diagnostics_.error(arguments[index]->location,
+                             namedArguments
+                                 ? "argument '" + declaration.fields[index].name +
+                                       "' has type " + typeName(arguments[index]->type) +
+                                       ", expected " + typeName(required)
+                                 : "constructor argument type is " +
+                                       typeName(arguments[index]->type) + ", expected " +
+                                       typeName(required));
       }
       Type result{declaration.kind == HirTypeDeclKind::Struct ? TypeKind::Struct : TypeKind::Enum,
                   declaration.name, std::move(typeArguments)};
@@ -2332,11 +2630,19 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                            "Map and Set keys must be Int, Bool, Char, or String");
       return std::make_unique<HirAggregateExpr>(expression.location, std::move(result),
                                                  *aggregateDeclaration, tag,
-                                                 std::move(arguments));
+                                                 std::move(arguments),
+                                                 std::move(argumentOrder));
     }
 
     auto standard = standardFunctions_.find(name);
     if (standard != standardFunctions_.end()) {
+      if (namedArguments) {
+        diagnostics_.error(expression.location,
+                           "named arguments are not supported for standard-library intrinsics",
+                           DiagnosticCode::Arity);
+        return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
+                                             InvalidSymbol, lowerWrittenArguments());
+      }
       const StandardFunction& definition = standard->second;
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (std::size_t index = 0; index < call.arguments.size(); ++index) {
@@ -2476,6 +2782,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
 
     auto generic = genericFunctions_.find(name);
     if (generic != genericFunctions_.end()) {
+      if (namedArguments)
+        return lowerNamedUserCall(name, expression.location, {}, call.arguments);
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
       const SymbolId callee = specializeFunction(*generic->second, arguments, expression.location);
@@ -2509,6 +2817,15 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     }
     const SymbolId callee = found->second;
     const HirSymbol signature = hir_.symbol(callee);
+    if (namedArguments && signature.kind == SymbolKind::BuiltinFunction) {
+      diagnostics_.error(expression.location,
+                         "named arguments are not supported for built-in functions",
+                         DiagnosticCode::Arity);
+      return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
+                                           InvalidSymbol, lowerWrittenArguments());
+    }
+    if (namedArguments)
+      return lowerNamedUserCall(name, expression.location, {}, call.arguments);
     std::vector<std::unique_ptr<HirExpr>> arguments;
     for (std::size_t index = 0; index < call.arguments.size(); ++index) {
       std::optional<Type> argumentExpected;
@@ -2559,6 +2876,13 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     }
     return std::make_unique<HirCallExpr>(expression.location, signature.type, callee,
                                         std::move(arguments));
+  }
+  case ExprKind::NamedArgument: {
+    const auto& named = static_cast<const NamedArgumentExpr&>(expression);
+    diagnostics_.error(expression.location,
+                       "named argument is valid only inside a call",
+                       DiagnosticCode::Arity);
+    return lowerExpression(*named.value, expected);
   }
   case ExprKind::Array: {
     const auto& array = static_cast<const ArrayExpr&>(expression);

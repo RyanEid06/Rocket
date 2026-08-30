@@ -1,0 +1,6 @@
+pub struct Pair:
+    first: Int
+    second: Int
+
+pub fn combine(left: Int, right: Int) -> Int:
+    return left * 10 + right

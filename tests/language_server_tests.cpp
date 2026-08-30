@@ -184,7 +184,7 @@ int main() {
   semanticInput += frame(
       R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/math.rocket","languageId":"rocket","version":1,"text":"# Doubles a value.\npub fn doubled(value: Int) -> Int:\n    return value * 2\n"}}})");
   semanticInput += frame(
-      R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/main.rocket","languageId":"rocket","version":1,"text":"import math\n\nfn helper() -> Int:\n    return math.doubled(21)\n"}}})");
+      R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/main.rocket","languageId":"rocket","version":1,"text":"import math\n\nfn helper() -> Int:\n    return math.doubled(value: 21)\n"}}})");
   semanticInput += frame(
       R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/actions.rocket","languageId":"rocket","version":1,"text":"fn helper() -> Int:\n    return doubled(21)\n"}}})");
   semanticInput += frame(
@@ -253,9 +253,12 @@ int main() {
       "definition, references, and safe rename use resolved cross-file symbols", failures);
   rocket::test::expect(
       semanticOutput.find("\"signatures\":[{") != std::string::npos &&
+          semanticOutput.find("\"label\":\"value: Int\"") !=
+              std::string::npos &&
           semanticOutput.find("\"data\":[") != std::string::npos &&
           semanticOutput.find("\"edits\":[") != std::string::npos,
-      "signature help and full/delta semantic tokens are deterministic", failures);
+      "signature help exposes parameter-name metadata and semantic tokens are deterministic",
+      failures);
   rocket::test::expect(
       semanticOutput.find("\"code\":-32800") != std::string::npos &&
           semanticOutput.find("\"maximumProjectFiles\":4096") != std::string::npos,
