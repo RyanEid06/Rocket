@@ -662,8 +662,11 @@ private:
           constraint.traitName = *external;
         }
       }
-      for (auto& parameter : function.parameters)
+      for (auto& parameter : function.parameters) {
         rewriteTypeSpelling(module, parameter.typeName, parameters, parameter.location);
+        if (parameter.defaultValue)
+          rewriteExpression(module, parameter.defaultValue, parameters);
+      }
       rewriteTypeSpelling(module, function.returnType, parameters, function.location);
       rewriteBlock(module, function.body, parameters);
     }

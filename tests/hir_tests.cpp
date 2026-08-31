@@ -280,6 +280,82 @@ int main() {
                      "argument 'left' has type String, expected Int",
                      "wrong-typed named arguments identify their declared parameter");
 
+  rocket::Diagnostics defaultDiagnostics;
+  auto defaulted = rocket::test::lowerToHir(
+      "fn offset(value: Int) -> Int:\n"
+      "    return value + 1\n"
+      "fn combine(first: Int, second: Int = offset(first), third: Int = second + 1) -> Int:\n"
+      "    return first * 100 + second * 10 + third\n"
+      "struct Counter:\n"
+      "    value: Int\n"
+      "impl Counter:\n"
+      "    fn adjusted(self: Counter, amount: Int = 2, factor: Int = amount + 1) -> Int:\n"
+      "        return self.value + amount * factor\n"
+      "fn select[T](first: T, second: T = first) -> T:\n"
+      "    return second\n"
+      "fn main() -> Int:\n"
+      "    let counter = Counter(10)\n"
+      "    let combined = combine(third: 9, first: 1)\n"
+      "    let adjusted = counter.adjusted()\n"
+      "    return combined + adjusted + select(3)\n",
+      defaultDiagnostics);
+  rocket::test::expect(
+      defaulted.has_value(),
+      "function, method, generic, positional, and named calls expand omitted defaults",
+      failures);
+  if (defaulted.has_value()) {
+    const rocket::HirFunction* mainFunction = nullptr;
+    for (const auto& function : defaulted->functions)
+      if (defaulted->symbol(function.symbol).name == "main")
+        mainFunction = &function;
+    rocket::test::expect(mainFunction != nullptr,
+                         "default argument fixture retains main HIR", failures);
+    if (mainFunction) {
+    const auto& combinedBinding = static_cast<const rocket::HirBindingStmt&>(
+        *mainFunction->body[1]);
+    const auto& combinedCall = static_cast<const rocket::HirCallExpr&>(
+        *combinedBinding.initializer);
+    rocket::test::expect(
+        combinedCall.arguments.size() == 3 &&
+            combinedCall.argumentOrder == std::vector<std::size_t>{2, 0, 1},
+        "HIR evaluates written arguments first and omitted defaults in parameter order",
+        failures);
+    }
+  }
+
+  auto expectDefaultFailure = [&](const std::string& source,
+                                  rocket::DiagnosticCode code,
+                                  const std::string& fragment,
+                                  const std::string& label) {
+    rocket::Diagnostics localDiagnostics;
+    auto result = rocket::test::lowerToHir(source, localDiagnostics);
+    rocket::test::expect(!result.has_value() &&
+                             hasDiagnostic(localDiagnostics, code, fragment),
+                         label, failures);
+  };
+  expectDefaultFailure(
+      "fn invalid(first: Int = later, later: Int = 2) -> Int:\n"
+      "    return first\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      rocket::DiagnosticCode::Name, "undefined name 'later'",
+      "defaults cannot reference later parameters");
+  expectDefaultFailure(
+      "fn invalid(value: Int = \"wrong\") -> Int:\n"
+      "    return value\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      rocket::DiagnosticCode::Type,
+      "default argument for 'value' has type String, expected Int",
+      "defaults are type-checked in declaration context");
+  expectDefaultFailure(
+      "fn combine(left: Int, right: Int = 2) -> Int:\n"
+      "    return left + right\n"
+      "fn main() -> Int:\n"
+      "    return combine()\n",
+      rocket::DiagnosticCode::Arity, "missing required argument 'left'",
+      "omitted required arguments remain errors");
+
   auto expectExcluded = [&](const std::string& source,
                             const std::string& category) {
     rocket::Diagnostics localDiagnostics;

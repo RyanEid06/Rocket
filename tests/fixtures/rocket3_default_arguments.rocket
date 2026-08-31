@@ -1,0 +1,27 @@
+fn emit(value: Int) -> Int:
+    print(value)
+    return value
+
+fn combine(first: Int, second: Int = emit(first + 1), third: Int = emit(second + 1)) -> Int:
+    return first * 100 + second * 10 + third
+
+struct Counter:
+    value: Int
+
+impl Counter:
+    fn adjusted(self: Counter, amount: Int = 2, factor: Int = amount + 1) -> Int:
+        return self.value + amount * factor
+
+fn select[T](first: T, second: T = first) -> T:
+    return second
+
+fn main() -> Int:
+    print(combine(third: emit(9), first: emit(1)))
+    print(combine(4))
+    print(combine(7, 8, 9))
+    let counter = Counter(10)
+    print(counter.adjusted())
+    print(counter.adjusted(factor: 4))
+    print(select(11))
+    print(select(first: 12))
+    return 0

@@ -75,10 +75,13 @@ weakening them.
   before MIR. The specialization key is the function name plus canonical
   structural type spellings, so repeated and recursive calls reuse one symbol.
 - Public function symbols retain declared parameter names after module-graph
-  qualification. Named calls bind at HIR, store operands in parameter order,
-  and carry a separate written evaluation-order map. MIR materializes receiver
-  and argument side effects in that map order, then emits the unchanged
-  positional ABI operand vector.
+  qualification plus canonical default-expression metadata. Named/default calls
+  bind at HIR, store operands in parameter order, and carry a separate
+  evaluation-order map: receiver/callee, written operands, then omitted defaults
+  in parameter order. A default HIR node binds references to already evaluated
+  earlier operands; MIR materializes those operands once, lowers the default,
+  and emits the unchanged positional ABI operand vector. Imported AST metadata
+  rewrites default expressions in their declaration module before this step.
 - HIR match cases store resolved enum tags and payload symbols. Exhaustiveness,
   duplicate variants, binding arity, wildcard position, and return paths are
   checked before MIR.

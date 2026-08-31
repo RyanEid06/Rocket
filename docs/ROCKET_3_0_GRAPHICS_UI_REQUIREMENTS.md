@@ -208,6 +208,18 @@ are frozen only at the designated public API gate.
   defaults, and API-versioning consequences are specified and tested in both
   compilers and deterministic bootstrap.
 
+**WP11 acceptance (2026-08-30):** `R3-F03-001` through `R3-F03-007` are GREEN
+for the scoped ordinary-function and method surface. Stage0 and self-host carry
+declaration defaults through HIR/interface metadata and cross-module calls,
+type-check in declaration context with earlier-parameter and generic behavior,
+evaluate written arguments before omitted defaults, and normalize before the
+unchanged runtime/backend ABI. Stable negative coverage retains every
+`R3-F03-005` exclusion. Formatter, LSP, package documentation, and language
+specifications agree on the syntax and source/API-versioning contract. Fresh
+Debug and Release suites passed `226/226`, the LLVM-disabled predecessor gate
+passed `18/18`, and deterministic stage2/stage3 IR matched at SHA-256
+`4aa87fe969ff42d8806c938a24106d2a14bad91a76f23cbda063ae27ed8eb210`.
+
 ### F04 - `std.math`
 
 - `R3-F04-001`: Provide `pi`, `tau`, and `e` constants or zero-argument

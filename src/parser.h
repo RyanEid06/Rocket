@@ -52,6 +52,7 @@ private:
   std::unique_ptr<Expr> parseCall();
   std::unique_ptr<Expr> parsePrimary();
   std::string parseTypeName();
+  std::string renderTokenRange(std::size_t begin, std::size_t end) const;
 
   const std::vector<Token>& tokens_;
   Diagnostics& diagnostics_;

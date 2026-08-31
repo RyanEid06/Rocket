@@ -55,6 +55,9 @@ struct AstParameter:
     type_name: String
     line: Int
     column: Int
+    has_default: Bool
+    default_value: AstExpr
+    default_text: String
 
 struct AstTraitConstraint:
     type_parameter: String
@@ -320,6 +323,12 @@ struct NamedArgumentBinding:
     source_to_parameter: Array[Int]
     parameter_to_source: Array[Int]
     evaluation_order: Array[Int]
+    state: LowerState
+
+struct DefaultArgumentsResult:
+    arguments: Array[HirExpr]
+    evaluation_order: Array[Int]
+    substitutions: Substitutions
     state: LowerState
 
 struct HirStatementResult:
@@ -749,6 +758,9 @@ fn expr_await() -> Int:
 
 fn expr_named_argument() -> Int:
     return 17
+
+fn expr_default_argument() -> Int:
+    return 18
 
 fn statement_binding() -> Int:
     return 0
@@ -1866,6 +1878,12 @@ fn lex_source(source: String) -> LexResult:
 fn make_expression(kind: Int, text: String, children: Array[AstExpr], token: Token) -> AstExpr:
     return AstExpr(kind, text, children, token.line, token.column)
 
+fn ast_parameter(name: String, type_name: String, line: Int, column: Int) -> AstParameter:
+    return AstParameter(name, type_name, line, column, false, AstExpr(expr_integer(), "0", [], line, column), "")
+
+fn ast_default_parameter(name: String, type_name: String, line: Int, column: Int, value: AstExpr, text: String) -> AstParameter:
+    return AstParameter(name, type_name, line, column, true, value, text)
+
 fn make_statement(kind: Int, name: String, type_name: String, mutable_binding: Bool, expressions: Array[AstExpr], body: Array[AstStatement], else_body: Array[AstStatement], cases: Array[AstMatchCase], token: Token) -> AstStatement:
     return AstStatement(kind, name, type_name, mutable_binding, expressions, body, else_body, cases, token.line, token.column)
 
@@ -1904,6 +1922,21 @@ fn token_name(kind: Int) -> String:
 fn parser_error(state: ParserState, token: Token, message: String) -> ParserState:
     let diagnostic = make_diagnostic("R2001", token.line, token.column, message)
     return ParserState(state.tokens, state.index, append(state.diagnostics, diagnostic))
+
+fn parser_issue(state: ParserState, token: Token, code: String, message: String) -> ParserState:
+    let diagnostic = make_diagnostic(code, token.line, token.column, message)
+    return ParserState(state.tokens, state.index, append(state.diagnostics, diagnostic))
+
+fn render_token_range(tokens: Array[Token], begin: Int, end: Int) -> String:
+    var selected: Array[Token] = []
+    for index in begin..end:
+        selected = append(selected, tokens[index])
+    let builder = string.builder()
+    for index in 0..collections.length(selected):
+        if formatter_needs_space(selected, index):
+            string.builder_append(builder, " ")
+        string.builder_append(builder, formatter_spelling(selected[index]))
+    return string.builder_finish(builder)
 
 fn match_token(state: ParserState, kind: Int) -> MatchResult:
     if at_token(state, kind):
@@ -1989,6 +2022,11 @@ fn parse_primary(state: ParserState) -> ExprResult:
                 let type_node = make_expression(expr_name(), parameter_type.name, [], parameter.token)
                 parameter_nodes = append(parameter_nodes, make_expression(expr_name(), parameter.token.text, [type_node], parameter.token))
                 next = parameter_type.state
+                let equal = match_token(next, kind_equal())
+                next = equal.state
+                if equal.matched:
+                    let default_value = parse_expression(next)
+                    next = parser_issue(default_value.state, parameter.token, "R4005", "default arguments are not supported for lambda parameters")
                 let comma = match_token(next, kind_comma())
                 next = comma.state
                 if not comma.matched:
@@ -2345,13 +2383,26 @@ fn parse_function(state: ParserState, public_declaration: Bool, asynchronous: Bo
     let open = consume_token(type_parameters.state, kind_lparen(), "expected '(' after function name")
     var next = open.state
     var parameters: Array[AstParameter] = []
+    var saw_default = false
     if not at_token(next, kind_rparen()):
         while true:
             let parameter = consume_token(next, kind_identifier(), "expected parameter name")
             let colon = consume_token(parameter.state, kind_colon(), "expected ':' after parameter name")
             let parameter_type = parse_type_name(colon.state)
-            parameters = append(parameters, AstParameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
             next = parameter_type.state
+            let equal = match_token(next, kind_equal())
+            next = equal.state
+            if equal.matched:
+                let default_begin = next.index
+                let default_value = parse_expression(next)
+                let default_text = render_token_range(state.tokens, default_begin, default_value.state.index)
+                parameters = append(parameters, ast_default_parameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column, default_value.expression, default_text))
+                next = default_value.state
+                saw_default = true
+            else:
+                parameters = append(parameters, ast_parameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
+                if saw_default:
+                    next = parser_issue(next, parameter.token, "R4005", string.concat("required parameter '", string.concat(parameter.token.text, "' cannot follow a defaulted parameter")))
             let comma = match_token(next, kind_comma())
             next = comma.state
             if not comma.matched:
@@ -2390,8 +2441,13 @@ fn parse_extern_function(state: ParserState, public_declaration: Bool) -> Functi
             let parameter = consume_token(next, kind_identifier(), "expected parameter name")
             let colon = consume_token(parameter.state, kind_colon(), "expected ':' after parameter name")
             let parameter_type = parse_type_name(colon.state)
-            parameters = append(parameters, AstParameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
             next = parameter_type.state
+            let equal = match_token(next, kind_equal())
+            next = equal.state
+            if equal.matched:
+                let default_value = parse_expression(next)
+                next = parser_issue(default_value.state, parameter.token, "R4005", "default arguments are not supported for extern parameters")
+            parameters = append(parameters, ast_parameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
             let comma = match_token(next, kind_comma())
             next = comma.state
             if not comma.matched:
@@ -2431,8 +2487,13 @@ fn parse_extern_type(state: ParserState, public_declaration: Bool) -> StructResu
                 let parameter = consume_token(next, kind_identifier(), "expected callback parameter name")
                 let colon = consume_token(parameter.state, kind_colon(), "expected ':' after callback parameter name")
                 let parameter_type = parse_type_name(colon.state)
-                parameters = append(parameters, AstParameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
                 next = parameter_type.state
+                let equal = match_token(next, kind_equal())
+                next = equal.state
+                if equal.matched:
+                    let default_value = parse_expression(next)
+                    next = parser_issue(default_value.state, parameter.token, "R4005", "default arguments are not supported for callback parameters")
+                parameters = append(parameters, ast_parameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
                 let comma = match_token(next, kind_comma())
                 next = comma.state
                 if not comma.matched:
@@ -2456,7 +2517,13 @@ fn parse_extern_type(state: ParserState, public_declaration: Bool) -> StructResu
         let field = consume_token(next, kind_identifier(), "expected native struct field name")
         let field_colon = consume_token(field.state, kind_colon(), "expected ':' after native struct field name")
         let field_type = parse_type_name(field_colon.state)
-        let field_newline = consume_token(field_type.state, kind_newline(), "expected newline after native struct field")
+        next = field_type.state
+        let equal = match_token(next, kind_equal())
+        next = equal.state
+        if equal.matched:
+            let default_value = parse_expression(next)
+            next = parser_issue(default_value.state, field.token, "R4005", "default arguments are not supported for struct fields")
+        let field_newline = consume_token(next, kind_newline(), "expected newline after native struct field")
         fields = append(fields, AstTypeField(field.token.text, field_type.name, field.token.line, field.token.column))
         next = field_newline.state
     let closing = consume_token(next, kind_dedent(), "expected end of native struct body")
@@ -2549,8 +2616,13 @@ fn parse_trait(state: ParserState, public_declaration: Bool) -> TraitResult:
                 let parameter = consume_token(next, kind_identifier(), "expected parameter name")
                 let parameter_colon = consume_token(parameter.state, kind_colon(), "expected ':' after parameter name")
                 let parameter_type = parse_type_name(parameter_colon.state)
-                parameters = append(parameters, AstParameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
                 next = parameter_type.state
+                let equal = match_token(next, kind_equal())
+                next = equal.state
+                if equal.matched:
+                    let default_value = parse_expression(next)
+                    next = parser_issue(default_value.state, parameter.token, "R4005", "default arguments are not supported for trait-declaration parameters")
+                parameters = append(parameters, ast_parameter(parameter.token.text, parameter_type.name, parameter.token.line, parameter.token.column))
                 let comma = match_token(next, kind_comma())
                 next = comma.state
                 if not comma.matched:
@@ -2580,7 +2652,13 @@ fn parse_struct(state: ParserState, public_declaration: Bool) -> StructResult:
         let field = consume_token(next, kind_identifier(), "expected field name")
         let field_colon = consume_token(field.state, kind_colon(), "expected ':' after field name")
         let field_type = parse_type_name(field_colon.state)
-        let field_newline = consume_token(field_type.state, kind_newline(), "expected newline after field")
+        next = field_type.state
+        let equal = match_token(next, kind_equal())
+        next = equal.state
+        if equal.matched:
+            let default_value = parse_expression(next)
+            next = parser_issue(default_value.state, field.token, "R4005", "default arguments are not supported for struct fields")
+        let field_newline = consume_token(next, kind_newline(), "expected newline after field")
         fields = append(fields, AstTypeField(field.token.text, field_type.name, field.token.line, field.token.column))
         next = field_newline.state
     let closing = consume_token(next, kind_dedent(), "expected end of struct body")
@@ -2610,6 +2688,11 @@ fn parse_enum(state: ParserState, public_declaration: Bool) -> EnumResult:
                     let payload = parse_type_name(next)
                     payload_types = append(payload_types, payload.name)
                     next = payload.state
+                    let equal = match_token(next, kind_equal())
+                    next = equal.state
+                    if equal.matched:
+                        let default_value = parse_expression(next)
+                        next = parser_issue(default_value.state, variant.token, "R4005", "default arguments are not supported for enum payloads")
                     let comma = match_token(next, kind_comma())
                     next = comma.state
                     if not comma.matched:
@@ -3234,7 +3317,7 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
         var callback_parameters: Array[AstParameter] = []
         for callback_index in 0..collections.length(declaration.callback_parameters):
             let parameter = declaration.callback_parameters[callback_index]
-            callback_parameters = append(callback_parameters, AstParameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
+            callback_parameters = append(callback_parameters, ast_parameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
         structs = append(structs, AstStructDecl(mapped_declaration_name(prefix_name, declaration.name, declaration.public_declaration), declaration.public_declaration, declaration.type_parameters, fields, declaration.representation, callback_parameters, mapped_local_type(module, prefix_name, declaration.callback_result), declaration.native_name, declaration.line, declaration.column))
     var enums: Array[AstEnumDecl] = []
     for declaration_index in 0..collections.length(module.enums):
@@ -3256,7 +3339,7 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
             var method_parameters: Array[AstParameter] = []
             for parameter_index in 0..collections.length(method.parameters):
                 let parameter = method.parameters[parameter_index]
-                method_parameters = append(method_parameters, AstParameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
+                method_parameters = append(method_parameters, ast_parameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
             methods = append(methods, AstTraitMethod(method.name, method_parameters, mapped_local_type(module, prefix_name, method.result_type), method.line, method.column))
         traits = append(traits, AstTraitDecl(mapped_declaration_name(prefix_name, declaration.name, declaration.public_declaration), declaration.public_declaration, methods, declaration.line, declaration.column))
     var functions: Array[AstFunction] = []
@@ -3265,7 +3348,10 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
         var parameters: Array[AstParameter] = []
         for parameter_index in 0..collections.length(function.parameters):
             let parameter = function.parameters[parameter_index]
-            parameters = append(parameters, AstParameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
+            if parameter.has_default:
+                parameters = append(parameters, ast_default_parameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column, map_module_expression(module, prefix_name, parameter.default_value), parameter.default_text))
+            else:
+                parameters = append(parameters, ast_parameter(parameter.name, mapped_local_type(module, prefix_name, parameter.type_name), parameter.line, parameter.column))
         var constraints: Array[AstTraitConstraint] = []
         for constraint_index in 0..collections.length(function.constraints):
             let constraint = function.constraints[constraint_index]
@@ -4185,7 +4271,7 @@ fn named_edit_distance(left: String, right: String) -> Int:
         previous = current
     return previous[collections.length(previous) - 1]
 
-fn bind_named_arguments(state: LowerState, arguments: Array[AstExpr], parameter_names: Array[String], line: Int, column: Int) -> NamedArgumentBinding:
+fn bind_named_arguments(state: LowerState, arguments: Array[AstExpr], parameter_names: Array[String], defaultable: Array[Bool], line: Int, column: Int) -> NamedArgumentBinding:
     var source_to_parameter: Array[Int] = []
     for index in 0..collections.length(arguments):
         source_to_parameter = append(source_to_parameter, -1)
@@ -4231,7 +4317,7 @@ fn bind_named_arguments(state: LowerState, arguments: Array[AstExpr], parameter_
                 parameter_to_source[parameter] = source
                 evaluation_order = append(evaluation_order, parameter)
     for parameter in 0..collections.length(parameter_names):
-        if parameter_to_source[parameter] < 0:
+        if parameter_to_source[parameter] < 0 and not defaultable[parameter]:
             next = lower_issue(next, "R4005", line, column, string.concat("missing required argument '", string.concat(parameter_names[parameter], "'")))
     return NamedArgumentBinding(source_to_parameter, parameter_to_source, evaluation_order, next)
 
@@ -4341,9 +4427,11 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
 fn named_struct_call(state: LowerState, expression: AstExpr, declaration_index: Int, arguments: Array[AstExpr], expected_type: String) -> HirExprResult:
     let declaration = state.module.structs[declaration_index]
     var parameter_names: Array[String] = []
+    var defaultable: Array[Bool] = []
     for index in 0..collections.length(declaration.fields):
         parameter_names = append(parameter_names, declaration.fields[index].name)
-    let binding = bind_named_arguments(state, arguments, parameter_names, expression.line, expression.column)
+        defaultable = append(defaultable, false)
+    let binding = bind_named_arguments(state, arguments, parameter_names, defaultable, expression.line, expression.column)
     var next = binding.state
     var substitutions = Substitutions([], [])
     if type_base(expected_type) == declaration.name:
@@ -4500,18 +4588,76 @@ fn builtin_enum_constructor_call(state: LowerState, expression: AstExpr, name: S
             result_type = "<invalid>"
     return HirExprResult(hir_expression(expr_call(), "$enum", result_type, lowered_arguments, -1, tag, expression), next)
 
+fn fill_default_arguments(state: LowerState, expression: AstExpr, function: AstFunction, source_arguments: Array[HirExpr], source_order: Array[Int], source_substitutions: Substitutions, diagnose_missing: Bool) -> DefaultArgumentsResult:
+    var next = state
+    var arguments = source_arguments
+    var evaluation_order = source_order
+    var substitutions = source_substitutions
+    let missing_source = AstExpr(expr_integer(), "0", [], expression.line, expression.column)
+    let missing = hir_expression(expr_integer(), "0", "<missing>", [], -1, -1, missing_source)
+    while collections.length(arguments) < collections.length(function.parameters):
+        arguments = append(arguments, missing)
+    for parameter_index in 0..collections.length(function.parameters):
+        if arguments[parameter_index].type_name != "<missing>":
+            continue
+        let parameter = function.parameters[parameter_index]
+        if not parameter.has_default:
+            if diagnose_missing:
+                next = lower_issue(next, "R4005", expression.line, expression.column, string.concat("missing required argument '", string.concat(parameter.name, "'")))
+            arguments[parameter_index] = hir_expression(expr_integer(), "0", "<invalid>", [], -1, -1, missing_source)
+            continue
+        let saved_depth = next.depth
+        let saved_return = next.return_type
+        let saved_loop = next.loop_depth
+        let saved_unsafe = next.unsafe_depth
+        let saved_substitutions = next.substitutions
+        let saved_bindings = next.bindings
+        let saved_async = next.current_async
+        let saved_moved = next.moved_symbols
+        let saved_borrowing = next.borrowing_unique
+        var default_state = state_bindings(state_function_context(state_depth(next, 0), substitute_type(function.result_type, substitutions), 0, substitutions, function.asynchronous), [])
+        default_state = state_unsafe_depth(default_state, 0)
+        default_state = state_moved_symbols(default_state, [])
+        default_state = state_borrowing_unique(default_state, false)
+        var bindings: Array[Int] = []
+        for earlier in 0..parameter_index:
+            var parameter_type = substitute_type(function.parameters[earlier].type_name, substitutions)
+            if arguments[earlier].type_name != "<missing>" and arguments[earlier].type_name != "<invalid>":
+                parameter_type = arguments[earlier].type_name
+            let pseudo = add_hir_symbol(default_state, symbol_parameter(), string.concat("$default.", string.concat(function.parameters[earlier].name, string.from_int(parameter_index))), parameter_type, false, [], intrinsic_none())
+            default_state = add_scope_binding(pseudo.state, function.parameters[earlier].name, pseudo.symbol)
+            bindings = append(bindings, earlier)
+            bindings = append(bindings, pseudo.symbol)
+        var expected = substitute_type(parameter.type_name, substitutions)
+        if contains_type_parameter(expected, function.type_parameters):
+            expected = ""
+        let lowered = lower_hir_expression(default_state, parameter.default_value, expected)
+        next = state_bindings(state_function_context(state_depth(lowered.state, saved_depth), saved_return, saved_loop, saved_substitutions, saved_async), saved_bindings)
+        next = state_unsafe_depth(next, saved_unsafe)
+        next = state_moved_symbols(next, saved_moved)
+        next = state_borrowing_unique(next, saved_borrowing)
+        let required = substitute_type(parameter.type_name, substitutions)
+        if not contains_type_parameter(required, function.type_parameters) and lowered.expression.type_name != "<invalid>" and lowered.expression.type_name != required:
+            next = lower_error(next, parameter.default_value.line, parameter.default_value.column, string.concat("default argument for '", string.concat(parameter.name, string.concat("' has type ", string.concat(lowered.expression.type_name, string.concat(", expected ", required))))))
+        substitutions = infer_type(parameter.type_name, lowered.expression.type_name, function.type_parameters, substitutions)
+        arguments[parameter_index] = HirExpr(expr_default_argument(), "", lowered.expression.type_name, [lowered.expression], -1, -1, parameter.default_value.line, parameter.default_value.column, bindings)
+        evaluation_order = append(evaluation_order, parameter_index)
+    return DefaultArgumentsResult(arguments, evaluation_order, substitutions, next)
+
 fn named_user_call(state: LowerState, expression: AstExpr, function_index: Int, arguments: Array[AstExpr]) -> HirExprResult:
     let function = state.module.functions[function_index]
     var parameter_names: Array[String] = []
+    var defaultable: Array[Bool] = []
     for index in 0..collections.length(function.parameters):
         parameter_names = append(parameter_names, function.parameters[index].name)
-    let binding = bind_named_arguments(state, arguments, parameter_names, expression.line, expression.column)
+        defaultable = append(defaultable, function.parameters[index].has_default)
+    let binding = bind_named_arguments(state, arguments, parameter_names, defaultable, expression.line, expression.column)
     var next = binding.state
     if function.native_import and state.unsafe_depth == 0:
         next = lower_error(next, expression.line, expression.column, string.concat("call to extern function '", string.concat(function.name, "' requires an explicit unsafe block")))
     var substitutions = Substitutions([], [])
     let dummy_source = AstExpr(expr_integer(), "0", [], expression.line, expression.column)
-    let dummy = hir_expression(expr_integer(), "0", "<invalid>", [], -1, -1, dummy_source)
+    let dummy = hir_expression(expr_integer(), "0", "<missing>", [], -1, -1, dummy_source)
     var lowered_arguments: Array[HirExpr] = []
     for index in 0..collections.length(function.parameters):
         lowered_arguments = append(lowered_arguments, dummy)
@@ -4526,6 +4672,10 @@ fn named_user_call(state: LowerState, expression: AstExpr, function_index: Int, 
             next = lowered.state
             lowered_arguments[parameter] = lowered.expression
             substitutions = infer_type(function.parameters[parameter].type_name, lowered.expression.type_name, function.type_parameters, substitutions)
+    let filled = fill_default_arguments(next, expression, function, lowered_arguments, binding.evaluation_order, substitutions, false)
+    next = filled.state
+    lowered_arguments = filled.arguments
+    substitutions = filled.substitutions
     for constraint_index in 0..collections.length(function.constraints):
         let constraint = function.constraints[constraint_index]
         let concrete = substitution_value(substitutions, constraint.type_parameter)
@@ -4562,8 +4712,8 @@ fn named_user_call(state: LowerState, expression: AstExpr, function_index: Int, 
         var success = "<invalid>"
         if collections.length(results) == 2:
             success = results[0]
-        return HirExprResult(hir_expression_ordered(expr_call(), "$async", make_type("Task", [success]), lowered_arguments, symbol, -1, expression, binding.evaluation_order), next)
-    return HirExprResult(hir_expression_ordered(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression, binding.evaluation_order), next)
+        return HirExprResult(hir_expression_ordered(expr_call(), "$async", make_type("Task", [success]), lowered_arguments, symbol, -1, expression, filled.evaluation_order), next)
+    return HirExprResult(hir_expression_ordered(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression, filled.evaluation_order), next)
 
 fn user_call(state: LowerState, expression: AstExpr, function_index: Int, arguments: Array[AstExpr]) -> HirExprResult:
     if has_named_arguments(arguments):
@@ -4586,7 +4736,14 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
         lowered_arguments = append(lowered_arguments, lowered.expression)
         if index < collections.length(function.parameters):
             substitutions = infer_type(function.parameters[index].type_name, lowered.expression.type_name, function.type_parameters, substitutions)
-    if collections.length(arguments) != collections.length(function.parameters):
+    var evaluation_order: Array[Int] = []
+    for index in 0..collections.length(lowered_arguments):
+        evaluation_order = append(evaluation_order, index)
+    let filled = fill_default_arguments(next, expression, function, lowered_arguments, evaluation_order, substitutions, true)
+    next = filled.state
+    lowered_arguments = filled.arguments
+    substitutions = filled.substitutions
+    if collections.length(arguments) > collections.length(function.parameters):
         next = lower_error(next, expression.line, expression.column, string.concat("function '", string.concat(function.name, "' has the wrong number of arguments")))
     for constraint_index in 0..collections.length(function.constraints):
         let constraint = function.constraints[constraint_index]
@@ -4598,7 +4755,7 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
         let required = substitute_type(function.parameters[index].type_name, substitutions)
         parameter_types = append(parameter_types, required)
         if index < collections.length(lowered_arguments) and required != lowered_arguments[index].type_name:
-            next = lower_error(next, arguments[index].line, arguments[index].column, string.concat("argument type is ", string.concat(lowered_arguments[index].type_name, string.concat(", expected ", required))))
+            next = lower_error(next, lowered_arguments[index].line, lowered_arguments[index].column, string.concat("argument type is ", string.concat(lowered_arguments[index].type_name, string.concat(", expected ", required))))
     let result_type = substitute_type(function.result_type, substitutions)
     var symbol = -1
     if collections.length(function.type_parameters) == 0:
@@ -4622,15 +4779,15 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
     if function.asynchronous:
         for index in 0..collections.length(lowered_arguments):
             if not is_send_type(next.module, lowered_arguments[index].type_name):
-                next = lower_issue(next, "R4101", arguments[index].line, arguments[index].column, "async arguments must satisfy Send")
+                next = lower_issue(next, "R4101", lowered_arguments[index].line, lowered_arguments[index].column, "async arguments must satisfy Send")
         let results = type_arguments(result_type)
         var success = "<invalid>"
         if collections.length(results) == 2:
             success = results[0]
             if not is_send_type(next.module, success):
                 next = lower_issue(next, "R4101", expression.line, expression.column, "async task result must satisfy Send")
-        return HirExprResult(hir_expression(expr_call(), "$async", make_type("Task", [success]), lowered_arguments, symbol, -1, expression), next)
-    return HirExprResult(hir_expression(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression), next)
+        return HirExprResult(hir_expression_ordered(expr_call(), "$async", make_type("Task", [success]), lowered_arguments, symbol, -1, expression, filled.evaluation_order), next)
+    return HirExprResult(hir_expression_ordered(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression, filled.evaluation_order), next)
 
 fn closure_value_call(state: LowerState, expression: AstExpr, closure: HirExpr, arguments: Array[AstExpr]) -> HirExprResult:
     if has_named_arguments(arguments):
@@ -4864,7 +5021,7 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
                 return lowered
         let symbol = find_scope_symbol(state, expression.text)
         if symbol < 0:
-            let next = lower_error(state, expression.line, expression.column, string.concat("undefined name '", string.concat(expression.text, "'")))
+            let next = lower_issue(state, "R4002", expression.line, expression.column, string.concat("undefined name '", string.concat(expression.text, "'")))
             return HirExprResult(hir_expression(expression.kind, expression.text, "<invalid>", [], -1, -1, expression), next)
         var next = state
         if state.move_analysis_enabled and is_move_only_type(state.module, state.symbols[symbol].type_name):
@@ -4883,7 +5040,7 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
             let node = expression.children[index]
             let parameter_type = substitute_type(node.children[0].text, state.substitutions)
             parameter_names = append(parameter_names, node.text)
-            parameters = append(parameters, AstParameter(node.text, parameter_type, node.line, node.column))
+            parameters = append(parameters, ast_parameter(node.text, parameter_type, node.line, node.column))
             parameter_types = append(parameter_types, parameter_type)
         let body = expression.children[parameter_count]
         let captures = collect_lambda_captures(state, body, parameter_names, [])
@@ -4898,7 +5055,7 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
             fields = append(fields, AstTypeField(captures[index].name, state.symbols[symbol].type_name, expression.line, expression.column))
             captured_values = append(captured_values, hir_expression(expr_name(), captures[index].name, state.symbols[symbol].type_name, [], symbol, -1, expression))
         let closure = AstStructDecl(closure_name, false, [], fields, representation_rocket(), [], "", closure_name, expression.line, expression.column)
-        let self_parameter = AstParameter("self", closure_name, expression.line, expression.column)
+        let self_parameter = ast_parameter("self", closure_name, expression.line, expression.column)
         let rewritten = rewrite_lambda_captures(body, captures)
         let returned = AstStatement(statement_return(), "", "", false, [rewritten], [], [], [], expression.line, expression.column)
         let callable_name = string.concat(closure_name, ".call")
@@ -5271,6 +5428,12 @@ fn lower_hir_function(state: LowerState, function_index: Int, symbol: Int, subst
     for index in 0..collections.length(function.parameters):
         let parameter = function.parameters[index]
         let parameter_type = substitute_type(parameter.type_name, substitutions)
+        if parameter.has_default:
+            let saved_moved = next.moved_symbols
+            let checked = lower_hir_expression(next, parameter.default_value, parameter_type)
+            next = state_moved_symbols(checked.state, saved_moved)
+            if checked.expression.type_name != "<invalid>" and checked.expression.type_name != parameter_type:
+                next = lower_error(next, parameter.default_value.line, parameter.default_value.column, string.concat("default argument for '", string.concat(parameter.name, string.concat("' has type ", string.concat(checked.expression.type_name, string.concat(", expected ", parameter_type))))))
         let added = add_hir_symbol(next, symbol_parameter(), parameter.name, parameter_type, false, [], intrinsic_none())
         next = add_scope_binding(added.state, parameter.name, added.symbol)
         parameters = append(parameters, added.symbol)
@@ -5579,9 +5742,28 @@ fn lower_mir_expression(state: MirState, expression: HirExpr) -> MirOperandResul
             operands = append(operands, placeholder)
         for order_index in 0..collections.length(expression.argument_order):
             let index = expression.argument_order[order_index]
-            let child = lower_mir_expression(next, expression.children[index])
-            next = child.state
-            operands[index] = child.operand
+            let argument = expression.children[index]
+            if argument.kind == expr_default_argument():
+                let saved_symbol_locals = next.symbol_locals
+                var binding_index = 0
+                while binding_index + 1 < collections.length(argument.argument_order):
+                    let parameter = argument.argument_order[binding_index]
+                    let symbol = argument.argument_order[binding_index + 1]
+                    var operand = operands[parameter]
+                    if operand.local < 0:
+                        let stored = add_mir_local(next, operand.type_name, false)
+                        next = emit_copy(stored.state, stored.operand.local, operand, operand.type_name)
+                        operand = stored.operand
+                        operands[parameter] = operand
+                    next = bind_mir_symbol(next, symbol, operand.local)
+                    binding_index = binding_index + 2
+                let child = lower_mir_expression(next, argument.children[0])
+                next = mir_state_symbol_locals(child.state, saved_symbol_locals)
+                operands[index] = child.operand
+            else:
+                let child = lower_mir_expression(next, argument)
+                next = child.state
+                operands[index] = child.operand
     else:
         for index in 0..collections.length(expression.children):
             let child = lower_mir_expression(next, expression.children[index])
@@ -7595,7 +7777,7 @@ fn write_llvm_ir(module: MirModule, selected: TargetInfo, path: String) -> Bool:
     return true
 
 fn parser_self_test() -> Int:
-    let source = "import std.string\n\nstruct Pair[T]:\n    first: T\n    second: T\n\nenum Choice:\n    Yes(Int)\n    No\n\nfn main() -> Int:\n    var total = 0\n    var values = [1, 2]\n    let pair = Pair(second: 2, first: 1)\n    values[0] = 3\n    for index in 0..3:\n        if index == 2:\n            total = total + index\n    return total\n"
+    let source = "import std.string\n\nstruct Pair[T]:\n    first: T\n    second: T\n\nenum Choice:\n    Yes(Int)\n    No\n\nfn choose(first: Int, second: Int = first + 1) -> Int:\n    return second\n\nfn main() -> Int:\n    var total = 0\n    var values = [1, 2]\n    let pair = Pair(second: 2, first: 1)\n    values[0] = 3\n    for index in 0..3:\n        if index == 2:\n            total = total + index\n    return total\n"
     let result = parse_source(source)
     if collections.length(result.diagnostics) != 0:
         return 11
@@ -7605,12 +7787,12 @@ fn parser_self_test() -> Int:
         return 13
     if collections.length(result.module.enums) != 1 or collections.length(result.module.enums[0].variants) != 2:
         return 14
-    if collections.length(result.module.functions) != 1 or collections.length(result.module.functions[0].body) != 6:
+    if collections.length(result.module.functions) != 2 or collections.length(result.module.functions[1].body) != 6:
         return 15
-    let named_call = result.module.functions[0].body[2].expressions[0]
+    let named_call = result.module.functions[1].body[2].expressions[0]
     if named_call.kind != expr_call() or named_call.children[1].kind != expr_named_argument() or named_call.children[1].text != "second":
         return 16
-    if result.module.functions[0].body[3].kind != statement_index_assignment() or result.module.functions[0].body[4].kind != statement_for():
+    if result.module.functions[1].body[3].kind != statement_index_assignment() or result.module.functions[1].body[4].kind != statement_for():
         return 17
     let invalid = parse_source("fn combine(left: Int, right: Int) -> Int:\n    return left + right\nfn main() -> Int:\n    return combine(right: 2, 1)\n")
     if collections.length(invalid.diagnostics) == 0 or invalid.diagnostics[0].code != "R2001":

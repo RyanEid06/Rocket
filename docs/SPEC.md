@@ -341,21 +341,36 @@ zero-argument direct function, so initialization is deterministic and adds no
 global storage or runtime ABI. Trait and generic-impl associated constants are
 reserved.
 
-Parameters remain required and fixed-arity. Direct functions, methods, extern
-functions, and Rocket struct constructors accept positional arguments, all-named
-arguments, or positional arguments followed by named arguments. A named argument
-uses `parameter: expression`; names bind to declared parameters and may be
-reordered. No positional argument may follow the first named argument.
+Ordinary functions and methods may default a trailing run of parameters with
+`name: Type = expression`; every required parameter must precede every defaulted
+parameter. Default expressions are type-checked where the declaration appears.
+They may use earlier parameters and declarations visible there, but not later
+parameters or names visible only at the call site. Generic defaults participate
+in the same deterministic type inference as explicit operands.
 
-The callee or method receiver is evaluated first, followed by argument
-expressions in written order. HIR records that order while normalizing operands
-to declaration order before MIR and the unchanged runtime/native ABI v1 calling
-convention. Unknown names use deterministic typo suggestions; duplicate,
-missing, positional/named-conflicting, and wrong-typed arguments are compile
-errors. Closure values, enum constructors, built-in functions, and
-standard-library intrinsics do not accept named arguments. Default and variadic
-arguments remain reserved. User generic specialization is deterministic and
-capped at 4,096 generated instances per compilation.
+Direct functions and methods accept positional arguments, all-named arguments,
+or positional arguments followed by named arguments. A named argument uses
+`parameter: expression`; names bind to declared parameters and may be reordered.
+No positional argument may follow the first named argument. An explicit
+positional or named operand overrides its parameter's default; omitting a
+required operand is an error.
+
+The callee or method receiver is evaluated first, followed by written argument
+expressions left-to-right, then omitted defaults in parameter order. HIR records
+that order while normalizing operands to declaration order before MIR and the
+unchanged runtime/native ABI v1 calling convention. Unknown names use
+deterministic typo suggestions; duplicate, missing, positional/named-conflicting,
+and wrong-typed arguments are compile errors. Cross-module calls consume the
+default expression stored with the imported declaration. Changing a public
+default therefore changes caller behavior and is an API/source-versioning event;
+dependents must be recompiled against the intended package version.
+
+Defaults remain unsupported for lambda and callback parameters, trait method
+declarations, enum payloads, extern functions, and struct fields. Named
+arguments remain unsupported for closure values, enum constructors, built-in
+functions, and standard-library intrinsics. Variadic arguments remain reserved.
+User generic specialization is deterministic and capped at 4,096 generated
+instances per compilation.
 
 ## Native interoperability (Rocket 1.3)
 

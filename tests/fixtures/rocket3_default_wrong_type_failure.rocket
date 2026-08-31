@@ -1,0 +1,5 @@
+fn invalid(value: Int = "wrong") -> Int:
+    return value
+
+fn main() -> Int:
+    return 0

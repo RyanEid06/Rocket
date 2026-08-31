@@ -188,6 +188,48 @@ int main() {
                          "MIR normalizes named calls to positional ABI order after evaluation",
                          failures);
   }
+
+  rocket::Diagnostics defaultDiagnostics;
+  auto defaultMir = rocket::test::lowerToMir(
+      "fn written_first() -> Int:\n"
+      "    return 1\n"
+      "fn written_fourth() -> Int:\n"
+      "    return 9\n"
+      "fn default_second(first: Int) -> Int:\n"
+      "    return first + 1\n"
+      "fn default_third(second: Int) -> Int:\n"
+      "    return second + 1\n"
+      "fn combine(first: Int, second: Int = default_second(first), third: Int = default_third(second), fourth: Int = 4) -> Int:\n"
+      "    return first + second + third + fourth\n"
+      "fn main() -> Int:\n"
+      "    return combine(fourth: written_fourth(), first: written_first())\n",
+      defaultDiagnostics);
+  rocket::test::expect(defaultMir.has_value(),
+                       "default calls lower to MIR", failures);
+  if (defaultMir.has_value()) {
+    const auto& mainFunction = defaultMir->functions.back();
+    std::vector<std::string> calls;
+    const rocket::MirInstruction* normalizedCall = nullptr;
+    for (const auto& block : mainFunction.blocks) {
+      for (const auto& instruction : block.instructions) {
+        if (instruction.value.kind != rocket::MirRvalueKind::Call) continue;
+        const std::string& callee =
+            defaultMir->symbols[instruction.value.callee].name;
+        calls.push_back(callee);
+        if (callee == "combine") normalizedCall = &instruction;
+      }
+    }
+    rocket::test::expect(
+        calls == std::vector<std::string>{"written_fourth", "written_first",
+                                          "default_second", "default_third",
+                                          "combine"},
+        "MIR evaluates written arguments left-to-right before defaults in parameter order",
+        failures);
+    rocket::test::expect(
+        normalizedCall != nullptr && normalizedCall->value.arguments.size() == 4,
+        "default calls reach MIR with a complete positional ABI argument vector",
+        failures);
+  }
   rocket::Diagnostics asyncDiagnostics;
   auto asyncMir = rocket::test::lowerToMir(
       "async fn leaf(value: Int) -> Result[Int, String]:\n"

@@ -1,0 +1,5 @@
+fn invalid(first: Int = second, second: Int = 2) -> Int:
+    return first
+
+fn main() -> Int:
+    return 0

@@ -1,0 +1,6 @@
+fn offset(base: Int) -> Int:
+    return base + 2
+
+# Scores values while keeping public defaults in source metadata.
+pub fn score(base: Int, bonus: Int = offset(base), scale: Int = bonus + 1) -> Int:
+    return base * 100 + bonus * 10 + scale

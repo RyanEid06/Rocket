@@ -264,6 +264,7 @@ struct HirSymbol {
   Location location;
   std::vector<Type> parameterTypes;
   std::vector<std::string> parameterNames;
+  std::vector<std::string> parameterDefaults;
   Intrinsic intrinsic = Intrinsic::None;
   bool nativeImport = false;
   bool nativeExport = false;
@@ -272,7 +273,8 @@ struct HirSymbol {
 };
 
 enum class HirExprKind {
-  Literal, Name, FunctionRef, Unary, Binary, Call, Array, Index, Slice, Aggregate, Field,
+  Literal, Name, FunctionRef, Unary, Binary, DefaultArgument, Call, Array, Index, Slice,
+  Aggregate, Field,
   Propagate, AsyncCall, Await
 };
 
@@ -320,6 +322,21 @@ struct HirBinaryExpr final : HirExpr {
   std::unique_ptr<HirExpr> left;
   TokenKind op;
   std::unique_ptr<HirExpr> right;
+};
+
+struct HirDefaultArgumentBinding {
+  std::size_t parameter = 0;
+  SymbolId symbol = InvalidSymbol;
+};
+
+struct HirDefaultArgumentExpr final : HirExpr {
+  HirDefaultArgumentExpr(Location location, Type type,
+                         std::unique_ptr<HirExpr> value,
+                         std::vector<HirDefaultArgumentBinding> bindings)
+      : HirExpr(HirExprKind::DefaultArgument, std::move(location), std::move(type)),
+        value(std::move(value)), bindings(std::move(bindings)) {}
+  std::unique_ptr<HirExpr> value;
+  std::vector<HirDefaultArgumentBinding> bindings;
 };
 
 struct HirCallExpr final : HirExpr {
@@ -678,6 +695,9 @@ private:
       const std::string& name, const Location& location,
       std::vector<std::unique_ptr<HirExpr>> leadingArguments,
       const std::vector<std::unique_ptr<Expr>>& sourceArguments);
+  void fillDefaultArguments(const Function& function, const Location& location,
+                            std::vector<std::unique_ptr<HirExpr>>& arguments,
+                            std::vector<std::size_t>& evaluationOrder);
   Type resolveType(const std::string& spelling, const Location& location,
                    const Substitutions& substitutions = {});
   Type resolveParsedType(const Type& parsed, const Location& location,
@@ -713,6 +733,7 @@ private:
   Diagnostics& diagnostics_;
   HirModule hir_;
   std::unordered_map<std::string, SymbolId> functions_;
+  std::unordered_map<std::string, const Function*> functionDeclarations_;
   std::unordered_map<std::string, const Function*> genericFunctions_;
   std::unordered_set<std::string> associatedConstants_;
   std::unordered_map<std::string, const Function*> nativeConstants_;
@@ -734,6 +755,7 @@ private:
   int unsafeDepth_ = 0;
   bool currentAsync_ = false;
   std::unordered_set<SymbolId> movedSymbols_;
+  std::unordered_set<const Expr*> activeDefaultExpressions_;
   int borrowUniqueDepth_ = 0;
 };
 

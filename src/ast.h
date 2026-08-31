@@ -8,7 +8,15 @@
 
 namespace rocket {
 
-struct Parameter { std::string name; std::string typeName; Location location; };
+struct Expr;
+
+struct Parameter {
+  std::string name;
+  std::string typeName;
+  Location location;
+  std::unique_ptr<Expr> defaultValue;
+  std::string defaultText;
+};
 
 enum class ExprKind {
   Integer, Float, Character, String, Bool, Name, Unary, Binary, Call, NamedArgument,

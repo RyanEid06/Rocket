@@ -1,0 +1,5 @@
+struct Config:
+    value: Int = 1
+
+fn main() -> Int:
+    return 0

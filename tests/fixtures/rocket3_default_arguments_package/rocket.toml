@@ -1,0 +1,5 @@
+[package]
+name = "rocket3_default_arguments"
+version = "0.1.0"
+entry = "src/main.rocket"
+license = "MIT"

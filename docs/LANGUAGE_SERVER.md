@@ -58,7 +58,8 @@ its overlay and publishes an empty diagnostics array.
   import edits for a unique visible public declaration;
 - Markdown hover with Rocket type/signature, documentation, and a
   `rocket-doc://` versioned-documentation link;
-- signature help with active parameter and available compiler signatures;
+- signature help with active parameter and available compiler signatures,
+  including canonical default expressions for defaulted parameters;
 - resolved definition, references, prepare-rename, and conflict-checked
   workspace rename;
 - semantic token full/delta responses for keywords, values, declarations,

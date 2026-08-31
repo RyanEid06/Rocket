@@ -8,6 +8,7 @@
 #include <cctype>
 #include <fstream>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <vector>
@@ -24,6 +25,7 @@ struct ApiItem {
   int line = 1;
   std::vector<std::string> relatedTypes;
   std::vector<std::string> parameters;
+  std::vector<std::optional<std::string>> defaults;
 };
 
 std::string trim(std::string value) {
@@ -167,13 +169,19 @@ bool generatePackageDocumentation(const Package& package,
                              : function.nativeImport ? "extern-fn" : "fn";
       std::vector<std::string> related{function.returnType};
       std::vector<std::string> parameters;
-      for (const auto& parameter : function.parameters)
-        related.push_back(parameter.typeName), parameters.push_back(parameter.name);
+      std::vector<std::optional<std::string>> defaults;
+      for (const auto& parameter : function.parameters) {
+        related.push_back(parameter.typeName);
+        parameters.push_back(parameter.name);
+        defaults.push_back(parameter.defaultValue
+                               ? std::optional<std::string>(parameter.defaultText)
+                               : std::nullopt);
+      }
       items.push_back({modulePath, kind, function.name,
                        sourceLine(function.location.line),
                        documentationBefore(lines, function.location.line),
                        function.location.line, std::move(related),
-                       std::move(parameters)});
+                       std::move(parameters), std::move(defaults)});
     }
     for (const auto& structure : module.structs) {
       if (!structure.publicDeclaration) continue;
@@ -301,6 +309,14 @@ bool generatePackageDocumentation(const Package& package,
     for (std::size_t parameter = 0; parameter < item.parameters.size(); ++parameter)
       search << (parameter ? ", " : "") << "\""
              << json(item.parameters[parameter]) << "\"";
+    search << "], \"defaults\": [";
+    for (std::size_t parameter = 0; parameter < item.defaults.size(); ++parameter) {
+      if (parameter) search << ", ";
+      if (item.defaults[parameter].has_value())
+        search << "\"" << json(*item.defaults[parameter]) << "\"";
+      else
+        search << "null";
+    }
     search << "]"
            << ", \"packageVersion\": \"" << json(package.version)
            << "\", \"href\": \"index.html#" << json(anchor(item)) << "\"}";

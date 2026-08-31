@@ -465,11 +465,15 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
         current, MirRvalue::binary(binary.type, binary.op, std::move(left), std::move(right)));
     return MirOperand::localValue(binary.type, result);
   }
+  case HirExprKind::DefaultArgument:
+    return lowerExpression(
+        *static_cast<const HirDefaultArgumentExpr&>(expression).value, current);
   case HirExprKind::Call: {
     const auto& call = static_cast<const HirCallExpr&>(expression);
     std::vector<MirOperand> arguments(call.arguments.size());
     for (const std::size_t index : call.argumentOrder)
-      arguments[index] = lowerExpression(*call.arguments[index], current);
+      arguments[index] =
+          lowerCallArgument(*call.arguments[index], arguments, current);
     const MirLocalId result = addInstruction(
         current, MirRvalue::call(call.type, call.callee, std::move(arguments)));
     return MirOperand::localValue(call.type, result);
@@ -478,7 +482,8 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
     const auto& call = static_cast<const HirAsyncCallExpr&>(expression);
     std::vector<MirOperand> arguments(call.arguments.size());
     for (const std::size_t index : call.argumentOrder)
-      arguments[index] = lowerExpression(*call.arguments[index], current);
+      arguments[index] =
+          lowerCallArgument(*call.arguments[index], arguments, current);
     const MirLocalId result = addInstruction(
         current, MirRvalue::asyncCall(call.type, call.callee, std::move(arguments)));
     return MirOperand::localValue(call.type, result);
@@ -575,6 +580,28 @@ MirOperand MirLowerer::lowerExpression(const HirExpr& expression, MirBlockId& cu
   }
   }
   return MirOperand::constantValue(Type::Invalid, "");
+}
+
+MirOperand MirLowerer::lowerCallArgument(const HirExpr& expression,
+                                         std::vector<MirOperand>& arguments,
+                                         MirBlockId& current) {
+  if (expression.kind != HirExprKind::DefaultArgument)
+    return lowerExpression(expression, current);
+  const auto& defaultArgument =
+      static_cast<const HirDefaultArgumentExpr&>(expression);
+  std::vector<std::pair<SymbolId, MirLocalId>> saved;
+  saved.reserve(defaultArgument.bindings.size());
+  for (const auto& binding : defaultArgument.bindings) {
+    if (binding.parameter >= arguments.size()) continue;
+    MirOperand& argument = arguments[binding.parameter];
+    if (argument.kind != MirOperandKind::Local)
+      argument = materialize(current, std::move(argument));
+    saved.push_back({binding.symbol, symbolLocals_[binding.symbol]});
+    symbolLocals_[binding.symbol] = argument.local;
+  }
+  MirOperand result = lowerExpression(*defaultArgument.value, current);
+  for (const auto& [symbol, local] : saved) symbolLocals_[symbol] = local;
+  return result;
 }
 
 MirOperand MirLowerer::lowerShortCircuit(const HirBinaryExpr& expression,

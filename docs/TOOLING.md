@@ -215,12 +215,15 @@ The precise transport, lifecycle, diagnostic, and security contract is in
 `LANGUAGE_SERVER.md`, including multi-file analysis, hover, completion,
 navigation, rename, semantic tokens, and code actions.
 
-Named-argument syntax is editor-neutral: the shared formatter canonicalizes
-`name: expression`, diagnostics use the same stable codes in every client, and
-signature help exposes declared parameter names across package modules. VS Code
-and Visual Studio use the same `rocket-lsp` analysis and need no editor-specific
-semantic fork; their existing Rocket grammars already tokenize identifiers and
-colons used by declarations and named calls.
+Named/default-argument syntax is editor-neutral: the shared formatter
+canonicalizes `name: expression` and `name: Type = expression`, diagnostics use
+the same stable codes in every client, and signature help exposes declared
+parameter names, types, and canonical defaults across package modules.
+Documentation search metadata emits a `defaults` array aligned with
+`parameters`, using `null` for required operands. VS Code and Visual Studio use
+the same `rocket-lsp` analysis and need no editor-specific semantic fork; their
+existing Rocket grammars already tokenize the identifiers, colons, and equals
+signs used by declarations and calls.
 
 ## Visual Studio 2026
 

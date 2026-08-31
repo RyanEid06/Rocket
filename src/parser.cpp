@@ -1,8 +1,67 @@
 #include "parser.h"
 
+#include <string_view>
 #include <utility>
 
 namespace rocket {
+
+namespace {
+
+bool renderedWord(TokenKind kind) {
+  return kind == TokenKind::Identifier || kind == TokenKind::Integer ||
+         kind == TokenKind::Float || kind == TokenKind::Character ||
+         kind == TokenKind::String ||
+         (kind >= TokenKind::KwFn && kind <= TokenKind::KwImport);
+}
+
+bool renderedBinary(TokenKind kind) {
+  return kind == TokenKind::Plus || kind == TokenKind::Minus ||
+         kind == TokenKind::Star || kind == TokenKind::Slash ||
+         kind == TokenKind::Equal || kind == TokenKind::EqualEqual ||
+         kind == TokenKind::BangEqual || kind == TokenKind::Less ||
+         kind == TokenKind::LessEqual || kind == TokenKind::Greater ||
+         kind == TokenKind::GreaterEqual || kind == TokenKind::Arrow ||
+         kind == TokenKind::KwAnd || kind == TokenKind::KwOr;
+}
+
+std::string renderedQuoted(std::string_view value, char quote) {
+  std::string result(1, quote);
+  for (const char character : value) {
+    if (character == '\\') result += "\\\\";
+    else if (character == quote) { result.push_back('\\'); result.push_back(quote); }
+    else if (character == '\n') result += "\\n";
+    else if (character == '\r') result += "\\r";
+    else if (character == '\t') result += "\\t";
+    else result.push_back(character);
+  }
+  result.push_back(quote);
+  return result;
+}
+
+std::string renderedSpelling(const Token& token) {
+  if (token.kind == TokenKind::String) return renderedQuoted(token.text, '"');
+  if (token.kind == TokenKind::Character) return renderedQuoted(token.text, '\'');
+  return token.text.empty() ? tokenName(token.kind) : token.text;
+}
+
+bool renderedNeedsSpace(const Token& previous, const Token& current) {
+  if (current.kind == TokenKind::RParen || current.kind == TokenKind::RBracket ||
+      current.kind == TokenKind::Comma || current.kind == TokenKind::Colon ||
+      current.kind == TokenKind::Dot || current.kind == TokenKind::DotDot ||
+      current.kind == TokenKind::Question)
+    return false;
+  if (previous.kind == TokenKind::LParen || previous.kind == TokenKind::LBracket ||
+      previous.kind == TokenKind::Dot || previous.kind == TokenKind::DotDot)
+    return false;
+  if (current.kind == TokenKind::LParen || current.kind == TokenKind::LBracket)
+    return false;
+  if (previous.kind == TokenKind::Comma || previous.kind == TokenKind::Colon)
+    return true;
+  if (renderedBinary(previous.kind) || renderedBinary(current.kind)) return true;
+  return renderedWord(previous.kind) && renderedWord(current.kind);
+}
+
+} // namespace
 
 const Token& Parser::current() const { return tokens_[index_]; }
 const Token& Parser::previous() const { return tokens_[index_ - 1]; }
@@ -26,6 +85,16 @@ void Parser::skipNewlines() { while (match(TokenKind::Newline)) {} }
 void Parser::synchronize() {
   while (!at(TokenKind::End) && !at(TokenKind::Newline) && !at(TokenKind::Dedent)) ++index_;
   skipNewlines();
+}
+
+std::string Parser::renderTokenRange(std::size_t begin, std::size_t end) const {
+  std::string result;
+  for (std::size_t index = begin; index < end; ++index) {
+    if (!result.empty() && renderedNeedsSpace(tokens_[index - 1], tokens_[index]))
+      result.push_back(' ');
+    result += renderedSpelling(tokens_[index]);
+  }
+  return result;
 }
 
 Module Parser::parseModule() {
@@ -124,6 +193,12 @@ Function Parser::parseExternFunction(bool isPublic) {
       const Token parameter = consume(TokenKind::Identifier, "expected parameter name");
       consume(TokenKind::Colon, "expected ':' after parameter name");
       parameters.push_back({parameter.text, parseTypeName(), parameter.location});
+      if (match(TokenKind::Equal)) {
+        diagnostics_.error(parameter.location,
+                           "default arguments are not supported for extern parameters",
+                           DiagnosticCode::Arity);
+        (void)parseExpression();
+      }
     } while (match(TokenKind::Comma));
   }
   consume(TokenKind::RParen, "expected ')' after native parameters");
@@ -179,6 +254,12 @@ StructDecl Parser::parseExternType(bool isPublic) {
         consume(TokenKind::Colon, "expected ':' after callback parameter name");
         declaration.callbackParameters.push_back(
             {parameter.text, parseTypeName(), parameter.location});
+        if (match(TokenKind::Equal)) {
+          diagnostics_.error(parameter.location,
+                             "default arguments are not supported for callback parameters",
+                             DiagnosticCode::Arity);
+          (void)parseExpression();
+        }
       } while (match(TokenKind::Comma));
     }
     consume(TokenKind::RParen, "expected ')' after callback parameters");
@@ -291,6 +372,13 @@ TraitMethod Parser::parseTraitMethod() {
       const Token parameter = consume(TokenKind::Identifier, "expected parameter name");
       consume(TokenKind::Colon, "expected ':' after parameter name");
       parameters.push_back({parameter.text, parseTypeName(), parameter.location});
+      if (match(TokenKind::Equal)) {
+        diagnostics_.error(
+            parameter.location,
+            "default arguments are not supported for trait-declaration parameters",
+            DiagnosticCode::Arity);
+        (void)parseExpression();
+      }
     } while (match(TokenKind::Comma));
   }
   consume(TokenKind::RParen, "expected ')' after trait method parameters");
@@ -340,12 +428,26 @@ Function Parser::parseFunction(bool isPublic, bool asynchronous) {
   auto typeParameters = parseTypeParameters();
   consume(TokenKind::LParen, "expected '(' after function name");
   std::vector<Parameter> parameters;
+  bool sawDefault = false;
   if (!at(TokenKind::RParen)) {
     do {
       const Token param = consume(TokenKind::Identifier, "expected parameter name");
       consume(TokenKind::Colon, "expected ':' after parameter name");
       const std::string type = parseTypeName();
-      parameters.push_back({param.text, type, param.location});
+      Parameter parsed{param.text, type, param.location};
+      if (match(TokenKind::Equal)) {
+        sawDefault = true;
+        const std::size_t defaultStart = index_;
+        parsed.defaultValue = parseExpression();
+        parsed.defaultText = renderTokenRange(defaultStart, index_);
+      } else if (sawDefault) {
+        diagnostics_.error(
+            param.location,
+            "required parameter '" + param.text +
+                "' cannot follow a defaulted parameter",
+            DiagnosticCode::Arity);
+      }
+      parameters.push_back(std::move(parsed));
     } while (match(TokenKind::Comma));
   }
   consume(TokenKind::RParen, "expected ')' after parameters");
@@ -388,6 +490,12 @@ StructDecl Parser::parseStruct(bool isPublic) {
     const Token field = consume(TokenKind::Identifier, "expected field name");
     consume(TokenKind::Colon, "expected ':' after field name");
     fields.push_back({field.text, parseTypeName(), field.location});
+    if (match(TokenKind::Equal)) {
+      diagnostics_.error(field.location,
+                         "default arguments are not supported for struct fields",
+                         DiagnosticCode::Arity);
+      (void)parseExpression();
+    }
     consume(TokenKind::Newline, "expected newline after field");
   }
   consume(TokenKind::Dedent, "expected end of struct body");
@@ -408,7 +516,16 @@ EnumDecl Parser::parseEnum(bool isPublic) {
     std::vector<std::string> payloadTypes;
     if (match(TokenKind::LParen)) {
       if (!at(TokenKind::RParen)) {
-        do { payloadTypes.push_back(parseTypeName()); } while (match(TokenKind::Comma));
+        do {
+          payloadTypes.push_back(parseTypeName());
+          if (match(TokenKind::Equal)) {
+            diagnostics_.error(
+                variant.location,
+                "default arguments are not supported for enum payloads",
+                DiagnosticCode::Arity);
+            (void)parseExpression();
+          }
+        } while (match(TokenKind::Comma));
       }
       consume(TokenKind::RParen, "expected ')' after variant payload types");
     }
@@ -737,6 +854,12 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
                                         "expected lambda parameter name");
         consume(TokenKind::Colon, "expected ':' after lambda parameter name");
         parameters.push_back({parameter.text, parseTypeName(), parameter.location});
+        if (match(TokenKind::Equal)) {
+          diagnostics_.error(parameter.location,
+                             "default arguments are not supported for lambda parameters",
+                             DiagnosticCode::Arity);
+          (void)parseExpression();
+        }
       } while (match(TokenKind::Comma));
     }
     consume(TokenKind::RParen, "expected ')' after lambda parameters");

@@ -131,6 +131,9 @@ private:
   std::optional<MirBlockId> lowerBlock(const HirBlock& body, MirBlockId current);
   std::optional<MirBlockId> lowerStatement(const HirStmt& statement, MirBlockId current);
   MirOperand lowerExpression(const HirExpr& expression, MirBlockId& current);
+  MirOperand lowerCallArgument(const HirExpr& expression,
+                               std::vector<MirOperand>& arguments,
+                               MirBlockId& current);
   MirOperand lowerShortCircuit(const HirBinaryExpr& expression, MirBlockId& current);
   MirLocalId addLocal(Type type, SymbolId sourceSymbol = InvalidSymbol, bool parameter = false);
   MirLocalId localForSymbol(SymbolId symbol);

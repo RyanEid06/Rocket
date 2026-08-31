@@ -34,7 +34,7 @@ Manifest and tooling errors without a source position use
 | `R4002` | Name resolution | Undefined value, function, constructor, or named argument (with a deterministic typo suggestion when applicable) |
 | `R4003` | Control flow | Invalid loop control, entry point, or return path |
 | `R4004` | Pattern match | Invalid, duplicate, or non-exhaustive cases |
-| `R4005` | Arity | Wrong number of call or constructor arguments; missing, duplicate, conflicting, or unsupported named argument |
+| `R4005` | Arity | Wrong number of call or constructor arguments; missing, duplicate, conflicting, or unsupported named/default argument; required parameter after a default |
 | `R4101` | Concurrency constraint | A boundary transfers a non-`Send` value, or repeatable mutex/once/buffer access requires a value that is not `Share` |
 | `R4102` | Share constraint | A weak reference targets a value that is not an identity-bearing `Share` value |
 | `R4103` | Move-only ownership | A task, unique buffer, thread, guard, task group, or aggregate containing one is copied, recaptured, or used after move |

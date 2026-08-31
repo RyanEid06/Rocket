@@ -125,7 +125,7 @@ struct NamedArgumentBinding {
 NamedArgumentBinding bindNamedArguments(
     const std::vector<std::unique_ptr<Expr>>& arguments,
     const std::vector<std::string>& parameterNames, const Location& callLocation,
-    Diagnostics& diagnostics) {
+    Diagnostics& diagnostics, const std::vector<bool>& defaultable = {}) {
   NamedArgumentBinding result;
   result.sourceToParameter.resize(arguments.size());
   result.parameterToSource.resize(parameterNames.size());
@@ -180,7 +180,8 @@ NamedArgumentBinding bindNamedArguments(
     result.evaluationOrder.push_back(*parameter);
   }
   for (std::size_t parameter = 0; parameter < parameterNames.size(); ++parameter)
-    if (!result.parameterToSource[parameter].has_value())
+    if (!result.parameterToSource[parameter].has_value() &&
+        (parameter >= defaultable.size() || !defaultable[parameter]))
       diagnostics.error(callLocation,
                         "missing required argument '" + parameterNames[parameter] + "'",
                         DiagnosticCode::Arity);
@@ -194,7 +195,7 @@ SymbolId HirLowerer::addSymbol(SymbolKind kind, const std::string& name, Type ty
                                std::vector<Type> parameterTypes, Intrinsic intrinsic) {
   const SymbolId id = static_cast<SymbolId>(hir_.symbols.size());
   hir_.symbols.push_back({id, kind, name, std::move(type), mutableBinding, location,
-                          std::move(parameterTypes), {}, intrinsic});
+                          std::move(parameterTypes), {}, {}, intrinsic});
   return id;
 }
 
@@ -1049,6 +1050,7 @@ std::string HirLowerer::traitMethodTarget(const Type& type, const std::string& m
 std::optional<HirModule> HirLowerer::lower() {
   hir_ = {};
   functions_.clear();
+  functionDeclarations_.clear();
   genericFunctions_.clear();
   associatedConstants_.clear();
   nativeConstants_.clear();
@@ -1062,6 +1064,7 @@ std::optional<HirModule> HirLowerer::lower() {
   pendingLambdas_.clear();
   userSpecializationCount_ = 0;
   functionSymbols_.clear();
+  activeDefaultExpressions_.clear();
   unsafeDepth_ = 0;
   hir_.library = ast_.library;
 
@@ -1196,6 +1199,9 @@ std::optional<HirModule> HirLowerer::lower() {
                                       function.location, parameters);
     for (const auto& parameter : function.parameters)
       hir_.symbols[symbol].parameterNames.push_back(parameter.name);
+    for (const auto& parameter : function.parameters)
+      hir_.symbols[symbol].parameterDefaults.push_back(
+          parameter.defaultValue ? parameter.defaultText : std::string());
     hir_.symbols[symbol].nativeImport = function.nativeImport;
     hir_.symbols[symbol].nativeExport = function.nativeExport;
     hir_.symbols[symbol].nativeName = function.nativeName;
@@ -1224,6 +1230,7 @@ std::optional<HirModule> HirLowerer::lower() {
     }
     functionSymbols_.push_back(function.nativeImport ? InvalidSymbol : symbol);
     functions_.emplace(function.name, symbol);
+    functionDeclarations_.emplace(function.name, &function);
   }
 
   for (const auto& implementation : traitImplementations_) {
@@ -1429,6 +1436,15 @@ HirFunction HirLowerer::lowerFunction(const Function& function, SymbolId symbol)
   for (std::size_t index = 0; index < function.parameters.size(); ++index) {
     const auto& parameter = function.parameters[index];
     const Type type = signature.parameterTypes[index];
+    if (parameter.defaultValue) {
+      activeDefaultExpressions_.insert(parameter.defaultValue.get());
+      auto value = lowerExpression(*parameter.defaultValue, type);
+      activeDefaultExpressions_.erase(parameter.defaultValue.get());
+      if (value->type != Type::Invalid && value->type != type)
+        diagnostics_.error(parameter.defaultValue->location,
+                           "default argument for '" + parameter.name + "' has type " +
+                               typeName(value->type) + ", expected " + typeName(type));
+    }
     const SymbolId parameterSymbol = addSymbol(SymbolKind::Parameter, parameter.name, type, false,
                                                 parameter.location);
     result.parameters.push_back({parameterSymbol});
@@ -1466,8 +1482,18 @@ HirFunction HirLowerer::lowerSpecialization(const PendingSpecialization& special
   std::unordered_set<std::string> names;
   for (std::size_t index = 0; index < specialization.function->parameters.size(); ++index) {
     const auto& parameter = specialization.function->parameters[index];
+    const Type type = specialization.parameters[index];
+    if (parameter.defaultValue) {
+      activeDefaultExpressions_.insert(parameter.defaultValue.get());
+      auto value = lowerExpression(*parameter.defaultValue, type);
+      activeDefaultExpressions_.erase(parameter.defaultValue.get());
+      if (value->type != Type::Invalid && value->type != type)
+        diagnostics_.error(parameter.defaultValue->location,
+                           "default argument for '" + parameter.name + "' has type " +
+                               typeName(value->type) + ", expected " + typeName(type));
+    }
     const SymbolId parameterSymbol = addSymbol(SymbolKind::Parameter, parameter.name,
-                                                specialization.parameters[index], false,
+                                                type, false,
                                                 parameter.location);
     result.parameters.push_back({parameterSymbol});
     if (!names.insert(parameter.name).second)
@@ -1865,6 +1891,9 @@ SymbolId HirLowerer::specializeFunction(
                                     function.location, parameters);
   for (const auto& parameter : function.parameters)
     hir_.symbols[symbol].parameterNames.push_back(parameter.name);
+  for (const auto& parameter : function.parameters)
+    hir_.symbols[symbol].parameterDefaults.push_back(
+        parameter.defaultValue ? parameter.defaultText : std::string());
   hir_.symbols[symbol].asynchronous = function.asynchronous;
   if (function.asynchronous && !asyncSuccessType(result).has_value())
     diagnostics_.error(location,
@@ -1985,6 +2014,122 @@ HirFunction HirLowerer::lowerLambda(const PendingLambda& pending) {
   return result;
 }
 
+void HirLowerer::fillDefaultArguments(
+    const Function& function, const Location& location,
+    std::vector<std::unique_ptr<HirExpr>>& arguments,
+    std::vector<std::size_t>& evaluationOrder) {
+  if (arguments.size() > function.parameters.size()) return;
+  arguments.resize(function.parameters.size());
+
+  Substitutions markers;
+  for (const auto& parameter : function.typeParameters)
+    markers.emplace(parameter, typeParameter(parameter));
+  std::vector<Type> patterns;
+  patterns.reserve(function.parameters.size());
+  for (const auto& parameter : function.parameters)
+    patterns.push_back(resolveType(parameter.typeName, parameter.location, markers));
+
+  Substitutions inferred;
+  if (!function.typeParameters.empty()) {
+    for (std::size_t index = 0; index < arguments.size(); ++index)
+      if (arguments[index] && arguments[index]->type != Type::Invalid)
+        (void)inferTypeArguments(patterns[index], arguments[index]->type, inferred,
+                                 arguments[index]->location);
+  }
+
+  for (std::size_t index = 0; index < function.parameters.size(); ++index) {
+    if (arguments[index]) continue;
+    const Parameter& parameter = function.parameters[index];
+    if (!parameter.defaultValue) {
+      diagnostics_.error(location,
+                         "missing required argument '" + parameter.name + "'",
+                         DiagnosticCode::Arity);
+      arguments[index] =
+          std::make_unique<HirLiteralExpr>(location, Type::Invalid, "0");
+      continue;
+    }
+    if (activeDefaultExpressions_.contains(parameter.defaultValue.get())) {
+      diagnostics_.error(parameter.defaultValue->location,
+                         "cyclic default argument expansion for '" +
+                             parameter.name + "'",
+                         DiagnosticCode::Arity);
+      arguments[index] = std::make_unique<HirLiteralExpr>(
+          parameter.defaultValue->location, Type::Invalid, "0");
+      evaluationOrder.push_back(index);
+      continue;
+    }
+
+    Scope declarationScope;
+    std::vector<HirDefaultArgumentBinding> bindings;
+    for (std::size_t earlier = 0; earlier < index; ++earlier) {
+      Type bindingType = arguments[earlier]
+                             ? arguments[earlier]->type
+                             : substitute(patterns[earlier], inferred);
+      const SymbolId symbol = addSymbol(
+          SymbolKind::Parameter,
+          "$default." + function.name + "." + std::to_string(index) + "." +
+              function.parameters[earlier].name,
+          bindingType, false, function.parameters[earlier].location);
+      declarationScope.emplace(function.parameters[earlier].name, symbol);
+      bindings.push_back({earlier, symbol});
+    }
+
+    auto savedScopes = std::move(scopes_);
+    auto savedSubstitutions = std::move(currentSubstitutions_);
+    auto savedCaptures = std::move(activeCaptures_);
+    auto savedMoved = std::move(movedSymbols_);
+    const Type savedReturn = currentReturnType_;
+    const int savedLoopDepth = loopDepth_;
+    const int savedUnsafeDepth = unsafeDepth_;
+    const bool savedAsync = currentAsync_;
+    const int savedBorrowDepth = borrowUniqueDepth_;
+
+    scopes_.clear();
+    scopes_.push_back(std::move(declarationScope));
+    currentSubstitutions_ = inferred;
+    currentReturnType_ = substitute(
+        resolveType(function.returnType, function.location, markers), inferred);
+    loopDepth_ = 0;
+    unsafeDepth_ = 0;
+    currentAsync_ = function.asynchronous;
+    borrowUniqueDepth_ = 0;
+    activeDefaultExpressions_.insert(parameter.defaultValue.get());
+    const Type expectedType = substitute(patterns[index], inferred);
+    auto value = lowerExpression(
+        *parameter.defaultValue,
+        containsTypeParameter(expectedType) ? std::nullopt
+                                            : std::optional<Type>(expectedType));
+    activeDefaultExpressions_.erase(parameter.defaultValue.get());
+
+    scopes_ = std::move(savedScopes);
+    currentSubstitutions_ = std::move(savedSubstitutions);
+    activeCaptures_ = std::move(savedCaptures);
+    movedSymbols_ = std::move(savedMoved);
+    currentReturnType_ = savedReturn;
+    loopDepth_ = savedLoopDepth;
+    unsafeDepth_ = savedUnsafeDepth;
+    currentAsync_ = savedAsync;
+    borrowUniqueDepth_ = savedBorrowDepth;
+
+    bool validType = true;
+    if (function.typeParameters.empty()) {
+      validType = value->type == Type::Invalid || value->type == expectedType;
+    } else if (value->type != Type::Invalid) {
+      validType = inferTypeArguments(patterns[index], value->type, inferred,
+                                     parameter.defaultValue->location);
+    }
+    if (!validType)
+      diagnostics_.error(parameter.defaultValue->location,
+                         "default argument for '" + parameter.name + "' has type " +
+                             typeName(value->type) + ", expected " +
+                             typeName(substitute(patterns[index], inferred)));
+    arguments[index] = std::make_unique<HirDefaultArgumentExpr>(
+        parameter.defaultValue->location, value->type, std::move(value),
+        std::move(bindings));
+    evaluationOrder.push_back(index);
+  }
+}
+
 std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
     const std::string& name, const Location& location,
     std::vector<std::unique_ptr<HirExpr>> arguments) {
@@ -2070,6 +2215,10 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
                                          std::move(arguments));
   }
   if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end()) {
+    std::vector<std::size_t> evaluationOrder;
+    for (std::size_t index = 0; index < arguments.size(); ++index)
+      evaluationOrder.push_back(index);
+    fillDefaultArguments(*generic->second, location, arguments, evaluationOrder);
     const SymbolId callee = specializeFunction(*generic->second, arguments, location);
     if (callee != InvalidSymbol && hir_.symbol(callee).asynchronous) {
       const auto success = asyncSuccessType(hir_.symbol(callee).type);
@@ -2081,11 +2230,11 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
                            DiagnosticCode::SendConstraint);
       return std::make_unique<HirAsyncCallExpr>(
           location, success.has_value() ? taskType(*success) : Type::Invalid,
-          callee, std::move(arguments));
+          callee, std::move(arguments), std::move(evaluationOrder));
     }
     const Type result = callee == InvalidSymbol ? Type::Invalid : hir_.symbol(callee).type;
     return std::make_unique<HirCallExpr>(location, result, callee,
-                                        std::move(arguments));
+                                        std::move(arguments), std::move(evaluationOrder));
   }
 
   auto found = functions_.find(name);
@@ -2096,6 +2245,16 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
   }
   const SymbolId callee = found->second;
   const HirSymbol signature = hir_.symbol(callee);
+  if (signature.nativeImport && unsafeDepth_ == 0)
+    diagnostics_.error(location,
+                       "call to extern function '" + name +
+                           "' requires an explicit unsafe block");
+  std::vector<std::size_t> evaluationOrder;
+  for (std::size_t index = 0; index < arguments.size(); ++index)
+    evaluationOrder.push_back(index);
+  if (auto declaration = functionDeclarations_.find(name);
+      declaration != functionDeclarations_.end())
+    fillDefaultArguments(*declaration->second, location, arguments, evaluationOrder);
   if (arguments.size() != signature.parameterTypes.size())
     diagnostics_.error(location, "method '" + name + "' expects " +
                                      std::to_string(signature.parameterTypes.size()) +
@@ -2118,10 +2277,10 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
                          DiagnosticCode::SendConstraint);
     return std::make_unique<HirAsyncCallExpr>(
         location, success.has_value() ? taskType(*success) : Type::Invalid,
-        callee, std::move(arguments));
+        callee, std::move(arguments), std::move(evaluationOrder));
   }
   return std::make_unique<HirCallExpr>(location, signature.type, callee,
-                                       std::move(arguments));
+                                       std::move(arguments), std::move(evaluationOrder));
 }
 
 std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
@@ -2129,12 +2288,17 @@ std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
     std::vector<std::unique_ptr<HirExpr>> leadingArguments,
     const std::vector<std::unique_ptr<Expr>>& sourceArguments) {
   const Function* genericDeclaration = nullptr;
+  const Function* declaration = nullptr;
   const HirSymbol* signature = nullptr;
-  if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end())
+  if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end()) {
     genericDeclaration = generic->second;
-  else if (auto found = functions_.find(name); found != functions_.end())
+    declaration = generic->second;
+  } else if (auto found = functions_.find(name); found != functions_.end()) {
     signature = &hir_.symbol(found->second);
-  else {
+    if (auto source = functionDeclarations_.find(name);
+        source != functionDeclarations_.end())
+      declaration = source->second;
+  } else {
     diagnostics_.error(location, "unknown method '" + name + "'", DiagnosticCode::Name);
     return std::make_unique<HirCallExpr>(location, Type::Invalid, InvalidSymbol,
                                          std::move(leadingArguments));
@@ -2157,8 +2321,14 @@ std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
                                          std::move(leadingArguments));
   }
   std::vector<std::string> explicitNames(allNames.begin() + leadingCount, allNames.end());
+  std::vector<bool> explicitDefaults(explicitNames.size(), false);
+  if (declaration)
+    for (std::size_t index = leadingCount; index < declaration->parameters.size(); ++index)
+      explicitDefaults[index - leadingCount] =
+          declaration->parameters[index].defaultValue != nullptr;
   const NamedArgumentBinding binding =
-      bindNamedArguments(sourceArguments, explicitNames, location, diagnostics_);
+      bindNamedArguments(sourceArguments, explicitNames, location, diagnostics_,
+                         explicitDefaults);
   std::vector<std::unique_ptr<HirExpr>> arguments(allNames.size());
   std::vector<std::size_t> evaluationOrder;
   for (std::size_t index = 0; index < leadingCount; ++index) {
@@ -2177,9 +2347,13 @@ std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
     arguments[parameter] = lowerExpression(callArgumentValue(*sourceArguments[source]), expected);
     evaluationOrder.push_back(parameter);
   }
-  for (auto& argument : arguments)
-    if (!argument)
-      argument = std::make_unique<HirLiteralExpr>(location, Type::Invalid, "0");
+  for (std::size_t index = 0; index < arguments.size(); ++index)
+    if (!arguments[index] &&
+        (!declaration || !declaration->parameters[index].defaultValue))
+      arguments[index] =
+          std::make_unique<HirLiteralExpr>(location, Type::Invalid, "0");
+  if (declaration)
+    fillDefaultArguments(*declaration, location, arguments, evaluationOrder);
 
   SymbolId callee = InvalidSymbol;
   if (genericDeclaration)
@@ -2786,23 +2960,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         return lowerNamedUserCall(name, expression.location, {}, call.arguments);
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (const auto& argument : call.arguments) arguments.push_back(lowerExpression(*argument));
-      const SymbolId callee = specializeFunction(*generic->second, arguments, expression.location);
-      if (callee != InvalidSymbol && hir_.symbol(callee).asynchronous) {
-        const auto success = asyncSuccessType(hir_.symbol(callee).type);
-        diagnoseAsyncArguments(arguments, expression.location);
-        if (success.has_value() && !isSendType(*success))
-          diagnostics_.error(expression.location,
-                             "async task result type " + typeName(*success) +
-                                 " does not satisfy Send",
-                             DiagnosticCode::SendConstraint);
-        return std::make_unique<HirAsyncCallExpr>(
-            expression.location,
-            success.has_value() ? taskType(*success) : Type::Invalid,
-            callee, std::move(arguments));
-      }
-      const Type result = callee == InvalidSymbol ? Type::Invalid : hir_.symbol(callee).type;
-      return std::make_unique<HirCallExpr>(expression.location, result, callee,
-                                           std::move(arguments));
+      return lowerResolvedCall(name, expression.location, std::move(arguments));
     }
 
     auto found = functions_.find(name);
@@ -2845,37 +3003,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       return std::make_unique<HirCallExpr>(expression.location, Type::Unit, callee,
                                            std::move(arguments));
     }
-    if (signature.nativeImport && unsafeDepth_ == 0)
-      diagnostics_.error(expression.location,
-                         "call to extern function '" + name +
-                             "' requires an explicit unsafe block");
-    if (arguments.size() != signature.parameterTypes.size())
-      diagnostics_.error(expression.location, "function '" + name + "' expects " +
-                                                 std::to_string(signature.parameterTypes.size()) +
-                                                 " argument(s)", DiagnosticCode::Arity);
-    for (std::size_t index = 0;
-         index < arguments.size() && index < signature.parameterTypes.size(); ++index)
-      if (arguments[index]->type != Type::Invalid &&
-          arguments[index]->type != signature.parameterTypes[index])
-        diagnostics_.error(arguments[index]->location, "argument type is " +
-                                                        typeName(arguments[index]->type) +
-                                                        ", expected " +
-                                                        typeName(signature.parameterTypes[index]));
-    if (signature.asynchronous) {
-      const auto success = asyncSuccessType(signature.type);
-      diagnoseAsyncArguments(arguments, expression.location);
-      if (success.has_value() && !isSendType(*success))
-        diagnostics_.error(expression.location,
-                           "async task result type " + typeName(*success) +
-                               " does not satisfy Send",
-                           DiagnosticCode::SendConstraint);
-      return std::make_unique<HirAsyncCallExpr>(
-          expression.location,
-          success.has_value() ? taskType(*success) : Type::Invalid,
-          callee, std::move(arguments));
-    }
-    return std::make_unique<HirCallExpr>(expression.location, signature.type, callee,
-                                        std::move(arguments));
+    return lowerResolvedCall(name, expression.location, std::move(arguments));
   }
   case ExprKind::NamedArgument: {
     const auto& named = static_cast<const NamedArgumentExpr&>(expression);

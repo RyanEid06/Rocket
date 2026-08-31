@@ -236,6 +236,34 @@ int main() {
       "positional arguments after named arguments are rejected during parsing",
       failures);
 
+  rocket::Diagnostics defaultDiagnostics;
+  auto defaults = rocket::test::parse(
+      "fn choose(first: Int, second: Int = first + 1, third: Int = 3) -> Int:\n"
+      "    return second + third\n"
+      "fn main() -> Int:\n"
+      "    return choose(1)\n",
+      defaultDiagnostics);
+  rocket::test::expect(
+      !defaultDiagnostics.hasErrors() && defaults.functions.size() == 2,
+      "ordinary function parameters accept default expressions", failures);
+
+  rocket::Diagnostics requiredAfterDefaultDiagnostics;
+  rocket::test::parse(
+      "fn invalid(first: Int = 1, second: Int) -> Int:\n"
+      "    return first + second\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      requiredAfterDefaultDiagnostics);
+  bool sawRequiredAfterDefault = false;
+  for (const auto& diagnostic : requiredAfterDefaultDiagnostics.all())
+    sawRequiredAfterDefault = sawRequiredAfterDefault ||
+        (diagnostic.code == rocket::DiagnosticCode::Arity &&
+         diagnostic.message.find("required parameter 'second' cannot follow a defaulted parameter") !=
+             std::string::npos);
+  rocket::test::expect(
+      sawRequiredAfterDefault,
+      "required parameters after defaulted parameters are rejected", failures);
+
   rocket::Diagnostics indentationDiagnostics;
   rocket::test::parse("    return 0\n", indentationDiagnostics);
   rocket::test::expect(indentationDiagnostics.hasErrors(),

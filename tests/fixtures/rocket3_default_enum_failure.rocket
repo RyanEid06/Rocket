@@ -1,0 +1,5 @@
+enum Choice:
+    Value(Int = 1)
+
+fn main() -> Int:
+    return 0

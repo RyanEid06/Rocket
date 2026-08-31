@@ -1,0 +1,6 @@
+import defaults
+
+fn main() -> Int:
+    print(defaults.score(3))
+    print(defaults.score(scale: 9, base: 4))
+    return 0

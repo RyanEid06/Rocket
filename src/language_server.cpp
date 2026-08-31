@@ -908,6 +908,11 @@ void indexExpression(const HirExpr& expression, SemanticSnapshot& snapshot,
     indexExpression(*item.right, snapshot, symbolKeys);
     break;
   }
+  case HirExprKind::DefaultArgument:
+    indexExpression(
+        *static_cast<const HirDefaultArgumentExpr&>(expression).value,
+        snapshot, symbolKeys);
+    break;
   case HirExprKind::Array:
     for (const auto& element : static_cast<const HirArrayExpr&>(expression).elements)
       indexExpression(*element, snapshot, symbolKeys);
@@ -1009,6 +1014,9 @@ void mergeHir(const HirModule& hir, const Module& ast,
         if (parameter < symbol.parameterNames.size())
           label = symbol.parameterNames[parameter] + ": ";
         label += typeName(symbol.parameterTypes[parameter]);
+        if (parameter < symbol.parameterDefaults.size() &&
+            !symbol.parameterDefaults[parameter].empty())
+          label += " = " + symbol.parameterDefaults[parameter];
         indexed.parameters.push_back(std::move(label));
       }
       std::ostringstream detail;
@@ -1111,6 +1119,8 @@ void mergeIncompleteAst(const Module& module, SemanticSnapshot& snapshot) {
       if (parameter) detail << ", ";
       detail << function.parameters[parameter].name << ": "
              << function.parameters[parameter].typeName;
+      if (function.parameters[parameter].defaultValue)
+        detail << " = " << function.parameters[parameter].defaultText;
     }
     detail << ") -> " << function.returnType;
     add(function.name, "function", detail.str(), function.location,

@@ -986,13 +986,41 @@ Known limitations remain those in the implementation-state list above; no langua
   `NUL`; stdout/stderr, program arguments, and application-level file or GUI
   input remain supported.
 
+**Rocket 3 WP11 - default arguments**
+
+- Added ordinary function and method defaults to the permanent C++20 stage0
+  and Rocket-written compiler. Required parameters precede defaulted parameters;
+  defaults type-check in declaration context, may bind legal earlier parameters,
+  specialize with generics, and cross module boundaries through interface
+  metadata. Explicit positional/named arguments override defaults.
+- Calls retain receiver/callee and written-argument left-to-right evaluation,
+  then evaluate omitted defaults in parameter order before positional MIR
+  normalization. Runtime ABI v1 and backend ABI remain unchanged. Lambda,
+  callback, trait-declaration, enum-payload, extern, and struct-field defaults
+  remain documented and parser-tested exclusions.
+- Formatter, LSP signature help, package documentation/search metadata, language
+  specifications, stable diagnostics, and source/API-versioning guidance now
+  agree with the compiler behavior. The native HIR regression now locates
+  `main` by symbol identity; 20 consecutive runs completed without the prior
+  `rocketc_hir_tests.exe` memory-read application fault.
+- The final focused selection passed 5/5 and stage0/self-host predecessor parity
+  passed 8/8. Fresh Debug and Release suites passed 226/226 each. The coherent
+  LLVM-disabled MSVC Release selection passed 18/18. Deterministic Windows x64
+  Release bootstrap passed six self-tests, two HIR/MIR compiler checks, and the
+  WP10/WP11 stage3 matrices; stage2/stage3 IR matched at SHA-256
+  `4aa87fe969ff42d8806c938a24106d2a14bad91a76f23cbda063ae27ed8eb210`.
+- Generated WP11 state remained under `out/rocket3-provisional/wp11`, occupied
+  5.692 GiB, and did not cross the 4 GiB per-process or 20 GiB operation guards.
+
 ## Current next task
 
-**Phase 19 is complete as Rocket 2.1 portability work. Native acceptance passed
-on Windows x64, Linux x64, Linux ARM64, and macOS ARM64; the completion evidence
-is recorded in `PHASE_19_AUDIT.md`. Future work is selected by owner direction.
-Visual Studio extension 2.0.3, its reproducible CMake/script fallbacks, and the
-preserved owner demo edit remain current baseline state.**
+**Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
+WP11 is complete and GREEN. The only next eligible Rocket 3 packet is WP11A,
+complete named-callable parity; WP12 remains blocked until WP11A completes.
+The exact one-packet scope and success-only handoff are in
+`ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
+its reproducible CMake/script fallbacks, and the preserved owner demo edit
+remain baseline state.**
 
 ## New-chat prompt
 

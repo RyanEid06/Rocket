@@ -62,6 +62,18 @@ int main() {
       "formatter canonicalizes named argument spacing and preserves names",
       failures);
 
+  rocket::Diagnostics defaultDiagnostics;
+  auto defaultFormatted = rocket::formatSource(
+      "default.rocket",
+      "fn choose(first:Int,second:Int=first+1)->Int:\n    return second\n",
+      defaultDiagnostics);
+  rocket::test::expect(
+      defaultFormatted.has_value() &&
+          *defaultFormatted ==
+              "fn choose(first: Int, second: Int = first + 1) -> Int:\n"
+              "    return second\n",
+      "formatter canonicalizes default parameter expressions", failures);
+
   rocket::Diagnostics invalidDiagnostics;
   auto invalid = rocket::formatSource("invalid.rocket", "fn main() -> Int:\n\treturn 0\n",
                                       invalidDiagnostics);
