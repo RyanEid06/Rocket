@@ -236,6 +236,41 @@ int main() {
       "positional arguments after named arguments are rejected during parsing",
       failures);
 
+  rocket::Diagnostics labeledPayloadDiagnostics;
+  auto labeledPayloads = rocket::test::parse(
+      "enum Choice:\n"
+      "    Value(amount: Int, label: String)\n"
+      "    Legacy(Int)\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      labeledPayloadDiagnostics);
+  rocket::test::expect(
+      !labeledPayloadDiagnostics.hasErrors() &&
+          labeledPayloads.enums.size() == 1 &&
+          labeledPayloads.enums[0].variants.size() == 2 &&
+          labeledPayloads.enums[0].variants[0].payloadTypes ==
+              std::vector<std::string>{"Int", "String"},
+      "enum variants accept explicit labeled payload declarations", failures);
+
+  rocket::Diagnostics mixedPayloadDiagnostics;
+  rocket::test::parse(
+      "enum Choice:\n"
+      "    Value(amount: Int, String)\n"
+      "fn main() -> Int:\n"
+      "    return 0\n",
+      mixedPayloadDiagnostics);
+  bool sawMixedPayload = false;
+  for (const auto& diagnostic : mixedPayloadDiagnostics.all())
+    sawMixedPayload = sawMixedPayload ||
+        (diagnostic.code == rocket::DiagnosticCode::Arity &&
+         diagnostic.message.find(
+             "enum variant 'Value' cannot mix labeled and anonymous payload entries") !=
+             std::string::npos);
+  rocket::test::expect(
+      sawMixedPayload,
+      "a single enum variant rejects mixed labeled and anonymous payload entries",
+      failures);
+
   rocket::Diagnostics defaultDiagnostics;
   auto defaults = rocket::test::parse(
       "fn choose(first: Int, second: Int = first + 1, third: Int = 3) -> Int:\n"

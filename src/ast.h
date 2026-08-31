@@ -307,6 +307,7 @@ struct StructDecl {
 struct EnumVariant {
   std::string name;
   Location location;
+  std::vector<std::string> payloadNames;
   std::vector<std::string> payloadTypes;
 };
 

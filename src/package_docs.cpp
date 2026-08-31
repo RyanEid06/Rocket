@@ -1,6 +1,7 @@
 #include "package_docs.h"
 
 #include "diagnostic.h"
+#include "hir.h"
 #include "lexer.h"
 #include "parser.h"
 
@@ -26,6 +27,7 @@ struct ApiItem {
   std::vector<std::string> relatedTypes;
   std::vector<std::string> parameters;
   std::vector<std::optional<std::string>> defaults;
+  std::vector<std::string> payloadLabels;
 };
 
 std::string trim(std::string value) {
@@ -199,13 +201,18 @@ bool generatePackageDocumentation(const Package& package,
     for (const auto& enumeration : module.enums) {
       if (!enumeration.publicDeclaration) continue;
       std::vector<std::string> related;
-      for (const auto& variant : enumeration.variants)
+      std::vector<std::string> payloadLabels;
+      for (const auto& variant : enumeration.variants) {
         related.insert(related.end(), variant.payloadTypes.begin(),
                        variant.payloadTypes.end());
+        payloadLabels.insert(payloadLabels.end(), variant.payloadNames.begin(),
+                             variant.payloadNames.end());
+      }
       items.push_back({modulePath, "enum", enumeration.name,
                        sourceLine(enumeration.location.line),
                        documentationBefore(lines, enumeration.location.line),
-                       enumeration.location.line, std::move(related)});
+                       enumeration.location.line, std::move(related), {}, {},
+                       std::move(payloadLabels)});
     }
     for (const auto& trait : module.traits) {
       if (!trait.publicDeclaration) continue;
@@ -317,11 +324,26 @@ bool generatePackageDocumentation(const Package& package,
       else
         search << "null";
     }
+    search << "], \"payloadLabels\": [";
+    for (std::size_t label = 0; label < item.payloadLabels.size(); ++label)
+      search << (label ? ", " : "") << "\""
+             << json(item.payloadLabels[label]) << "\"";
     search << "]"
-           << ", \"packageVersion\": \"" << json(package.version)
-           << "\", \"href\": \"index.html#" << json(anchor(item)) << "\"}";
+            << ", \"packageVersion\": \"" << json(package.version)
+            << "\", \"href\": \"index.html#" << json(anchor(item)) << "\"}";
   }
-  search << (items.empty() ? "" : "\n  ") << "]\n}\n";
+  search << (items.empty() ? "" : "\n  ") << "],\n  \"compilerCallables\": [";
+  const auto& compilerCallables = compilerCallableParameterNames();
+  for (std::size_t index = 0; index < compilerCallables.size(); ++index) {
+    const auto& [name, parameters] = compilerCallables[index];
+    search << (index ? "," : "") << "\n    {\"name\": \"" << json(name)
+           << "\", \"parameters\": [";
+    for (std::size_t parameter = 0; parameter < parameters.size(); ++parameter)
+      search << (parameter ? ", " : "") << "\""
+             << json(parameters[parameter]) << "\"";
+    search << "]}";
+  }
+  search << (compilerCallables.empty() ? "" : "\n  ") << "]\n}\n";
 
   if (!write(outputDirectory / "index.html", page.str(), error) ||
       !write(outputDirectory / "search.json", search.str(), error))

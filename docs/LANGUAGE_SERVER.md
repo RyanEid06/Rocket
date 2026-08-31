@@ -59,7 +59,8 @@ its overlay and publishes an empty diagnostics array.
 - Markdown hover with Rocket type/signature, documentation, and a
   `rocket-doc://` versioned-documentation link;
 - signature help with active parameter and available compiler signatures,
-  including canonical default expressions for defaulted parameters;
+  including canonical default expressions plus declared closure, labeled-enum,
+  compiler-built-in, and standard-intrinsic parameter names;
 - resolved definition, references, prepare-rename, and conflict-checked
   workspace rename;
 - semantic token full/delta responses for keywords, values, declarations,

@@ -5,10 +5,251 @@
 #include <cstdint>
 #include <functional>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_set>
 #include <utility>
 
 namespace rocket {
+
+const std::vector<std::pair<std::string, std::vector<std::string>>>&
+compilerCallableParameterNames() {
+  static const std::vector<std::pair<std::string, std::vector<std::string>>> names = {
+      {"print", {"value"}},
+      {"std.string.byte_length", {"value"}},
+      {"std.string.concat", {"left", "right"}},
+      {"std.string.contains", {"value", "needle"}},
+      {"std.string.starts_with", {"value", "prefix"}},
+      {"std.string.ends_with", {"value", "suffix"}},
+      {"std.string.trim", {"value"}},
+      {"std.string.split", {"value", "delimiter"}},
+      {"std.string.byte_at", {"value", "index"}},
+      {"std.string.byte_value_at", {"value", "index"}},
+      {"std.string.slice", {"value", "start", "end"}},
+      {"std.string.parse_int", {"value"}},
+      {"std.string.from_int", {"value"}},
+      {"std.string.builder", {}},
+      {"std.string.builder_append", {"builder", "value"}},
+      {"std.string.builder_finish", {"builder"}},
+      {"std.collections.length", {"values"}},
+      {"std.collections.slice_length", {"values"}},
+      {"std.collections.capacity", {"values"}},
+      {"std.collections.reserve", {"values", "minimum"}},
+      {"std.collections.append", {"values", "value"}},
+      {"std.collections.pop", {"values"}},
+      {"std.collections.insert", {"values", "index", "value"}},
+      {"std.collections.remove", {"values", "index"}},
+      {"std.collections.clear", {"values"}},
+      {"std.collections.map_from_arrays", {"keys", "values"}},
+      {"std.collections.map_length", {"map"}},
+      {"std.collections.map_find", {"map", "key"}},
+      {"std.collections.map_get", {"map", "key"}},
+      {"std.collections.map_keys", {"map"}},
+      {"std.collections.map_values", {"map"}},
+      {"std.collections.set_from_array", {"values"}},
+      {"std.collections.set_contains", {"set", "value"}},
+      {"std.collections.set_values", {"set"}},
+      {"std.collections.hash", {"value"}},
+      {"std.collections.contains", {"values", "value"}},
+      {"std.collections.find", {"values", "value"}},
+      {"std.collections.filter_equal", {"values", "value"}},
+      {"std.collections.sort_int", {"values"}},
+      {"std.collections.sort_float", {"values"}},
+      {"std.collections.sort_char", {"values"}},
+      {"std.collections.sort_string", {"values"}},
+      {"std.collections.map_hash", {"values"}},
+      {"std.collections.fold_sum_int", {"values"}},
+      {"std.collections.fold_sum_float", {"values"}},
+      {"std.collections.reverse", {"values"}},
+      {"std.collections.concat", {"left", "right"}},
+      {"std.collections.join", {"values", "separator"}},
+      {"std.file.read_text", {"path"}},
+      {"std.file.write_text", {"path", "contents"}},
+      {"std.file.append_text", {"path", "contents"}},
+      {"std.file.exists", {"path"}},
+      {"std.file.remove", {"path"}},
+      {"std.file.list", {"path"}},
+      {"std.file.create_directory", {"path"}},
+      {"std.file.read_binary", {"path"}},
+      {"std.file.write_binary", {"path", "buffer"}},
+      {"std.file.append_binary", {"path", "buffer"}},
+      {"std.binary.from_string", {"value"}},
+      {"std.binary.to_string", {"buffer"}},
+      {"std.binary.length", {"buffer"}},
+      {"std.binary.slice", {"buffer", "offset", "length"}},
+      {"std.binary.read_u8", {"buffer", "offset"}},
+      {"std.binary.read_u16_le", {"buffer", "offset"}},
+      {"std.binary.read_u32_le", {"buffer", "offset"}},
+      {"std.binary.write_u8", {"value"}},
+      {"std.binary.write_u16_le", {"value"}},
+      {"std.binary.write_u32_le", {"value"}},
+      {"std.binary.concat", {"left", "right"}},
+      {"std.binary.read_u16_be", {"buffer", "offset"}},
+      {"std.binary.read_u32_be", {"buffer", "offset"}},
+      {"std.binary.write_u16_be", {"value"}},
+      {"std.binary.write_u32_be", {"value"}},
+      {"std.stream.open_reader", {"path", "buffer_size"}},
+      {"std.stream.read", {"handle", "maximum"}},
+      {"std.stream.close_reader", {"handle"}},
+      {"std.stream.open_writer", {"path", "buffer_size", "append"}},
+      {"std.stream.write", {"handle", "buffer"}},
+      {"std.stream.flush", {"handle"}},
+      {"std.stream.close_writer", {"handle"}},
+      {"std.unicode.scalar_count", {"value"}},
+      {"std.unicode.scalar_at", {"value", "index"}},
+      {"std.unicode.from_scalar", {"value"}},
+      {"std.unicode.normalize_nfc", {"value"}},
+      {"std.unicode.normalize_nfd", {"value"}},
+      {"std.unicode.grapheme_count", {"value"}},
+      {"std.unicode.grapheme_at", {"value", "index"}},
+      {"std.regex.is_match", {"pattern", "value"}},
+      {"std.regex.find_all", {"pattern", "value"}},
+      {"std.regex.replace_all", {"pattern", "value", "replacement"}},
+      {"std.crypto.secure_bytes", {"length"}},
+      {"std.crypto.secure_int", {"minimum", "maximum"}},
+      {"std.crypto.sha256", {"value"}},
+      {"std.crypto.hmac_sha256", {"key", "value"}},
+      {"std.crypto.constant_time_equal", {"left", "right"}},
+      {"std.crypto.verify_signed_file", {"path"}},
+      {"std.net.resolve", {"host", "service"}},
+      {"std.net.tcp_connect", {"host", "port", "timeout_ms"}},
+      {"std.net.tcp_listen", {"address", "port", "backlog"}},
+      {"std.net.accept", {"listener", "timeout_ms"}},
+      {"std.net.send", {"handle", "bytes", "timeout_ms"}},
+      {"std.net.receive", {"handle", "maximum", "timeout_ms"}},
+      {"std.net.close", {"handle"}},
+      {"std.net.cancel", {"handle"}},
+      {"std.net.local_port", {"handle"}},
+      {"std.http.request", {"method", "url", "body", "timeout_ms"}},
+      {"std.http.read_request", {"connection", "maximum", "timeout_ms"}},
+      {"std.http.write_response",
+       {"connection", "status", "content_type", "body", "timeout_ms"}},
+      {"std.datetime.format_utc", {"unix_ms"}},
+      {"std.datetime.parse_utc", {"text"}},
+      {"std.datetime.days_in_month", {"year", "month"}},
+      {"std.datetime.weekday", {"year", "month", "day"}},
+      {"std.datetime.local_offset_minutes", {"unix_ms"}},
+      {"std.datetime.timezone_name", {}},
+      {"std.log.write", {"level", "message"}},
+      {"std.log.append", {"path", "level", "message"}},
+      {"std.cli.has_flag", {"arguments", "name"}},
+      {"std.cli.option", {"arguments", "name"}},
+      {"std.cli.positionals", {"arguments"}},
+      {"std.config.get", {"text", "key"}},
+      {"std.config.load", {"path", "key"}},
+      {"std.compression.xpress_compress", {"bytes"}},
+      {"std.compression.xpress_decompress", {"bytes"}},
+      {"std.archive.tar_create", {"path", "names", "contents"}},
+      {"std.archive.tar_list", {"path"}},
+      {"std.archive.tar_read", {"path", "name"}},
+      {"std.sqlite.open", {"path"}},
+      {"std.sqlite.execute", {"handle", "sql", "parameters"}},
+      {"std.sqlite.query", {"handle", "sql", "parameters"}},
+      {"std.sqlite.close", {"handle"}},
+      {"std.testing_core.assert", {"condition", "message"}},
+      {"std.testing_core.equal_int", {"actual", "expected", "message"}},
+      {"std.testing_core.equal_string", {"actual", "expected", "message"}},
+      {"std.testing_core.temp_directory", {"prefix"}},
+      {"std.testing_core.fixture_path", {"root", "relative"}},
+      {"std.testing_core.cleanup_temp", {"root"}},
+      {"std.testing_core.coverage_hit", {"name"}},
+      {"std.testing_core.coverage_write", {"path"}},
+      {"std.path.join", {"left", "right"}},
+      {"std.path.basename", {"path"}},
+      {"std.path.extension", {"path"}},
+      {"std.path.normalize", {"path"}},
+      {"std.json.parse", {"text"}},
+      {"std.json.stringify", {"value"}},
+      {"std.csv.parse", {"text"}},
+      {"std.csv.encode", {"rows"}},
+      {"std.random.seed", {"value"}},
+      {"std.random.int", {"minimum", "maximum"}},
+      {"std.random.float", {}},
+      {"std.process.run", {"program", "arguments"}},
+      {"std.process.arguments", {}},
+      {"std.process.executable_path", {}},
+      {"std.process.environment", {"name"}},
+      {"std.process.working_directory", {}},
+      {"std.target.alias", {}},
+      {"std.target.triple", {}},
+      {"std.target.os", {}},
+      {"std.target.architecture", {}},
+      {"std.target.environment", {}},
+      {"std.target.pointer_width", {}},
+      {"std.target.endianness", {}},
+      {"std.target.has_feature", {"name"}},
+      {"std.time.unix_milliseconds", {}},
+      {"std.time.monotonic_milliseconds", {}},
+      {"std.time.sleep_milliseconds", {"value"}},
+      {"std.task.join", {"task"}},
+      {"std.task.is_complete", {"task"}},
+      {"std.task.cancel", {"task"}},
+      {"std.task.group", {"tasks"}},
+      {"std.task.group_join", {"group"}},
+      {"std.task.group_cancel", {"group"}},
+      {"std.thread.spawn", {"task"}},
+      {"std.thread.join", {"thread"}},
+      {"std.thread.detach", {"thread"}},
+      {"std.thread.is_complete", {"thread"}},
+      {"std.ownership.downgrade", {"value"}},
+      {"std.ownership.upgrade", {"value"}},
+      {"std.ownership.expired", {"value"}},
+      {"std.buffer.thaw", {"values"}},
+      {"std.buffer.length", {"buffer"}},
+      {"std.buffer.capacity", {"buffer"}},
+      {"std.buffer.get", {"buffer", "index"}},
+      {"std.buffer.set", {"buffer", "index", "value"}},
+      {"std.buffer.append", {"buffer", "value"}},
+      {"std.buffer.slice", {"buffer", "start", "end"}},
+      {"std.buffer.freeze", {"buffer"}},
+      {"std.cancel.token", {}},
+      {"std.cancel.child", {"parent"}},
+      {"std.cancel.current", {}},
+      {"std.cancel.cancel", {"token"}},
+      {"std.cancel.is_cancelled", {"token"}},
+      {"std.cancel.check", {"token"}},
+      {"std.async_time.deadline_after", {"milliseconds"}},
+      {"std.async_time.remaining", {"deadline"}},
+      {"std.async_time.sleep", {"milliseconds", "token"}},
+      {"std.async_time.sleep_until", {"deadline", "token"}},
+      {"std.async_file.read", {"path", "maximum", "token"}},
+      {"std.async_file.write", {"path", "bytes", "append", "token"}},
+      {"std.async_net.connect", {"host", "port", "deadline", "token"}},
+      {"std.async_net.accept", {"listener", "deadline", "token"}},
+      {"std.async_net.receive", {"socket", "maximum", "deadline", "token"}},
+      {"std.async_net.send", {"socket", "bytes", "deadline", "token"}},
+      {"std.async_net.shutdown", {"socket"}},
+      {"std.async_process.run", {"program", "arguments", "deadline", "token"}},
+      {"std.sync.mutex", {"value"}},
+      {"std.sync.lock", {"mutex", "deadline", "token"}},
+      {"std.sync.guard_get", {"guard"}},
+      {"std.sync.guard_set", {"guard", "value"}},
+      {"std.sync.unlock", {"guard"}},
+      {"std.sync.event", {"manual_reset", "initially_set"}},
+      {"std.sync.event_set", {"event"}},
+      {"std.sync.event_reset", {"event"}},
+      {"std.sync.event_wait", {"event", "deadline", "token"}},
+      {"std.sync.atomic_int", {"value"}},
+      {"std.sync.atomic_load", {"value"}},
+      {"std.sync.atomic_store", {"value", "replacement"}},
+      {"std.sync.atomic_fetch_add", {"value", "delta"}},
+      {"std.sync.atomic_compare_exchange", {"value", "expected", "replacement"}},
+      {"std.sync.once", {"value"}},
+      {"std.sync.once_empty", {"type_witness"}},
+      {"std.sync.once_set", {"cell", "value"}},
+      {"std.sync.once_get", {"cell"}},
+      {"std.channel.bounded", {"initial", "capacity"}},
+      {"std.channel.unbounded", {"initial"}},
+      {"std.channel.sender", {"channel"}},
+      {"std.channel.receiver", {"channel"}},
+      {"std.channel.clone_sender", {"sender"}},
+      {"std.channel.clone_receiver", {"receiver"}},
+      {"std.channel.send", {"sender", "value", "deadline", "token"}},
+      {"std.channel.receive", {"receiver", "deadline", "token"}},
+      {"std.channel.close_sender", {"sender"}},
+      {"std.channel.close_receiver", {"receiver"}},
+  };
+  return names;
+}
 
 namespace {
 
@@ -207,8 +448,8 @@ void HirLowerer::registerBuiltinTypes() {
   option.publicDeclaration = true;
   option.builtin = true;
   option.typeParameters = {"T"};
-  option.variants = {{"Some", option.location, {typeParameter("T")}},
-                     {"None", option.location, {}}};
+  option.variants = {{"Some", option.location, {}, {typeParameter("T")}},
+                     {"None", option.location, {}, {}}};
   typeDeclarations_.emplace(option.name, static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
   hir_.typeDeclarations.push_back(std::move(option));
 
@@ -219,8 +460,8 @@ void HirLowerer::registerBuiltinTypes() {
   result.publicDeclaration = true;
   result.builtin = true;
   result.typeParameters = {"T", "E"};
-  result.variants = {{"Ok", result.location, {typeParameter("T")}},
-                     {"Err", result.location, {typeParameter("E")}}};
+  result.variants = {{"Ok", result.location, {}, {typeParameter("T")}},
+                     {"Err", result.location, {}, {typeParameter("E")}}};
   typeDeclarations_.emplace(result.name, static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
   hir_.typeDeclarations.push_back(std::move(result));
 
@@ -335,13 +576,13 @@ void HirLowerer::registerBuiltinTypes() {
   json.publicDeclaration = true;
   json.builtin = true;
   json.variants = {
-      {"std.json.Null", json.location, {}},
-      {"std.json.Boolean", json.location, {Type::Bool}},
-      {"std.json.Integer", json.location, {Type::Int}},
-      {"std.json.Decimal", json.location, {Type::Float}},
-      {"std.json.Text", json.location, {Type::String}},
-      {"std.json.List", json.location, {arrayType(jsonType)}},
-      {"std.json.Object", json.location, {arrayType(jsonFieldType)}},
+      {"std.json.Null", json.location, {}, {}},
+      {"std.json.Boolean", json.location, {}, {Type::Bool}},
+      {"std.json.Integer", json.location, {}, {Type::Int}},
+      {"std.json.Decimal", json.location, {}, {Type::Float}},
+      {"std.json.Text", json.location, {}, {Type::String}},
+      {"std.json.List", json.location, {}, {arrayType(jsonType)}},
+      {"std.json.Object", json.location, {}, {arrayType(jsonFieldType)}},
   };
   typeDeclarations_.emplace(json.name,
                             static_cast<std::uint32_t>(hir_.typeDeclarations.size()));
@@ -366,10 +607,17 @@ void HirLowerer::registerStandardLibrary() {
     return Type{TypeKind::Enum, "Result", {std::move(success), Type::String}};
   };
   auto add = [&](std::string name, std::vector<Type> parameters, Type returned,
-                 Intrinsic intrinsic, std::vector<std::string> typeParameters = {}) {
+                  Intrinsic intrinsic, std::vector<std::string> typeParameters = {}) {
+    const auto& callableNames = compilerCallableParameterNames();
+    const auto found = std::find_if(
+        callableNames.begin(), callableNames.end(),
+        [&](const auto& entry) { return entry.first == name; });
+    if (found == callableNames.end() || found->second.size() != parameters.size())
+      throw std::logic_error("invalid compiler callable metadata for " + name);
     standardFunctions_.emplace(
         std::move(name),
-        StandardFunction{std::move(typeParameters), std::move(parameters),
+        StandardFunction{std::move(typeParameters), found->second,
+                         std::move(parameters),
                          std::move(returned), intrinsic});
   };
 
@@ -940,7 +1188,7 @@ void HirLowerer::registerTypeDeclarations() {
                           VariantTarget{found->second,
                                         static_cast<std::uint32_t>(target.variants.size())});
       }
-      HirVariant lowered{variant.name, variant.location, {}};
+      HirVariant lowered{variant.name, variant.location, variant.payloadNames, {}};
       for (const auto& payload : variant.payloadTypes)
         lowered.payloadTypes.push_back(resolveType(payload, variant.location, parameters));
       target.variants.push_back(std::move(lowered));
@@ -1075,6 +1323,7 @@ std::optional<HirModule> HirLowerer::lower() {
 
   const SymbolId print = addSymbol(SymbolKind::BuiltinFunction, "print", Type::Unit, false,
                                    {"<builtin>", 1, 1}, {}, Intrinsic::Print);
+  hir_.symbols[print].parameterNames = {"value"};
   functions_.emplace("print", print);
 
   for (const auto& function : ast_.functions) {
@@ -2132,7 +2381,8 @@ void HirLowerer::fillDefaultArguments(
 
 std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
     const std::string& name, const Location& location,
-    std::vector<std::unique_ptr<HirExpr>> arguments) {
+    std::vector<std::unique_ptr<HirExpr>> arguments,
+    std::vector<std::size_t> argumentOrder) {
   if (auto standard = standardFunctions_.find(name);
       standard != standardFunctions_.end()) {
     const StandardFunction& definition = standard->second;
@@ -2145,10 +2395,11 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
          index < arguments.size() && index < definition.parameterTypes.size(); ++index) {
       if (!inferTypeArguments(definition.parameterTypes[index], arguments[index]->type,
                               inferred, arguments[index]->location))
-        diagnostics_.error(arguments[index]->location, "argument type is " +
-                                                        typeName(arguments[index]->type) +
-                                                        ", expected " +
-                                                        typeName(definition.parameterTypes[index]));
+        diagnostics_.error(
+            arguments[index]->location,
+            "argument '" + definition.parameterNames[index] + "' has type " +
+                typeName(arguments[index]->type) + ", expected " +
+                typeName(definition.parameterTypes[index]));
     }
     std::string key = name;
     if (!definition.typeParameters.empty()) key += '[';
@@ -2201,6 +2452,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
       callee = addSymbol(SymbolKind::BuiltinFunction, key, result, false,
                          {"<standard-library>", 1, 1}, parameterTypes,
                          definition.intrinsic);
+      hir_.symbols[callee].parameterNames = definition.parameterNames;
       specializations_.emplace(key, callee);
     }
     for (std::size_t index = 0;
@@ -2212,7 +2464,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
                                                         ", expected " +
                                                         typeName(parameterTypes[index]));
     return std::make_unique<HirCallExpr>(location, result, callee,
-                                         std::move(arguments));
+                                         std::move(arguments),
+                                         std::move(argumentOrder));
   }
   if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end()) {
     std::vector<std::size_t> evaluationOrder;
@@ -2281,6 +2534,67 @@ std::unique_ptr<HirExpr> HirLowerer::lowerResolvedCall(
   }
   return std::make_unique<HirCallExpr>(location, signature.type, callee,
                                        std::move(arguments), std::move(evaluationOrder));
+}
+
+std::unique_ptr<HirExpr> HirLowerer::lowerNamedStandardCall(
+    const std::string& name, const Location& location,
+    std::vector<std::unique_ptr<HirExpr>> leadingArguments,
+    const std::vector<std::unique_ptr<Expr>>& sourceArguments) {
+  const auto found = standardFunctions_.find(name);
+  if (found == standardFunctions_.end())
+    return lowerResolvedCall(name, location, std::move(leadingArguments));
+  const StandardFunction& definition = found->second;
+  const std::size_t leadingCount = leadingArguments.size();
+  if (definition.parameterNames.size() != definition.parameterTypes.size() ||
+      definition.parameterNames.size() < leadingCount) {
+    diagnostics_.error(location,
+                       "named argument metadata is unavailable for '" + name + "'",
+                       DiagnosticCode::Arity);
+    return std::make_unique<HirCallExpr>(location, Type::Invalid, InvalidSymbol,
+                                         std::move(leadingArguments));
+  }
+  std::vector<std::string> explicitNames(
+      definition.parameterNames.begin() + leadingCount,
+      definition.parameterNames.end());
+  const NamedArgumentBinding binding =
+      bindNamedArguments(sourceArguments, explicitNames, location, diagnostics_);
+  std::vector<std::unique_ptr<HirExpr>> arguments(definition.parameterTypes.size());
+  std::vector<std::size_t> evaluationOrder;
+  for (std::size_t index = 0; index < leadingCount; ++index) {
+    arguments[index] = std::move(leadingArguments[index]);
+    evaluationOrder.push_back(index);
+  }
+  for (std::size_t source = 0; source < sourceArguments.size(); ++source) {
+    if (!binding.sourceToParameter[source].has_value()) {
+      (void)lowerExpression(callArgumentValue(*sourceArguments[source]));
+      continue;
+    }
+    const std::size_t parameter = leadingCount + *binding.sourceToParameter[source];
+    std::optional<Type> expected;
+    if (!containsTypeParameter(definition.parameterTypes[parameter]))
+      expected = definition.parameterTypes[parameter];
+    const bool borrowsUnique = parameter == 0 &&
+        (definition.intrinsic == Intrinsic::BufferLength ||
+         definition.intrinsic == Intrinsic::BufferCapacity ||
+         definition.intrinsic == Intrinsic::BufferGet ||
+         definition.intrinsic == Intrinsic::SyncGuardGet ||
+         definition.intrinsic == Intrinsic::SyncGuardSet ||
+         definition.intrinsic == Intrinsic::TaskIsComplete ||
+         definition.intrinsic == Intrinsic::TaskCancel ||
+         definition.intrinsic == Intrinsic::TaskGroupCancel ||
+         definition.intrinsic == Intrinsic::ThreadIsComplete);
+    if (borrowsUnique) ++borrowUniqueDepth_;
+    arguments[parameter] =
+        lowerExpression(callArgumentValue(*sourceArguments[source]), expected);
+    if (borrowsUnique) --borrowUniqueDepth_;
+    evaluationOrder.push_back(parameter);
+  }
+  for (auto& argument : arguments)
+    if (!argument)
+      argument =
+          std::make_unique<HirLiteralExpr>(location, Type::Invalid, "0");
+  return lowerResolvedCall(name, location, std::move(arguments),
+                           std::move(evaluationOrder));
 }
 
 std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
@@ -2569,26 +2883,6 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         result.push_back(lowerExpression(callArgumentValue(*argument)));
       return result;
     };
-    std::string writtenCallee;
-    std::vector<std::string> writtenMembers;
-    const Expr* writtenTarget = call.callee.get();
-    while (writtenTarget->kind == ExprKind::Field) {
-      const auto& field = static_cast<const FieldExpr&>(*writtenTarget);
-      writtenMembers.push_back(field.field);
-      writtenTarget = field.value.get();
-    }
-    if (writtenTarget->kind == ExprKind::Name) {
-      writtenCallee = static_cast<const LiteralExpr&>(*writtenTarget).value;
-      for (auto member = writtenMembers.rbegin(); member != writtenMembers.rend(); ++member)
-        writtenCallee += "." + *member;
-    }
-    if (namedArguments && writtenCallee.rfind("std.", 0) == 0) {
-      diagnostics_.error(expression.location,
-                         "named arguments are not supported for standard-library intrinsics",
-                         DiagnosticCode::Arity);
-      return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
-                                           InvalidSymbol, lowerWrittenArguments());
-    }
     if (call.callee->kind == ExprKind::Name) {
       const std::string& name = static_cast<const LiteralExpr&>(*call.callee).value;
       const SymbolId variable = findVariable(name);
@@ -2596,13 +2890,13 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         const Type closureType = hir_.symbol(variable).type;
         if (closureType.kind == TypeKind::Struct &&
             closureType.declaration.rfind("$closure.", 0) == 0) {
-          if (namedArguments)
-            diagnostics_.error(expression.location,
-                               "named arguments are not supported for closure values",
-                               DiagnosticCode::Arity);
           std::vector<std::unique_ptr<HirExpr>> arguments;
           arguments.push_back(std::make_unique<HirNameExpr>(
               call.callee->location, closureType, variable));
+          if (namedArguments)
+            return lowerNamedUserCall(closureType.declaration + ".call",
+                                      expression.location, std::move(arguments),
+                                      call.arguments);
           for (const auto& argument : call.arguments)
             arguments.push_back(lowerExpression(callArgumentValue(*argument)));
           return lowerResolvedCall(closureType.declaration + ".call",
@@ -2611,14 +2905,14 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       }
     }
     if (call.callee->kind == ExprKind::Lambda) {
-      if (namedArguments)
-        diagnostics_.error(expression.location,
-                           "named arguments are not supported for closure values",
-                           DiagnosticCode::Arity);
       auto closure = lowerExpression(*call.callee);
       const Type closureType = closure->type;
       std::vector<std::unique_ptr<HirExpr>> arguments;
       arguments.push_back(std::move(closure));
+      if (namedArguments)
+        return lowerNamedUserCall(closureType.declaration + ".call",
+                                  expression.location, std::move(arguments),
+                                  call.arguments);
       for (const auto& argument : call.arguments)
         arguments.push_back(lowerExpression(callArgumentValue(*argument)));
       return lowerResolvedCall(closureType.declaration + ".call",
@@ -2632,13 +2926,9 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         if (typeDeclarations_.contains(owner) || owner == "String") {
           const std::string target = associatedLibraryFunction(associated);
           if (namedArguments) {
-            if (standardFunctions_.contains(target)) {
-              diagnostics_.error(expression.location,
-                                 "named arguments are not supported for standard-library intrinsics",
-                                 DiagnosticCode::Arity);
-              return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
-                                                   InvalidSymbol, lowerWrittenArguments());
-            }
+            if (standardFunctions_.contains(target))
+              return lowerNamedStandardCall(target, expression.location, {},
+                                            call.arguments);
             return lowerNamedUserCall(target, expression.location, {}, call.arguments);
           }
           std::vector<std::unique_ptr<HirExpr>> arguments;
@@ -2664,13 +2954,10 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       if (target.empty()) target = typeName(receiverType) + "." + field.field;
       if (namedArguments) {
         if (standardFunctions_.contains(target)) {
-          diagnostics_.error(expression.location,
-                             "named arguments are not supported for standard-library intrinsics",
-                             DiagnosticCode::Arity);
-          auto lowered = lowerWrittenArguments();
-          lowered.insert(lowered.begin(), std::move(receiver));
-          return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
-                                               InvalidSymbol, std::move(lowered));
+          std::vector<std::unique_ptr<HirExpr>> leading;
+          leading.push_back(std::move(receiver));
+          return lowerNamedStandardCall(target, expression.location,
+                                        std::move(leading), call.arguments);
         }
         std::vector<std::unique_ptr<HirExpr>> leading;
         leading.push_back(std::move(receiver));
@@ -2711,9 +2998,10 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
 
     if (aggregateDeclaration.has_value()) {
       const auto& declaration = hir_.typeDeclarations[*aggregateDeclaration];
-      if (namedArguments && !structConstructor) {
+      const auto& variant = declaration.variants[tag];
+      if (namedArguments && !structConstructor && variant.payloadNames.empty()) {
         diagnostics_.error(expression.location,
-                           "named arguments are not supported for enum constructors",
+                           "named arguments are not supported for anonymous enum payloads",
                            DiagnosticCode::Arity);
         return std::make_unique<HirAggregateExpr>(
             expression.location, Type::Invalid, *aggregateDeclaration, tag,
@@ -2733,10 +3021,14 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
       std::vector<std::unique_ptr<HirExpr>> arguments;
       std::vector<std::size_t> argumentOrder;
       NamedArgumentBinding binding;
+      std::vector<std::string> parameterNames;
       if (namedArguments) {
-        std::vector<std::string> fieldNames;
-        for (const auto& field : declaration.fields) fieldNames.push_back(field.name);
-        binding = bindNamedArguments(call.arguments, fieldNames, expression.location,
+        if (structConstructor)
+          for (const auto& field : declaration.fields)
+            parameterNames.push_back(field.name);
+        else
+          parameterNames = variant.payloadNames;
+        binding = bindNamedArguments(call.arguments, parameterNames, expression.location,
                                      diagnostics_);
         arguments.resize(patterns.size());
       }
@@ -2788,7 +3080,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         if (arguments[index]->type != Type::Invalid && arguments[index]->type != required)
           diagnostics_.error(arguments[index]->location,
                              namedArguments
-                                 ? "argument '" + declaration.fields[index].name +
+                                 ? "argument '" + parameterNames[index] +
                                        "' has type " + typeName(arguments[index]->type) +
                                        ", expected " + typeName(required)
                                  : "constructor argument type is " +
@@ -2810,13 +3102,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
 
     auto standard = standardFunctions_.find(name);
     if (standard != standardFunctions_.end()) {
-      if (namedArguments) {
-        diagnostics_.error(expression.location,
-                           "named arguments are not supported for standard-library intrinsics",
-                           DiagnosticCode::Arity);
-        return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
-                                             InvalidSymbol, lowerWrittenArguments());
-      }
+      if (namedArguments)
+        return lowerNamedStandardCall(name, expression.location, {}, call.arguments);
       const StandardFunction& definition = standard->second;
       std::vector<std::unique_ptr<HirExpr>> arguments;
       for (std::size_t index = 0; index < call.arguments.size(); ++index) {
@@ -2940,6 +3227,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
         callee = addSymbol(SymbolKind::BuiltinFunction, key, result, false,
                            {"<standard-library>", 1, 1}, parameterTypes,
                            definition.intrinsic);
+        hir_.symbols[callee].parameterNames = definition.parameterNames;
         specializations_.emplace(key, callee);
       }
       for (std::size_t index = 0;
@@ -2975,33 +3263,51 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     }
     const SymbolId callee = found->second;
     const HirSymbol signature = hir_.symbol(callee);
-    if (namedArguments && signature.kind == SymbolKind::BuiltinFunction) {
-      diagnostics_.error(expression.location,
-                         "named arguments are not supported for built-in functions",
-                         DiagnosticCode::Arity);
-      return std::make_unique<HirCallExpr>(expression.location, Type::Invalid,
-                                           InvalidSymbol, lowerWrittenArguments());
-    }
-    if (namedArguments)
+    if (namedArguments && signature.kind != SymbolKind::BuiltinFunction)
       return lowerNamedUserCall(name, expression.location, {}, call.arguments);
     std::vector<std::unique_ptr<HirExpr>> arguments;
-    for (std::size_t index = 0; index < call.arguments.size(); ++index) {
+    std::vector<std::size_t> argumentOrder;
+    NamedArgumentBinding builtinBinding;
+    if (signature.kind == SymbolKind::BuiltinFunction) {
+      builtinBinding = bindNamedArguments(call.arguments, signature.parameterNames,
+                                          expression.location, diagnostics_);
+      arguments.resize(signature.parameterNames.size());
+    }
+    for (std::size_t source = 0; source < call.arguments.size(); ++source) {
+      if (signature.kind == SymbolKind::BuiltinFunction &&
+          !builtinBinding.sourceToParameter[source].has_value()) {
+        (void)lowerExpression(callArgumentValue(*call.arguments[source]));
+        continue;
+      }
+      const std::size_t index =
+          signature.kind == SymbolKind::BuiltinFunction
+              ? *builtinBinding.sourceToParameter[source]
+              : source;
       std::optional<Type> argumentExpected;
       if (signature.kind != SymbolKind::BuiltinFunction &&
           index < signature.parameterTypes.size())
         argumentExpected = signature.parameterTypes[index];
-      arguments.push_back(lowerExpression(*call.arguments[index], argumentExpected));
+      auto lowered = lowerExpression(callArgumentValue(*call.arguments[source]),
+                                     argumentExpected);
+      if (signature.kind == SymbolKind::BuiltinFunction) {
+        arguments[index] = std::move(lowered);
+        argumentOrder.push_back(index);
+      } else {
+        arguments.push_back(std::move(lowered));
+      }
     }
+    for (auto& argument : arguments)
+      if (!argument)
+        argument =
+            std::make_unique<HirLiteralExpr>(expression.location, Type::Invalid, "0");
     if (signature.kind == SymbolKind::BuiltinFunction) {
-      if (arguments.size() != 1)
-        diagnostics_.error(expression.location, "print expects exactly one argument",
-                           DiagnosticCode::Arity);
-      else if (isCollectionType(arguments[0]->type) || isAggregateType(arguments[0]->type) ||
+      if (isCollectionType(arguments[0]->type) || isAggregateType(arguments[0]->type) ||
                isNativeType(arguments[0]->type))
         diagnostics_.error(arguments[0]->location,
                            "print does not accept aggregate or native values");
       return std::make_unique<HirCallExpr>(expression.location, Type::Unit, callee,
-                                           std::move(arguments));
+                                           std::move(arguments),
+                                           std::move(argumentOrder));
     }
     return lowerResolvedCall(name, expression.location, std::move(arguments));
   }
@@ -3203,6 +3509,9 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
     const SymbolId callable = addSymbol(SymbolKind::Function, callableName,
                                         resultType, false, lambda.location,
                                         callableParameters);
+    hir_.symbols[callable].parameterNames.push_back("$closure");
+    for (const auto& parameter : lambda.parameters)
+      hir_.symbols[callable].parameterNames.push_back(parameter.name);
     functions_.emplace(callableName, callable);
     pendingLambdas_.push_back({&lambda, callable, declarationIndex, closureType,
                                captures, currentSubstitutions_});

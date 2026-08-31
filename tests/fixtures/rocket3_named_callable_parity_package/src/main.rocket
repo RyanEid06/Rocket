@@ -1,0 +1,11 @@
+import src.types
+
+fn main() -> Int:
+    let value = types.Item(label: "package", amount: 12)
+    match value:
+        case types.Item(amount, label):
+            print(label)
+            print(amount)
+            return 0
+        case types.Legacy(amount):
+            return amount

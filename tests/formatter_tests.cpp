@@ -62,6 +62,22 @@ int main() {
       "formatter canonicalizes named argument spacing and preserves names",
       failures);
 
+  rocket::Diagnostics callableParityDiagnostics;
+  auto callableParityFormatted = rocket::formatSource(
+      "callables.rocket",
+      "enum Choice:\n    Value(amount:Int,label:String)\nfn main()->Int:\n    let pair=fn(left:Int,right:Int)->Int=>left+right\n    print(value:pair(right:2,left:1))\n",
+      callableParityDiagnostics);
+  rocket::test::expect(
+      callableParityFormatted.has_value() &&
+          *callableParityFormatted ==
+              "enum Choice:\n"
+              "    Value(amount: Int, label: String)\n"
+              "fn main() -> Int:\n"
+              "    let pair = fn(left: Int, right: Int) -> Int => left + right\n"
+              "    print(value: pair(right: 2, left: 1))\n",
+      "formatter canonicalizes labeled payloads and all named callable forms",
+      failures);
+
   rocket::Diagnostics defaultDiagnostics;
   auto defaultFormatted = rocket::formatSource(
       "default.rocket",

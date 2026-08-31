@@ -989,16 +989,15 @@ void mergeHir(const HirModule& hir, const Module& ast,
 
   std::vector<std::string> keys(hir.symbols.size());
   for (const auto& symbol : hir.symbols) {
-    if (symbol.id >= keys.size() || symbol.location.file.empty() ||
-        symbol.kind == SymbolKind::BuiltinFunction)
+    if (symbol.id >= keys.size() || symbol.location.file.empty())
       continue;
     const std::string kind = symbolKindName(symbol.kind);
     const std::string key = symbolKey(symbol.location, symbol.name, kind);
     keys[symbol.id] = key;
     SemanticSymbol indexed;
     indexed.key = key;
-    indexed.name = symbol.name;
-    indexed.shortName = shortSymbolName(symbol.name);
+    indexed.name = symbol.name.substr(0, symbol.name.find('['));
+    indexed.shortName = shortSymbolName(indexed.name);
     indexed.kind = kind;
     indexed.location = symbol.kind == SymbolKind::Function
                            ? declarationNameLocation(snapshot, symbol.location,
@@ -1009,11 +1008,16 @@ void mergeHir(const HirModule& hir, const Module& ast,
         publicDeclarations.contains(symbolKey(symbol.location, symbol.name,
                                               "function"));
     if (kind == "function") {
-      for (std::size_t parameter = 0; parameter < symbol.parameterTypes.size(); ++parameter) {
+      const std::size_t parameterCount =
+          std::max(symbol.parameterTypes.size(), symbol.parameterNames.size());
+      for (std::size_t parameter = 0; parameter < parameterCount; ++parameter) {
         std::string label;
         if (parameter < symbol.parameterNames.size())
-          label = symbol.parameterNames[parameter] + ": ";
-        label += typeName(symbol.parameterTypes[parameter]);
+          label = symbol.parameterNames[parameter];
+        if (parameter < symbol.parameterTypes.size()) {
+          if (!label.empty()) label += ": ";
+          label += typeName(symbol.parameterTypes[parameter]);
+        }
         if (parameter < symbol.parameterDefaults.size() &&
             !symbol.parameterDefaults[parameter].empty())
           label += " = " + symbol.parameterDefaults[parameter];
@@ -1030,6 +1034,32 @@ void mergeHir(const HirModule& hir, const Module& ast,
       indexed.detail = detail.str();
     } else {
       indexed.detail = indexed.shortName + ": " + typeName(symbol.type);
+      if (symbol.type.kind == TypeKind::Struct &&
+          symbol.type.declaration.rfind("$closure.", 0) == 0) {
+        const std::string callableName = symbol.type.declaration + ".call";
+        const auto callable = std::find_if(
+            hir.symbols.begin(), hir.symbols.end(),
+            [&](const HirSymbol& candidate) { return candidate.name == callableName; });
+        if (callable != hir.symbols.end()) {
+          for (std::size_t parameter = 1;
+               parameter < callable->parameterTypes.size(); ++parameter) {
+            std::string label;
+            if (parameter < callable->parameterNames.size())
+              label = callable->parameterNames[parameter] + ": ";
+            label += typeName(callable->parameterTypes[parameter]);
+            indexed.parameters.push_back(std::move(label));
+          }
+          std::ostringstream detail;
+          detail << "fn " << indexed.shortName << '(';
+          for (std::size_t parameter = 0; parameter < indexed.parameters.size();
+               ++parameter) {
+            if (parameter) detail << ", ";
+            detail << indexed.parameters[parameter];
+          }
+          detail << ") -> " << typeName(callable->type);
+          indexed.detail = detail.str();
+        }
+      }
     }
     if (const auto* source = sourceFor(snapshot, symbol.location))
       indexed.documentation = documentationBefore(*source, symbol.location.line);
@@ -1056,6 +1086,41 @@ void mergeHir(const HirModule& hir, const Module& ast,
     snapshot.symbols.emplace(key, indexed);
     snapshot.occurrences.push_back({key, indexed.shortName, indexed.location,
                                     identifierLength(indexed.shortName), true});
+    if (declaration.kind == HirTypeDeclKind::Enum) {
+      for (const auto& variant : declaration.variants) {
+        const std::string variantKey =
+            symbolKey(variant.location, variant.name, "function");
+        SemanticSymbol variantSymbol;
+        variantSymbol.key = variantKey;
+        variantSymbol.name = variant.name;
+        variantSymbol.shortName = shortSymbolName(variant.name);
+        variantSymbol.kind = "function";
+        variantSymbol.location = declarationNameLocation(
+            snapshot, variant.location, variant.name);
+        variantSymbol.publicDeclaration = declaration.publicDeclaration;
+        for (std::size_t parameter = 0;
+             parameter < variant.payloadTypes.size(); ++parameter) {
+          std::string label;
+          if (parameter < variant.payloadNames.size())
+            label = variant.payloadNames[parameter] + ": ";
+          label += typeName(variant.payloadTypes[parameter]);
+          variantSymbol.parameters.push_back(std::move(label));
+        }
+        std::ostringstream detail;
+        detail << "fn " << variantSymbol.shortName << '(';
+        for (std::size_t parameter = 0;
+             parameter < variantSymbol.parameters.size(); ++parameter) {
+          if (parameter) detail << ", ";
+          detail << variantSymbol.parameters[parameter];
+        }
+        detail << ") -> " << shortSymbolName(declaration.name);
+        variantSymbol.detail = detail.str();
+        snapshot.symbols.emplace(variantKey, variantSymbol);
+        snapshot.occurrences.push_back(
+            {variantKey, variantSymbol.shortName, variantSymbol.location,
+             identifierLength(variantSymbol.shortName), true});
+      }
+    }
     for (const auto& field : declaration.fields) {
       const std::string fieldKey = symbolKey(field.location,
                                              declaration.name + "." + field.name,
@@ -2208,7 +2273,8 @@ private:
     }
     Json::Array signatures;
     for (const auto& [key, symbol] : snapshot_.symbols) {
-      if (symbol.kind != "function" ||
+      if ((symbol.kind != "function" &&
+           !(symbol.kind == "variable" && !symbol.parameters.empty())) ||
           (symbol.shortName != shortSymbolName(name) && symbol.name != name))
         continue;
       Json::Array parameters;

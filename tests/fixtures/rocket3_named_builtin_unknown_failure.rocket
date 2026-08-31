@@ -1,0 +1,3 @@
+fn main() -> Int:
+    print(vlue: 1)
+    return 0

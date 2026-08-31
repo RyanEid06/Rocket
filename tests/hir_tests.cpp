@@ -356,37 +356,73 @@ int main() {
       rocket::DiagnosticCode::Arity, "missing required argument 'left'",
       "omitted required arguments remain errors");
 
-  auto expectExcluded = [&](const std::string& source,
-                            const std::string& category) {
-    rocket::Diagnostics localDiagnostics;
-    auto result = rocket::test::lowerToHir(source, localDiagnostics);
-    rocket::test::expect(
-        !result.has_value() &&
-            hasDiagnostic(localDiagnostics, rocket::DiagnosticCode::Arity,
-                          "named arguments are not supported for " + category),
-        "named arguments reject excluded " + category + " callables", failures);
-  };
-  expectExcluded(
-      "fn main() -> Int:\n"
-      "    let identity = fn(value: Int) -> Int => value\n"
-      "    return identity(value: 1)\n",
-      "closure values");
-  expectExcluded(
-      "fn main() -> Int:\n"
-      "    return std.string.byte_length(value: \"rocket\")\n",
-      "standard-library intrinsics");
-  expectExcluded(
+  rocket::Diagnostics parityDiagnostics;
+  auto parity = rocket::test::lowerToHir(
       "enum Choice:\n"
-      "    Value(Int)\n"
+      "    Value(amount: Int, label: String)\n"
+      "    Legacy(Int)\n"
       "fn main() -> Int:\n"
-      "    let choice = Value(value: 1)\n"
-      "    return 0\n",
-      "enum constructors");
-  expectExcluded(
-      "fn main() -> Int:\n"
-      "    print(value: 1)\n"
-      "    return 0\n",
-      "built-in functions");
+      "    let combine = fn(left: Int, right: Int) -> Int => left * 10 + right\n"
+      "    let closure = combine(right: 2, left: 1)\n"
+      "    let invoked = (fn(left: Int, right: Int) -> Int => left * 10 + right)(right: 4, left: 3)\n"
+      "    let standard = \"a\".concat(right: \"b\")\n"
+      "    print(value: standard)\n"
+      "    let choice = Value(label: \"x\", amount: 5)\n"
+      "    return closure + invoked\n",
+      parityDiagnostics);
+  rocket::test::expect(
+      parity.has_value(),
+      "closure, immediately invoked lambda, built-in, and labeled enum calls accept named arguments",
+      failures);
+  if (parity.has_value()) {
+    const rocket::HirFunction* mainFunction = nullptr;
+    for (const auto& function : parity->functions)
+      if (parity->symbol(function.symbol).name == "main") mainFunction = &function;
+    bool closureNames = false;
+    bool standardNames = false;
+    bool builtinNames = false;
+    for (const auto& symbol : parity->symbols) {
+      if (symbol.name.find("$closure.") == 0 &&
+          symbol.name.ends_with(".call"))
+        closureNames = closureNames ||
+            symbol.parameterNames ==
+                std::vector<std::string>{"$closure", "left", "right"};
+      if (symbol.name.find("std.string.concat") == 0)
+        standardNames = symbol.parameterNames ==
+            std::vector<std::string>{"left", "right"};
+      if (symbol.name == "print")
+        builtinNames = symbol.parameterNames ==
+            std::vector<std::string>{"value"};
+    }
+    rocket::test::expect(
+        mainFunction != nullptr && closureNames && standardNames && builtinNames,
+        "HIR carries stable compiler-owned callable parameter names", failures);
+    if (mainFunction) {
+      const auto& closureBinding = static_cast<const rocket::HirBindingStmt&>(
+          *mainFunction->body[1]);
+      const auto& closureCall = static_cast<const rocket::HirCallExpr&>(
+          *closureBinding.initializer);
+      const auto& invokedBinding = static_cast<const rocket::HirBindingStmt&>(
+          *mainFunction->body[2]);
+      const auto& invokedCall = static_cast<const rocket::HirCallExpr&>(
+          *invokedBinding.initializer);
+      const auto& standardBinding = static_cast<const rocket::HirBindingStmt&>(
+          *mainFunction->body[3]);
+      const auto& standardCall = static_cast<const rocket::HirCallExpr&>(
+          *standardBinding.initializer);
+      const auto& choiceBinding = static_cast<const rocket::HirBindingStmt&>(
+          *mainFunction->body[5]);
+      const auto& choice = static_cast<const rocket::HirAggregateExpr&>(
+          *choiceBinding.initializer);
+      rocket::test::expect(
+          closureCall.argumentOrder == std::vector<std::size_t>{0, 2, 1} &&
+              invokedCall.argumentOrder == std::vector<std::size_t>{0, 2, 1} &&
+              standardCall.argumentOrder == std::vector<std::size_t>{0, 1} &&
+              choice.argumentOrder == std::vector<std::size_t>{1, 0},
+          "named callable HIR preserves written order and stores positional ABI order",
+          failures);
+    }
+  }
 
   rocket::Diagnostics genericLambdaDiagnostics;
   auto genericLambdas = rocket::test::lowerToHir(

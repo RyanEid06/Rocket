@@ -188,6 +188,19 @@ are frozen only at the designated public API gate.
   in stage0, self-host, formatter, LSP, documentation, editor, compatibility,
   and deterministic-bootstrap evidence.
 
+**WP11A acceptance (2026-08-31):** `R3-F02-001` through `R3-F02-012` are GREEN.
+The permanent C++20 stage0 and Rocket-written compiler now support named calls
+for closures, immediately invoked lambdas, all registered standard intrinsics,
+the `print` built-in, and explicitly labeled enum payloads. Public payload
+labels cross module boundaries; legacy anonymous payloads remain positional-only
+and mixed labeled/anonymous declarations are rejected. HIR/MIR preserve callee
+and written-operand order before positional normalization, with runtime ABI v1
+and backend ABI unchanged. Formatter, LSP, generated documentation/search
+metadata, VS Code, and Visual Studio share the same syntax and names. Fresh
+Debug and Release suites passed `228/228`; the LLVM-disabled predecessor gate
+passed `19/19`; and deterministic stage2/stage3 IR matched at SHA-256
+`d6a8e980c386837045a0e84ad997ac3024149663e697ed76593d16be968c632f`.
+
 ### F03 - Default arguments
 
 - `R3-F03-001`: Ordinary functions and methods may declare defaults; required

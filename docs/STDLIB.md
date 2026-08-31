@@ -22,6 +22,14 @@ Recoverable operating-system, parsing, and conversion failures return
 Only violated programmer contracts, such as an invalid random range or a
 negative sleep duration, terminate through the runtime error path.
 
+Every parameter name shown in this inventory is a stable source-compatibility
+commitment and may be used in named calls. Module-function and dot-call forms
+share the same compiler-owned names; a dot-call receiver supplies the first
+listed parameter before any written named operands. Stage0, the self-hosted
+compiler, signature help, and generated documentation use one matching metadata
+inventory. Changing a public standard-library parameter name is therefore a
+source-versioning event even though runtime ABI v1 remains unchanged.
+
 ## `std.string`
 
 | Function | Result | Meaning |

@@ -216,14 +216,17 @@ The precise transport, lifecycle, diagnostic, and security contract is in
 navigation, rename, semantic tokens, and code actions.
 
 Named/default-argument syntax is editor-neutral: the shared formatter
-canonicalizes `name: expression` and `name: Type = expression`, diagnostics use
-the same stable codes in every client, and signature help exposes declared
-parameter names, types, and canonical defaults across package modules.
+canonicalizes `name: expression`, labeled enum entries such as `name: Type`, and
+`name: Type = expression`; diagnostics use the same stable codes in every
+client. Signature help exposes declared function, closure, and enum-payload
+names plus compiler-owned built-in and standard-intrinsic names, types, and
+canonical defaults across package modules.
 Documentation search metadata emits a `defaults` array aligned with
-`parameters`, using `null` for required operands. VS Code and Visual Studio use
-the same `rocket-lsp` analysis and need no editor-specific semantic fork; their
-existing Rocket grammars already tokenize the identifiers, colons, and equals
-signs used by declarations and calls.
+`parameters`, using `null` for required operands, a `payloadLabels` array for
+public enums, and a deterministic `compilerCallables` inventory. VS Code and
+Visual Studio use the same `rocket-lsp` analysis and need no editor-specific
+semantic fork; their existing Rocket grammars already tokenize the identifiers,
+colons, and equals signs used by declarations and calls.
 
 ## Visual Studio 2026
 

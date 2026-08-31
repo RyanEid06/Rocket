@@ -1,2 +1,0 @@
-fn main() -> Int:
-    return std.string.byte_length(value: "rocket")

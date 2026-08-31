@@ -1,0 +1,3 @@
+fn main() -> Int:
+    let combine = fn(left: Int, right: Int) -> Int => left + right
+    return combine(1, left: 2)

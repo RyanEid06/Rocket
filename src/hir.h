@@ -10,12 +10,16 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace rocket {
 
 using SymbolId = std::uint32_t;
 inline constexpr SymbolId InvalidSymbol = static_cast<SymbolId>(-1);
+
+const std::vector<std::pair<std::string, std::vector<std::string>>>&
+compilerCallableParameterNames();
 
 enum class SymbolKind {
   BuiltinFunction, Function, Parameter, Local, LoopVariable, PatternBinding
@@ -571,6 +575,7 @@ struct HirField {
 struct HirVariant {
   std::string name;
   Location location;
+  std::vector<std::string> payloadNames;
   std::vector<Type> payloadTypes;
 };
 
@@ -649,6 +654,7 @@ private:
   };
   struct StandardFunction {
     std::vector<std::string> typeParameters;
+    std::vector<std::string> parameterNames;
     std::vector<Type> parameterTypes;
     Type result = Type::Invalid;
     Intrinsic intrinsic = Intrinsic::None;
@@ -690,7 +696,12 @@ private:
                                            std::optional<Type> expected = std::nullopt);
   std::unique_ptr<HirExpr> lowerResolvedCall(
       const std::string& name, const Location& location,
-      std::vector<std::unique_ptr<HirExpr>> arguments);
+      std::vector<std::unique_ptr<HirExpr>> arguments,
+      std::vector<std::size_t> argumentOrder = {});
+  std::unique_ptr<HirExpr> lowerNamedStandardCall(
+      const std::string& name, const Location& location,
+      std::vector<std::unique_ptr<HirExpr>> leadingArguments,
+      const std::vector<std::unique_ptr<Expr>>& sourceArguments);
   std::unique_ptr<HirExpr> lowerNamedUserCall(
       const std::string& name, const Location& location,
       std::vector<std::unique_ptr<HirExpr>> leadingArguments,

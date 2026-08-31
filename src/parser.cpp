@@ -513,10 +513,24 @@ EnumDecl Parser::parseEnum(bool isPublic) {
   while (!at(TokenKind::Dedent) && !at(TokenKind::End)) {
     if (match(TokenKind::Newline)) continue;
     const Token variant = consume(TokenKind::Identifier, "expected variant name");
+    std::vector<std::string> payloadNames;
     std::vector<std::string> payloadTypes;
     if (match(TokenKind::LParen)) {
       if (!at(TokenKind::RParen)) {
+        bool sawLabeled = false;
+        bool sawAnonymous = false;
         do {
+          std::string payloadName;
+          if (at(TokenKind::Identifier) && index_ + 1 < tokens_.size() &&
+              tokens_[index_ + 1].kind == TokenKind::Colon) {
+            payloadName = current().text;
+            ++index_;
+            consume(TokenKind::Colon, "expected ':' after enum payload label");
+            sawLabeled = true;
+          } else {
+            sawAnonymous = true;
+          }
+          payloadNames.push_back(std::move(payloadName));
           payloadTypes.push_back(parseTypeName());
           if (match(TokenKind::Equal)) {
             diagnostics_.error(
@@ -526,11 +540,20 @@ EnumDecl Parser::parseEnum(bool isPublic) {
             (void)parseExpression();
           }
         } while (match(TokenKind::Comma));
+        if (sawLabeled && sawAnonymous)
+          diagnostics_.error(
+              variant.location,
+              "enum variant '" + variant.text +
+                  "' cannot mix labeled and anonymous payload entries",
+              DiagnosticCode::Arity);
+        else if (!sawLabeled)
+          payloadNames.clear();
       }
       consume(TokenKind::RParen, "expected ')' after variant payload types");
     }
     consume(TokenKind::Newline, "expected newline after enum variant");
-    variants.push_back({variant.text, variant.location, std::move(payloadTypes)});
+    variants.push_back({variant.text, variant.location, std::move(payloadNames),
+                        std::move(payloadTypes)});
   }
   consume(TokenKind::Dedent, "expected end of enum body");
   return {name.text, start.location, isPublic, std::move(typeParameters), std::move(variants)};

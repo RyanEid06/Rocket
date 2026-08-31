@@ -1,0 +1,44 @@
+import std.string
+
+enum Choice:
+    Labeled(amount: Int, label: String)
+    Legacy(Int)
+
+fn mark(value: Int) -> Int:
+    print(value)
+    return value
+
+fn mark_text(marker: Int, value: String) -> String:
+    print(marker)
+    return value
+
+fn read(choice: Choice) -> Int:
+    match choice:
+        case Labeled(amount, label):
+            print(label)
+            return amount
+        case Legacy(amount):
+            print("legacy")
+            return amount
+
+fn main() -> Int:
+    let combine = fn(left: Int, right: Int) -> Int => left * 10 + right
+    print(combine(1, 2))
+    print(combine(left: 3, right: 4))
+    print(combine(right: mark(6), left: mark(5)))
+    print(combine(7, right: 8))
+    print((fn(left: Int, right: Int) -> Int => left * 10 + right)(1, 2))
+    print((fn(left: Int, right: Int) -> Int => left * 10 + right)(left: 3, right: 4))
+    print((fn(left: Int, right: Int) -> Int => left * 10 + right)(right: mark(10), left: mark(9)))
+    print((fn(left: Int, right: Int) -> Int => left * 10 + right)(11, right: 12))
+    print(string.concat("a", "b"))
+    print(string.concat(left: "c", right: "d"))
+    print(string.concat(right: mark_text(14, "f"), left: mark_text(13, "e")))
+    print(string.concat("g", right: "h"))
+    print(value: mark(15))
+    print(read(Labeled(16, "p")))
+    print(read(Labeled(amount: 17, label: "q")))
+    print(read(Labeled(label: mark_text(19, "r"), amount: mark(18))))
+    print(read(Labeled(20, label: "s")))
+    print(read(Legacy(21)))
+    return 0

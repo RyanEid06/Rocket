@@ -1,6 +1,0 @@
-enum Choice:
-    Value(Int)
-
-fn main() -> Int:
-    let choice = Value(value: 1)
-    return 0

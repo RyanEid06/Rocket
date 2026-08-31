@@ -50,11 +50,7 @@ set(failures
   "rocket3_named_duplicate_failure.rocket|R4005|duplicate named argument 'left'"
   "rocket3_named_missing_failure.rocket|R4005|missing required argument 'right'"
   "rocket3_named_conflict_failure.rocket|R4005|argument 'left' is already supplied positionally"
-  "rocket3_named_wrong_type_failure.rocket|R4001|argument 'left' has type String, expected Int"
-  "rocket3_named_closure_failure.rocket|R4005|named arguments are not supported for closure values"
-  "rocket3_named_standard_failure.rocket|R4005|named arguments are not supported for standard-library intrinsics"
-  "rocket3_named_enum_failure.rocket|R4005|named arguments are not supported for enum constructors"
-  "rocket3_named_builtin_failure.rocket|R4005|named arguments are not supported for built-in functions")
+  "rocket3_named_wrong_type_failure.rocket|R4001|argument 'left' has type String, expected Int")
 
 foreach(case IN LISTS failures)
   string(REPLACE "|" ";" fields "${case}")

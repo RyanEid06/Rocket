@@ -348,12 +348,24 @@ They may use earlier parameters and declarations visible there, but not later
 parameters or names visible only at the call site. Generic defaults participate
 in the same deterministic type inference as explicit operands.
 
-Direct functions and methods accept positional arguments, all-named arguments,
-or positional arguments followed by named arguments. A named argument uses
-`parameter: expression`; names bind to declared parameters and may be reordered.
-No positional argument may follow the first named argument. An explicit
-positional or named operand overrides its parameter's default; omitting a
-required operand is an error.
+Functions, methods, extern functions, struct constructors, closure values,
+immediately invoked lambdas, compiler built-ins, standard-library intrinsics,
+and labeled enum variants accept positional arguments, all-named arguments, or
+positional arguments followed by named arguments. A named argument uses
+`parameter: expression`; names bind to declared parameters or fields and may be
+reordered. No positional argument may follow the first named argument. An
+explicit positional or named operand overrides its parameter's default;
+omitting a required operand is an error.
+
+An enum variant may label every payload entry, for example
+`Value(amount: Int, label: String)`. Labeled variants use those labels for named
+construction and retain them in cross-module metadata. Legacy anonymous
+payload declarations such as `Value(Int, String)` remain valid and
+positional-only. One variant may not mix labeled and anonymous payload entries.
+Public function parameter names, compiler-owned intrinsic and built-in names,
+and public enum-payload labels are source-compatibility commitments. Closure
+parameter names are local source contracts and are not exported as runtime ABI
+symbols.
 
 The callee or method receiver is evaluated first, followed by written argument
 expressions left-to-right, then omitted defaults in parameter order. HIR records
@@ -366,9 +378,8 @@ default therefore changes caller behavior and is an API/source-versioning event;
 dependents must be recompiled against the intended package version.
 
 Defaults remain unsupported for lambda and callback parameters, trait method
-declarations, enum payloads, extern functions, and struct fields. Named
-arguments remain unsupported for closure values, enum constructors, built-in
-functions, and standard-library intrinsics. Variadic arguments remain reserved.
+declarations, enum payloads, extern functions, and struct fields. Variadic
+arguments remain reserved.
 User generic specialization is deterministic and capped at 4,096 generated
 instances per compilation.
 

@@ -269,6 +269,43 @@ int main() {
       importActionCount == 2,
       "missing-import code actions are deterministic and idempotent after application",
       failures);
+
+  std::string callableInput;
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","method":"initialized","params":{}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket","languageId":"rocket","version":1,"text":"import std.string\nenum Choice:\n    Value(amount: Int, label: String)\nfn helper() -> Int:\n    let combine = fn(left: Int, right: Int) -> Int => left + right\n    print(value: combine(right: 2, left: 1))\n    let text = string.concat(right: \"b\", left: \"a\")\n    let choice = Value(label: text, amount: 3)\n    return 0\n"}}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","id":3,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":5,"character":10}}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","id":4,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":5,"character":25}}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","id":5,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":6,"character":29}}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","id":6,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":7,"character":23}}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null})");
+  callableInput += frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream callableRequests(callableInput);
+  std::ostringstream callableResponses;
+  std::ostringstream callableLog;
+  rocket::LanguageServer callableServer(
+      callableRequests, callableResponses, callableLog);
+  const int callableStatus = callableServer.run();
+  const std::string callableOutput = callableResponses.str();
+  rocket::test::expect(
+      callableStatus == 0 &&
+          callableOutput.find("\"label\":\"value\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"left: Int\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"right: Int\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"left: String\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"right: String\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"amount: Int\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"label: String\"") != std::string::npos,
+      "signature help exposes built-in, closure, intrinsic, and enum payload parameter names",
+      failures);
   rocket::test::expect(
       semanticElapsed < 5000,
       "multi-document incomplete-code protocol latency remains below five seconds",

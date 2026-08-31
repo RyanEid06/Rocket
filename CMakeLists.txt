@@ -468,6 +468,17 @@ set_tests_properties(rocket3_default_arguments_stage0 PROPERTIES
   TIMEOUT 180
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_named_callable_parity_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp11a/${CMAKE_BUILD_TYPE}/stage0"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_callable_parity_test.cmake")
+set_tests_properties(rocket3_named_callable_parity_stage0 PROPERTIES
+  LABELS "rocket3;wp11a;named-callable-parity;stage0"
+  TIMEOUT 240
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_executable(rocket_phase14_raylib_adapter_tests
   tests/native/phase14_raylib_adapter_tests.cpp)
 target_link_libraries(rocket_phase14_raylib_adapter_tests PRIVATE
@@ -745,6 +756,17 @@ set_tests_properties(rocket3_default_arguments_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp11;default-arguments;selfhost"
   TIMEOUT 240
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket3_named_callable_parity_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp11a/${CMAKE_BUILD_TYPE}/self-hosted"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_callable_parity_test.cmake")
+set_tests_properties(rocket3_named_callable_parity_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp11a;named-callable-parity;selfhost"
+  TIMEOUT 300
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME cli_run_self_hosted_syntax_check
   COMMAND "${ROCKET_SELFHOST_COMPILER}" --check-syntax

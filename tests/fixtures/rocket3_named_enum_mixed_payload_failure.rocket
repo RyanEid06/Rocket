@@ -1,0 +1,5 @@
+enum Choice:
+    Value(amount: Int, String)
+
+fn main() -> Int:
+    return 0

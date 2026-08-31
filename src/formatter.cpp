@@ -25,6 +25,7 @@ bool binary(TokenKind kind) {
          kind == TokenKind::BangEqual || kind == TokenKind::Less ||
          kind == TokenKind::LessEqual || kind == TokenKind::Greater ||
          kind == TokenKind::GreaterEqual || kind == TokenKind::Arrow ||
+         kind == TokenKind::FatArrow ||
          kind == TokenKind::KwAnd || kind == TokenKind::KwOr;
 }
 

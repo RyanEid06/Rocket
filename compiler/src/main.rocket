@@ -104,6 +104,7 @@ struct AstStructDecl:
 
 struct AstEnumVariant:
     name: String
+    payload_names: Array[String]
     payload_types: Array[String]
     line: Int
     column: Int
@@ -2679,13 +2680,24 @@ fn parse_enum(state: ParserState, public_declaration: Bool) -> EnumResult:
             continue
         let variant = consume_token(next, kind_identifier(), "expected variant name")
         next = variant.state
+        var payload_names: Array[String] = []
         var payload_types: Array[String] = []
+        var saw_labeled = false
+        var saw_anonymous = false
         let parenthesis = match_token(next, kind_lparen())
         next = parenthesis.state
         if parenthesis.matched:
             if not at_token(next, kind_rparen()):
                 while true:
+                    var payload_name = ""
+                    if at_token(next, kind_identifier()) and next.index + 1 < collections.length(next.tokens) and next.tokens[next.index + 1].kind == kind_colon():
+                        payload_name = current_token(next).text
+                        next = advance_parser(advance_parser(next))
+                        saw_labeled = true
+                    else:
+                        saw_anonymous = true
                     let payload = parse_type_name(next)
+                    payload_names = append(payload_names, payload_name)
                     payload_types = append(payload_types, payload.name)
                     next = payload.state
                     let equal = match_token(next, kind_equal())
@@ -2699,8 +2711,12 @@ fn parse_enum(state: ParserState, public_declaration: Bool) -> EnumResult:
                         break
             let close = consume_token(next, kind_rparen(), "expected ')' after variant payload types")
             next = close.state
+        if saw_labeled and saw_anonymous:
+            next = parser_issue(next, variant.token, "R4005", string.concat("enum variant '", string.concat(variant.token.text, "' cannot mix labeled and anonymous payload entries")))
+        if not saw_labeled:
+            payload_names = []
         let variant_newline = consume_token(next, kind_newline(), "expected newline after enum variant")
-        variants = append(variants, AstEnumVariant(variant.token.text, payload_types, variant.token.line, variant.token.column))
+        variants = append(variants, AstEnumVariant(variant.token.text, payload_names, payload_types, variant.token.line, variant.token.column))
         next = variant_newline.state
     let closing = consume_token(next, kind_dedent(), "expected end of enum body")
     return EnumResult(AstEnumDecl(name.token.text, public_declaration, type_parameters.values, variants, keyword.token.line, keyword.token.column), closing.state)
@@ -3328,7 +3344,7 @@ fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
             var payload_types: Array[String] = []
             for payload_index in 0..collections.length(variant.payload_types):
                 payload_types = append(payload_types, mapped_local_type(module, prefix_name, variant.payload_types[payload_index]))
-            variants = append(variants, AstEnumVariant(mapped_declaration_name(prefix_name, variant.name, declaration.public_declaration), payload_types, variant.line, variant.column))
+            variants = append(variants, AstEnumVariant(mapped_declaration_name(prefix_name, variant.name, declaration.public_declaration), variant.payload_names, payload_types, variant.line, variant.column))
         enums = append(enums, AstEnumDecl(mapped_declaration_name(prefix_name, declaration.name, declaration.public_declaration), declaration.public_declaration, declaration.type_parameters, variants, declaration.line, declaration.column))
     var traits: Array[AstTraitDecl] = []
     for trait_index in 0..collections.length(module.traits):
@@ -4364,9 +4380,543 @@ fn specialization_key(name: String, substitutions: Substitutions, parameters: Ar
         arguments = append(arguments, substitution_value(substitutions, parameters[index]))
     return string.concat(name, string.concat("[", string.concat(collections.join(arguments, ","), "]")))
 
+fn standard_parameter_names(name: String) -> Array[String]:
+    if name == "std.string.byte_length":
+        return ["value"]
+    if name == "std.string.concat":
+        return ["left", "right"]
+    if name == "std.string.contains":
+        return ["value", "needle"]
+    if name == "std.string.starts_with":
+        return ["value", "prefix"]
+    if name == "std.string.ends_with":
+        return ["value", "suffix"]
+    if name == "std.string.trim":
+        return ["value"]
+    if name == "std.string.split":
+        return ["value", "delimiter"]
+    if name == "std.string.byte_at":
+        return ["value", "index"]
+    if name == "std.string.byte_value_at":
+        return ["value", "index"]
+    if name == "std.string.slice":
+        return ["value", "start", "end"]
+    if name == "std.string.parse_int":
+        return ["value"]
+    if name == "std.string.from_int":
+        return ["value"]
+    if name == "std.string.builder":
+        return []
+    if name == "std.string.builder_append":
+        return ["builder", "value"]
+    if name == "std.string.builder_finish":
+        return ["builder"]
+    if name == "std.collections.length":
+        return ["values"]
+    if name == "std.collections.slice_length":
+        return ["values"]
+    if name == "std.collections.capacity":
+        return ["values"]
+    if name == "std.collections.reserve":
+        return ["values", "minimum"]
+    if name == "std.collections.append":
+        return ["values", "value"]
+    if name == "std.collections.pop":
+        return ["values"]
+    if name == "std.collections.insert":
+        return ["values", "index", "value"]
+    if name == "std.collections.remove":
+        return ["values", "index"]
+    if name == "std.collections.clear":
+        return ["values"]
+    if name == "std.collections.map_from_arrays":
+        return ["keys", "values"]
+    if name == "std.collections.map_length":
+        return ["map"]
+    if name == "std.collections.map_find":
+        return ["map", "key"]
+    if name == "std.collections.map_get":
+        return ["map", "key"]
+    if name == "std.collections.map_keys":
+        return ["map"]
+    if name == "std.collections.map_values":
+        return ["map"]
+    if name == "std.collections.set_from_array":
+        return ["values"]
+    if name == "std.collections.set_contains":
+        return ["set", "value"]
+    if name == "std.collections.set_values":
+        return ["set"]
+    if name == "std.collections.hash":
+        return ["value"]
+    if name == "std.collections.contains":
+        return ["values", "value"]
+    if name == "std.collections.find":
+        return ["values", "value"]
+    if name == "std.collections.filter_equal":
+        return ["values", "value"]
+    if name == "std.collections.sort_int":
+        return ["values"]
+    if name == "std.collections.sort_float":
+        return ["values"]
+    if name == "std.collections.sort_char":
+        return ["values"]
+    if name == "std.collections.sort_string":
+        return ["values"]
+    if name == "std.collections.map_hash":
+        return ["values"]
+    if name == "std.collections.fold_sum_int":
+        return ["values"]
+    if name == "std.collections.fold_sum_float":
+        return ["values"]
+    if name == "std.collections.reverse":
+        return ["values"]
+    if name == "std.collections.concat":
+        return ["left", "right"]
+    if name == "std.collections.join":
+        return ["values", "separator"]
+    if name == "std.file.read_text":
+        return ["path"]
+    if name == "std.file.write_text":
+        return ["path", "contents"]
+    if name == "std.file.append_text":
+        return ["path", "contents"]
+    if name == "std.file.exists":
+        return ["path"]
+    if name == "std.file.remove":
+        return ["path"]
+    if name == "std.file.list":
+        return ["path"]
+    if name == "std.file.create_directory":
+        return ["path"]
+    if name == "std.file.read_binary":
+        return ["path"]
+    if name == "std.file.write_binary":
+        return ["path", "buffer"]
+    if name == "std.file.append_binary":
+        return ["path", "buffer"]
+    if name == "std.binary.from_string":
+        return ["value"]
+    if name == "std.binary.to_string":
+        return ["buffer"]
+    if name == "std.binary.length":
+        return ["buffer"]
+    if name == "std.binary.slice":
+        return ["buffer", "offset", "length"]
+    if name == "std.binary.read_u8":
+        return ["buffer", "offset"]
+    if name == "std.binary.read_u16_le":
+        return ["buffer", "offset"]
+    if name == "std.binary.read_u32_le":
+        return ["buffer", "offset"]
+    if name == "std.binary.write_u8":
+        return ["value"]
+    if name == "std.binary.write_u16_le":
+        return ["value"]
+    if name == "std.binary.write_u32_le":
+        return ["value"]
+    if name == "std.binary.concat":
+        return ["left", "right"]
+    if name == "std.binary.read_u16_be":
+        return ["buffer", "offset"]
+    if name == "std.binary.read_u32_be":
+        return ["buffer", "offset"]
+    if name == "std.binary.write_u16_be":
+        return ["value"]
+    if name == "std.binary.write_u32_be":
+        return ["value"]
+    if name == "std.stream.open_reader":
+        return ["path", "buffer_size"]
+    if name == "std.stream.read":
+        return ["handle", "maximum"]
+    if name == "std.stream.close_reader":
+        return ["handle"]
+    if name == "std.stream.open_writer":
+        return ["path", "buffer_size", "append"]
+    if name == "std.stream.write":
+        return ["handle", "buffer"]
+    if name == "std.stream.flush":
+        return ["handle"]
+    if name == "std.stream.close_writer":
+        return ["handle"]
+    if name == "std.unicode.scalar_count":
+        return ["value"]
+    if name == "std.unicode.scalar_at":
+        return ["value", "index"]
+    if name == "std.unicode.from_scalar":
+        return ["value"]
+    if name == "std.unicode.normalize_nfc":
+        return ["value"]
+    if name == "std.unicode.normalize_nfd":
+        return ["value"]
+    if name == "std.unicode.grapheme_count":
+        return ["value"]
+    if name == "std.unicode.grapheme_at":
+        return ["value", "index"]
+    if name == "std.regex.is_match":
+        return ["pattern", "value"]
+    if name == "std.regex.find_all":
+        return ["pattern", "value"]
+    if name == "std.regex.replace_all":
+        return ["pattern", "value", "replacement"]
+    if name == "std.crypto.secure_bytes":
+        return ["length"]
+    if name == "std.crypto.secure_int":
+        return ["minimum", "maximum"]
+    if name == "std.crypto.sha256":
+        return ["value"]
+    if name == "std.crypto.hmac_sha256":
+        return ["key", "value"]
+    if name == "std.crypto.constant_time_equal":
+        return ["left", "right"]
+    if name == "std.crypto.verify_signed_file":
+        return ["path"]
+    if name == "std.net.resolve":
+        return ["host", "service"]
+    if name == "std.net.tcp_connect":
+        return ["host", "port", "timeout_ms"]
+    if name == "std.net.tcp_listen":
+        return ["address", "port", "backlog"]
+    if name == "std.net.accept":
+        return ["listener", "timeout_ms"]
+    if name == "std.net.send":
+        return ["handle", "bytes", "timeout_ms"]
+    if name == "std.net.receive":
+        return ["handle", "maximum", "timeout_ms"]
+    if name == "std.net.close":
+        return ["handle"]
+    if name == "std.net.cancel":
+        return ["handle"]
+    if name == "std.net.local_port":
+        return ["handle"]
+    if name == "std.http.request":
+        return ["method", "url", "body", "timeout_ms"]
+    if name == "std.http.read_request":
+        return ["connection", "maximum", "timeout_ms"]
+    if name == "std.http.write_response":
+        return ["connection", "status", "content_type", "body", "timeout_ms"]
+    if name == "std.datetime.format_utc":
+        return ["unix_ms"]
+    if name == "std.datetime.parse_utc":
+        return ["text"]
+    if name == "std.datetime.days_in_month":
+        return ["year", "month"]
+    if name == "std.datetime.weekday":
+        return ["year", "month", "day"]
+    if name == "std.datetime.local_offset_minutes":
+        return ["unix_ms"]
+    if name == "std.datetime.timezone_name":
+        return []
+    if name == "std.log.write":
+        return ["level", "message"]
+    if name == "std.log.append":
+        return ["path", "level", "message"]
+    if name == "std.cli.has_flag":
+        return ["arguments", "name"]
+    if name == "std.cli.option":
+        return ["arguments", "name"]
+    if name == "std.cli.positionals":
+        return ["arguments"]
+    if name == "std.config.get":
+        return ["text", "key"]
+    if name == "std.config.load":
+        return ["path", "key"]
+    if name == "std.compression.xpress_compress":
+        return ["bytes"]
+    if name == "std.compression.xpress_decompress":
+        return ["bytes"]
+    if name == "std.archive.tar_create":
+        return ["path", "names", "contents"]
+    if name == "std.archive.tar_list":
+        return ["path"]
+    if name == "std.archive.tar_read":
+        return ["path", "name"]
+    if name == "std.sqlite.open":
+        return ["path"]
+    if name == "std.sqlite.execute":
+        return ["handle", "sql", "parameters"]
+    if name == "std.sqlite.query":
+        return ["handle", "sql", "parameters"]
+    if name == "std.sqlite.close":
+        return ["handle"]
+    if name == "std.testing_core.assert":
+        return ["condition", "message"]
+    if name == "std.testing_core.equal_int":
+        return ["actual", "expected", "message"]
+    if name == "std.testing_core.equal_string":
+        return ["actual", "expected", "message"]
+    if name == "std.testing_core.temp_directory":
+        return ["prefix"]
+    if name == "std.testing_core.fixture_path":
+        return ["root", "relative"]
+    if name == "std.testing_core.cleanup_temp":
+        return ["root"]
+    if name == "std.testing_core.coverage_hit":
+        return ["name"]
+    if name == "std.testing_core.coverage_write":
+        return ["path"]
+    if name == "std.path.join":
+        return ["left", "right"]
+    if name == "std.path.basename":
+        return ["path"]
+    if name == "std.path.extension":
+        return ["path"]
+    if name == "std.path.normalize":
+        return ["path"]
+    if name == "std.json.parse":
+        return ["text"]
+    if name == "std.json.stringify":
+        return ["value"]
+    if name == "std.csv.parse":
+        return ["text"]
+    if name == "std.csv.encode":
+        return ["rows"]
+    if name == "std.random.seed":
+        return ["value"]
+    if name == "std.random.int":
+        return ["minimum", "maximum"]
+    if name == "std.random.float":
+        return []
+    if name == "std.process.run":
+        return ["program", "arguments"]
+    if name == "std.process.arguments":
+        return []
+    if name == "std.process.executable_path":
+        return []
+    if name == "std.process.environment":
+        return ["name"]
+    if name == "std.process.working_directory":
+        return []
+    if name == "std.target.alias":
+        return []
+    if name == "std.target.triple":
+        return []
+    if name == "std.target.os":
+        return []
+    if name == "std.target.architecture":
+        return []
+    if name == "std.target.environment":
+        return []
+    if name == "std.target.pointer_width":
+        return []
+    if name == "std.target.endianness":
+        return []
+    if name == "std.target.has_feature":
+        return ["name"]
+    if name == "std.time.unix_milliseconds":
+        return []
+    if name == "std.time.monotonic_milliseconds":
+        return []
+    if name == "std.time.sleep_milliseconds":
+        return ["value"]
+    if name == "std.task.join":
+        return ["task"]
+    if name == "std.task.is_complete":
+        return ["task"]
+    if name == "std.task.cancel":
+        return ["task"]
+    if name == "std.task.group":
+        return ["tasks"]
+    if name == "std.task.group_join":
+        return ["group"]
+    if name == "std.task.group_cancel":
+        return ["group"]
+    if name == "std.thread.spawn":
+        return ["task"]
+    if name == "std.thread.join":
+        return ["thread"]
+    if name == "std.thread.detach":
+        return ["thread"]
+    if name == "std.thread.is_complete":
+        return ["thread"]
+    if name == "std.ownership.downgrade":
+        return ["value"]
+    if name == "std.ownership.upgrade":
+        return ["value"]
+    if name == "std.ownership.expired":
+        return ["value"]
+    if name == "std.buffer.thaw":
+        return ["values"]
+    if name == "std.buffer.length":
+        return ["buffer"]
+    if name == "std.buffer.capacity":
+        return ["buffer"]
+    if name == "std.buffer.get":
+        return ["buffer", "index"]
+    if name == "std.buffer.set":
+        return ["buffer", "index", "value"]
+    if name == "std.buffer.append":
+        return ["buffer", "value"]
+    if name == "std.buffer.slice":
+        return ["buffer", "start", "end"]
+    if name == "std.buffer.freeze":
+        return ["buffer"]
+    if name == "std.cancel.token":
+        return []
+    if name == "std.cancel.child":
+        return ["parent"]
+    if name == "std.cancel.current":
+        return []
+    if name == "std.cancel.cancel":
+        return ["token"]
+    if name == "std.cancel.is_cancelled":
+        return ["token"]
+    if name == "std.cancel.check":
+        return ["token"]
+    if name == "std.async_time.deadline_after":
+        return ["milliseconds"]
+    if name == "std.async_time.remaining":
+        return ["deadline"]
+    if name == "std.async_time.sleep":
+        return ["milliseconds", "token"]
+    if name == "std.async_time.sleep_until":
+        return ["deadline", "token"]
+    if name == "std.async_file.read":
+        return ["path", "maximum", "token"]
+    if name == "std.async_file.write":
+        return ["path", "bytes", "append", "token"]
+    if name == "std.async_net.connect":
+        return ["host", "port", "deadline", "token"]
+    if name == "std.async_net.accept":
+        return ["listener", "deadline", "token"]
+    if name == "std.async_net.receive":
+        return ["socket", "maximum", "deadline", "token"]
+    if name == "std.async_net.send":
+        return ["socket", "bytes", "deadline", "token"]
+    if name == "std.async_net.shutdown":
+        return ["socket"]
+    if name == "std.async_process.run":
+        return ["program", "arguments", "deadline", "token"]
+    if name == "std.sync.mutex":
+        return ["value"]
+    if name == "std.sync.lock":
+        return ["mutex", "deadline", "token"]
+    if name == "std.sync.guard_get":
+        return ["guard"]
+    if name == "std.sync.guard_set":
+        return ["guard", "value"]
+    if name == "std.sync.unlock":
+        return ["guard"]
+    if name == "std.sync.event":
+        return ["manual_reset", "initially_set"]
+    if name == "std.sync.event_set":
+        return ["event"]
+    if name == "std.sync.event_reset":
+        return ["event"]
+    if name == "std.sync.event_wait":
+        return ["event", "deadline", "token"]
+    if name == "std.sync.atomic_int":
+        return ["value"]
+    if name == "std.sync.atomic_load":
+        return ["value"]
+    if name == "std.sync.atomic_store":
+        return ["value", "replacement"]
+    if name == "std.sync.atomic_fetch_add":
+        return ["value", "delta"]
+    if name == "std.sync.atomic_compare_exchange":
+        return ["value", "expected", "replacement"]
+    if name == "std.sync.once":
+        return ["value"]
+    if name == "std.sync.once_empty":
+        return ["type_witness"]
+    if name == "std.sync.once_set":
+        return ["cell", "value"]
+    if name == "std.sync.once_get":
+        return ["cell"]
+    if name == "std.channel.bounded":
+        return ["initial", "capacity"]
+    if name == "std.channel.unbounded":
+        return ["initial"]
+    if name == "std.channel.sender":
+        return ["channel"]
+    if name == "std.channel.receiver":
+        return ["channel"]
+    if name == "std.channel.clone_sender":
+        return ["sender"]
+    if name == "std.channel.clone_receiver":
+        return ["receiver"]
+    if name == "std.channel.send":
+        return ["sender", "value", "deadline", "token"]
+    if name == "std.channel.receive":
+        return ["receiver", "deadline", "token"]
+    if name == "std.channel.close_sender":
+        return ["sender"]
+    if name == "std.channel.close_receiver":
+        return ["receiver"]
+    return []
+
+fn named_standard_call(state: LowerState, expression: AstExpr, name: String, signature: StandardSignature, arguments: Array[AstExpr]) -> HirExprResult:
+    let parameter_names = standard_parameter_names(name)
+    var defaultable: Array[Bool] = []
+    for index in 0..collections.length(parameter_names):
+        defaultable = append(defaultable, false)
+    let binding = bind_named_arguments(state, arguments, parameter_names, defaultable, expression.line, expression.column)
+    var next = binding.state
+    if collections.length(parameter_names) != collections.length(signature.parameter_types):
+        next = lower_issue(next, "R4005", expression.line, expression.column, string.concat("named argument metadata is unavailable for '", string.concat(name, "'")))
+    let dummy_source = AstExpr(expr_integer(), "0", [], expression.line, expression.column)
+    let dummy = hir_expression(expr_integer(), "0", "<invalid>", [], -1, -1, dummy_source)
+    var lowered_arguments: Array[HirExpr] = []
+    for index in 0..collections.length(signature.parameter_types):
+        lowered_arguments = append(lowered_arguments, dummy)
+    for source in 0..collections.length(arguments):
+        let parameter = binding.source_to_parameter[source]
+        if parameter >= 0 and parameter < collections.length(signature.parameter_types):
+            var expected = signature.parameter_types[parameter]
+            if contains_type_parameter(expected, signature.type_parameters):
+                expected = ""
+            var argument_state = next
+            let borrows_buffer = parameter == 0 and(signature.intrinsic == intrinsic_buffer_length() or signature.intrinsic == intrinsic_buffer_capacity() or signature.intrinsic == intrinsic_buffer_get() or signature.intrinsic == intrinsic_sync_guard_get() or signature.intrinsic == intrinsic_sync_guard_set() or signature.intrinsic == intrinsic_task_is_complete() or signature.intrinsic == intrinsic_task_cancel() or signature.intrinsic == intrinsic_task_group_cancel() or signature.intrinsic == intrinsic_thread_is_complete())
+            if borrows_buffer:
+                argument_state = state_borrowing_unique(argument_state, true)
+            let lowered = lower_hir_expression(argument_state, call_argument_value(arguments[source]), expected)
+            next = lowered.state
+            if borrows_buffer:
+                next = state_borrowing_unique(next, false)
+            lowered_arguments[parameter] = lowered.expression
+    var substitutions = Substitutions([], [])
+    for parameter in 0..collections.length(signature.parameter_types):
+        if lowered_arguments[parameter].type_name != "<invalid>":
+            substitutions = infer_type(signature.parameter_types[parameter], lowered_arguments[parameter].type_name, signature.type_parameters, substitutions)
+    var parameter_types: Array[String] = []
+    for parameter in 0..collections.length(signature.parameter_types):
+        let required = substitute_type(signature.parameter_types[parameter], substitutions)
+        parameter_types = append(parameter_types, required)
+        if lowered_arguments[parameter].type_name != "<invalid>" and required != lowered_arguments[parameter].type_name:
+            next = lower_error(next, lowered_arguments[parameter].line, lowered_arguments[parameter].column, string.concat("argument '", string.concat(parameter_names[parameter], string.concat("' has type ", string.concat(lowered_arguments[parameter].type_name, string.concat(", expected ", required))))))
+    let result_type = substitute_type(signature.result_type, substitutions)
+    if signature.intrinsic == intrinsic_collections_map_from_arrays() or signature.intrinsic == intrinsic_collections_map_length() or signature.intrinsic == intrinsic_collections_map_find() or signature.intrinsic == intrinsic_collections_map_get() or signature.intrinsic == intrinsic_collections_map_keys() or signature.intrinsic == intrinsic_collections_map_values():
+        if not is_hashable_key(substitution_value(substitutions, "K")):
+            next = lower_error(next, expression.line, expression.column, "Map keys must be Int, Bool, Char, or String")
+    if signature.intrinsic == intrinsic_collections_set_from_array() or signature.intrinsic == intrinsic_collections_set_contains() or signature.intrinsic == intrinsic_collections_set_values() or signature.intrinsic == intrinsic_collections_hash() or signature.intrinsic == intrinsic_collections_map_hash():
+        if not is_hashable_key(substitution_value(substitutions, "T")):
+            next = lower_error(next, expression.line, expression.column, "Set elements and hash values must be Int, Bool, Char, or String")
+    if signature.intrinsic == intrinsic_collections_contains() or signature.intrinsic == intrinsic_collections_find() or signature.intrinsic == intrinsic_collections_filter_equal():
+        if not is_collection_comparable(substitution_value(substitutions, "T")):
+            next = lower_error(next, expression.line, expression.column, "collection equality requires Int, Float, Bool, Char, or String")
+    if signature.intrinsic == intrinsic_ownership_downgrade() and not is_share_type(next.module, substitution_value(substitutions, "T")):
+        next = lower_issue(next, "R4102", expression.line, expression.column, "Weak targets must satisfy Share")
+    if signature.intrinsic == intrinsic_sync_mutex() or signature.intrinsic == intrinsic_sync_once() or signature.intrinsic == intrinsic_sync_once_empty() or signature.intrinsic == intrinsic_channel_bounded() or signature.intrinsic == intrinsic_channel_unbounded() or signature.intrinsic == intrinsic_channel_send() or signature.intrinsic == intrinsic_task_group() or signature.intrinsic == intrinsic_thread_spawn():
+        let transferred = substitution_value(substitutions, "T")
+        let share_value = signature.intrinsic == intrinsic_sync_mutex() or signature.intrinsic == intrinsic_sync_once() or signature.intrinsic == intrinsic_sync_once_empty()
+        if(share_value and not is_share_type(next.module, transferred)) or(not share_value and not is_send_type(next.module, transferred)):
+            next = lower_issue(next, "R4101", expression.line, expression.column, "concurrency boundary value does not satisfy Send/Share")
+    if signature.intrinsic == intrinsic_buffer_thaw() and not is_share_type(next.module, substitution_value(substitutions, "T")):
+        next = lower_issue(next, "R4101", expression.line, expression.column, "UniqueBuffer element type does not satisfy Share")
+    var key = name
+    if collections.length(signature.type_parameters) > 0:
+        key = specialization_key(name, substitutions, signature.type_parameters)
+    var symbol = find_specialization(next, key)
+    if symbol < 0:
+        let added = add_hir_symbol(next, symbol_builtin(), key, result_type, false, parameter_types, signature.intrinsic)
+        symbol = added.symbol
+        next = state_specializations(added.state, append(added.state.specializations, Specialization(key, symbol)))
+    next = set_hir_parameter_names(next, symbol, parameter_names)
+    return HirExprResult(hir_expression_ordered(expr_call(), name, result_type, lowered_arguments, symbol, -1, expression, binding.evaluation_order), next)
+
 fn standard_call(state: LowerState, expression: AstExpr, name: String, signature: StandardSignature, arguments: Array[AstExpr]) -> HirExprResult:
     if has_named_arguments(arguments):
-        return reject_named_arguments(state, expression, arguments, "standard-library intrinsics")
+        return named_standard_call(state, expression, name, signature, arguments)
     var next = state
     var substitutions = Substitutions([], [])
     var lowered_arguments: Array[HirExpr] = []
@@ -4422,6 +4972,7 @@ fn standard_call(state: LowerState, expression: AstExpr, name: String, signature
         let added = add_hir_symbol(next, symbol_builtin(), key, result_type, false, parameter_types, signature.intrinsic)
         symbol = added.symbol
         next = state_specializations(added.state, append(added.state.specializations, Specialization(key, symbol)))
+    next = set_hir_parameter_names(next, symbol, standard_parameter_names(name))
     return HirExprResult(hir_expression(expr_call(), name, result_type, lowered_arguments, symbol, -1, expression), next)
 
 fn named_struct_call(state: LowerState, expression: AstExpr, declaration_index: Int, arguments: Array[AstExpr], expected_type: String) -> HirExprResult:
@@ -4508,9 +5059,52 @@ fn struct_call(state: LowerState, expression: AstExpr, declaration_index: Int, a
         next = lower_error(next, expression.line, expression.column, "Map and Set keys must be Int, Bool, Char, or String")
     return HirExprResult(hir_expression(expr_call(), "$struct", result_type, lowered_arguments, -1, 0, expression), next)
 
+fn named_enum_constructor_call(state: LowerState, expression: AstExpr, declaration_index: Int, variant_index: Int, arguments: Array[AstExpr], expected_type: String) -> HirExprResult:
+    let declaration = state.module.enums[declaration_index]
+    let variant = declaration.variants[variant_index]
+    if collections.length(variant.payload_names) == 0:
+        return reject_named_arguments(state, expression, arguments, "anonymous enum payloads")
+    var defaultable: Array[Bool] = []
+    for index in 0..collections.length(variant.payload_names):
+        defaultable = append(defaultable, false)
+    let binding = bind_named_arguments(state, arguments, variant.payload_names, defaultable, expression.line, expression.column)
+    var next = binding.state
+    var substitutions = Substitutions([], [])
+    if type_base(expected_type) == declaration.name:
+        substitutions = infer_type(make_type(declaration.name, declaration.type_parameters), expected_type, declaration.type_parameters, substitutions)
+    let dummy_source = AstExpr(expr_integer(), "0", [], expression.line, expression.column)
+    let dummy = hir_expression(expr_integer(), "0", "<invalid>", [], -1, -1, dummy_source)
+    var lowered_arguments: Array[HirExpr] = []
+    for index in 0..collections.length(variant.payload_types):
+        lowered_arguments = append(lowered_arguments, dummy)
+    for source in 0..collections.length(arguments):
+        let parameter = binding.source_to_parameter[source]
+        if parameter >= 0:
+            var required = substitute_type(variant.payload_types[parameter], substitutions)
+            if contains_type_parameter(required, declaration.type_parameters):
+                required = ""
+            let lowered = lower_hir_expression(next, call_argument_value(arguments[source]), required)
+            next = lowered.state
+            lowered_arguments[parameter] = lowered.expression
+            substitutions = infer_type(variant.payload_types[parameter], lowered.expression.type_name, declaration.type_parameters, substitutions)
+    for parameter in 0..collections.length(variant.payload_types):
+        let required = substitute_type(variant.payload_types[parameter], substitutions)
+        if lowered_arguments[parameter].type_name != "<invalid>" and required != lowered_arguments[parameter].type_name:
+            next = lower_error(next, lowered_arguments[parameter].line, lowered_arguments[parameter].column, string.concat("argument '", string.concat(variant.payload_names[parameter], string.concat("' has type ", string.concat(lowered_arguments[parameter].type_name, string.concat(", expected ", required))))))
+    var result_type = declaration.name
+    if collections.length(declaration.type_parameters) > 0:
+        var result_arguments: Array[String] = []
+        for index in 0..collections.length(declaration.type_parameters):
+            let value = substitution_value(substitutions, declaration.type_parameters[index])
+            if value == declaration.type_parameters[index]:
+                next = lower_error(next, expression.line, expression.column, string.concat("cannot infer type parameter '", string.concat(value, "'")))
+            result_arguments = append(result_arguments, value)
+        result_type = make_type(declaration.name, result_arguments)
+    return HirExprResult(hir_expression_ordered(expr_call(), "$enum", result_type, lowered_arguments, -1, variant_index, expression, binding.evaluation_order), next)
+
 fn enum_constructor_call(state: LowerState, expression: AstExpr, declaration_index: Int, variant_index: Int, arguments: Array[AstExpr], expected_type: String) -> HirExprResult:
     if has_named_arguments(arguments):
-        return reject_named_arguments(state, expression, arguments, "enum constructors")
+        return named_enum_constructor_call(state, expression, declaration_index, variant_index, arguments, expected_type)
     let declaration = state.module.enums[declaration_index]
     let variant = declaration.variants[variant_index]
     var next = state
@@ -4790,8 +5384,6 @@ fn user_call(state: LowerState, expression: AstExpr, function_index: Int, argume
     return HirExprResult(hir_expression_ordered(expr_call(), function.name, result_type, lowered_arguments, symbol, -1, expression, filled.evaluation_order), next)
 
 fn closure_value_call(state: LowerState, expression: AstExpr, closure: HirExpr, arguments: Array[AstExpr]) -> HirExprResult:
-    if has_named_arguments(arguments):
-        return reject_named_arguments(state, expression, arguments, "closure values")
     let callable_name = string.concat(closure.type_name, ".call")
     let function_index = find_function_index(state.module, callable_name)
     var next = state
@@ -4804,6 +5396,35 @@ fn closure_value_call(state: LowerState, expression: AstExpr, closure: HirExpr, 
             lowered_arguments = append(lowered_arguments, lowered.expression)
         return HirExprResult(hir_expression(expr_call(), callable_name, "<invalid>", lowered_arguments, -1, -1, expression), next)
     let function = next.module.functions[function_index]
+    if has_named_arguments(arguments):
+        var parameter_names: Array[String] = []
+        var defaultable: Array[Bool] = []
+        for index in 1..collections.length(function.parameters):
+            parameter_names = append(parameter_names, function.parameters[index].name)
+            defaultable = append(defaultable, false)
+        let binding = bind_named_arguments(next, arguments, parameter_names, defaultable, expression.line, expression.column)
+        next = binding.state
+        let dummy_source = AstExpr(expr_integer(), "0", [], expression.line, expression.column)
+        let dummy = hir_expression(expr_integer(), "0", "<invalid>", [], -1, -1, dummy_source)
+        for index in 1..collections.length(function.parameters):
+            lowered_arguments = append(lowered_arguments, dummy)
+        for source in 0..collections.length(arguments):
+            let parameter = binding.source_to_parameter[source]
+            if parameter >= 0:
+                let target = parameter + 1
+                let expected = function.parameters[target].type_name
+                let lowered = lower_hir_expression(next, call_argument_value(arguments[source]), expected)
+                next = lowered.state
+                lowered_arguments[target] = lowered.expression
+                if expected != "" and lowered.expression.type_name != "<invalid>" and lowered.expression.type_name != expected:
+                    next = lower_error(next, lowered.expression.line, lowered.expression.column, string.concat("argument '", string.concat(parameter_names[parameter], string.concat("' has type ", string.concat(lowered.expression.type_name, string.concat(", expected ", expected))))))
+        let symbol = find_symbol_by_name(next, callable_name, symbol_function())
+        if symbol < 0:
+            next = lower_error(next, expression.line, expression.column, string.concat("undefined closure callable '", string.concat(callable_name, "'")))
+        var evaluation_order: Array[Int] = [0]
+        for index in 0..collections.length(binding.evaluation_order):
+            evaluation_order = append(evaluation_order, binding.evaluation_order[index] + 1)
+        return HirExprResult(hir_expression_ordered(expr_call(), callable_name, function.result_type, lowered_arguments, symbol, -1, expression, evaluation_order), next)
     for index in 0..collections.length(arguments):
         var expected = ""
         let parameter_index = index + 1
@@ -4833,7 +5454,7 @@ fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: 
                 for callback_index in 1..collections.length(expression.children):
                     callback_arguments = append(callback_arguments, expression.children[callback_index])
                 if has_named_arguments(callback_arguments):
-                    return reject_named_arguments(state, expression, callback_arguments, "closure values")
+                    return named_user_call(state, expression, callback_function, callback_arguments)
                 return user_call(state, expression, callback_function, callback_arguments)
     if callee.kind == expr_lambda():
         let lowered_callee = lower_hir_expression(state, callee, "")
@@ -4914,20 +5535,20 @@ fn lower_call_expression(state: LowerState, expression: AstExpr, expected_type: 
     for index in 1..collections.length(expression.children):
         arguments = append(arguments, expression.children[index])
     if name == "print":
-        if has_named_arguments(arguments):
-            return reject_named_arguments(state, expression, arguments, "built-in functions")
-        var next = state
-        var lowered_arguments: Array[HirExpr] = []
-        for index in 0..collections.length(arguments):
-            let lowered = lower_hir_expression(next, arguments[index], "")
-            next = lowered.state
-            lowered_arguments = append(lowered_arguments, lowered.expression)
-        if collections.length(arguments) != 1:
-            next = lower_error(next, expression.line, expression.column, "print expects one argument")
-        else:
-            if is_native_type(next.module, lowered_arguments[0].type_name):
-                next = lower_error(next, expression.line, expression.column, "print does not accept aggregate or native values")
-        return HirExprResult(hir_expression(expr_call(), name, "Unit", lowered_arguments, 0, -1, expression), next)
+        let binding = bind_named_arguments(state, arguments, ["value"], [false], expression.line, expression.column)
+        var next = binding.state
+        let dummy_source = AstExpr(expr_integer(), "0", [], expression.line, expression.column)
+        let dummy = hir_expression(expr_integer(), "0", "<invalid>", [], -1, -1, dummy_source)
+        var lowered_arguments: Array[HirExpr] = [dummy]
+        for source in 0..collections.length(arguments):
+            let parameter = binding.source_to_parameter[source]
+            if parameter >= 0:
+                let lowered = lower_hir_expression(next, call_argument_value(arguments[source]), "")
+                next = lowered.state
+                lowered_arguments[parameter] = lowered.expression
+        if is_native_type(next.module, lowered_arguments[0].type_name):
+            next = lower_error(next, expression.line, expression.column, "print does not accept aggregate or native values")
+        return HirExprResult(hir_expression_ordered(expr_call(), name, "Unit", lowered_arguments, 0, -1, expression, binding.evaluation_order), next)
     let standard = standard_signature(name)
     if standard.found:
         return standard_call(state, expression, name, standard, arguments)
@@ -5065,7 +5686,8 @@ fn lower_hir_expression(state: LowerState, expression: AstExpr, expected: String
         module = AstModule(module.imports, append(module.structs, closure), module.enums, module.traits, append(module.functions, callable))
         var next = state_module(capture_state, module)
         let added = add_hir_symbol(next, symbol_function(), callable_name, result_type, false, collections.concat([closure_name], parameter_types), intrinsic_none())
-        next = state_pending(added.state, append(added.state.pending, PendingSpecialization(collections.length(module.functions) - 1, added.symbol, state.substitutions)))
+        next = set_hir_parameter_names(added.state, added.symbol, collections.concat(["self"], parameter_names))
+        next = state_pending(next, append(next.pending, PendingSpecialization(collections.length(module.functions) - 1, added.symbol, state.substitutions)))
         return HirExprResult(hir_expression(expr_call(), "$struct", closure_name, captured_values, -1, 0, expression), next)
     if expression.kind == expr_array():
         return lower_array_expression(state, expression, expected)
@@ -5457,7 +6079,7 @@ fn lower_to_hir(module: AstModule, parser_diagnostics: Array[Diagnostic], librar
     let complete_module = AstModule(module.imports, collections.concat(builtins, module.structs), module.enums, module.traits, module.functions)
     var state = LowerState(complete_module, [], [], [], 0, "", 0, 0, Substitutions([], []), [], [], parser_diagnostics, false, [], false, module_may_move(complete_module))
     let print_symbol = add_hir_symbol(state, symbol_builtin(), "print", "Unit", false, [], intrinsic_print())
-    state = print_symbol.state
+    state = set_hir_parameter_names(print_symbol.state, print_symbol.symbol, ["value"])
     var function_symbols: Array[Int] = []
     for declaration_index in 0..collections.length(complete_module.structs):
         let declaration = complete_module.structs[declaration_index]

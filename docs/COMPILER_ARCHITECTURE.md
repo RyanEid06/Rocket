@@ -75,13 +75,21 @@ weakening them.
   before MIR. The specialization key is the function name plus canonical
   structural type spellings, so repeated and recursive calls reuse one symbol.
 - Public function symbols retain declared parameter names after module-graph
-  qualification plus canonical default-expression metadata. Named/default calls
-  bind at HIR, store operands in parameter order, and carry a separate
-  evaluation-order map: receiver/callee, written operands, then omitted defaults
-  in parameter order. A default HIR node binds references to already evaluated
-  earlier operands; MIR materializes those operands once, lowers the default,
-  and emits the unchanged positional ABI operand vector. Imported AST metadata
-  rewrites default expressions in their declaration module before this step.
+  qualification plus canonical default-expression metadata. Labeled enum
+  payloads retain their public labels through the same imported AST/interface
+  path; anonymous payloads carry no labels. Compiler-owned metadata supplies
+  stable names for every standard intrinsic and built-in, while generated
+  closure `.call` symbols retain the lambda's declared parameter names locally.
+- Named/default calls bind at HIR for functions, methods, externs, struct and
+  labeled-enum constructors, closure values, immediately invoked lambdas,
+  standard intrinsics, and built-ins. HIR stores operands in parameter order and
+  carries a separate evaluation-order map: receiver/callee, written operands,
+  then omitted defaults in parameter order. A default HIR node binds references
+  to already evaluated earlier operands; MIR materializes those operands once,
+  lowers the default, and emits the unchanged positional ABI operand vector.
+  Imported AST metadata rewrites default expressions in their declaration
+  module before this step. No named-callable category changes runtime ABI v1 or
+  backend calling conventions.
 - HIR match cases store resolved enum tags and payload symbols. Exhaustiveness,
   duplicate variants, binding arity, wildcard position, and return paths are
   checked before MIR.

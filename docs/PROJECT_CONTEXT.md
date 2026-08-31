@@ -1012,12 +1012,41 @@ Known limitations remain those in the implementation-state list above; no langua
 - Generated WP11 state remained under `out/rocket3-provisional/wp11`, occupied
   5.692 GiB, and did not cross the 4 GiB per-process or 20 GiB operation guards.
 
+**Rocket 3 WP11A - complete named-callable parity**
+
+- Removed WP10's remaining named-callable exclusions in the permanent C++20
+  stage0 and Rocket-written compiler. Closure values, immediately invoked
+  lambdas, every registered standard intrinsic, and the `print` built-in now
+  accept positional, all-named, reordered, and positional-then-named calls with
+  stable unknown, duplicate, missing, conflict, and type diagnostics.
+- Added fully labeled enum payload declarations such as
+  `Value(amount: Int, label: String)`. Labeled constructors accept every named
+  call form and carry public labels through cross-module metadata; legacy
+  anonymous payloads remain valid and positional-only, while mixed labeled and
+  anonymous entries are rejected. Enum-payload defaults and the other WP11
+  default exclusions remain intentionally unsupported.
+- HIR records compiler-owned intrinsic/built-in names, local closure parameter
+  names, public enum labels, positional ABI order, and written evaluation order.
+  MIR evaluates the callee/receiver and written operands left-to-right before
+  normalization. Runtime ABI v1 and backend ABI remain unchanged. Formatter,
+  LSP signature help, documentation/search metadata, VS Code, and Visual Studio
+  expose the same contracts.
+- The final focused WP10/WP11/WP11A stage0/self-host selection passed 12/12.
+  Fresh full Debug and Release suites passed 228/228 each. The coherent
+  LLVM-disabled MSVC Release stage0/predecessor selection passed 19/19.
+  Deterministic Windows x64 Release bootstrap passed six self-tests, two
+  HIR/MIR compiler checks, and the stage3 WP10/WP11/WP11A matrices; stage2 and
+  stage3 IR matched at SHA-256
+  `d6a8e980c386837045a0e84ad997ac3024149663e697ed76593d16be968c632f`.
+- Generated WP11A state remained under `out/rocket3-provisional/wp11a`, occupied
+  5.112 GiB, and stayed below the 4 GiB per-process and 20 GiB operation guards.
+
 ## Current next task
 
 **Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
-WP11 is complete and GREEN. The only next eligible Rocket 3 packet is WP11A,
-complete named-callable parity; WP12 remains blocked until WP11A completes.
-The exact one-packet scope and success-only handoff are in
+WP11A is complete and GREEN. The lowest-numbered next eligible Rocket 3 packet
+is WP12, complete `std.math`; WP13 remains blocked until WP12 completes. The
+exact one-packet scope and success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
 remain baseline state.**

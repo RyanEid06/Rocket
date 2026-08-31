@@ -1,0 +1,4 @@
+import std.string
+
+fn main() -> Int:
+    return string.concat(left: "a", left: "b")

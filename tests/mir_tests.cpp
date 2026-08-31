@@ -189,6 +189,72 @@ int main() {
                          failures);
   }
 
+  rocket::Diagnostics callableParityDiagnostics;
+  auto callableParityMir = rocket::test::lowerToMir(
+      "enum Choice:\n"
+      "    Value(amount: Int, label: Int)\n"
+      "fn first() -> Int:\n"
+      "    return 1\n"
+      "fn second() -> Int:\n"
+      "    return 2\n"
+      "fn main() -> Int:\n"
+      "    let combine = fn(left: Int, right: Int) -> Int => left * 10 + right\n"
+      "    let closure = combine(right: second(), left: first())\n"
+      "    let choice = Value(label: second(), amount: first())\n"
+      "    print(value: closure)\n"
+      "    return closure\n",
+      callableParityDiagnostics);
+  rocket::test::expect(
+      callableParityMir.has_value(),
+      "remaining named callable categories lower to MIR", failures);
+  if (callableParityMir.has_value()) {
+    const rocket::MirFunction* mainFunction = nullptr;
+    for (const auto& function : callableParityMir->functions)
+      if (callableParityMir->symbols[function.symbol].name == "main")
+        mainFunction = &function;
+    std::vector<std::string> calls;
+    bool closureNormalized = false;
+    bool enumNormalized = false;
+    if (mainFunction) {
+      rocket::MirLocalId secondResult = 0;
+      rocket::MirLocalId firstResult = 0;
+      for (const auto& block : mainFunction->blocks) {
+        for (const auto& instruction : block.instructions) {
+          if (instruction.value.kind == rocket::MirRvalueKind::Call) {
+            const std::string& callee =
+                callableParityMir->symbols[instruction.value.callee].name;
+            calls.push_back(callee);
+            if (callee == "second") secondResult = instruction.destination;
+            if (callee == "first") firstResult = instruction.destination;
+            if (callee.find("$closure.") == 0 && callee.ends_with(".call") &&
+                instruction.value.arguments.size() == 3)
+              closureNormalized =
+                  instruction.value.arguments[1].kind ==
+                      rocket::MirOperandKind::Local &&
+                  instruction.value.arguments[1].local == firstResult &&
+                  instruction.value.arguments[2].kind ==
+                      rocket::MirOperandKind::Local &&
+                  instruction.value.arguments[2].local == secondResult;
+          } else if (instruction.value.kind == rocket::MirRvalueKind::Aggregate &&
+                     instruction.value.arguments.size() == 2) {
+            enumNormalized =
+                instruction.value.arguments[0].kind ==
+                    rocket::MirOperandKind::Local &&
+                instruction.value.arguments[0].local == firstResult &&
+                instruction.value.arguments[1].kind ==
+                    rocket::MirOperandKind::Local &&
+                instruction.value.arguments[1].local == secondResult;
+          }
+        }
+      }
+    }
+    rocket::test::expect(
+        mainFunction != nullptr && closureNormalized && enumNormalized &&
+            calls.size() >= 6 && calls[0] == "second" && calls[1] == "first",
+        "MIR evaluates named callable arguments in source order before positional normalization",
+        failures);
+  }
+
   rocket::Diagnostics defaultDiagnostics;
   auto defaultMir = rocket::test::lowerToMir(
       "fn written_first() -> Int:\n"

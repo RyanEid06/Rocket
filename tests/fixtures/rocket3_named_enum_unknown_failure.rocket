@@ -1,0 +1,6 @@
+enum Choice:
+    Value(amount: Int, label: String)
+
+fn main() -> Int:
+    let choice = Value(lbel: "x", amount: 1)
+    return 0
