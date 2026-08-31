@@ -1474,6 +1474,9 @@ fn intrinsic_target_endianness() -> Int:
 fn intrinsic_target_has_feature() -> Int:
     return 230
 
+fn intrinsic_math() -> Int:
+    return 231
+
 fn mir_constant() -> Int:
     return 0
 
@@ -3585,6 +3588,26 @@ fn standard_method_callable(type_name: String, method: String) -> String:
     return ""
 
 fn standard_signature(name: String) -> StandardSignature:
+    if name == "std.math.pi" or name == "std.math.tau" or name == "std.math.e":
+        return StandardSignature(true, [], [], "Float", intrinsic_math())
+    if name == "std.math.abs" or name == "std.math.floor" or name == "std.math.ceil" or name == "std.math.round" or name == "std.math.trunc" or name == "std.math.fract" or name == "std.math.sqrt" or name == "std.math.exp" or name == "std.math.log" or name == "std.math.log10" or name == "std.math.sin" or name == "std.math.cos" or name == "std.math.tan" or name == "std.math.asin" or name == "std.math.acos" or name == "std.math.atan" or name == "std.math.radians" or name == "std.math.degrees":
+        return StandardSignature(true, [], ["Float"], "Float", intrinsic_math())
+    if name == "std.math.abs_int" or name == "std.math.sign_int":
+        return StandardSignature(true, [], ["Int"], "Int", intrinsic_math())
+    if name == "std.math.sign":
+        return StandardSignature(true, [], ["Float"], "Float", intrinsic_math())
+    if name == "std.math.min" or name == "std.math.max" or name == "std.math.pow" or name == "std.math.atan2":
+        return StandardSignature(true, [], ["Float", "Float"], "Float", intrinsic_math())
+    if name == "std.math.min_int" or name == "std.math.max_int":
+        return StandardSignature(true, [], ["Int", "Int"], "Int", intrinsic_math())
+    if name == "std.math.clamp":
+        return StandardSignature(true, [], ["Float", "Float", "Float"], "Float", intrinsic_math())
+    if name == "std.math.clamp_int":
+        return StandardSignature(true, [], ["Int", "Int", "Int"], "Int", intrinsic_math())
+    if name == "std.math.lerp" or name == "std.math.inverse_lerp" or name == "std.math.smoothstep" or name == "std.math.smootherstep" or name == "std.math.approach" or name == "std.math.move_towards":
+        return StandardSignature(true, [], ["Float", "Float", "Float"], "Float", intrinsic_math())
+    if name == "std.math.remap":
+        return StandardSignature(true, [], ["Float", "Float", "Float", "Float", "Float"], "Float", intrinsic_math())
     if name == "std.string.byte_length":
         return StandardSignature(true, [], ["String"], "Int", intrinsic_string_byte_length())
     if name == "std.string.concat":
@@ -4381,6 +4404,30 @@ fn specialization_key(name: String, substitutions: Substitutions, parameters: Ar
     return string.concat(name, string.concat("[", string.concat(collections.join(arguments, ","), "]")))
 
 fn standard_parameter_names(name: String) -> Array[String]:
+    if name == "std.math.pi" or name == "std.math.tau" or name == "std.math.e":
+        return []
+    if name == "std.math.abs" or name == "std.math.abs_int" or name == "std.math.sign" or name == "std.math.sign_int" or name == "std.math.floor" or name == "std.math.ceil" or name == "std.math.round" or name == "std.math.trunc" or name == "std.math.fract" or name == "std.math.sqrt" or name == "std.math.exp" or name == "std.math.log" or name == "std.math.log10" or name == "std.math.asin" or name == "std.math.acos" or name == "std.math.atan":
+        return ["value"]
+    if name == "std.math.sin" or name == "std.math.cos" or name == "std.math.tan" or name == "std.math.degrees":
+        return ["radians"]
+    if name == "std.math.radians":
+        return ["degrees"]
+    if name == "std.math.min" or name == "std.math.max" or name == "std.math.min_int" or name == "std.math.max_int":
+        return ["left", "right"]
+    if name == "std.math.pow":
+        return ["base", "exponent"]
+    if name == "std.math.atan2":
+        return ["y", "x"]
+    if name == "std.math.clamp" or name == "std.math.clamp_int":
+        return ["value", "minimum", "maximum"]
+    if name == "std.math.lerp":
+        return ["start", "end", "progress"]
+    if name == "std.math.inverse_lerp" or name == "std.math.smoothstep" or name == "std.math.smootherstep":
+        return ["start", "end", "value"]
+    if name == "std.math.remap":
+        return ["input_start", "input_end", "output_start", "output_end", "value"]
+    if name == "std.math.approach" or name == "std.math.move_towards":
+        return ["current", "target", "maximum_delta"]
     if name == "std.string.byte_length":
         return ["value"]
     if name == "std.string.concat":
@@ -7812,6 +7859,30 @@ fn emit_runtime_declarations(builder: std.string.Builder) -> Unit:
     emit_llvm_line(builder, "declare i8 @rocket_std_thread_is_complete(ptr)")
     emit_llvm_line(builder, "declare i8 @rocket_std_task_cancel(ptr)")
     emit_llvm_line(builder, "declare void @rocket_std_process_set_arguments(i32, ptr)")
+    emit_llvm_line(builder, "declare double @rocket_std_math_pi()")
+    emit_llvm_line(builder, "declare double @rocket_std_math_tau()")
+    emit_llvm_line(builder, "declare double @rocket_std_math_e()")
+    emit_llvm_line(builder, "declare double @rocket_std_math_abs(double)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_math_abs_int(i64)")
+    emit_llvm_line(builder, "declare double @rocket_std_math_min(double, double)")
+    emit_llvm_line(builder, "declare double @rocket_std_math_max(double, double)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_math_min_int(i64, i64)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_math_max_int(i64, i64)")
+    emit_llvm_line(builder, "declare double @rocket_std_math_clamp(double, double, double)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_math_clamp_int(i64, i64, i64)")
+    emit_llvm_line(builder, "declare double @rocket_std_math_sign(double)")
+    emit_llvm_line(builder, "declare i64 @rocket_std_math_sign_int(i64)")
+    let unary_math_names = ["floor", "ceil", "round", "trunc", "fract", "sqrt", "exp", "log", "log10", "sin", "cos", "tan", "asin", "acos", "atan", "radians", "degrees"]
+    for index in 0..collections.length(unary_math_names):
+        let function_name = unary_math_names[index]
+        emit_llvm_line(builder, string.concat("declare double @rocket_std_math_", string.concat(function_name, "(double)")))
+    emit_llvm_line(builder, "declare double @rocket_std_math_pow(double, double)")
+    emit_llvm_line(builder, "declare double @rocket_std_math_atan2(double, double)")
+    let ternary_math_names = ["lerp", "inverse_lerp", "smoothstep", "smootherstep", "approach", "move_towards"]
+    for index in 0..collections.length(ternary_math_names):
+        let function_name = ternary_math_names[index]
+        emit_llvm_line(builder, string.concat("declare double @rocket_std_math_", string.concat(function_name, "(double, double, double)")))
+    emit_llvm_line(builder, "declare double @rocket_std_math_remap(double, double, double, double, double)")
     emit_llvm_line(builder, "")
 
 fn print_runtime_name(type_name: String) -> String:
@@ -7890,7 +7961,7 @@ fn emit_binary_llvm(builder: std.string.Builder, left: LlvmValue, right: LlvmVal
         if op == "==":
             instruction = "fcmp oeq"
         if op == "!=":
-            instruction = "fcmp one"
+            instruction = "fcmp une"
         if op == "<":
             instruction = "fcmp olt"
         if op == "<=":
@@ -7948,6 +8019,8 @@ fn emit_call_llvm(builder: std.string.Builder, module: MirModule, instruction: M
                 argument_type = "i8"
             arguments = append(arguments, string.concat(argument_type, string.concat(" ", argument_name)))
         var runtime_name = intrinsic_runtime_name(symbol.intrinsic)
+        if symbol.intrinsic == intrinsic_math():
+            runtime_name = string.concat("@rocket_std_math_", string.slice(symbol.name, 9, string.byte_length(symbol.name)))
         if symbol.intrinsic == intrinsic_collections_append():
             runtime_name = llvm_array_append_name(collection_element_type(values[0].type_name))
         if symbol.intrinsic == intrinsic_collections_insert():

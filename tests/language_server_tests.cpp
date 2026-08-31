@@ -276,15 +276,17 @@ int main() {
   callableInput += frame(
       R"({"jsonrpc":"2.0","method":"initialized","params":{}})");
   callableInput += frame(
-      R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket","languageId":"rocket","version":1,"text":"import std.string\nenum Choice:\n    Value(amount: Int, label: String)\nfn helper() -> Int:\n    let combine = fn(left: Int, right: Int) -> Int => left + right\n    print(value: combine(right: 2, left: 1))\n    let text = string.concat(right: \"b\", left: \"a\")\n    let choice = Value(label: text, amount: 3)\n    return 0\n"}}})");
+      R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket","languageId":"rocket","version":1,"text":"import std.string\nimport std.math\nenum Choice:\n    Value(amount: Int, label: String)\nfn helper() -> Int:\n    let combine = fn(left: Int, right: Int) -> Int => left + right\n    print(value: combine(right: 2, left: 1))\n    let text = string.concat(right: \"b\", left: \"a\")\n    let choice = Value(label: text, amount: 3)\n    let limited = math.clamp(maximum: 1.0, value: 0.5, minimum: 0.0)\n    return 0\n"}}})");
   callableInput += frame(
-      R"({"jsonrpc":"2.0","id":3,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":5,"character":10}}})");
+      R"({"jsonrpc":"2.0","id":3,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":6,"character":10}}})");
   callableInput += frame(
-      R"({"jsonrpc":"2.0","id":4,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":5,"character":25}}})");
+      R"({"jsonrpc":"2.0","id":4,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":6,"character":25}}})");
   callableInput += frame(
-      R"({"jsonrpc":"2.0","id":5,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":6,"character":29}}})");
+      R"({"jsonrpc":"2.0","id":5,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":7,"character":29}}})");
   callableInput += frame(
-      R"({"jsonrpc":"2.0","id":6,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":7,"character":23}}})");
+      R"({"jsonrpc":"2.0","id":6,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":8,"character":23}}})");
+  callableInput += frame(
+      R"({"jsonrpc":"2.0","id":7,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file:///C:/workspace/callables.rocket"},"position":{"line":9,"character":32}}})");
   callableInput += frame(
       R"({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null})");
   callableInput += frame(R"({"jsonrpc":"2.0","method":"exit"})");
@@ -303,8 +305,12 @@ int main() {
           callableOutput.find("\"label\":\"left: String\"") != std::string::npos &&
           callableOutput.find("\"label\":\"right: String\"") != std::string::npos &&
           callableOutput.find("\"label\":\"amount: Int\"") != std::string::npos &&
-          callableOutput.find("\"label\":\"label: String\"") != std::string::npos,
-      "signature help exposes built-in, closure, intrinsic, and enum payload parameter names",
+          callableOutput.find("\"label\":\"label: String\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"fn clamp(value: Float, minimum: Float, maximum: Float) -> Float\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"value: Float\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"minimum: Float\"") != std::string::npos &&
+          callableOutput.find("\"label\":\"maximum: Float\"") != std::string::npos,
+      "signature help exposes built-in, closure, standard intrinsic, and enum payload parameter names",
       failures);
   rocket::test::expect(
       semanticElapsed < 5000,

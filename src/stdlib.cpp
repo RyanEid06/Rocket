@@ -1300,6 +1300,31 @@ RocketAggregate* okString(std::string_view value) {
 
 extern "C" {
 
+double rocket_std_math_pi() { return std::acos(-1.0); }
+double rocket_std_math_tau() { return 2.0 * rocket_std_math_pi(); }
+double rocket_std_math_e() { return std::exp(1.0); }
+double rocket_std_math_abs(double value) { return std::fabs(value); }
+std::int64_t rocket_std_math_abs_int(std::int64_t value) { return value == std::numeric_limits<std::int64_t>::min() ? std::numeric_limits<std::int64_t>::max() : value < 0 ? -value : value; }
+double rocket_std_math_min(double left, double right) { return std::fmin(left, right); }
+double rocket_std_math_max(double left, double right) { return std::fmax(left, right); }
+std::int64_t rocket_std_math_min_int(std::int64_t left, std::int64_t right) { return std::min(left, right); }
+std::int64_t rocket_std_math_max_int(std::int64_t left, std::int64_t right) { return std::max(left, right); }
+double rocket_std_math_clamp(double value, double minimum, double maximum) { return minimum > maximum ? std::numeric_limits<double>::quiet_NaN() : std::fmin(std::fmax(value, minimum), maximum); }
+std::int64_t rocket_std_math_clamp_int(std::int64_t value, std::int64_t minimum, std::int64_t maximum) { return minimum > maximum ? value : std::min(std::max(value, minimum), maximum); }
+double rocket_std_math_sign(double value) { return std::isnan(value) ? value : value > 0.0 ? 1.0 : value < 0.0 ? -1.0 : value; }
+std::int64_t rocket_std_math_sign_int(std::int64_t value) { return (value > 0) - (value < 0); }
+double rocket_std_math_floor(double value) { return std::floor(value); } double rocket_std_math_ceil(double value) { return std::ceil(value); } double rocket_std_math_round(double value) { return std::round(value); } double rocket_std_math_trunc(double value) { return std::trunc(value); } double rocket_std_math_fract(double value) { return value - std::floor(value); }
+double rocket_std_math_sqrt(double value) { return std::sqrt(value); } double rocket_std_math_pow(double base, double exponent) { return std::pow(base, exponent); } double rocket_std_math_exp(double value) { return std::exp(value); } double rocket_std_math_log(double value) { return std::log(value); } double rocket_std_math_log10(double value) { return std::log10(value); }
+double rocket_std_math_sin(double radians) { return std::sin(radians); } double rocket_std_math_cos(double radians) { return std::cos(radians); } double rocket_std_math_tan(double radians) { return std::tan(radians); } double rocket_std_math_asin(double value) { return std::asin(value); } double rocket_std_math_acos(double value) { return std::acos(value); } double rocket_std_math_atan(double value) { return std::atan(value); } double rocket_std_math_atan2(double y, double x) { return std::atan2(y, x); }
+double rocket_std_math_radians(double degrees) { return degrees * (rocket_std_math_pi() / 180.0); } double rocket_std_math_degrees(double radians) { return radians * (180.0 / rocket_std_math_pi()); }
+double rocket_std_math_lerp(double start, double end, double progress) { if (progress == 0.0) return start; if (progress == 1.0) return end; return start * (1.0 - progress) + end * progress; }
+double rocket_std_math_inverse_lerp(double start, double end, double value) { if (start == end) return std::numeric_limits<double>::quiet_NaN(); const double scale = std::max(std::fabs(start), std::fabs(end)); if (std::isfinite(scale) && scale > 0.0) return (value / scale - start / scale) / (end / scale - start / scale); return (value - start) / (end - start); }
+double rocket_std_math_remap(double input_start, double input_end, double output_start, double output_end, double value) { return rocket_std_math_lerp(output_start, output_end, rocket_std_math_inverse_lerp(input_start, input_end, value)); }
+double rocket_std_math_smoothstep(double start, double end, double value) { double t = rocket_std_math_inverse_lerp(start, end, value); if (std::isnan(t)) return t; t = rocket_std_math_clamp(t, 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
+double rocket_std_math_smootherstep(double start, double end, double value) { double t = rocket_std_math_inverse_lerp(start, end, value); if (std::isnan(t)) return t; t = rocket_std_math_clamp(t, 0.0, 1.0); return t * t * t * (t * (t * 6.0 - 15.0) + 10.0); }
+double rocket_std_math_approach(double current, double target, double maximum_delta) { if (current == target || maximum_delta < 0.0) return current; if (std::isnan(target)) return target; if (current < target) { const double distance = target - current; return maximum_delta >= distance ? target : current + maximum_delta; } const double distance = current - target; return maximum_delta >= distance ? target : current - maximum_delta; }
+double rocket_std_math_move_towards(double current, double target, double maximum_delta) { return rocket_std_math_approach(current, target, maximum_delta); }
+
 std::int64_t rocket_std_string_byte_length(RocketString* value) {
   return static_cast<std::int64_t>(rocket_rt_string_byte_length(value));
 }

@@ -251,6 +251,105 @@ passed `18/18`, and deterministic stage2/stage3 IR matched at SHA-256
 - `R3-F04-008`: The implementations behave consistently on every supported
   target within documented floating-point tolerances.
 
+**WP12 local acceptance (2026-09-02):** `R3-F04-001` through `R3-F04-007` are
+GREEN and `R3-F04-008` is LOCAL-GREEN: source/type/lowering parity is proven
+for every supported target, while native numeric confirmation outside Windows
+x64 remains a target-laboratory acceptance item for F29/WP34. `std.math` is a
+compiler-owned standard module with the following final
+surface: `pi()`, `tau()`, and `e()`; Float `abs(value)`, `min(left, right)`,
+`max(left, right)`, `clamp(value, minimum, maximum)`, and `sign(value)`;
+explicit Int `abs_int(value)`, `min_int(left, right)`, `max_int(left, right)`,
+`clamp_int(value, minimum, maximum)`, and `sign_int(value)`; `floor(value)`,
+`ceil(value)`, `round(value)`, `trunc(value)`, `fract(value)`, `sqrt(value)`,
+`pow(base, exponent)`, `exp(value)`, `log(value)`, `log10(value)`,
+`sin(radians)`, `cos(radians)`, `tan(radians)`, `asin(value)`, `acos(value)`,
+`atan(value)`, `atan2(y, x)`, `radians(degrees)`, `degrees(radians)`,
+`lerp(start, end, progress)`, `inverse_lerp(start, end, value)`,
+`remap(input_start, input_end, output_start, output_end, value)`,
+`smoothstep(start, end, value)`, `smootherstep(start, end, value)`,
+`approach(current, target, maximum_delta)`, and
+`move_towards(current, target, maximum_delta)`. These parameter names are
+public source-compatibility commitments in stage0, self-host, LSP signature
+help, and generated documentation metadata.
+
+Rocket `Float` is an IEEE-754 binary64 value. `pi()` is the platform
+`acos(-1)`, `tau()` is twice that value, and `e()` is `exp(1)`. Float
+transcendental and rounding functions use the corresponding platform IEEE/C++
+operation, preserve NaN and infinities rather than converting them to
+sentinels, and do not emit Rocket diagnostics for numeric domain results.
+Thus inverse-trig, square-root, power, and logarithm domain errors yield the
+platform NaN or infinity result; `sqrt(-finite)` yields NaN; `log(0)` yields
+negative infinity; and `exp(large)` may yield positive infinity. `atan2`
+retains the platform signed-zero quadrant behavior.
+
+Float `abs` uses `fabs`: it clears the sign of negative zero, turns either
+infinity into positive infinity, and leaves NaN as NaN. `min` and `max` use
+IEEE/C++ `fmin`/`fmax` behavior: a single NaN selects the other operand and two
+NaNs yield NaN. `clamp` is `fmin(fmax(value, minimum), maximum)` except that a
+numerically reversed finite range returns NaN. A NaN bound follows the
+underlying `fmin`/`fmax` rule rather than becoming a diagnostic. The Int
+`min_int` and `max_int` select the smaller or larger operand; `clamp_int` uses
+the inclusive range and returns its input unchanged when `minimum > maximum`.
+
+`floor` and `ceil` use their mathematical definitions; `trunc` rounds toward
+zero; and `round` rounds both positive and negative halfway cases away from
+zero. `fract(value)` is `value - floor(value)` and therefore uses normal IEEE
+non-finite propagation. `sign` preserves signed zero, propagates NaN, and
+returns `-1.0` or `1.0` for every nonzero non-NaN value, including infinities.
+`sign_int` returns `-1`, `0`, or `1`; `abs_int(Int.min)` saturates to `Int.max`
+rather than overflowing, while every other Int input gets its mathematical
+absolute value.
+
+`lerp` never clamps `progress`: it extrapolates for values outside `[0, 1]`,
+returns its `start` and `end` arguments exactly for progress `0` and `1`, and
+uses the weighted expression `start * (1 - progress) + end * progress` for
+other progress values so opposite large finite endpoints do not create the
+avoidable overflow in `end - start`. A mathematical result outside Float range
+is the normal IEEE infinity or NaN result. `inverse_lerp` likewise does not
+clamp; for distinct finite endpoints it returns the algebraic ratio after
+scaling all three terms by `max(abs(start), abs(end))` when that scale is
+nonzero, avoiding the same opposite-endpoint subtraction overflow. Equal
+endpoints return NaN, and non-finite operands otherwise follow IEEE arithmetic.
+`remap` is `lerp(output_start, output_end, inverse_lerp(...))`; it preserves
+exact mapped input endpoints, propagates NaN/overflow from either operation,
+and may extrapolate outside its output interval. `smoothstep` and
+`smootherstep` return NaN for a zero-width range and clamp valid-range
+normalized progress to exact zero and one endpoints.
+
+`radians(degrees)` multiplies by `pi / 180`, and `degrees(radians)` multiplies
+by `180 / pi`, so a representable result does not overflow solely from an
+unnecessary first multiplication; a genuinely unrepresentable result follows
+IEEE infinity/NaN behavior. `approach` and `move_towards` are identical scalar
+operations: a negative maximum delta retains `current`; zero preserves a
+different current value; otherwise they advance toward `target` and return the
+target once the nonnegative delta is at least the directional distance, never
+overshooting. NaN in a non-early-return operand propagates to NaN. Infinite
+delta reaches a finite or infinite target from a distinct value; finite delta
+leaves an infinite current value unchanged when moving toward a finite target.
+
+The WP12 numeric fixture runs the same 76-result matrix through stage0 and the
+self-hosted compiler on Windows x64. Discrete, range, endpoint, domain,
+signed-zero, NaN/infinity, and overflow-avoidance results are exact; ordinary
+finite transcendental vectors use an absolute tolerance of `1e-12`. The local
+Phase 19 infrastructure additionally type-checks the complete 39-function named
+source surface in stage0 and self-host for all four target aliases, and stage0
+emits every corresponding runtime call under each target's exact LLVM triple.
+That is the strongest local cross-target gate available in WP12. It does not
+execute the numeric fixture natively on Linux x64, Linux arm64, or macOS arm64,
+so independent native confirmation of the stated tolerance remains a target-lab
+acceptance item rather than a result claimed by this Windows packet.
+
+Final WP12 verification ran the repaired `76/76` numeric/domain matrix through
+both stage0 and self-host on Windows x64; named-surface, package documentation,
+formatter, language-server, and four-target lowering checks also passed. Fresh
+Debug and Release CTest matrices passed `231/231` each. The LLVM-disabled
+stage0/predecessor selection passed `4/4`; LLVM/self-host native execution is
+not available in that deliberately fallback-only configuration. The fresh
+Windows x64 stage1-to-stage3 bootstrap passed six lexer/parser self-tests, two
+stage3 HIR/MIR checks, and the stage3 WP10/WP11/WP11A/WP12 matrices, with
+matching stage2/stage3 IR SHA-256
+`bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`.
+
 ### F05 - Easing
 
 - `R3-F05-001`: Provide the conceptual family `Linear`, `InQuad`, `OutQuad`,

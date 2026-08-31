@@ -1,0 +1,8 @@
+import std.math
+
+# Clamps a value through the public std.math source contract.
+pub fn normalize(value: Float, minimum: Float, maximum: Float) -> Float:
+    return math.clamp(value: value, minimum: minimum, maximum: maximum)
+
+fn main() -> Int:
+    return 0

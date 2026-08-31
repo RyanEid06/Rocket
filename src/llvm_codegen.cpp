@@ -1397,11 +1397,13 @@ private:
                              std::string& error) {
     const HirSymbol& symbol = mir_.symbols[value.callee];
     const char* fixedRuntimeName = standardRuntimeName(symbol.intrinsic);
-    if (!fixedRuntimeName) {
+    if (!fixedRuntimeName && symbol.intrinsic != Intrinsic::Math) {
       error = "unknown standard-library intrinsic reached LLVM lowering";
       return nullptr;
     }
-    std::string runtimeName = fixedRuntimeName;
+    std::string runtimeName = symbol.intrinsic == Intrinsic::Math
+                                  ? "rocket_std_math_" + symbol.name.substr(std::string("std.math.").size())
+                                  : fixedRuntimeName;
     if (symbol.intrinsic == Intrinsic::CollectionsAppend ||
         symbol.intrinsic == Intrinsic::CollectionsInsert ||
         symbol.intrinsic == Intrinsic::BufferSet ||

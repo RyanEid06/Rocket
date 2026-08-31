@@ -26,6 +26,7 @@
 #include <fstream>
 #include <iomanip>
 #include <memory>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <sstream>
@@ -52,6 +53,26 @@ inline RocketAggregate rocket_stage0_variant(std::uint32_t tag,
                                               std::vector<std::any> fields = {}) {
   return rocket_aggregate(tag, std::move(fields));
 }
+
+inline double rocket_std_math_pi() { return std::acos(-1.0); }
+inline double rocket_std_math_tau() { return 2.0 * rocket_std_math_pi(); }
+inline double rocket_std_math_e() { return std::exp(1.0); }
+inline double rocket_std_math_abs(double v) { return std::fabs(v); }
+inline std::int64_t rocket_std_math_abs_int(std::int64_t v) { return v == std::numeric_limits<std::int64_t>::min() ? std::numeric_limits<std::int64_t>::max() : v < 0 ? -v : v; }
+inline double rocket_std_math_min(double a, double b) { return std::fmin(a,b); } inline double rocket_std_math_max(double a, double b) { return std::fmax(a,b); }
+inline std::int64_t rocket_std_math_min_int(std::int64_t a, std::int64_t b) { return std::min(a,b); } inline std::int64_t rocket_std_math_max_int(std::int64_t a, std::int64_t b) { return std::max(a,b); }
+inline double rocket_std_math_clamp(double v,double lo,double hi) { return lo > hi ? std::numeric_limits<double>::quiet_NaN() : std::fmin(std::fmax(v,lo),hi); }
+inline std::int64_t rocket_std_math_clamp_int(std::int64_t v,std::int64_t lo,std::int64_t hi) { return lo > hi ? v : std::min(std::max(v,lo),hi); }
+inline double rocket_std_math_sign(double v) { return std::isnan(v) ? v : v > 0 ? 1.0 : v < 0 ? -1.0 : v; } inline std::int64_t rocket_std_math_sign_int(std::int64_t v) { return (v>0)-(v<0); }
+inline double rocket_std_math_floor(double v){return std::floor(v);} inline double rocket_std_math_ceil(double v){return std::ceil(v);} inline double rocket_std_math_round(double v){return std::round(v);} inline double rocket_std_math_trunc(double v){return std::trunc(v);} inline double rocket_std_math_fract(double v){return v-std::floor(v);}
+inline double rocket_std_math_sqrt(double v){return std::sqrt(v);} inline double rocket_std_math_pow(double a,double b){return std::pow(a,b);} inline double rocket_std_math_exp(double v){return std::exp(v);} inline double rocket_std_math_log(double v){return std::log(v);} inline double rocket_std_math_log10(double v){return std::log10(v);}
+inline double rocket_std_math_sin(double v){return std::sin(v);} inline double rocket_std_math_cos(double v){return std::cos(v);} inline double rocket_std_math_tan(double v){return std::tan(v);} inline double rocket_std_math_asin(double v){return std::asin(v);} inline double rocket_std_math_acos(double v){return std::acos(v);} inline double rocket_std_math_atan(double v){return std::atan(v);} inline double rocket_std_math_atan2(double y,double x){return std::atan2(y,x);}
+inline double rocket_std_math_radians(double v){return v*(rocket_std_math_pi()/180.0);} inline double rocket_std_math_degrees(double v){return v*(180.0/rocket_std_math_pi());}
+inline double rocket_std_math_lerp(double a,double b,double t){if(t==0.0)return a;if(t==1.0)return b;return a*(1.0-t)+b*t;}
+inline double rocket_std_math_inverse_lerp(double a,double b,double v){if(a==b)return std::numeric_limits<double>::quiet_NaN();double scale=std::max(std::fabs(a),std::fabs(b));if(std::isfinite(scale)&&scale>0.0)return (v/scale-a/scale)/(b/scale-a/scale);return (v-a)/(b-a);}
+inline double rocket_std_math_remap(double a,double b,double c,double d,double v){return rocket_std_math_lerp(c,d,rocket_std_math_inverse_lerp(a,b,v));}
+inline double rocket_std_math_smoothstep(double a,double b,double v){double t=rocket_std_math_inverse_lerp(a,b,v);if(std::isnan(t))return t;t=rocket_std_math_clamp(t,0,1);return t*t*(3-2*t);} inline double rocket_std_math_smootherstep(double a,double b,double v){double t=rocket_std_math_inverse_lerp(a,b,v);if(std::isnan(t))return t;t=rocket_std_math_clamp(t,0,1);return t*t*t*(t*(t*6-15)+10);}
+inline double rocket_std_math_approach(double c,double t,double d){if(c==t||d<0)return c;if(std::isnan(t))return t;if(c<t){double distance=t-c;return d>=distance?t:c+d;}double distance=c-t;return d>=distance?t:c-d;} inline double rocket_std_math_move_towards(double c,double t,double d){return rocket_std_math_approach(c,t,d);}
 
 template <typename T> RocketAggregate rocket_stage0_ok(T value) {
   return rocket_stage0_variant(0, {std::move(value)});

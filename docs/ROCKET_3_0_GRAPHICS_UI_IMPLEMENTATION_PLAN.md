@@ -206,9 +206,9 @@ operational prompt, not a substitute for it.
 
 `WP00` is the planning checkpoint, `WP01` through `WP08` are complete
 foundation packets, and WP09 completed their integration audit. WP10, WP11,
-and the mandatory suffixed successor WP11A are now complete, making WP12 the
-lowest-numbered eligible packet. Suffixed packets sort immediately after their
-numeric packet.
+the mandatory suffixed successor WP11A, and WP12 are now complete, making WP13
+the lowest-numbered eligible packet. Suffixed packets sort immediately after
+their numeric packet.
 
 | Packet | Feature groups | Maximum scope | Current state |
 | --- | --- | --- | --- |
@@ -225,8 +225,8 @@ numeric packet.
 | WP10 | F02 | Named arguments | COMPLETE / GREEN |
 | WP11 | F03 | Default arguments | COMPLETE / GREEN |
 | WP11A | F02 | Complete named-callable parity | COMPLETE / GREEN |
-| WP12 | F04 | Complete `std.math` | READY / RED |
-| WP13 | F05, F06 | Easing plus complete motion/timelines | WAIT FOR WP12 / RED |
+| WP12 | F04 | Complete `std.math` | COMPLETE / LOCAL-GREEN; target-lab R3-F04-008 pending |
+| WP13 | F05, F06 | Easing plus complete motion/timelines | READY / RED |
 | WP14 | F07 | Safe raylib geometry expansion | READY / RED |
 | WP15 | F08 | Advanced textures/filtering | WAIT FOR WP14 / RED |
 | WP16 | F09 | Render targets, clipping, blending | WAIT FOR WP15 / RED |
@@ -797,11 +797,47 @@ semantics, stage0/self-host parity, runtime/backend work only where necessary,
 numeric vectors, docs, compatibility, and bootstrap evidence.
 
 **Dependency:** WP11A is complete. WP12 is the lowest-numbered eligible packet
-and blocks WP13.
+and blocks WP13 until its local implementation gate is complete; native target
+laboratory confirmation for R3-F04-008 remains a WP34/F29 acceptance item.
 
 **Generated output:** `out/rocket3-provisional/wp12`
 
 **Checkpoint:** `feat: add complete standard math module`
+
+**Completed evidence (2026-09-02):** The permanent C++20 stage0 and the
+Rocket-written compiler now expose the complete final `std.math` inventory:
+constant functions; Float and explicit Int scalar helpers; rounding and
+fractional operations; roots, powers, logarithms, and exponentials;
+trigonometry and degree/radian conversion; and interpolation, smooth-step, and
+bounded-motion helpers. Compiler-owned stable parameter names drive named calls,
+LSP signature help, and package/documentation metadata. The runtime and both
+LLVM and LLVM-disabled lowering paths preserve runtime ABI v1 and backend ABI.
+The F04 specification records deterministic IEEE-754/domain, invalid-range,
+integer-overflow, rounding, signed-zero, exact-endpoint, tolerance, and
+no-overshoot rules.
+
+The required pre-implementation RED fixture failed with unknown `std.math`
+functions. Repair coverage first reproduced the formerly unsafe large-opposite
+endpoint paths, then the final stage0 and self-hosted matrices each passed all
+`76/76` numeric/domain vectors. The named public-surface, package-documentation,
+formatter, and language-server signature-help gates passed, as did the fresh
+four-target source/lowering surface gate. Fresh full Debug and Release suites
+each passed `231/231` with no failure or timeout marker. The LLVM-disabled MSVC
+Release stage0 WP10/WP11/WP11A/WP12 predecessor selection passed `4/4`; its
+LLVM/self-host-only cases are intentionally not a fallback acceptance gate.
+The locally available supported-target query/self-host parity evidence passed
+`2/2`. The isolated Windows x64 Release bootstrap produced stage1 through
+stage3 below the WP12 output root; all six lexer/parser self-tests, both stage3
+HIR/MIR checks, and the stage3 WP10/WP11/WP11A/WP12 matrices passed. Stage2 and
+stage3 LLVM IR matched at SHA-256
+`bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`.
+No task process crossed the 4 GiB guard.
+
+WP12 is complete and LOCAL-GREEN for the Windows implementation, source
+surface, and cross-target lowering gates that this packet can execute. It
+unblocks WP13. Native numeric execution on Linux x64, Linux arm64, and macOS
+arm64 remains explicitly pending target-laboratory acceptance for R3-F04-008;
+this packet does not misrepresent that pending evidence as cross-target GREEN.
 
 ### WP13 - Easing and complete motion
 
@@ -991,7 +1027,7 @@ file/test/doc/evidence links when executed.
 | F01 Governance | WP00, WP09 | WP09 INTEGRATION-READY baseline: accepted Rocket 2.1 ancestry, target/toolchain/ABI/SDK/package/raylib layout, frozen-package hashes, and focused compatibility evidence recorded above | WP35 |
 | F02 Named arguments | WP10, WP11A | GREEN: all function/method/extern/struct, closure/IIFE, registered standard-intrinsic, built-in, and labeled-enum named calls; public and compiler-owned names, cross-module enum labels, deterministic diagnostics, written evaluation order, pre-MIR positional ABI normalization, formatter/LSP/docs/editor parity, Debug/Release `228/228`, LLVM-disabled `19/19`, and matching stage2/stage3 IR `d6a8e980c386837045a0e84ad997ac3024149663e697ed76593d16be968c632f` | WP34 |
 | F03 Default arguments | WP11 | GREEN: ordinary function/method defaults in stage0 and self-host; declaration-context and earlier-parameter binding, generic specialization, written-before-default evaluation, pre-MIR ABI normalization, cross-module metadata, stable diagnostics/exclusions, formatter/LSP/docs parity, Debug/Release `226/226`, LLVM-disabled `18/18`, and matching stage2/stage3 IR `4aa87fe969ff42d8806c938a24106d2a14bad91a76f23cbda063ae27ed8eb210` | WP34 |
-| F04 `std.math` | WP12 | READY / RED | WP34 |
+| F04 `std.math` | WP12 | LOCAL-GREEN: final Float/Int standard-module surface, source-stable parameter names, stage0/self-host/runtime/LLVM parity, LSP/docs metadata, documented IEEE-754 and range semantics, 76-vector Windows stage0/self-host matrices, Debug/Release `231/231`, LLVM-disabled predecessor `4/4`, target source/lowering evidence `2/2`, and matching stage2/stage3 IR `bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`; native Linux/macOS numeric confirmation of R3-F04-008 is pending WP34/F29 target-lab acceptance | WP34 |
 | F05 Easing | WP13 | RED | WP34 |
 | F06 Motion/reduced motion | WP06, WP13 | WP09 retained the WP06 reduced-motion policy as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/reduced_motion.rocket`; fresh native package and formatter evidence recorded above | WP34 |
 | F07 Safe geometry backend | WP14 | RED | WP34 |
@@ -1027,90 +1063,63 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP12 - Complete `std.math`
+**Current packet:** WP13 - Easing and complete motion
 
 ```text
 Work only in the main Rocket checkout:
 C:\Users\Administrator\Desktop\Projects\Rocket
 
-Set that path as the working directory first. Then read AGENTS.md,
+Set that path as the working directory first. Read AGENTS.md,
 docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and
-docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md.
+docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md. Verify `master`, a clean
+checkout, and accepted baseline `19596db860d4105d2226c98be2693edc5632aaf0`.
+Phase 19 and WP09 through WP12 are complete; WP13 is the lowest-numbered
+eligible packet. The retained Rocket 3 foundations remain internal
+INTEGRATION-READY inputs, not public APIs. Push any preceding committed Rocket
+3 checkpoint before editing.
 
-Verify that the branch is master, begin from a clean checkout, and confirm it
-contains the accepted Rocket 2.1 baseline
-19596db860d4105d2226c98be2693edc5632aaf0. Phase 19 and WP09 through WP11A are
-complete. WP10/WP11A named-callable behavior and WP11 default-argument behavior
-are mandatory predecessors for this packet. The retained Rocket 3 foundation
-kernels are internal INTEGRATION-READY inputs, not public APIs. If
-`git status --short --branch` shows an unpushed Rocket 3 checkpoint, push it
-before editing.
+Execute only WP13, F05 and F06: make the final public `rocket.motion` module.
+Implement the complete Linear, Quad, Cubic, Quart, Sine, Back, Bounce, and
+Elastic easing families (In, Out, and InOut where required), with Float progress
+and exact 0/1 endpoints but no implicit intermediate clamping. Implement typed
+Float, Vec2, and Color tweens; delay, sequence, parallel, repeat, and yoyo
+timelines; fade, move, slide, scale, rotate, pulse, and color-transition
+conveniences; and explicit application-owned state only. Promote the retained
+reduced-motion kernel into the final policy: nonessential motion snaps to its
+final state, and any essential reduced transitions are specifically documented.
+Define zero/negative duration, repeat counts, cancellation/completion, large
+deltas, yoyo boundaries, overshoot, and deterministic cleanup. Do not start
+WP14 or add graphics, UI, raylib, assets, visual-regression, or Scroll2Roll
+work.
 
-Recommended model: GPT-5.6 Terra with High reasoning.
+Use TDD: add focused positive, endpoint, symmetry, overshoot, cancellation,
+reduced-motion, and failure tests before production code, and capture their RED
+baseline. Implement matching permanent C++20 stage0 and Rocket-written compiler
+behavior, module/import discovery, HIR/MIR and public metadata, LLVM and
+LLVM-disabled lowering, runtime work only where necessary, formatter, LSP,
+documentation/search metadata, and supported editor behavior. Preserve valid
+Rocket 2.1/WP10/WP11/WP11A/WP12 programs, runtime ABI v1, and backend ABI.
 
-Execute only WP12: implement the complete F04 `std.math` module at the audited
-standard-library ownership location. Freeze and document the final Rocket API
-for `pi`, `tau`, and `e`; scalar `abs`, `min`, `max`, `clamp`, and `sign` with
-explicit Int variants wherever Rocket cannot overload safely; `floor`, `ceil`,
-`round`, `trunc`, and `fract`; `sqrt`, `pow`, `exp`, `log`, and `log10`; `sin`,
-`cos`, `tan`, `asin`, `acos`, `atan`, and `atan2`; radians/degrees conversion;
-and `lerp`, `inverse_lerp`, `remap`, `smoothstep`, `smootherstep`, `approach`,
-and `move_towards`. Do not reduce this inventory or substitute provisional
-foundation names for the final standard-module surface.
+Before Rocket commands, confirm no task build/test process is active. Run all
+commands sequentially; put all generated state only below
+`out/rocket3-provisional/wp13`; never automatically retry a timeout; stop and
+report a task process that exceeds 4 GiB or continues growing rapidly. Inspect
+current build guidance and estimate combined matrix disk use before configuring;
+ask the owner before any operation that could exceed 20 GiB.
 
-Define exact parameter names as source-compatibility commitments and specify
-Float domain results, NaN/infinity behavior that Rocket can represent, invalid
-and zero-width ranges, Int overflow behavior, rounding/tie rules, clamping or
-non-clamping behavior, and exact endpoint expectations. Use deterministic
-numeric vectors with explicit tolerances and cover domain boundaries,
-representative interiors, negative values, signed zero where observable,
-overflow, invalid ranges, and exact endpoints. Preserve valid Rocket 2.1 and
-WP10/WP11/WP11A programs, runtime ABI v1, and existing backend ABI unless a
-strictly necessary internal implementation hook can be added without changing
-those contracts.
-
-Implement matching permanent C++20 stage0 and Rocket-written compiler behavior,
-standard-module discovery/imports, HIR/MIR/intrinsic metadata, LLVM and
-LLVM-disabled fallback lowering, runtime support only where required, package
-documentation/search metadata, formatter/LSP signature help, and supported
-editor-facing behavior. Verify consistent results on all supported targets
-within documented floating-point tolerances using the repository's existing
-target infrastructure. Do not implement WP13 easing/motion or any graphics,
-UI, raylib, asset, visual-regression, or Scroll2Roll work.
-
-Before running Rocket commands, confirm no Rocket build/test processes from this
-task are active. Use test-driven development: add focused positive/negative
-tests first, run them, and capture the expected failure before implementation.
-Run commands sequentially, write all generated state only below
-out/rocket3-provisional/wp12 inside this checkout, never automatically retry a
-timeout, and stop/report if a task process exceeds 4 GiB or keeps growing.
-Inspect the current build guidance before configuring compiler/bootstrap
-matrices, estimate their combined disk use, and stop to ask the owner before
-any operation that could use more than 20 GiB.
-
-Ensure the focused RED baseline includes positive, boundary, invalid-domain,
-overflow, target-tolerance, stage0, and self-hosted cases. Run focused stdlib,
-parser/HIR/MIR, LLVM/backend, runtime, package/docs, formatter, LSP/tooling, and
-cross-target checks for the complete inventory. Then run the RED packet's required
-WP10/WP11/WP11A predecessor compatibility, LLVM-disabled stage0, full
+Run focused compiler/runtime/module/docs/formatter/LSP/cross-target checks, then
+the RED packet's predecessor compatibility, LLVM-disabled stage0, full
 Debug/Release, supported-target evidence, and deterministic stage0-to-stage3
-bootstrap without weakening or deleting any existing gate. Update WP12's
-packet-index state, detailed evidence, and atomic traceability, then follow the
-success-only prompt-rotation contract in section 4. The next eligible packet is
-WP13 after WP12: replace the current packet label and this entire fenced block
-with a complete WP13 prompt. Run `git diff --check`, review the scoped diff, and
-commit the WP12 implementation, tests, docs, evidence, and prompt rotation
-together with:
+bootstrap without weakening gates. Only if all pass, update WP13 evidence and
+traceability and rotate section 9 to a complete self-contained WP14 prompt.
+Run `git diff --check`, review only the packet diff, and commit all WP13 work
+with exactly:
 
-feat: add complete standard math module
+feat: add Rocket motion and easing
 
-Only rotate after every required WP12 check passes. If implementation or
-verification fails, leave WP12 as the current prompt and report the blocker.
-After committing, push `master` to `origin`. If push fails, do not begin WP13;
-report the push blocker and preserve the committed handoff. After a successful
-push, stop and report the exact files, tests, results, commit, push result,
-remaining intentional limitations, and the packet prepared for the next chat.
-Do not begin WP13 or any other packet in the same chat.
+Push `master` to `origin` after the commit and stop; do not begin WP14. If any
+implementation or required validation fails, leave WP13 current, do not rotate,
+and report the blocker.
 ```
 
 ## 10. Permanent reusable launcher

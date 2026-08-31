@@ -15,6 +15,29 @@ const std::vector<std::pair<std::string, std::vector<std::string>>>&
 compilerCallableParameterNames() {
   static const std::vector<std::pair<std::string, std::vector<std::string>>> names = {
       {"print", {"value"}},
+      {"std.math.pi", {}}, {"std.math.tau", {}}, {"std.math.e", {}},
+      {"std.math.abs", {"value"}}, {"std.math.abs_int", {"value"}},
+      {"std.math.min", {"left", "right"}}, {"std.math.max", {"left", "right"}},
+      {"std.math.min_int", {"left", "right"}}, {"std.math.max_int", {"left", "right"}},
+      {"std.math.clamp", {"value", "minimum", "maximum"}},
+      {"std.math.clamp_int", {"value", "minimum", "maximum"}},
+      {"std.math.sign", {"value"}}, {"std.math.sign_int", {"value"}},
+      {"std.math.floor", {"value"}}, {"std.math.ceil", {"value"}},
+      {"std.math.round", {"value"}}, {"std.math.trunc", {"value"}},
+      {"std.math.fract", {"value"}}, {"std.math.sqrt", {"value"}},
+      {"std.math.pow", {"base", "exponent"}}, {"std.math.exp", {"value"}},
+      {"std.math.log", {"value"}}, {"std.math.log10", {"value"}},
+      {"std.math.sin", {"radians"}}, {"std.math.cos", {"radians"}},
+      {"std.math.tan", {"radians"}}, {"std.math.asin", {"value"}},
+      {"std.math.acos", {"value"}}, {"std.math.atan", {"value"}},
+      {"std.math.atan2", {"y", "x"}}, {"std.math.radians", {"degrees"}},
+      {"std.math.degrees", {"radians"}}, {"std.math.lerp", {"start", "end", "progress"}},
+      {"std.math.inverse_lerp", {"start", "end", "value"}},
+      {"std.math.remap", {"input_start", "input_end", "output_start", "output_end", "value"}},
+      {"std.math.smoothstep", {"start", "end", "value"}},
+      {"std.math.smootherstep", {"start", "end", "value"}},
+      {"std.math.approach", {"current", "target", "maximum_delta"}},
+      {"std.math.move_towards", {"current", "target", "maximum_delta"}},
       {"std.string.byte_length", {"value"}},
       {"std.string.concat", {"left", "right"}},
       {"std.string.contains", {"value", "needle"}},
@@ -620,6 +643,31 @@ void HirLowerer::registerStandardLibrary() {
                          std::move(parameters),
                          std::move(returned), intrinsic});
   };
+
+  add("std.math.pi", {}, Type::Float, Intrinsic::Math);
+  add("std.math.tau", {}, Type::Float, Intrinsic::Math);
+  add("std.math.e", {}, Type::Float, Intrinsic::Math);
+  add("std.math.abs", {Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.abs_int", {Type::Int}, Type::Int, Intrinsic::Math);
+  add("std.math.min", {Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.max", {Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.min_int", {Type::Int, Type::Int}, Type::Int, Intrinsic::Math);
+  add("std.math.max_int", {Type::Int, Type::Int}, Type::Int, Intrinsic::Math);
+  add("std.math.clamp", {Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.clamp_int", {Type::Int, Type::Int, Type::Int}, Type::Int, Intrinsic::Math);
+  add("std.math.sign", {Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.sign_int", {Type::Int}, Type::Int, Intrinsic::Math);
+  for (const char* name : {"floor", "ceil", "round", "trunc", "fract", "sqrt", "exp", "log", "log10", "sin", "cos", "tan", "asin", "acos", "atan", "radians", "degrees"})
+    add(std::string("std.math.") + name, {Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.pow", {Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.atan2", {Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.lerp", {Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.inverse_lerp", {Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.remap", {Type::Float, Type::Float, Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.smoothstep", {Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.smootherstep", {Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.approach", {Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
+  add("std.math.move_towards", {Type::Float, Type::Float, Type::Float}, Type::Float, Intrinsic::Math);
 
   add("std.string.byte_length", {Type::String}, Type::Int, Intrinsic::StringByteLength);
   add("std.string.concat", {Type::String, Type::String}, Type::String,

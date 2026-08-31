@@ -1,0 +1,4 @@
+[package]
+name = "rocket3_std_math_package"
+version = "0.1.0"
+entry = "src/main.rocket"

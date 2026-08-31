@@ -718,6 +718,8 @@ void BootstrapCodeGenerator::emitRvalue(std::ostream& out, const MirRvalue& valu
     if (module_.symbols[value.callee].kind == SymbolKind::BuiltinFunction) {
       const HirSymbol& symbol = module_.symbols[value.callee];
       if (symbol.intrinsic == Intrinsic::Print) out << "rocket_print";
+      else if (symbol.intrinsic == Intrinsic::Math)
+        out << "rocket_std_math_" << symbol.name.substr(std::string("std.math.").size());
       else if (const char* name = standardFunctionName(symbol.intrinsic)) out << name;
       else out << "/* unknown standard-library intrinsic */";
       if (symbol.intrinsic == Intrinsic::CollectionsMapLength ||

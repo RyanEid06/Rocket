@@ -257,6 +257,7 @@ enum class Intrinsic {
   TargetPointerWidth,
   TargetEndianness,
   TargetHasFeature,
+  Math,
 };
 
 struct HirSymbol {

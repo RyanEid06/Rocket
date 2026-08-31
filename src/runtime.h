@@ -619,4 +619,17 @@ std::int64_t rocket_std_time_unix_milliseconds();
 std::int64_t rocket_std_time_monotonic_milliseconds();
 void rocket_std_time_sleep_milliseconds(std::int64_t milliseconds);
 
+double rocket_std_math_pi(); double rocket_std_math_tau(); double rocket_std_math_e();
+double rocket_std_math_abs(double value); std::int64_t rocket_std_math_abs_int(std::int64_t value);
+double rocket_std_math_min(double left, double right); double rocket_std_math_max(double left, double right);
+std::int64_t rocket_std_math_min_int(std::int64_t left, std::int64_t right); std::int64_t rocket_std_math_max_int(std::int64_t left, std::int64_t right);
+double rocket_std_math_clamp(double value, double minimum, double maximum); std::int64_t rocket_std_math_clamp_int(std::int64_t value, std::int64_t minimum, std::int64_t maximum);
+double rocket_std_math_sign(double value); std::int64_t rocket_std_math_sign_int(std::int64_t value);
+double rocket_std_math_floor(double value); double rocket_std_math_ceil(double value); double rocket_std_math_round(double value); double rocket_std_math_trunc(double value); double rocket_std_math_fract(double value);
+double rocket_std_math_sqrt(double value); double rocket_std_math_pow(double base, double exponent); double rocket_std_math_exp(double value); double rocket_std_math_log(double value); double rocket_std_math_log10(double value);
+double rocket_std_math_sin(double radians); double rocket_std_math_cos(double radians); double rocket_std_math_tan(double radians); double rocket_std_math_asin(double value); double rocket_std_math_acos(double value); double rocket_std_math_atan(double value); double rocket_std_math_atan2(double y, double x);
+double rocket_std_math_radians(double degrees); double rocket_std_math_degrees(double radians);
+double rocket_std_math_lerp(double start, double end, double progress); double rocket_std_math_inverse_lerp(double start, double end, double value); double rocket_std_math_remap(double input_start, double input_end, double output_start, double output_end, double value);
+double rocket_std_math_smoothstep(double start, double end, double value); double rocket_std_math_smootherstep(double start, double end, double value); double rocket_std_math_approach(double current, double target, double maximum_delta); double rocket_std_math_move_towards(double current, double target, double maximum_delta);
+
 } // extern "C"

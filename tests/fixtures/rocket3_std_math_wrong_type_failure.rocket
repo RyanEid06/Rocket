@@ -1,0 +1,5 @@
+import std.math
+
+fn main() -> Int:
+    let ignored = math.clamp(1, 0.0, 1.0)
+    return 0

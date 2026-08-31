@@ -1041,12 +1041,38 @@ Known limitations remain those in the implementation-state list above; no langua
 - Generated WP11A state remained under `out/rocket3-provisional/wp11a`, occupied
   5.112 GiB, and stayed below the 4 GiB per-process and 20 GiB operation guards.
 
+**Rocket 3 WP12 - complete standard math module**
+
+- Added the final compiler-owned `std.math` standard module in both C++20 stage0
+  and the Rocket-written compiler. Its Float and explicit Int API covers the
+  full constants, scalar, rounding, exponential/logarithmic, trigonometric,
+  conversion, interpolation, smoothing, and bounded-motion inventory; named
+  parameter metadata is shared with LSP signature help and documentation.
+- Added deterministic runtime implementations and LLVM plus LLVM-disabled
+  stage0 lowering without changing runtime ABI v1. The requirements document
+  freezes the final names and the NaN/infinity, invalid-range, rounding,
+  saturation, signed-zero, endpoint, and no-overshoot contracts.
+- The required RED fixture failed before implementation with unknown
+  `std.math` call diagnostics. The repaired stage0/self-host matrix now passes
+  76/76 numeric/domain vectors in each compiler, with named-surface, package
+  documentation, formatter, language-server, and four-target lowering gates.
+  Fresh Debug and Release CTest suites passed 231/231 each; the LLVM-disabled
+  WP10/WP11/WP11A/WP12 stage0/predecessor selection passed 4/4, while
+  LLVM/self-host native execution remains intentionally outside that fallback
+  configuration.
+- Deterministic Windows x64 Release bootstrap passed six self-tests, two
+  HIR/MIR checks, and stage3 WP10/WP11/WP11A/WP12 matrices. Stage2/stage3 IR
+  matched at SHA-256
+  `bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`.
+
 ## Current next task
 
 **Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
-WP11A is complete and GREEN. The lowest-numbered next eligible Rocket 3 packet
-is WP12, complete `std.math`; WP13 remains blocked until WP12 completes. The
-exact one-packet scope and success-only handoff are in
+WP12 is complete and LOCAL-GREEN; native non-Windows numeric confirmation for
+R3-F04-008 remains a WP34/F29 target-laboratory acceptance item. The
+lowest-numbered next eligible Rocket 3 packet
+is WP13, easing and complete motion; WP14 remains blocked until WP13 completes.
+The exact one-packet scope and success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
 remain baseline state.**
