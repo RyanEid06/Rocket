@@ -206,8 +206,8 @@ operational prompt, not a substitute for it.
 
 `WP00` is the planning checkpoint, `WP01` through `WP08` are complete
 foundation packets, and WP09 completed their integration audit. WP10, WP11,
-the mandatory suffixed successor WP11A, and WP12 are now complete, making WP13
-the lowest-numbered eligible packet. Suffixed packets sort immediately after
+the mandatory suffixed successor WP11A, WP12, and WP13 are now complete, making
+WP14 the lowest-numbered eligible packet. Suffixed packets sort immediately after
 their numeric packet.
 
 | Packet | Feature groups | Maximum scope | Current state |
@@ -226,7 +226,7 @@ their numeric packet.
 | WP11 | F03 | Default arguments | COMPLETE / GREEN |
 | WP11A | F02 | Complete named-callable parity | COMPLETE / GREEN |
 | WP12 | F04 | Complete `std.math` | COMPLETE / LOCAL-GREEN; target-lab R3-F04-008 pending |
-| WP13 | F05, F06 | Easing plus complete motion/timelines | READY / RED |
+| WP13 | F05, F06 | Easing plus complete motion/timelines | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 |
 | WP14 | F07 | Safe raylib geometry expansion | READY / RED |
 | WP15 | F08 | Advanced textures/filtering | WAIT FOR WP14 / RED |
 | WP16 | F09 | Render targets, clipping, blending | WAIT FOR WP15 / RED |
@@ -847,6 +847,24 @@ the convenience constructors with explicit application-state ownership.
 
 **Checkpoint:** `feat: add Rocket motion and easing`
 
+**WP13 evidence (2026-09-02):** Added bundled public source module
+`stdlib/rocket/motion.rocket` and stage0/self-host import resolution for
+`rocket.motion`. The immutable API covers every required easing family,
+Float/Vec2/Color tween sampling, motion policy, delay/sequence/parallel/repeat/
+yoyo/cancel timelines, and all required conveniences. The required fixture was
+RED before the module existed. Afterwards, focused stage0/self-host tests,
+formatter, named-surface diagnostics, and four-target source/lowering checks
+passed; fresh Debug and Release CTest suites passed `234/234` each; the
+LLVM-disabled stage0/predecessor selection passed `5/5`; and a deterministic
+Windows bootstrap passed stage1/stage2/stage3 lexer and parser self-tests, HIR/
+MIR checks, WP10/WP11/WP11A/WP12/WP13 fixture checks, and the stage3 20-case
+motion run. Stage2/stage3 IR matched at SHA-256
+`5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+Generated state stayed under `out/rocket3-provisional/wp13` (4.944 GiB), below
+the 20 GiB operation guard. This packet is LOCAL-GREEN for Windows and
+source/lowering checks; native non-Windows target-laboratory acceptance remains
+WP34/F29 work.
+
 ### WP14 - Safe raylib geometry
 
 **Feature:** F07. Expand the reviewed native adapter and safe Rocket module for
@@ -1028,8 +1046,8 @@ file/test/doc/evidence links when executed.
 | F02 Named arguments | WP10, WP11A | GREEN: all function/method/extern/struct, closure/IIFE, registered standard-intrinsic, built-in, and labeled-enum named calls; public and compiler-owned names, cross-module enum labels, deterministic diagnostics, written evaluation order, pre-MIR positional ABI normalization, formatter/LSP/docs/editor parity, Debug/Release `228/228`, LLVM-disabled `19/19`, and matching stage2/stage3 IR `d6a8e980c386837045a0e84ad997ac3024149663e697ed76593d16be968c632f` | WP34 |
 | F03 Default arguments | WP11 | GREEN: ordinary function/method defaults in stage0 and self-host; declaration-context and earlier-parameter binding, generic specialization, written-before-default evaluation, pre-MIR ABI normalization, cross-module metadata, stable diagnostics/exclusions, formatter/LSP/docs parity, Debug/Release `226/226`, LLVM-disabled `18/18`, and matching stage2/stage3 IR `4aa87fe969ff42d8806c938a24106d2a14bad91a76f23cbda063ae27ed8eb210` | WP34 |
 | F04 `std.math` | WP12 | LOCAL-GREEN: final Float/Int standard-module surface, source-stable parameter names, stage0/self-host/runtime/LLVM parity, LSP/docs metadata, documented IEEE-754 and range semantics, 76-vector Windows stage0/self-host matrices, Debug/Release `231/231`, LLVM-disabled predecessor `4/4`, target source/lowering evidence `2/2`, and matching stage2/stage3 IR `bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`; native Linux/macOS numeric confirmation of R3-F04-008 is pending WP34/F29 target-lab acceptance | WP34 |
-| F05 Easing | WP13 | RED | WP34 |
-| F06 Motion/reduced motion | WP06, WP13 | WP09 retained the WP06 reduced-motion policy as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/reduced_motion.rocket`; fresh native package and formatter evidence recorded above | WP34 |
+| F05 Easing | WP13 | LOCAL-GREEN: bundled `rocket.motion` has every required easing family, exact endpoints, unclamped intermediate progress, deterministic Bounce, intentional Back/Elastic overshoot, stage0/self-host parity, Debug/Release `234/234`, LLVM-disabled predecessor `5/5`, four-target source/lowering checks, and matching stage2/stage3 IR `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`; native non-Windows target-lab acceptance remains WP34/F29 | WP34 |
+| F06 Motion/reduced motion | WP06, WP13 | LOCAL-GREEN: public value-owned Float/Vec2/Color tweens, explicit reduced-motion policy, delay/sequence/parallel/repeat/yoyo/cancel timelines, all convenience constructors, and defined zero/negative/repeat/large-delta behavior; WP06 remains a superseded internal kernel, while WP13 carries the final public contract and the same validation evidence | WP34 |
 | F07 Safe geometry backend | WP14 | RED | WP34 |
 | F08 Textures/filtering | WP15 | RED | WP34 |
 | F09 Render targets/scopes | WP16 | RED | WP34 |
@@ -1063,7 +1081,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP13 - Easing and complete motion
+**Current packet:** WP14 - Safe raylib geometry
 
 ```text
 Work only in the main Rocket checkout:
@@ -1072,37 +1090,35 @@ C:\Users\Administrator\Desktop\Projects\Rocket
 Set that path as the working directory first. Read AGENTS.md,
 docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and
 docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md. Verify `master`, a clean
-checkout, and accepted baseline `19596db860d4105d2226c98be2693edc5632aaf0`.
-Phase 19 and WP09 through WP12 are complete; WP13 is the lowest-numbered
-eligible packet. The retained Rocket 3 foundations remain internal
-INTEGRATION-READY inputs, not public APIs. Push any preceding committed Rocket
-3 checkpoint before editing.
+checkout, and the pushed WP13 checkpoint. Phase 19 and WP09 through WP13 are
+complete; WP14 is the lowest-numbered eligible packet. The retained Rocket 3
+foundations remain internal INTEGRATION-READY inputs, not public APIs. Push any
+preceding committed Rocket 3 checkpoint before editing.
 
-Execute only WP13, F05 and F06: make the final public `rocket.motion` module.
-Implement the complete Linear, Quad, Cubic, Quart, Sine, Back, Bounce, and
-Elastic easing families (In, Out, and InOut where required), with Float progress
-and exact 0/1 endpoints but no implicit intermediate clamping. Implement typed
-Float, Vec2, and Color tweens; delay, sequence, parallel, repeat, and yoyo
-timelines; fade, move, slide, scale, rotate, pulse, and color-transition
-conveniences; and explicit application-owned state only. Promote the retained
-reduced-motion kernel into the final policy: nonessential motion snaps to its
-final state, and any essential reduced transitions are specifically documented.
-Define zero/negative duration, repeat counts, cancellation/completion, large
-deltas, yoyo boundaries, overshoot, and deterministic cleanup. Do not start
-WP14 or add graphics, UI, raylib, assets, visual-regression, or Scroll2Roll
-work.
+Execute only WP14, F07: expand the reviewed portable raylib adapter and the
+safe Rocket geometry module. Expose filled and outlined rectangles, rounded
+rectangles, configurable outline thickness, rectangle gradients, circles and
+outlined circles, ellipses, rings and ring sectors, circle sectors and circle
+gradients, lines and thick lines, triangles and `triangle_outline`, polygons
+and `polygon_outline`, plus Bezier lines and curves. Reject non-finite values
+and defined negative dimensions before the native boundary. Preserve reviewed
+tokens/state and value-based safe APIs: do not expose raw native structs or
+pointers. Provide deterministic backend behavior, native tests, package
+generation, documentation/search metadata, and supported-target acceptance.
+Do not begin WP15 or add textures, render targets, shaders, UI, assets,
+visual-regression, or Scroll2Roll work.
 
-Use TDD: add focused positive, endpoint, symmetry, overshoot, cancellation,
-reduced-motion, and failure tests before production code, and capture their RED
+Use TDD: add focused positive, validation, boundary, failure, state/token, and
+deterministic-backend tests before production code, and capture their RED
 baseline. Implement matching permanent C++20 stage0 and Rocket-written compiler
-behavior, module/import discovery, HIR/MIR and public metadata, LLVM and
-LLVM-disabled lowering, runtime work only where necessary, formatter, LSP,
-documentation/search metadata, and supported editor behavior. Preserve valid
-Rocket 2.1/WP10/WP11/WP11A/WP12 programs, runtime ABI v1, and backend ABI.
+behavior, public metadata, HIR/MIR and LLVM/LLVM-disabled lowering, runtime work
+only where necessary, formatter, LSP, docs, and supported editor behavior.
+Preserve valid Rocket 2.1/WP10/WP11/WP11A/WP12/WP13 programs, runtime ABI v1,
+and backend ABI.
 
 Before Rocket commands, confirm no task build/test process is active. Run all
 commands sequentially; put all generated state only below
-`out/rocket3-provisional/wp13`; never automatically retry a timeout; stop and
+`out/rocket3-provisional/wp14`; never automatically retry a timeout; stop and
 report a task process that exceeds 4 GiB or continues growing rapidly. Inspect
 current build guidance and estimate combined matrix disk use before configuring;
 ask the owner before any operation that could exceed 20 GiB.
@@ -1110,15 +1126,15 @@ ask the owner before any operation that could exceed 20 GiB.
 Run focused compiler/runtime/module/docs/formatter/LSP/cross-target checks, then
 the RED packet's predecessor compatibility, LLVM-disabled stage0, full
 Debug/Release, supported-target evidence, and deterministic stage0-to-stage3
-bootstrap without weakening gates. Only if all pass, update WP13 evidence and
-traceability and rotate section 9 to a complete self-contained WP14 prompt.
-Run `git diff --check`, review only the packet diff, and commit all WP13 work
+bootstrap without weakening gates. Only if all pass, update WP14 evidence and
+traceability and rotate section 9 to a complete self-contained WP15 prompt.
+Run `git diff --check`, review only the packet diff, and commit all WP14 work
 with exactly:
 
-feat: add Rocket motion and easing
+feat: expand safe raylib geometry
 
-Push `master` to `origin` after the commit and stop; do not begin WP14. If any
-implementation or required validation fails, leave WP13 current, do not rotate,
+Push `master` to `origin` after the commit and stop; do not begin WP15. If any
+implementation or required validation fails, leave WP14 current, do not rotate,
 and report the blocker.
 ```
 

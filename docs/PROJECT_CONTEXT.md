@@ -1065,14 +1065,28 @@ Known limitations remain those in the implementation-state list above; no langua
   matched at SHA-256
   `bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`.
 
+**Rocket 3 WP13 - easing and complete motion**
+
+- Added the final bundled public `rocket.motion` source module with every
+  required easing family, Float/Vec2/Color tweens, explicit value-owned
+  application state, reduced-motion policy, complete timelines, and all
+  convenience constructors. The module is source-backed rather than a runtime
+  ABI addition, and C++20 stage0 plus the Rocket-written compiler resolve it
+  identically.
+- The focused fixture captured the required pre-implementation missing-module
+  RED baseline. Fresh Debug and Release suites then passed `234/234` each; the
+  LLVM-disabled predecessor selection passed `5/5`; stage0/self-host and
+  four-target source/lowering gates passed; and the deterministic stage3
+  compiler ran all 20 motion checks. Stage2/stage3 IR matched at SHA-256
+  `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+
 ## Current next task
 
 **Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
-WP12 is complete and LOCAL-GREEN; native non-Windows numeric confirmation for
-R3-F04-008 remains a WP34/F29 target-laboratory acceptance item. The
-lowest-numbered next eligible Rocket 3 packet
-is WP13, easing and complete motion; WP14 remains blocked until WP13 completes.
-The exact one-packet scope and success-only handoff are in
+WP13 is complete and LOCAL-GREEN; native non-Windows target-laboratory
+acceptance remains a WP34/F29 item. The lowest-numbered next eligible Rocket 3
+packet is WP14, safe raylib geometry. The exact one-packet scope and
+success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
 remain baseline state.**

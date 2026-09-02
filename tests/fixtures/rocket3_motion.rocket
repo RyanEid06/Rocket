@@ -1,0 +1,51 @@
+import rocket.motion
+
+fn close(left: Float, right: Float) -> Bool:
+    let difference = left - right
+    if difference < 0.0:
+        return -difference < 0.000001
+    return difference < 0.000001
+
+fn main() -> Int:
+    print(motion.linear(0.0) == 0.0 and motion.linear(1.0) == 1.0 and motion.linear(-0.5) == -0.5)
+    print(close(motion.in_quad(0.5), 0.25) and close(motion.out_quad(0.5), 0.75) and close(motion.in_out_quad(0.25), 0.125))
+    print(close(motion.in_cubic(0.5), 0.125) and close(motion.out_cubic(0.5), 0.875) and close(motion.in_out_cubic(0.25), 0.0625))
+    print(close(motion.in_quart(0.5), 0.0625) and close(motion.out_quart(0.5), 0.9375) and close(motion.in_out_quart(0.25), 0.03125))
+    print(close(motion.in_sine(0.5), 0.2928932188134524) and close(motion.out_sine(0.5), 0.7071067811865475) and close(motion.in_out_sine(0.5), 0.5))
+    print(motion.in_back(0.5) < 0.0 and motion.out_back(0.5) > 1.0 and motion.in_out_back(0.25) < 0.0)
+    print(close(motion.in_bounce(0.0), 0.0) and close(motion.out_bounce(1.0), 1.0) and close(motion.in_out_bounce(0.5), 0.5))
+    print(motion.in_elastic(0.0) == 0.0 and motion.out_elastic(1.0) == 1.0 and motion.in_elastic(0.6) < 0.0 and motion.out_elastic(0.4) > 1.0 and motion.in_out_elastic(0.6) > 1.0)
+
+    let normal = motion.policy(false, true)
+    let reduced = motion.policy(true, true)
+    let float_value = motion.float_tween(0.0, 10.0, 2.0, false, motion.out_quad_easing())
+    let float_sample = motion.sample_float(normal, float_value, 1.0)
+    print(close(float_sample.value, 7.5) and not float_sample.complete and not float_sample.snapped)
+    let snapped = motion.sample_float(reduced, float_value, 0.1)
+    print(snapped.value == 10.0 and snapped.complete and snapped.snapped)
+
+    let start = motion.vec2(0.0, 2.0)
+    let finish = motion.vec2(10.0, 6.0)
+    let vector_sample = motion.sample_vec2(normal, motion.vec2_tween(start, finish, 2.0, true, motion.linear_easing()), 1.0)
+    print(close(vector_sample.value.x, 5.0) and close(vector_sample.value.y, 4.0))
+    let dark = motion.color(0.0, 0.1, 0.2, 1.0)
+    let light = motion.color(1.0, 0.9, 0.8, 0.5)
+    let color_sample = motion.sample_color(normal, motion.color_tween(dark, light, 2.0, true, motion.linear_easing()), 1.0)
+    print(close(color_sample.value.red, 0.5) and close(color_sample.value.blue, 0.5) and close(color_sample.value.alpha, 0.75))
+
+    let delayed = motion.delay(2.0)
+    let sequenced = motion.sequence(delayed, motion.delay(3.0))
+    let parallel = motion.parallel(delayed, motion.delay(3.0))
+    let repeated = motion.repeat(motion.delay(2.0), 3)
+    let yoyoed = motion.yoyo(repeated)
+    print(close(motion.sample_timeline(sequenced, 2.5).progress, 0.5) and motion.sample_timeline(sequenced, 5.0).complete)
+    print(close(motion.sample_timeline(parallel, 1.5).progress, 0.5) and motion.sample_timeline(parallel, 3.0).complete)
+    print(motion.sample_timeline(repeated, 6.0).complete and close(motion.sample_timeline(yoyoed, 2.5).progress, 0.75))
+    let cancelled = motion.cancel(yoyoed)
+    print(motion.sample_timeline(cancelled, 100.0).cancelled and motion.sample_timeline(cancelled, 100.0).complete)
+    print(motion.sample_timeline(motion.delay(0.0), 0.0).complete and motion.sample_timeline(motion.delay(-1.0), 0.0).complete and motion.sample_timeline(motion.repeat(delayed, 0), 0.0).complete)
+
+    print(motion.fade(0.0, 1.0, 1.0).finish == 1.0 and motion.rotate(0.0, 90.0, 1.0).finish == 90.0 and motion.pulse(1.0, 2.0, 1.0).finish == 2.0)
+    print(motion.move(start, finish, 1.0).finish.x == 10.0 and motion.slide(start, finish, 1.0).finish.y == 6.0 and motion.scale(start, finish, 1.0).finish.x == 10.0)
+    print(motion.color_transition(dark, light, 1.0).finish.alpha == 0.5)
+    return 0

@@ -1,0 +1,11 @@
+import rocket.motion
+
+fn main() -> Int:
+    let policy = motion.policy(allow_essential: true, reduced: false)
+    let easing = motion.in_out_quad_easing()
+    let tween = motion.float_tween(easing: easing, essential: false, duration: 1.0, finish: 1.0, start: 0.0)
+    let _sample = motion.sample_float(elapsed: 0.5, tween: tween, policy: policy)
+    let _vec = motion.vec2(y: 2.0, x: 1.0)
+    let _color = motion.color(alpha: 1.0, blue: 0.5, green: 0.25, red: 0.0)
+    let _timeline = motion.repeat(count: 2, value: motion.yoyo(value: motion.delay(duration: 1.0)))
+    return 0

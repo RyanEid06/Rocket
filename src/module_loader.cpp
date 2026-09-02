@@ -200,10 +200,14 @@ private:
 
     bool valid = true;
     for (const auto& import : module.ast.imports) {
-      if (import.name == "std.testing") {
+      if (import.name == "std.testing" || import.name == "rocket.motion") {
         module.importTargets[import.name] = import.name;
+        const std::filesystem::path bundledPath =
+            import.name == "std.testing"
+                ? standardLibraryRoot / "std/testing.rocket"
+                : standardLibraryRoot / "rocket/motion.rocket";
         valid = loadOne(import.name,
-                        (standardLibraryRoot / "std/testing.rocket").lexically_normal(),
+                        bundledPath.lexically_normal(),
                         import.location, standardLibraryRoot, {}, "std", {},
                         depth + 1) && valid;
         continue;

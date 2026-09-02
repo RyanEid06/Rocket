@@ -380,6 +380,19 @@ matching stage2/stage3 IR SHA-256
 - `R3-F06-006`: Zero/negative duration, repeat counts, large time deltas, yoyo
   boundaries, and completed/cancelled timelines have defined behavior.
 
+**WP13 evidence (2026-09-02):** `rocket.motion` is a bundled public Rocket
+source module. Its stage0/self-host fixture covers all easing families, exact
+endpoints, representative values, Back/Elastic overshoot, deterministic Bounce,
+typed tween sampling, reduced motion, timeline composition, cancellation,
+zero/negative durations, repeats, yoyo, and the convenience constructors. Fresh
+Windows Debug and Release CTest suites passed `234/234` each; the
+LLVM-disabled stage0/predecessor selection passed `5/5`; stage0/self-host and
+four-target source/lowering motion gates passed; and deterministic stage2/stage3
+IR matched at SHA-256
+`5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+Native execution on non-Windows target laboratories remains a WP34/F29
+acceptance concern rather than evidence claimed by this Windows packet.
+
 ### F07 - Safe raylib geometry backend
 
 - `R3-F07-001`: Safely expose filled/outlined rectangles, rounded rectangles,

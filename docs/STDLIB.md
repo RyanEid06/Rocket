@@ -357,6 +357,35 @@ exit is the suite-failing `XPASS`. Every other `.rocket` file must exit zero.
 Temporary resources, filters, assertions, fixtures, expected failures, and
 coverage hooks therefore share the native and self-hosted toolchains.
 
+## `rocket.motion`
+
+`rocket.motion` is an ordinary bundled Rocket source module at
+`stdlib/rocket/motion.rocket`; import it with `import rocket.motion`. It keeps
+motion descriptions and returned samples value-owned, so application code owns
+the state it advances and no arbitrary object mutation or reflection is used.
+
+`Vec2`, `Color`, `Easing`, and `MotionPolicy` are public value types. The
+module exposes `linear`, plus `in_`, `out_`, and `in_out_` variants for Quad,
+Cubic, Quart, Sine, Back, Bounce, and Elastic. Every easing preserves exact
+`0.0` and `1.0` endpoints without clamping other progress values; Back and
+Elastic intentionally overshoot, and Bounce uses deterministic piecewise
+segments. Use the corresponding `*_easing()` constructor with
+`apply_easing` when storing an easing choice.
+
+`FloatTween`, `Vec2Tween`, and `ColorTween` are created by `float_tween`,
+`vec2_tween`, and `color_tween`, then sampled with `sample_float`,
+`sample_vec2`, or `sample_color`. Zero or negative duration samples the final
+value. A reduced policy snaps nonessential work to its final sample; essential
+work may continue only when `allow_essential` is true. The sample result
+records value, progress, completion, and whether it snapped.
+
+`delay`, `sequence`, `parallel`, `repeat`, `yoyo`, `cancel`, and
+`sample_timeline` provide immutable timeline descriptions. Nonpositive repeat
+counts and nonpositive total duration complete immediately; a large elapsed
+delta completes at the final state; cancellation returns a completed,
+cancelled sample. `fade`, `move`, `slide`, `scale`, `rotate`, `pulse`, and
+`color_transition` are convenience constructors over those tween types.
+
 ## `std.file` and `std.path`
 
 `file.read_text`, `write_text`, and `append_text` use binary byte-preserving I/O

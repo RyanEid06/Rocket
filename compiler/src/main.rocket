@@ -3045,9 +3045,11 @@ fn source_parent(path_value: String) -> String:
     return string.slice(path_value, 0, separator)
 
 fn standard_module_path(name: String) -> String:
-    if name != "std.testing":
+    if name != "std.testing" and name != "rocket.motion":
         return ""
-    let relative = "stdlib/std/testing.rocket"
+    var relative = "stdlib/std/testing.rocket"
+    if name == "rocket.motion":
+        relative = "stdlib/rocket/motion.rocket"
     let working = process.working_directory()
     match working:
         case Ok(directory):
@@ -3060,13 +3062,13 @@ fn standard_module_path(name: String) -> String:
     match executable:
         case Ok(path_value):
             let directory = source_parent(path_value)
-            let adjacent = std.path.normalize(std.path.join(directory, "../stdlib/std/testing.rocket"))
+            let adjacent = std.path.normalize(std.path.join(directory, string.concat("../", relative)))
             if file.exists(adjacent):
                 return adjacent
-            let repository = std.path.normalize(std.path.join(directory, "../../stdlib/std/testing.rocket"))
+            let repository = std.path.normalize(std.path.join(directory, string.concat("../../", relative)))
             if file.exists(repository):
                 return repository
-            let stage0_repository = std.path.normalize(std.path.join(directory, "../../../stdlib/std/testing.rocket"))
+            let stage0_repository = std.path.normalize(std.path.join(directory, string.concat("../../../", relative)))
             if file.exists(stage0_repository):
                 return stage0_repository
         case Err(error):
@@ -3396,7 +3398,7 @@ fn load_state_source_bytes(state: ProgramLoadState, source_bytes: Int) -> Progra
 fn diagnose_import_aliases(state: ProgramLoadState, imports: Array[AstImport]) -> ProgramLoadState:
     var next = state
     for left in 0..collections.length(imports):
-        if string.starts_with(imports[left].name, "std."):
+        if string.starts_with(imports[left].name, "std.") or imports[left].name == "rocket.motion":
             continue
         for right in left + 1..collections.length(imports):
             if import_alias(imports[left].name) == import_alias(imports[right].name):
@@ -3432,10 +3434,10 @@ fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name
                     next = diagnose_import_aliases(next, parsed.module.imports)
                     for index in 0..collections.length(parsed.module.imports):
                         let imported = parsed.module.imports[index]
-                        if imported.name == "std.testing":
+                        if imported.name == "std.testing" or imported.name == "rocket.motion":
                             let standard_path = standard_module_path(imported.name)
                             if standard_path == "":
-                                next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", imported.line, imported.column, "cannot locate bundled standard module 'std.testing'")))
+                                next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", imported.line, imported.column, string.concat("cannot locate bundled standard module '", string.concat(imported.name, "'")))))
                             else:
                                 next = load_program_module(next, standard_path, imported.name, module_root, target_root)
                         else:
@@ -3541,7 +3543,7 @@ fn standard_callable(module: AstModule, name: String) -> String:
     for index in 0..collections.length(module.imports):
         let imported = module.imports[index].name
         let imported_pieces = string.split(imported, ".")
-        if collections.length(imported_pieces) > 0 and imported_pieces[collections.length(imported_pieces) - 1] == alias and string.starts_with(imported, "std."):
+        if collections.length(imported_pieces) > 0 and imported_pieces[collections.length(imported_pieces) - 1] == alias and (string.starts_with(imported, "std.") or imported == "rocket.motion"):
             var suffix: Array[String] = []
             for piece_index in 1..collections.length(pieces):
                 suffix = append(suffix, pieces[piece_index])

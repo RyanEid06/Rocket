@@ -1,0 +1,441 @@
+import std.math
+
+# The public Rocket 3 motion module. Motion values are immutable descriptions;
+# applications retain and replace their own values when advancing animation.
+
+pub struct Vec2:
+    x: Float
+    y: Float
+
+pub struct Color:
+    red: Float
+    green: Float
+    blue: Float
+    alpha: Float
+
+pub struct Easing:
+    kind: Int
+
+pub struct MotionPolicy:
+    reduced: Bool
+    allow_essential: Bool
+
+pub struct FloatTween:
+    start: Float
+    finish: Float
+    duration: Float
+    essential: Bool
+    easing: Easing
+
+pub struct Vec2Tween:
+    start: Vec2
+    finish: Vec2
+    duration: Float
+    essential: Bool
+    easing: Easing
+
+pub struct ColorTween:
+    start: Color
+    finish: Color
+    duration: Float
+    essential: Bool
+    easing: Easing
+
+pub struct FloatSample:
+    value: Float
+    progress: Float
+    complete: Bool
+    snapped: Bool
+
+pub struct Vec2Sample:
+    value: Vec2
+    progress: Float
+    complete: Bool
+    snapped: Bool
+
+pub struct ColorSample:
+    value: Color
+    progress: Float
+    complete: Bool
+    snapped: Bool
+
+pub struct Timeline:
+    duration: Float
+    cycle_duration: Float
+    iterations: Int
+    yoyo: Bool
+    cancelled: Bool
+
+pub struct TimelineSample:
+    progress: Float
+    complete: Bool
+    cancelled: Bool
+    iteration: Int
+    reversed: Bool
+
+pub fn vec2(x: Float, y: Float) -> Vec2:
+    return Vec2(x, y)
+
+pub fn color(red: Float, green: Float, blue: Float, alpha: Float) -> Color:
+    return Color(red, green, blue, alpha)
+
+pub fn policy(reduced: Bool, allow_essential: Bool) -> MotionPolicy:
+    return MotionPolicy(reduced, allow_essential)
+
+pub fn linear_easing() -> Easing:
+    return Easing(0)
+
+pub fn in_quad_easing() -> Easing:
+    return Easing(1)
+
+pub fn out_quad_easing() -> Easing:
+    return Easing(2)
+
+pub fn in_out_quad_easing() -> Easing:
+    return Easing(3)
+
+pub fn in_cubic_easing() -> Easing:
+    return Easing(4)
+
+pub fn out_cubic_easing() -> Easing:
+    return Easing(5)
+
+pub fn in_out_cubic_easing() -> Easing:
+    return Easing(6)
+
+pub fn in_quart_easing() -> Easing:
+    return Easing(7)
+
+pub fn out_quart_easing() -> Easing:
+    return Easing(8)
+
+pub fn in_out_quart_easing() -> Easing:
+    return Easing(9)
+
+pub fn in_sine_easing() -> Easing:
+    return Easing(10)
+
+pub fn out_sine_easing() -> Easing:
+    return Easing(11)
+
+pub fn in_out_sine_easing() -> Easing:
+    return Easing(12)
+
+pub fn in_back_easing() -> Easing:
+    return Easing(13)
+
+pub fn out_back_easing() -> Easing:
+    return Easing(14)
+
+pub fn in_out_back_easing() -> Easing:
+    return Easing(15)
+
+pub fn in_bounce_easing() -> Easing:
+    return Easing(16)
+
+pub fn out_bounce_easing() -> Easing:
+    return Easing(17)
+
+pub fn in_out_bounce_easing() -> Easing:
+    return Easing(18)
+
+pub fn in_elastic_easing() -> Easing:
+    return Easing(19)
+
+pub fn out_elastic_easing() -> Easing:
+    return Easing(20)
+
+pub fn in_out_elastic_easing() -> Easing:
+    return Easing(21)
+
+pub fn linear(progress: Float) -> Float:
+    return progress
+
+pub fn in_quad(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return progress * progress
+
+pub fn out_quad(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return 1.0 -(1.0 - progress) *(1.0 - progress)
+
+pub fn in_out_quad(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    if progress < 0.5:
+        return 2.0 * progress * progress
+    return 1.0 - math.pow(-2.0 * progress + 2.0, 2.0) / 2.0
+
+pub fn in_cubic(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return progress * progress * progress
+
+pub fn out_cubic(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return 1.0 - math.pow(1.0 - progress, 3.0)
+
+pub fn in_out_cubic(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    if progress < 0.5:
+        return 4.0 * progress * progress * progress
+    return 1.0 - math.pow(-2.0 * progress + 2.0, 3.0) / 2.0
+
+pub fn in_quart(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return progress * progress * progress * progress
+
+pub fn out_quart(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return 1.0 - math.pow(1.0 - progress, 4.0)
+
+pub fn in_out_quart(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    if progress < 0.5:
+        return 8.0 * progress * progress * progress * progress
+    return 1.0 - math.pow(-2.0 * progress + 2.0, 4.0) / 2.0
+
+pub fn in_sine(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return 1.0 - math.cos(progress * math.pi() / 2.0)
+
+pub fn out_sine(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return math.sin(progress * math.pi() / 2.0)
+
+pub fn in_out_sine(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return -(math.cos(math.pi() * progress) - 1.0) / 2.0
+
+pub fn in_back(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return 2.70158 * progress * progress * progress - 1.70158 * progress * progress
+
+pub fn out_back(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    let shifted = progress - 1.0
+    return 1.0 + 2.70158 * shifted * shifted * shifted + 1.70158 * shifted * shifted
+
+pub fn in_out_back(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    let coefficient = 1.70158 * 1.525
+    if progress < 0.5:
+        let doubled = 2.0 * progress
+        return doubled * doubled *((coefficient + 1.0) * doubled - coefficient) / 2.0
+    let shifted = 2.0 * progress - 2.0
+    return(shifted * shifted *((coefficient + 1.0) * shifted + coefficient) + 2.0) / 2.0
+
+pub fn out_bounce(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    if progress < 1.0 / 2.75:
+        return 7.5625 * progress * progress
+    if progress < 2.0 / 2.75:
+        let shifted = progress - 1.5 / 2.75
+        return 7.5625 * shifted * shifted + 0.75
+    if progress < 2.5 / 2.75:
+        let shifted = progress - 2.25 / 2.75
+        return 7.5625 * shifted * shifted + 0.9375
+    let shifted = progress - 2.625 / 2.75
+    return 7.5625 * shifted * shifted + 0.984375
+
+pub fn in_bounce(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return 1.0 - out_bounce(1.0 - progress)
+
+pub fn in_out_bounce(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    if progress < 0.5:
+        return(1.0 - out_bounce(1.0 - 2.0 * progress)) / 2.0
+    return(1.0 + out_bounce(2.0 * progress - 1.0)) / 2.0
+
+pub fn in_elastic(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return -math.pow(2.0, 10.0 * progress - 10.0) * math.sin((10.0 * progress - 10.75) *(2.0 * math.pi() / 3.0))
+
+pub fn out_elastic(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    return math.pow(2.0, -10.0 * progress) * math.sin((10.0 * progress - 0.75) *(2.0 * math.pi() / 3.0)) + 1.0
+
+pub fn in_out_elastic(progress: Float) -> Float:
+    if progress == 0.0 or progress == 1.0:
+        return progress
+    let coefficient = 2.0 * math.pi() / 4.5
+    if progress < 0.5:
+        return -math.pow(2.0, 20.0 * progress - 10.0) * math.sin((20.0 * progress - 11.125) * coefficient) / 2.0
+    return math.pow(2.0, -20.0 * progress + 10.0) * math.sin((20.0 * progress - 11.125) * coefficient) / 2.0 + 1.0
+
+pub fn apply_easing(value: Easing, progress: Float) -> Float:
+    if value.kind == 1:
+        return in_quad(progress)
+    if value.kind == 2:
+        return out_quad(progress)
+    if value.kind == 3:
+        return in_out_quad(progress)
+    if value.kind == 4:
+        return in_cubic(progress)
+    if value.kind == 5:
+        return out_cubic(progress)
+    if value.kind == 6:
+        return in_out_cubic(progress)
+    if value.kind == 7:
+        return in_quart(progress)
+    if value.kind == 8:
+        return out_quart(progress)
+    if value.kind == 9:
+        return in_out_quart(progress)
+    if value.kind == 10:
+        return in_sine(progress)
+    if value.kind == 11:
+        return out_sine(progress)
+    if value.kind == 12:
+        return in_out_sine(progress)
+    if value.kind == 13:
+        return in_back(progress)
+    if value.kind == 14:
+        return out_back(progress)
+    if value.kind == 15:
+        return in_out_back(progress)
+    if value.kind == 16:
+        return in_bounce(progress)
+    if value.kind == 17:
+        return out_bounce(progress)
+    if value.kind == 18:
+        return in_out_bounce(progress)
+    if value.kind == 19:
+        return in_elastic(progress)
+    if value.kind == 20:
+        return out_elastic(progress)
+    if value.kind == 21:
+        return in_out_elastic(progress)
+    return linear(progress)
+
+pub fn float_tween(start: Float, finish: Float, duration: Float, essential: Bool, easing: Easing) -> FloatTween:
+    return FloatTween(start, finish, duration, essential, easing)
+
+pub fn vec2_tween(start: Vec2, finish: Vec2, duration: Float, essential: Bool, easing: Easing) -> Vec2Tween:
+    return Vec2Tween(start, finish, duration, essential, easing)
+
+pub fn color_tween(start: Color, finish: Color, duration: Float, essential: Bool, easing: Easing) -> ColorTween:
+    return ColorTween(start, finish, duration, essential, easing)
+
+fn tween_progress(duration: Float, elapsed: Float) -> Float:
+    if duration <= 0.0:
+        return 1.0
+    let raw = elapsed / duration
+    if raw <= 0.0:
+        return 0.0
+    if raw >= 1.0:
+        return 1.0
+    return raw
+
+fn snaps(policy_value: MotionPolicy, essential: Bool) -> Bool:
+    return policy_value.reduced and(not essential or not policy_value.allow_essential)
+
+pub fn sample_float(policy: MotionPolicy, tween: FloatTween, elapsed: Float) -> FloatSample:
+    if snaps(policy, tween.essential):
+        return FloatSample(tween.finish, 1.0, true, true)
+    let progress = tween_progress(tween.duration, elapsed)
+    return FloatSample(math.lerp(tween.start, tween.finish, apply_easing(tween.easing, progress)), progress, progress >= 1.0, false)
+
+pub fn sample_vec2(policy: MotionPolicy, tween: Vec2Tween, elapsed: Float) -> Vec2Sample:
+    if snaps(policy, tween.essential):
+        return Vec2Sample(tween.finish, 1.0, true, true)
+    let progress = tween_progress(tween.duration, elapsed)
+    let eased = apply_easing(tween.easing, progress)
+    return Vec2Sample(Vec2(math.lerp(tween.start.x, tween.finish.x, eased), math.lerp(tween.start.y, tween.finish.y, eased)), progress, progress >= 1.0, false)
+
+pub fn sample_color(policy: MotionPolicy, tween: ColorTween, elapsed: Float) -> ColorSample:
+    if snaps(policy, tween.essential):
+        return ColorSample(tween.finish, 1.0, true, true)
+    let progress = tween_progress(tween.duration, elapsed)
+    let eased = apply_easing(tween.easing, progress)
+    return ColorSample(Color(math.lerp(tween.start.red, tween.finish.red, eased), math.lerp(tween.start.green, tween.finish.green, eased), math.lerp(tween.start.blue, tween.finish.blue, eased), math.lerp(tween.start.alpha, tween.finish.alpha, eased)), progress, progress >= 1.0, false)
+
+pub fn delay(duration: Float) -> Timeline:
+    return Timeline(duration, duration, 1, false, false)
+
+pub fn sequence(first: Timeline, second: Timeline) -> Timeline:
+    return Timeline(first.duration + second.duration, first.duration + second.duration, 1, first.yoyo or second.yoyo, first.cancelled or second.cancelled)
+
+pub fn parallel(first: Timeline, second: Timeline) -> Timeline:
+    if first.duration >= second.duration:
+        return Timeline(first.duration, first.duration, 1, first.yoyo or second.yoyo, first.cancelled or second.cancelled)
+    return Timeline(second.duration, second.duration, 1, first.yoyo or second.yoyo, first.cancelled or second.cancelled)
+
+pub fn repeat(value: Timeline, count: Int) -> Timeline:
+    if count <= 0:
+        return Timeline(0.0, value.cycle_duration, 0, value.yoyo, value.cancelled)
+    var total = 0.0
+    var index = 0
+    while index < count:
+        total = total + value.duration
+        index = index + 1
+    return Timeline(total, value.cycle_duration, value.iterations * count, value.yoyo, value.cancelled)
+
+pub fn yoyo(value: Timeline) -> Timeline:
+    return Timeline(value.duration, value.cycle_duration, value.iterations, true, value.cancelled)
+
+pub fn cancel(value: Timeline) -> Timeline:
+    return Timeline(value.duration, value.cycle_duration, value.iterations, value.yoyo, true)
+
+pub fn sample_timeline(value: Timeline, elapsed: Float) -> TimelineSample:
+    if value.cancelled:
+        return TimelineSample(0.0, true, true, 0, false)
+    if value.duration <= 0.0 or value.iterations <= 0:
+        return TimelineSample(1.0, true, false, value.iterations, false)
+    if elapsed <= 0.0:
+        return TimelineSample(0.0, false, false, 0, false)
+    if elapsed >= value.duration:
+        return TimelineSample(1.0, true, false, value.iterations, false)
+    let per_iteration = value.cycle_duration
+    var remaining = elapsed
+    var iteration = 0
+    var reversed = false
+    while remaining >= per_iteration and iteration + 1 < value.iterations:
+        remaining = remaining - per_iteration
+        iteration = iteration + 1
+        if value.yoyo:
+            reversed = not reversed
+    var progress = remaining / per_iteration
+    if reversed:
+        progress = 1.0 - progress
+    return TimelineSample(progress, false, false, iteration, reversed)
+
+pub fn fade(start: Float, finish: Float, duration: Float) -> FloatTween:
+    return float_tween(start, finish, duration, false, linear_easing())
+
+pub fn rotate(start: Float, finish: Float, duration: Float) -> FloatTween:
+    return float_tween(start, finish, duration, false, linear_easing())
+
+pub fn pulse(start: Float, finish: Float, duration: Float) -> FloatTween:
+    return float_tween(start, finish, duration, false, in_out_sine_easing())
+
+pub fn move(start: Vec2, finish: Vec2, duration: Float) -> Vec2Tween:
+    return vec2_tween(start, finish, duration, false, linear_easing())
+
+pub fn slide(start: Vec2, finish: Vec2, duration: Float) -> Vec2Tween:
+    return vec2_tween(start, finish, duration, false, out_quad_easing())
+
+pub fn scale(start: Vec2, finish: Vec2, duration: Float) -> Vec2Tween:
+    return vec2_tween(start, finish, duration, false, in_out_sine_easing())
+
+pub fn color_transition(start: Color, finish: Color, duration: Float) -> ColorTween:
+    return color_tween(start, finish, duration, false, linear_easing())

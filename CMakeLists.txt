@@ -490,6 +490,17 @@ set_tests_properties(rocket3_std_math_stage0 PROPERTIES
   TIMEOUT 240
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_motion_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp13/${CMAKE_BUILD_TYPE}/stage0"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_motion_test.cmake")
+set_tests_properties(rocket3_motion_stage0 PROPERTIES
+  LABELS "rocket3;wp13;motion;easing;stage0"
+  TIMEOUT 300
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_executable(rocket_phase14_raylib_adapter_tests
   tests/native/phase14_raylib_adapter_tests.cpp)
 target_link_libraries(rocket_phase14_raylib_adapter_tests PRIVATE
@@ -790,6 +801,17 @@ set_tests_properties(rocket3_std_math_self_hosted PROPERTIES
   LABELS "rocket3;wp12;stdmath;numeric;tolerance;selfhost"
   TIMEOUT 300
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket3_motion_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp13/${CMAKE_BUILD_TYPE}/self-hosted"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_motion_test.cmake")
+set_tests_properties(rocket3_motion_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp13;motion;easing;selfhost"
+  TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME rocket3_std_math_target_surface
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -801,6 +823,18 @@ set_tests_properties(rocket3_std_math_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp12;stdmath;target;surface;selfhost"
   TIMEOUT 300
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket3_motion_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp13/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_motion_target_surface_test.cmake")
+set_tests_properties(rocket3_motion_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp13;motion;easing;target;surface;selfhost"
+  TIMEOUT 360
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME cli_run_self_hosted_syntax_check
   COMMAND "${ROCKET_SELFHOST_COMPILER}" --check-syntax
