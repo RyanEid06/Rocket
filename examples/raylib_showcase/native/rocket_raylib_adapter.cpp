@@ -1,9 +1,13 @@
 #include "rocket_raylib_adapter.h"
 
+#include <algorithm>
+
 #include <raylib.h>
 
 #include <cmath>
 #include <cstdint>
+#include <cfloat>
+#include <initializer_list>
 #include <limits>
 #include <string>
 #include <unordered_map>
@@ -41,11 +45,13 @@ struct AdapterState {
   int64_t audioId = 0;
   int64_t nextId = 1;
   int64_t drawCount = 0;
+  int64_t geometryCallCount = 0;
   int64_t mouseX = 0;
   int64_t mouseY = 0;
   bool mousePressed = false;
   double testTime = 0.0;
   std::unordered_map<int64_t, std::string> buffers;
+  std::unordered_map<int64_t, std::vector<Vector2>> pointBuffers;
   std::unordered_map<int64_t, TextureRecord> textures;
   std::unordered_map<int64_t, FontRecord> fonts;
   std::unordered_map<int64_t, SoundRecord> sounds;
@@ -65,6 +71,31 @@ bool byteComponent(int64_t value) { return value >= 0 && value <= 255; }
 bool validColor(int64_t red, int64_t green, int64_t blue, int64_t alpha) {
   return byteComponent(red) && byteComponent(green) && byteComponent(blue) &&
          byteComponent(alpha);
+}
+
+bool finiteFloat(double value) {
+  return std::isfinite(value) && std::abs(value) <= FLT_MAX;
+}
+
+bool finiteFloats(std::initializer_list<double> values) {
+  for (double value : values) if (!finiteFloat(value)) return false;
+  return true;
+}
+
+Rectangle rectangle(double x, double y, double width, double height) {
+  return Rectangle{static_cast<float>(x), static_cast<float>(y),
+                   static_cast<float>(width), static_cast<float>(height)};
+}
+
+Vector2 point(double x, double y) {
+  return Vector2{static_cast<float>(x), static_cast<float>(y)};
+}
+
+int64_t requireDrawing(int64_t frameId);
+
+int64_t beginGeometry(int64_t frameId) {
+  ++state.geometryCallCount;
+  return requireDrawing(frameId);
 }
 
 Color color(int64_t red, int64_t green, int64_t blue, int64_t alpha) {
@@ -104,7 +135,7 @@ extern "C" int64_t rlv_version_minor(void) { return RAYLIB_VERSION_MINOR; }
 
 extern "C" int64_t rlv_enable_test_mode(rocket_bool enabled) {
   if (state.windowOpen || state.audioOpen || !state.textures.empty() ||
-      !state.fonts.empty() || !state.sounds.empty()) {
+      !state.fonts.empty() || !state.sounds.empty() || !state.pointBuffers.empty()) {
     return RLV_ERR_RESOURCE_LIVE;
   }
   state.testMode = enabled != 0;
@@ -138,6 +169,28 @@ extern "C" int64_t rlv_buffer_destroy(int64_t bufferId) {
 
 extern "C" int64_t rlv_buffer_live_count(void) {
   return static_cast<int64_t>(state.buffers.size());
+}
+
+extern "C" int64_t rlv_point_buffer_create(void) {
+  const int64_t id = nextId();
+  state.pointBuffers.emplace(id, std::vector<Vector2>{});
+  return id;
+}
+
+extern "C" int64_t rlv_point_buffer_push(int64_t bufferId, double x, double y) {
+  const auto found = state.pointBuffers.find(bufferId);
+  if (found == state.pointBuffers.end()) return RLV_ERR_STALE_HANDLE;
+  if (!finiteFloats({x, y})) return RLV_ERR_INVALID_ARGUMENT;
+  found->second.push_back(point(x, y));
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_point_buffer_destroy(int64_t bufferId) {
+  return state.pointBuffers.erase(bufferId) == 1 ? RLV_OK : RLV_ERR_STALE_HANDLE;
+}
+
+extern "C" int64_t rlv_point_buffer_live_count(void) {
+  return static_cast<int64_t>(state.pointBuffers.size());
 }
 
 extern "C" int64_t rlv_window_open(int64_t width, int64_t height,
@@ -226,7 +279,7 @@ extern "C" int64_t rlv_clear_background(int64_t frameId, int64_t red, int64_t gr
 extern "C" int64_t rlv_draw_rectangle(int64_t frameId, int64_t x, int64_t y, int64_t width,
                                         int64_t height, int64_t red, int64_t green,
                                         int64_t blue, int64_t alpha) {
-  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  if (beginGeometry(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   if (!fitsInt(x) || !fitsInt(y) || !fitsInt(width) || !fitsInt(height) ||
       width < 0 || height < 0 || !validColor(red, green, blue, alpha)) {
     return RLV_ERR_INVALID_ARGUMENT;
@@ -242,9 +295,9 @@ extern "C" int64_t rlv_draw_rectangle(int64_t frameId, int64_t x, int64_t y, int
 extern "C" int64_t rlv_draw_circle(int64_t frameId, int64_t x, int64_t y, double radius,
                                      int64_t red, int64_t green, int64_t blue,
                                      int64_t alpha) {
-  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  if (beginGeometry(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   if (!fitsInt(x) || !fitsInt(y) || radius < 0.0 ||
-      !std::isfinite(radius) || !validColor(red, green, blue, alpha)) {
+      !finiteFloat(radius) || !validColor(red, green, blue, alpha)) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
   if (!state.testMode) {
@@ -254,6 +307,221 @@ extern "C" int64_t rlv_draw_circle(int64_t frameId, int64_t x, int64_t y, double
   ++state.drawCount;
   return RLV_OK;
 }
+
+#define RLV_GEOMETRY_GUARD(frame_id, condition) \
+  do { \
+    if (beginGeometry(frame_id) != RLV_OK) return RLV_ERR_STALE_HANDLE; \
+    if (!(condition)) return RLV_ERR_INVALID_ARGUMENT; \
+  } while (false)
+
+#define RLV_DRAW_DONE() \
+  do { ++state.drawCount; return RLV_OK; } while (false)
+
+extern "C" int64_t rlv_draw_rectangle_outline(int64_t frameId, double x, double y,
+    double width, double height, double thickness, int64_t red, int64_t green,
+    int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x, y, width, height, thickness}) &&
+      width >= 0.0 && height >= 0.0 && thickness >= 0.0 && validColor(red, green, blue, alpha));
+  if (!state.testMode) DrawRectangleLinesEx(rectangle(x, y, width, height), static_cast<float>(thickness), color(red, green, blue, alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_rounded_rectangle(int64_t frameId, double x, double y,
+    double width, double height, double roundness, int64_t red, int64_t green,
+    int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x, y, width, height, roundness}) && width >= 0.0 &&
+      height >= 0.0 && roundness >= 0.0 && roundness <= 1.0 && validColor(red, green, blue, alpha));
+  if (!state.testMode) DrawRectangleRounded(rectangle(x, y, width, height), static_cast<float>(roundness), 0, color(red, green, blue, alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_rounded_rectangle_outline(int64_t frameId, double x, double y,
+    double width, double height, double roundness, double thickness, int64_t red,
+    int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x, y, width, height, roundness, thickness}) &&
+      width >= 0.0 && height >= 0.0 && roundness >= 0.0 && roundness <= 1.0 &&
+      thickness >= 0.0 && validColor(red, green, blue, alpha));
+  if (!state.testMode) DrawRectangleRoundedLinesEx(rectangle(x, y, width, height), static_cast<float>(roundness), 0, static_cast<float>(thickness), color(red, green, blue, alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_rectangle_gradient_vertical(int64_t frameId, double x, double y,
+    double width, double height, int64_t tr, int64_t tg, int64_t tb, int64_t ta,
+    int64_t br, int64_t bg, int64_t bb, int64_t ba) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x, y, width, height}) && width >= 0.0 && height >= 0.0 &&
+      validColor(tr, tg, tb, ta) && validColor(br, bg, bb, ba));
+  if (!state.testMode) DrawRectangleGradientEx(rectangle(x, y, width, height), color(tr,tg,tb,ta), color(br,bg,bb,ba), color(br,bg,bb,ba), color(tr,tg,tb,ta));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_rectangle_gradient_horizontal(int64_t frameId, double x, double y,
+    double width, double height, int64_t lr, int64_t lg, int64_t lb, int64_t la,
+    int64_t rr, int64_t rg, int64_t rb, int64_t ra) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x, y, width, height}) && width >= 0.0 && height >= 0.0 &&
+      validColor(lr, lg, lb, la) && validColor(rr, rg, rb, ra));
+  if (!state.testMode) DrawRectangleGradientEx(rectangle(x, y, width, height), color(lr,lg,lb,la), color(lr,lg,lb,la), color(rr,rg,rb,ra), color(rr,rg,rb,ra));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_rectangle_gradient_four(int64_t frameId, double x, double y,
+    double width, double height, int64_t tlr, int64_t tlg, int64_t tlb, int64_t tla,
+    int64_t blr, int64_t blg, int64_t blb, int64_t bla, int64_t brr, int64_t brg,
+    int64_t brb, int64_t bra, int64_t trr, int64_t trg, int64_t trb, int64_t tra) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x, y, width, height}) && width >= 0.0 && height >= 0.0 &&
+      validColor(tlr,tlg,tlb,tla) && validColor(blr,blg,blb,bla) &&
+      validColor(brr,brg,brb,bra) && validColor(trr,trg,trb,tra));
+  if (!state.testMode) DrawRectangleGradientEx(rectangle(x,y,width,height), color(tlr,tlg,tlb,tla), color(blr,blg,blb,bla), color(brr,brg,brb,bra), color(trr,trg,trb,tra));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_circle_outline(int64_t frameId, double x, double y, double radius,
+    double thickness, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,radius,thickness}) && radius >= 0.0 && thickness >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawRing(point(x,y), static_cast<float>(std::max(0.0, radius - thickness)), static_cast<float>(radius), 0.0f, 360.0f, 0, color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_ellipse(int64_t frameId, double x, double y, double rx, double ry,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,rx,ry}) && rx >= 0.0 && ry >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawEllipseV(point(x,y), static_cast<float>(rx), static_cast<float>(ry), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_ellipse_outline(int64_t frameId, double x, double y, double rx, double ry,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,rx,ry}) && rx >= 0.0 && ry >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawEllipseLinesV(point(x,y), static_cast<float>(rx), static_cast<float>(ry), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+static bool validRing(double x, double y, double inner, double outer) {
+  return finiteFloats({x,y,inner,outer}) && inner >= 0.0 && outer >= inner;
+}
+
+extern "C" int64_t rlv_draw_ring(int64_t frameId, double x, double y, double inner, double outer,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, validRing(x,y,inner,outer) && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawRing(point(x,y), static_cast<float>(inner), static_cast<float>(outer), 0.0f, 360.0f, 0, color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_ring_outline(int64_t frameId, double x, double y, double inner, double outer,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, validRing(x,y,inner,outer) && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawRingLines(point(x,y), static_cast<float>(inner), static_cast<float>(outer), 0.0f, 360.0f, 0, color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_ring_sector(int64_t frameId, double x, double y, double inner, double outer,
+    double start, double end, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, validRing(x,y,inner,outer) && finiteFloats({start,end}) && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawRing(point(x,y), static_cast<float>(inner), static_cast<float>(outer), static_cast<float>(start), static_cast<float>(end), 0, color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_circle_sector(int64_t frameId, double x, double y, double radius,
+    double start, double end, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,radius,start,end}) && radius >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawCircleSector(point(x,y), static_cast<float>(radius), static_cast<float>(start), static_cast<float>(end), 0, color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_circle_sector_outline(int64_t frameId, double x, double y, double radius,
+    double start, double end, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,radius,start,end}) && radius >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawCircleSectorLines(point(x,y), static_cast<float>(radius), static_cast<float>(start), static_cast<float>(end), 0, color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_circle_gradient(int64_t frameId, double x, double y, double radius,
+    int64_t ir, int64_t ig, int64_t ib, int64_t ia, int64_t or_, int64_t og, int64_t ob, int64_t oa) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,radius}) && radius >= 0.0 && validColor(ir,ig,ib,ia) && validColor(or_,og,ob,oa));
+  if (!state.testMode) DrawCircleGradient(point(x,y), static_cast<float>(radius), color(ir,ig,ib,ia), color(or_,og,ob,oa));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_line(int64_t frameId, double sx, double sy, double ex, double ey,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({sx,sy,ex,ey}) && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawLineV(point(sx,sy), point(ex,ey), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_thick_line(int64_t frameId, double sx, double sy, double ex, double ey,
+    double thickness, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({sx,sy,ex,ey,thickness}) && thickness >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawLineEx(point(sx,sy), point(ex,ey), static_cast<float>(thickness), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_triangle(int64_t frameId, double ax, double ay, double bx, double by,
+    double cx, double cy, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({ax,ay,bx,by,cx,cy}) && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawTriangle(point(ax,ay), point(bx,by), point(cx,cy), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_triangle_outline(int64_t frameId, double ax, double ay, double bx, double by,
+    double cx, double cy, double thickness, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({ax,ay,bx,by,cx,cy,thickness}) && thickness >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) { const Color value=color(red,green,blue,alpha); DrawLineEx(point(ax,ay),point(bx,by),static_cast<float>(thickness),value); DrawLineEx(point(bx,by),point(cx,cy),static_cast<float>(thickness),value); DrawLineEx(point(cx,cy),point(ax,ay),static_cast<float>(thickness),value); }
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_polygon(int64_t frameId, double x, double y, int64_t sides,
+    double radius, double rotation, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,radius,rotation}) && fitsInt(sides) && sides >= 3 && radius >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawPoly(point(x,y), static_cast<int>(sides), static_cast<float>(radius), static_cast<float>(rotation), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_polygon_outline(int64_t frameId, double x, double y, int64_t sides,
+    double radius, double rotation, double thickness, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({x,y,radius,rotation,thickness}) && fitsInt(sides) && sides >= 3 && radius >= 0.0 && thickness >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawPolyLinesEx(point(x,y), static_cast<int>(sides), static_cast<float>(radius), static_cast<float>(rotation), static_cast<float>(thickness), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+extern "C" int64_t rlv_draw_bezier_line(int64_t frameId, double sx, double sy, double ex, double ey,
+    double thickness, int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  RLV_GEOMETRY_GUARD(frameId, finiteFloats({sx,sy,ex,ey,thickness}) && thickness >= 0.0 && validColor(red,green,blue,alpha));
+  if (!state.testMode) DrawLineBezier(point(sx,sy), point(ex,ey), static_cast<float>(thickness), color(red,green,blue,alpha));
+  RLV_DRAW_DONE();
+}
+
+static int64_t drawBezier(int64_t frameId, int64_t bufferId, double thickness,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha, bool cubic) {
+  if (beginGeometry(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.pointBuffers.find(bufferId);
+  if (found == state.pointBuffers.end()) return RLV_ERR_STALE_HANDLE;
+  const std::size_t count = found->second.size();
+  const bool validCount = cubic ? count >= 4 && (count - 1) % 3 == 0
+                                : count >= 3 && (count - 1) % 2 == 0;
+  if (!validCount || count > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+      !finiteFloat(thickness) || thickness < 0.0 || !validColor(red,green,blue,alpha)) return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) {
+    if (cubic) DrawSplineBezierCubic(found->second.data(), static_cast<int>(count), static_cast<float>(thickness), color(red,green,blue,alpha));
+    else DrawSplineBezierQuadratic(found->second.data(), static_cast<int>(count), static_cast<float>(thickness), color(red,green,blue,alpha));
+  }
+  ++state.drawCount;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_draw_bezier_quadratic(int64_t frameId, int64_t bufferId, double thickness,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  return drawBezier(frameId, bufferId, thickness, red, green, blue, alpha, false);
+}
+
+extern "C" int64_t rlv_draw_bezier_cubic(int64_t frameId, int64_t bufferId, double thickness,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  return drawBezier(frameId, bufferId, thickness, red, green, blue, alpha, true);
+}
+
+extern "C" int64_t rlv_geometry_call_count(void) { return state.geometryCallCount; }
+
+#undef RLV_DRAW_DONE
+#undef RLV_GEOMETRY_GUARD
 
 extern "C" int64_t rlv_draw_text(int64_t frameId, int64_t textBufferId, int64_t x, int64_t y,
                                    int64_t size, int64_t red, int64_t green,

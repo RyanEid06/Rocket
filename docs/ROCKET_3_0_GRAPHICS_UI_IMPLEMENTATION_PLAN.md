@@ -873,6 +873,28 @@ backend behavior, native tests, package generation, and all-target acceptance.
 
 **Checkpoint:** `feat: expand safe raylib geometry`
 
+**WP14 evidence (2026-09-02):** Expanded the reviewed primitive raylib adapter
+and its safe Rocket wrapper with every F07 rectangle, circle/ellipse/ring/
+sector, line, triangle, polygon, and Bezier operation. Safe calls reject
+non-finite values and defined negative geometry before the native boundary;
+the native layer repeats the checks, preserves frame tokens, and copies curve
+points through short-lived integer-token buffers rather than exposing native
+structures or pointers. The deterministic backend reports geometry call counts
+and live point-buffer counts. Focused positive, validation, boundary, stale-
+token, deterministic, and cleanup tests were RED on the missing symbols, then
+passed `10/10` in Debug and Release across native, stage0, self-host, package,
+and generated-binding parity. Fresh full Debug and Release suites passed
+`234/234` each; the LLVM-disabled predecessor/WP14 selection passed `8/8`;
+stage0 and self-host package checks passed on all four supported targets; and
+stage0/self-host documentation each exposed 191 public items with stable search
+metadata. The deterministic Windows bootstrap passed 184 validation cases and
+matched stage2/stage3 IR at SHA-256
+`5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+The checksummed Windows showcase archive is 1,570,523 bytes with SHA-256
+`bbfc71e07d3b86db9009f0bf1d80f3f0734202a8d5d5e0bff66a9d1446b12c58`.
+Generated WP14 state occupied 3.932 GiB, below both resource guards. WP14 is
+LOCAL-GREEN; native non-Windows target-laboratory execution remains WP34/F29.
+
 ### WP15 - Advanced textures and filtering
 
 **Feature:** F08. Add source/destination/pivot/rotation/tint drawing, filtering
@@ -1048,7 +1070,7 @@ file/test/doc/evidence links when executed.
 | F04 `std.math` | WP12 | LOCAL-GREEN: final Float/Int standard-module surface, source-stable parameter names, stage0/self-host/runtime/LLVM parity, LSP/docs metadata, documented IEEE-754 and range semantics, 76-vector Windows stage0/self-host matrices, Debug/Release `231/231`, LLVM-disabled predecessor `4/4`, target source/lowering evidence `2/2`, and matching stage2/stage3 IR `bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`; native Linux/macOS numeric confirmation of R3-F04-008 is pending WP34/F29 target-lab acceptance | WP34 |
 | F05 Easing | WP13 | LOCAL-GREEN: bundled `rocket.motion` has every required easing family, exact endpoints, unclamped intermediate progress, deterministic Bounce, intentional Back/Elastic overshoot, stage0/self-host parity, Debug/Release `234/234`, LLVM-disabled predecessor `5/5`, four-target source/lowering checks, and matching stage2/stage3 IR `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`; native non-Windows target-lab acceptance remains WP34/F29 | WP34 |
 | F06 Motion/reduced motion | WP06, WP13 | LOCAL-GREEN: public value-owned Float/Vec2/Color tweens, explicit reduced-motion policy, delay/sequence/parallel/repeat/yoyo/cancel timelines, all convenience constructors, and defined zero/negative/repeat/large-delta behavior; WP06 remains a superseded internal kernel, while WP13 carries the final public contract and the same validation evidence | WP34 |
-| F07 Safe geometry backend | WP14 | RED | WP34 |
+| F07 Safe geometry backend | WP14 | LOCAL-GREEN: complete reviewed primitive adapter and safe value API for all required geometry, pre-native validation, stale-frame and token-buffer cleanup, deterministic backend counts, Debug/Release `234/234`, focused `10/10`, LLVM-disabled `8/8`, four-target stage0/self-host checks, 191-item docs/search parity, and matching stage2/stage3 IR `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`; native non-Windows target-lab acceptance remains WP34/F29 | WP34 |
 | F08 Textures/filtering | WP15 | RED | WP34 |
 | F09 Render targets/scopes | WP16 | RED | WP34 |
 | F10 Shaders | WP17 | RED | WP34 |
@@ -1081,7 +1103,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP14 - Safe raylib geometry
+**Current packet:** WP15 - Advanced textures and filtering
 
 ```text
 Work only in the main Rocket checkout:
@@ -1090,35 +1112,37 @@ C:\Users\Administrator\Desktop\Projects\Rocket
 Set that path as the working directory first. Read AGENTS.md,
 docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and
 docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md. Verify `master`, a clean
-checkout, and the pushed WP13 checkpoint. Phase 19 and WP09 through WP13 are
-complete; WP14 is the lowest-numbered eligible packet. The retained Rocket 3
+checkout, and the pushed WP14 checkpoint. Phase 19 and WP09 through WP14 are
+complete; WP15 is the lowest-numbered eligible packet. The retained Rocket 3
 foundations remain internal INTEGRATION-READY inputs, not public APIs. Push any
 preceding committed Rocket 3 checkpoint before editing.
 
-Execute only WP14, F07: expand the reviewed portable raylib adapter and the
-safe Rocket geometry module. Expose filled and outlined rectangles, rounded
-rectangles, configurable outline thickness, rectangle gradients, circles and
-outlined circles, ellipses, rings and ring sectors, circle sectors and circle
-gradients, lines and thick lines, triangles and `triangle_outline`, polygons
-and `polygon_outline`, plus Bezier lines and curves. Reject non-finite values
-and defined negative dimensions before the native boundary. Preserve reviewed
-tokens/state and value-based safe APIs: do not expose raw native structs or
-pointers. Provide deterministic backend behavior, native tests, package
-generation, documentation/search metadata, and supported-target acceptance.
-Do not begin WP15 or add textures, render targets, shaders, UI, assets,
-visual-regression, or Scroll2Roll work.
+Execute only WP15, F08: expand the reviewed portable raylib adapter and safe
+Rocket texture module. Add advanced texture drawing with source rectangle,
+destination rectangle, pivot/origin, rotation, and tint. Add explicit point,
+bilinear, trilinear, and raylib/platform-supported anisotropic filter modes,
+with queryable capability and defined fallback behavior that never silently
+selects a materially different mode. Reject invalid or stale texture tokens,
+invalid source regions, non-finite values, and wrong-window use through the
+defined error contract before unsafe drawing where the safe layer can decide
+it. Preserve reviewed tokens/state and value-based safe APIs: do not expose raw
+native structures, pointers, or backend-owned handles. Provide deterministic
+backend behavior, native tests, package generation, documentation/search
+metadata, and supported-target acceptance. Do not begin WP16 or add render
+targets, scissor/blend scopes, shaders, UI, new assets, visual-regression, or
+Scroll2Roll work.
 
 Use TDD: add focused positive, validation, boundary, failure, state/token, and
 deterministic-backend tests before production code, and capture their RED
 baseline. Implement matching permanent C++20 stage0 and Rocket-written compiler
 behavior, public metadata, HIR/MIR and LLVM/LLVM-disabled lowering, runtime work
 only where necessary, formatter, LSP, docs, and supported editor behavior.
-Preserve valid Rocket 2.1/WP10/WP11/WP11A/WP12/WP13 programs, runtime ABI v1,
-and backend ABI.
+Preserve valid Rocket 2.1/WP10/WP11/WP11A/WP12/WP13/WP14 programs, runtime ABI
+v1, and backend ABI.
 
 Before Rocket commands, confirm no task build/test process is active. Run all
 commands sequentially; put all generated state only below
-`out/rocket3-provisional/wp14`; never automatically retry a timeout; stop and
+`out/rocket3-provisional/wp15`; never automatically retry a timeout; stop and
 report a task process that exceeds 4 GiB or continues growing rapidly. Inspect
 current build guidance and estimate combined matrix disk use before configuring;
 ask the owner before any operation that could exceed 20 GiB.
@@ -1126,15 +1150,15 @@ ask the owner before any operation that could exceed 20 GiB.
 Run focused compiler/runtime/module/docs/formatter/LSP/cross-target checks, then
 the RED packet's predecessor compatibility, LLVM-disabled stage0, full
 Debug/Release, supported-target evidence, and deterministic stage0-to-stage3
-bootstrap without weakening gates. Only if all pass, update WP14 evidence and
-traceability and rotate section 9 to a complete self-contained WP15 prompt.
-Run `git diff --check`, review only the packet diff, and commit all WP14 work
+bootstrap without weakening gates. Only if all pass, update WP15 evidence and
+traceability and rotate section 9 to a complete self-contained WP16 prompt.
+Run `git diff --check`, review only the packet diff, and commit all WP15 work
 with exactly:
 
-feat: expand safe raylib geometry
+feat: add advanced safe texture drawing
 
-Push `master` to `origin` after the commit and stop; do not begin WP15. If any
-implementation or required validation fails, leave WP14 current, do not rotate,
+Push `master` to `origin` after the commit and stop; do not begin WP16. If any
+implementation or required validation fails, leave WP15 current, do not rotate,
 and report the blocker.
 ```
 

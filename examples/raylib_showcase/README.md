@@ -79,3 +79,24 @@ The generated low-level binding and native build outputs remain ignored.
 The API is memory-safe at the Rocket boundary, but it is deliberately explicit
 about logical lifetime errors because Rocket 1.4 does not add linear types or
 destructors.
+
+## Safe geometry surface
+
+The reviewed adapter now covers filled, outlined, rounded, and gradient
+rectangles; circles, ellipses, rings, sectors, and circle gradients; lines,
+triangles, regular polygons, and outlines; and Bezier lines plus quadratic and
+cubic curves. Outline calls accept an explicit nonnegative thickness where the
+raylib primitive supports it. Curves take `Array[Point]`; the safe wrapper copies
+those values into a short-lived integer token and destroys it after the
+synchronous draw, so neither a native pointer nor a raylib `Vector2` crosses the
+Rocket boundary.
+
+Float coordinates must be finite; the adapter also rejects finite values that
+cannot be represented by raylib's float geometry.
+Widths, heights, radii, and thicknesses are nonnegative; an outer ring radius
+must be at least its inner radius; rounded-rectangle roundness is in `[0, 1]`;
+regular polygons have at least three sides; quadratic Bezier point counts are
+`3 + 2n`, and cubic counts are `4 + 3n`. The Rocket wrapper rejects the public
+contract errors before the foreign call. The native adapter repeats those
+checks, enforces the narrower float range for unsafe callers, and validates the
+active frame and point-buffer tokens before drawing.

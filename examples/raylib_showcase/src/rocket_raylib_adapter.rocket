@@ -22,6 +22,10 @@ pub extern fn rlv_buffer_create() -> Int
 pub extern fn rlv_buffer_push(buffer_id: Int, byte_value: Char) -> Int
 pub extern fn rlv_buffer_destroy(buffer_id: Int) -> Int
 pub extern fn rlv_buffer_live_count() -> Int
+pub extern fn rlv_point_buffer_create() -> Int
+pub extern fn rlv_point_buffer_push(buffer_id: Int, x: Float, y: Float) -> Int
+pub extern fn rlv_point_buffer_destroy(buffer_id: Int) -> Int
+pub extern fn rlv_point_buffer_live_count() -> Int
 pub extern fn rlv_window_open(width: Int, height: Int, title_buffer_id: Int) -> Int
 pub extern fn rlv_window_close(window_id: Int) -> Int
 pub extern fn rlv_window_ready(window_id: Int) -> Bool
@@ -34,6 +38,31 @@ pub extern fn rlv_end_drawing(frame_id: Int) -> Int
 pub extern fn rlv_clear_background(frame_id: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_draw_rectangle(frame_id: Int, x: Int, y: Int, width: Int, height: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_draw_circle(frame_id: Int, x: Int, y: Int, radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rounded_rectangle(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rounded_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_gradient_vertical(frame_id: Int, x: Float, y: Float, width: Float, height: Float, top_red: Int, top_green: Int, top_blue: Int, top_alpha: Int, bottom_red: Int, bottom_green: Int, bottom_blue: Int, bottom_alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_gradient_horizontal(frame_id: Int, x: Float, y: Float, width: Float, height: Float, left_red: Int, left_green: Int, left_blue: Int, left_alpha: Int, right_red: Int, right_green: Int, right_blue: Int, right_alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_gradient_four(frame_id: Int, x: Float, y: Float, width: Float, height: Float, top_left_red: Int, top_left_green: Int, top_left_blue: Int, top_left_alpha: Int, bottom_left_red: Int, bottom_left_green: Int, bottom_left_blue: Int, bottom_left_alpha: Int, bottom_right_red: Int, bottom_right_green: Int, bottom_right_blue: Int, bottom_right_alpha: Int, top_right_red: Int, top_right_green: Int, top_right_blue: Int, top_right_alpha: Int) -> Int
+pub extern fn rlv_draw_circle_outline(frame_id: Int, x: Float, y: Float, radius: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ellipse(frame_id: Int, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ellipse_outline(frame_id: Int, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ring(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ring_outline(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ring_sector(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle_sector(frame_id: Int, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle_sector_outline(frame_id: Int, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle_gradient(frame_id: Int, x: Float, y: Float, radius: Float, inner_red: Int, inner_green: Int, inner_blue: Int, inner_alpha: Int, outer_red: Int, outer_green: Int, outer_blue: Int, outer_alpha: Int) -> Int
+pub extern fn rlv_draw_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_thick_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_triangle(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_triangle_outline(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_polygon(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_polygon_outline(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_bezier_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_bezier_quadratic(frame_id: Int, point_buffer_id: Int, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_bezier_cubic(frame_id: Int, point_buffer_id: Int, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_geometry_call_count() -> Int
 pub extern fn rlv_draw_text(frame_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_draw_count() -> Int
 pub extern fn rlv_key_pressed(window_id: Int, key: Int) -> Bool

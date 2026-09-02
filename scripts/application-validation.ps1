@@ -135,7 +135,7 @@ try {
         $process.Dispose()
     }
 
-    Invoke-Rocket @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) '4 passed; 0 failed'
+    Invoke-Rocket @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) '5 passed; 0 failed'
     Invoke-Rocket @('run', (Join-Path $projectRoot 'examples\ownership_concurrency.rocket')) '41[\r\n]+3[\r\n]+42'
 
     $reportPath = Join-Path $work 'application-validation.json'
@@ -147,7 +147,7 @@ try {
         package_count = $PackageCount + 1
         repeated_runs = $Iterations
         parallel_package_builds = 2
-        raylib_headless_tests = 4
+        raylib_headless_tests = 5
         ownership_concurrency_application = 'passed'
         compiler_sha256 = Get-Sha256 -Path $Compiler
     } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $reportPath -Encoding utf8

@@ -1080,12 +1080,34 @@ Known limitations remain those in the implementation-state list above; no langua
   compiler ran all 20 motion checks. Stage2/stage3 IR matched at SHA-256
   `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
 
+**Rocket 3 WP14 - safe raylib geometry**
+
+- Expanded the reviewed primitive raylib adapter and safe Rocket wrapper with
+  every required rectangle, circle/ellipse/ring/sector, line, triangle,
+  polygon, and Bezier operation. Validation rejects non-finite and defined
+  negative geometry before unsafe calls; the native boundary independently
+  validates values and preserves frame-token state.
+- Curve points cross synchronously through short-lived integer-token buffers,
+  never public native structures or pointers. Deterministic native/package
+  tests cover valid drawing, failures, stale frames, call counts, and leak-free
+  cleanup. Stage0 and self-host docs/search expose the same 191 public items.
+- Focused Debug and Release gates passed `10/10`; fresh full suites passed
+  `234/234` each; the LLVM-disabled predecessor/WP14 selection passed `8/8`;
+  and stage0/self-host checks passed for all four supported targets. The
+  deterministic bootstrap passed 184 cases with matching stage2/stage3 IR at
+  SHA-256
+  `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+- The packet-local Windows bundle is checksummed at SHA-256
+  `bbfc71e07d3b86db9009f0bf1d80f3f0734202a8d5d5e0bff66a9d1446b12c58`.
+  WP14 generated state occupied 3.932 GiB. Native non-Windows execution remains
+  a WP34/F29 target-laboratory acceptance item.
+
 ## Current next task
 
 **Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
-WP13 is complete and LOCAL-GREEN; native non-Windows target-laboratory
+WP14 is complete and LOCAL-GREEN; native non-Windows target-laboratory
 acceptance remains a WP34/F29 item. The lowest-numbered next eligible Rocket 3
-packet is WP14, safe raylib geometry. The exact one-packet scope and
+packet is WP15, advanced textures and filtering. The exact one-packet scope and
 success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit

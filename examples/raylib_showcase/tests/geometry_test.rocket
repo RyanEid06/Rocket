@@ -1,0 +1,81 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+import std.math
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(error):
+            return false
+
+fn failed(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(error):
+            return true
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    match rocket_raylib.open_window(640, 360, "geometry"):
+        case Err(error):
+            return 2
+        case Ok(window):
+            match rocket_raylib.begin_frame(window):
+                case Err(error):
+                    return 3
+                case Ok(frame):
+                    let a = rocket_raylib.color(10, 20, 30, 255)
+                    let b = rocket_raylib.color(40, 50, 60, 255)
+                    let c = rocket_raylib.color(70, 80, 90, 255)
+                    let d = rocket_raylib.color(100, 110, 120, 255)
+                    let quadratic = [rocket_raylib.Point(0.0, 0.0), rocket_raylib.Point(5.0, 10.0), rocket_raylib.Point(10.0, 0.0)]
+                    let cubic = [rocket_raylib.Point(0.0, 0.0), rocket_raylib.Point(3.0, 10.0), rocket_raylib.Point(7.0, 10.0), rocket_raylib.Point(10.0, 0.0)]
+                    let short_curve = [rocket_raylib.Point(0.0, 0.0), rocket_raylib.Point(1.0, 1.0)]
+                    if not succeeded(rocket_raylib.draw_rectangle(frame, 1, 2, 30, 40, a)):
+                        return 4
+                    if not succeeded(rocket_raylib.draw_rectangle_outline(frame, 1.0, 2.0, 30.0, 40.0, 2.0, a)):
+                        return 5
+                    if not succeeded(rocket_raylib.draw_rounded_rectangle(frame, 1.0, 2.0, 30.0, 40.0, 0.25, a)) or not succeeded(rocket_raylib.draw_rounded_rectangle_outline(frame, 1.0, 2.0, 30.0, 40.0, 0.25, 2.0, a)):
+                        return 6
+                    if not succeeded(rocket_raylib.draw_rectangle_gradient_vertical(frame, 1.0, 2.0, 30.0, 40.0, a, b)) or not succeeded(rocket_raylib.draw_rectangle_gradient_horizontal(frame, 1.0, 2.0, 30.0, 40.0, a, b)) or not succeeded(rocket_raylib.draw_rectangle_gradient_four(frame, 1.0, 2.0, 30.0, 40.0, a, b, c, d)):
+                        return 7
+                    if not succeeded(rocket_raylib.draw_circle(frame, 10, 20, 5.0, a)) or not succeeded(rocket_raylib.draw_circle_outline(frame, 10.0, 20.0, 5.0, 1.5, a)):
+                        return 8
+                    if not succeeded(rocket_raylib.draw_ellipse(frame, 10.0, 20.0, 5.0, 3.0, a)) or not succeeded(rocket_raylib.draw_ellipse_outline(frame, 10.0, 20.0, 5.0, 3.0, a)):
+                        return 9
+                    if not succeeded(rocket_raylib.draw_ring(frame, 10.0, 20.0, 2.0, 5.0, a)) or not succeeded(rocket_raylib.draw_ring_outline(frame, 10.0, 20.0, 2.0, 5.0, a)) or not succeeded(rocket_raylib.draw_ring_sector(frame, 10.0, 20.0, 2.0, 5.0, 15.0, 120.0, a)):
+                        return 10
+                    if not succeeded(rocket_raylib.draw_circle_sector(frame, 10.0, 20.0, 5.0, 15.0, 120.0, a)) or not succeeded(rocket_raylib.draw_circle_sector_outline(frame, 10.0, 20.0, 5.0, 15.0, 120.0, a)) or not succeeded(rocket_raylib.draw_circle_gradient(frame, 10.0, 20.0, 5.0, a, b)):
+                        return 11
+                    if not succeeded(rocket_raylib.draw_line(frame, 1.0, 2.0, 3.0, 4.0, a)) or not succeeded(rocket_raylib.draw_thick_line(frame, 1.0, 2.0, 3.0, 4.0, 2.0, a)):
+                        return 12
+                    if not succeeded(rocket_raylib.draw_triangle(frame, 1.0, 2.0, 3.0, 4.0, 5.0, 2.0, a)) or not succeeded(rocket_raylib.draw_triangle_outline(frame, 1.0, 2.0, 3.0, 4.0, 5.0, 2.0, 2.0, a)):
+                        return 13
+                    if not succeeded(rocket_raylib.draw_polygon(frame, 10.0, 20.0, 6, 5.0, 15.0, a)) or not succeeded(rocket_raylib.draw_polygon_outline(frame, 10.0, 20.0, 6, 5.0, 15.0, 2.0, a)):
+                        return 14
+                    if not succeeded(rocket_raylib.draw_bezier_line(frame, 1.0, 2.0, 3.0, 4.0, 2.0, a)) or not succeeded(rocket_raylib.draw_bezier_quadratic(frame, quadratic, 2.0, a)) or not succeeded(rocket_raylib.draw_bezier_cubic(frame, cubic, 2.0, a)):
+                        return 15
+                    if rocket_raylib_testing.draw_count() != 26 or rocket_raylib_testing.geometry_call_count() != 26 or rocket_raylib_testing.point_buffer_live_count() != 0:
+                        return 16
+                    let nan = math.sqrt(-1.0)
+                    let nan_curve = [rocket_raylib.Point(0.0, 0.0), rocket_raylib.Point(nan, 1.0), rocket_raylib.Point(2.0, 0.0)]
+                    if not failed(rocket_raylib.draw_rectangle(frame, 0, 0, -1, 1, a)) or not failed(rocket_raylib.draw_rectangle_outline(frame, 0.0, 0.0, -1.0, 1.0, 1.0, a)) or not failed(rocket_raylib.draw_rounded_rectangle(frame, 0.0, 0.0, 1.0, 1.0, 1.5, a)):
+                        return 17
+                    if not failed(rocket_raylib.draw_circle(frame, 0, 0, -1.0, a)) or not failed(rocket_raylib.draw_circle_outline(frame, 0.0, 0.0, nan, 1.0, a)) or not failed(rocket_raylib.draw_ellipse(frame, 0.0, 0.0, -1.0, 1.0, a)):
+                        return 17
+                    if not failed(rocket_raylib.draw_ring(frame, 0.0, 0.0, 2.0, 1.0, a)) or not failed(rocket_raylib.draw_ring_sector(frame, 0.0, 0.0, 1.0, 2.0, nan, 90.0, a)) or not failed(rocket_raylib.draw_thick_line(frame, 0.0, 0.0, 1.0, 1.0, -1.0, a)):
+                        return 17
+                    if not failed(rocket_raylib.draw_triangle_outline(frame, 0.0, 0.0, 1.0, 1.0, nan, 0.0, 1.0, a)) or not failed(rocket_raylib.draw_polygon(frame, 0.0, 0.0, 2, 1.0, 0.0, a)) or not failed(rocket_raylib.draw_polygon_outline(frame, 0.0, 0.0, 3, 1.0, 0.0, -1.0, a)):
+                        return 17
+                    if not failed(rocket_raylib.draw_bezier_line(frame, 0.0, 0.0, nan, 1.0, 1.0, a)) or not failed(rocket_raylib.draw_bezier_quadratic(frame, short_curve, 1.0, a)) or not failed(rocket_raylib.draw_bezier_quadratic(frame, nan_curve, 1.0, a)) or not failed(rocket_raylib.draw_bezier_cubic(frame, quadratic, 1.0, a)):
+                        return 17
+                    if rocket_raylib_testing.geometry_call_count() != 26 or rocket_raylib_testing.draw_count() != 26 or rocket_raylib_testing.point_buffer_live_count() != 0:
+                        return 18
+                    let ended = rocket_raylib.end_frame(frame)
+                    let closed = rocket_raylib.close_window(window)
+                    if not succeeded(ended) or not succeeded(closed):
+                        return 19
+                    return 0

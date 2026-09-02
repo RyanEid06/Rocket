@@ -86,7 +86,7 @@ Invoke-ConformanceCase 'native-interop-run' @('run', (Join-Path $fixtures 'phase
 Invoke-ConformanceCase 'native-static-library-build' @('build', (Join-Path $fixtures 'phase13_static_library')) 0 'phase13_math.lib'
 Invoke-ConformanceCase 'native-dynamic-library-build' @('build', (Join-Path $fixtures 'phase13_dynamic_library')) 0 'phase13_math_dynamic.dll'
 Invoke-ConformanceCase 'raylib-reference-build' @('build', (Join-Path $projectRoot 'examples\raylib_showcase')) 0 'rocket-raylib-showcase.exe'
-Invoke-ConformanceCase 'raylib-reference-test' @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) 0 '4 passed; 0 failed'
+Invoke-ConformanceCase 'raylib-reference-test' @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) 0 '5 passed; 0 failed'
 $nativeHeader1 = Join-Path $reportDirectory 'phase13-header-1.h'
 $nativeHeader2 = Join-Path $reportDirectory 'phase13-header-2.h'
 $nativeBindings1 = Join-Path $reportDirectory 'phase13-bindings-1.rocket'

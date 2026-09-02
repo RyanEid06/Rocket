@@ -37,3 +37,31 @@ Run `rocketc test` through the scaffold build or use
 before creating resources, script input, stress audio and repeated startup, and
 assert that every registry returns to zero. Do not enable the testing module in
 production code.
+
+## Drawing geometry safely
+
+`src.rocket_raylib` provides the reviewed geometry boundary. It includes
+rectangles (filled, outlined, rounded, and vertical/horizontal/four-corner
+gradients), circles and ellipses, rings and sectors, lines, triangles, regular
+polygons, and quadratic/cubic Bezier curves. All calls require the current
+single-use `Frame` and return `Result[Bool, String]`.
+
+```rocket
+let outline = rocket_raylib.draw_rectangle_outline(
+    frame, 32.0, 40.0, 240.0, 96.0, 2.0, rocket_raylib.white())
+let curve = rocket_raylib.draw_bezier_quadratic(
+    frame,
+    [rocket_raylib.Point(20.0, 180.0),
+     rocket_raylib.Point(160.0, 40.0),
+     rocket_raylib.Point(300.0, 180.0)],
+    3.0,
+    rocket_raylib.accent())
+```
+
+Rocket rejects non-finite coordinates, negative dimensions/radii/thickness,
+invalid ring ordering, polygon side counts below three, invalid roundness, and
+malformed Bezier point counts before the native boundary. The adapter repeats
+those checks and additionally rejects finite values outside raylib's float
+range. All failures return `Err` without drawing. Curve points are copied
+through a short-lived adapter token; raw raylib structures and pointers are
+never exposed.

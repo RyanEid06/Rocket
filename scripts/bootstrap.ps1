@@ -217,7 +217,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $raylibTestOutput = & $stage3 test $raylibReference 2>&1
 $raylibTestStatus = $LASTEXITCODE
 if ($raylibTestOutput) { Write-Host ($raylibTestOutput -join [Environment]::NewLine) }
-if ($raylibTestStatus -ne 0 -or ($raylibTestOutput -join "`n") -notmatch '4 passed; 0 failed') {
+if ($raylibTestStatus -ne 0 -or ($raylibTestOutput -join "`n") -notmatch '5 passed; 0 failed') {
     throw 'The Phase 14 raylib reference validation failed during bootstrap.'
 }
 

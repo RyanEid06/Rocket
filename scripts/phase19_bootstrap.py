@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PHASE19_ROOT = (ROOT / "out" / "phase19").resolve()
+ROCKET3_PROVISIONAL_ROOT = (ROOT / "out" / "rocket3-provisional").resolve()
 TARGETS = {
     "windows-x64": ("x86_64-pc-windows-msvc", ".exe", ".obj", ".lib", ".dll"),
     "linux-x64": ("x86_64-unknown-linux-gnu", "", ".o", ".a", ".so"),
@@ -62,8 +63,9 @@ def within(child: Path, parent: Path) -> bool:
 
 def clean_output(path: Path) -> None:
     resolved = path.resolve()
-    if resolved == PHASE19_ROOT or not within(resolved, PHASE19_ROOT):
-        raise BootstrapFailure(f"refusing to clean non-Phase-19 output: {resolved}")
+    allowed_roots = (PHASE19_ROOT, ROCKET3_PROVISIONAL_ROOT)
+    if not any(resolved != root and within(resolved, root) for root in allowed_roots):
+        raise BootstrapFailure(f"refusing to clean unsafe bootstrap output: {resolved}")
     if resolved.exists():
         shutil.rmtree(resolved)
     resolved.mkdir(parents=True)
@@ -345,7 +347,7 @@ def validate_stages(
     )
     runner.run(
         [stages[3], "test", ROOT / "examples" / "raylib_showcase"],
-        env=stage3_env, pattern=r"4 passed; 0 failed", label="stage3-raylib-test"
+        env=stage3_env, pattern=r"5 passed; 0 failed", label="stage3-raylib-test"
     )
     validations += 2
 

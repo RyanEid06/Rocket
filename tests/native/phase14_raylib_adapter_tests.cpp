@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <string_view>
 #include <type_traits>
 
@@ -28,6 +29,117 @@ int64_t textBuffer(std::string_view value) {
 }
 
 int64_t plusSeven(int64_t value) { return value + 7; }
+
+void geometryCycle() {
+  const int64_t title = textBuffer("Rocket geometry test");
+  const int64_t window = rlv_window_open(640, 360, title);
+  expect(window > 0, "open geometry window");
+  expect(rlv_buffer_destroy(title) == RLV_OK, "destroy geometry title");
+  const int64_t frame = rlv_begin_drawing(window);
+  expect(frame > 0, "begin geometry frame");
+
+  const int64_t points = rlv_point_buffer_create();
+  expect(points > 0, "create point buffer");
+  expect(rlv_point_buffer_push(points,
+                               std::numeric_limits<double>::infinity(), 0.0) ==
+             RLV_ERR_INVALID_ARGUMENT,
+         "reject non-finite point before storing it");
+  for (int index = 0; index < 7; ++index) {
+    expect(rlv_point_buffer_push(points, static_cast<double>(index),
+                                 static_cast<double>(index * index)) == RLV_OK,
+           "append finite point");
+  }
+
+  const int64_t before = rlv_draw_count();
+  expect(rlv_draw_rectangle(frame, 1, 2, 30, 40, 1, 2, 3, 255) == RLV_OK,
+         "filled rectangle remains available");
+  expect(rlv_draw_rectangle_outline(frame, 1.0, 2.0, 30.0, 40.0, 2.0,
+                                    1, 2, 3, 255) == RLV_OK,
+         "outlined rectangle");
+  expect(rlv_draw_rounded_rectangle(frame, 1.0, 2.0, 30.0, 40.0, 0.25,
+                                    1, 2, 3, 255) == RLV_OK,
+         "rounded rectangle");
+  expect(rlv_draw_rounded_rectangle_outline(frame, 1.0, 2.0, 30.0, 40.0,
+                                            0.25, 2.0, 1, 2, 3, 255) == RLV_OK,
+         "rounded rectangle outline");
+  expect(rlv_draw_rectangle_gradient_vertical(frame, 1.0, 2.0, 30.0, 40.0,
+      1, 2, 3, 255, 4, 5, 6, 255) == RLV_OK, "vertical rectangle gradient");
+  expect(rlv_draw_rectangle_gradient_horizontal(frame, 1.0, 2.0, 30.0, 40.0,
+      1, 2, 3, 255, 4, 5, 6, 255) == RLV_OK, "horizontal rectangle gradient");
+  expect(rlv_draw_rectangle_gradient_four(frame, 1.0, 2.0, 30.0, 40.0,
+      1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255, 10, 11, 12, 255) == RLV_OK,
+      "four-corner rectangle gradient");
+  expect(rlv_draw_circle(frame, 10, 20, 5.0, 1, 2, 3, 255) == RLV_OK,
+         "filled circle remains available");
+  expect(rlv_draw_circle_outline(frame, 10.0, 20.0, 5.0, 1.5, 1, 2, 3, 255) == RLV_OK,
+         "circle outline");
+  expect(rlv_draw_ellipse(frame, 10.0, 20.0, 5.0, 3.0, 1, 2, 3, 255) == RLV_OK,
+         "ellipse");
+  expect(rlv_draw_ellipse_outline(frame, 10.0, 20.0, 5.0, 3.0, 1, 2, 3, 255) == RLV_OK,
+         "ellipse outline");
+  expect(rlv_draw_ring(frame, 10.0, 20.0, 2.0, 5.0, 1, 2, 3, 255) == RLV_OK,
+         "ring");
+  expect(rlv_draw_ring_outline(frame, 10.0, 20.0, 2.0, 5.0, 1, 2, 3, 255) == RLV_OK,
+         "ring outline");
+  expect(rlv_draw_ring_sector(frame, 10.0, 20.0, 2.0, 5.0, 15.0, 120.0,
+                              1, 2, 3, 255) == RLV_OK, "ring sector");
+  expect(rlv_draw_circle_sector(frame, 10.0, 20.0, 5.0, 15.0, 120.0,
+                                1, 2, 3, 255) == RLV_OK, "circle sector");
+  expect(rlv_draw_circle_sector_outline(frame, 10.0, 20.0, 5.0, 15.0, 120.0,
+                                        1, 2, 3, 255) == RLV_OK,
+         "circle sector outline");
+  expect(rlv_draw_circle_gradient(frame, 10.0, 20.0, 5.0,
+      1, 2, 3, 255, 4, 5, 6, 255) == RLV_OK, "circle gradient");
+  expect(rlv_draw_line(frame, 1.0, 2.0, 3.0, 4.0, 1, 2, 3, 255) == RLV_OK,
+         "line");
+  expect(rlv_draw_thick_line(frame, 1.0, 2.0, 3.0, 4.0, 2.0,
+                             1, 2, 3, 255) == RLV_OK, "thick line");
+  expect(rlv_draw_triangle(frame, 1.0, 2.0, 3.0, 4.0, 5.0, 2.0,
+                           1, 2, 3, 255) == RLV_OK, "triangle");
+  expect(rlv_draw_triangle_outline(frame, 1.0, 2.0, 3.0, 4.0, 5.0, 2.0,
+                                   2.0, 1, 2, 3, 255) == RLV_OK,
+         "triangle outline");
+  expect(rlv_draw_polygon(frame, 10.0, 20.0, 6, 5.0, 15.0,
+                          1, 2, 3, 255) == RLV_OK, "polygon");
+  expect(rlv_draw_polygon_outline(frame, 10.0, 20.0, 6, 5.0, 15.0, 2.0,
+                                  1, 2, 3, 255) == RLV_OK, "polygon outline");
+  expect(rlv_draw_bezier_line(frame, 1.0, 2.0, 3.0, 4.0, 2.0,
+                              1, 2, 3, 255) == RLV_OK, "Bezier line");
+  expect(rlv_draw_bezier_quadratic(frame, points, 2.0, 1, 2, 3, 255) == RLV_OK,
+         "quadratic Bezier curve");
+  expect(rlv_draw_bezier_cubic(frame, points, 2.0, 1, 2, 3, 255) == RLV_OK,
+         "cubic Bezier curve");
+  expect(rlv_draw_count() - before == 26, "all geometry calls draw once");
+
+  const int64_t calls = rlv_geometry_call_count();
+  expect(rlv_draw_rectangle_outline(frame, 0.0, 0.0, -1.0, 1.0, 1.0,
+                                    1, 2, 3, 255) == RLV_ERR_INVALID_ARGUMENT,
+         "reject negative rectangle width");
+  expect(rlv_draw_circle_outline(frame, 0.0, 0.0,
+                                 std::numeric_limits<double>::infinity(), 1.0,
+                                 1, 2, 3, 255) == RLV_ERR_INVALID_ARGUMENT,
+         "reject non-finite circle radius");
+  expect(rlv_draw_circle_outline(frame, 0.0, 0.0,
+                                 std::numeric_limits<double>::max(), 1.0,
+                                 1, 2, 3, 255) == RLV_ERR_INVALID_ARGUMENT,
+         "reject circle radius outside the native float range");
+  expect(rlv_draw_polygon(frame, 0.0, 0.0, 2, 1.0, 0.0,
+                          1, 2, 3, 255) == RLV_ERR_INVALID_ARGUMENT,
+         "reject polygon with fewer than three sides");
+  expect(rlv_geometry_call_count() == calls + 4 && rlv_draw_count() - before == 26,
+         "invalid native geometry calls are deterministic and do not draw");
+
+  expect(rlv_point_buffer_destroy(points) == RLV_OK, "destroy point buffer");
+  expect(rlv_draw_bezier_quadratic(frame, points, 2.0, 1, 2, 3, 255) ==
+             RLV_ERR_STALE_HANDLE,
+         "reject stale point token");
+  expect(rlv_end_drawing(frame) == RLV_OK, "end geometry frame");
+  expect(rlv_draw_line(frame, 0.0, 0.0, 1.0, 1.0, 1, 2, 3, 255) ==
+             RLV_ERR_STALE_HANDLE,
+         "reject stale frame token for geometry");
+  expect(rlv_point_buffer_live_count() == 0, "no live point buffers");
+  expect(rlv_window_close(window) == RLV_OK, "close geometry window");
+}
 
 void windowCycle() {
   const int64_t title = textBuffer("Rocket adapter test");
@@ -97,6 +209,8 @@ int main() {
   expect(rlv_test_reset() == RLV_OK, "reset deterministic backend");
   expect(rlv_apply_callback(plusSeven, 35) == 42,
          "invoke synchronous non-storing callback");
+
+  geometryCycle();
 
   for (int index = 0; index < 64; ++index) windowCycle();
   audioCycle();

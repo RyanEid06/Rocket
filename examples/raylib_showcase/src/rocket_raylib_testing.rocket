@@ -30,6 +30,14 @@ pub fn draw_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_draw_count()
 
+pub fn geometry_call_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_geometry_call_count()
+
+pub fn point_buffer_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_point_buffer_live_count()
+
 pub fn buffer_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_buffer_live_count()

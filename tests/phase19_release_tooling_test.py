@@ -523,6 +523,10 @@ def main() -> int:
         pass
     else:
         raise RuntimeError("bootstrap safety guard accepted the frozen Release directory")
+    rocket3_bootstrap = work / "rocket3-bootstrap"
+    bootstrap_tool.ROCKET3_PROVISIONAL_ROOT = work
+    bootstrap_tool.clean_output(rocket3_bootstrap)
+    check(rocket3_bootstrap.is_dir(), "bootstrap did not accept a Rocket 3 packet output")
     try:
         package_tool.replace_directory(root / "out" / "package" / "rocket-2.0.0-windows-x64")
     except package_tool.PackageFailure:

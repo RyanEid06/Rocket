@@ -508,7 +508,7 @@ target_link_libraries(rocket_phase14_raylib_adapter_tests PRIVATE
 set_target_properties(rocket_phase14_raylib_adapter_tests PROPERTIES
   MSVC_RUNTIME_LIBRARY "MultiThreaded")
 add_test(NAME phase14_raylib_adapter COMMAND rocket_phase14_raylib_adapter_tests)
-set_tests_properties(phase14_raylib_adapter PROPERTIES LABELS "phase14;raylib;native")
+set_tests_properties(phase14_raylib_adapter PROPERTIES LABELS "phase14;raylib;native;rocket3;wp14;geometry")
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
@@ -608,7 +608,7 @@ set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
 add_test(NAME cli_test_phase14_raylib_reference
   COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
-  PASS_REGULAR_EXPRESSION "4 passed; 0 failed"
+  PASS_REGULAR_EXPRESSION "5 passed; 0 failed"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_phase14_unsafe_failure
@@ -1256,7 +1256,7 @@ if(LLVM_FOUND)
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib;native"
-    PASS_REGULAR_EXPRESSION "4 passed; 0 failed"
+    PASS_REGULAR_EXPRESSION "5 passed; 0 failed"
     WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
   add_test(NAME cli_phase14_raylib_generation_parity
     COMMAND ${CMAKE_COMMAND}

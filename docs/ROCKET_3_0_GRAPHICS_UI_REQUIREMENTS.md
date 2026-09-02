@@ -406,6 +406,23 @@ acceptance concern rather than evidence claimed by this Windows packet.
 - `R3-F07-005`: The backend is a reviewed portable adapter surface, not raw
   structure or pointer exposure.
 
+**WP14 evidence (2026-09-02):** The safe Rocket raylib module now covers every
+required rectangle, circle/ellipse/ring/sector, line, triangle, polygon, and
+Bezier operation through the reviewed primitive adapter. Rocket rejects
+non-finite values and defined negative geometry before the unsafe call; the
+native boundary independently rejects invalid or non-representable values.
+Curves cross through short-lived integer-token point buffers, so no native
+structure or pointer enters the public surface. The deterministic backend and
+native regression cover valid drawing, invalid values, stale frames, call
+counts, and leak-free token cleanup. Stage0 and self-host checks passed for all
+four supported targets; Debug and Release passed `234/234` each; the focused
+stage0/self-host/native/generation gates passed `10/10` in both configurations;
+and the LLVM-disabled predecessor/WP14 selection passed `8/8`. Deterministic
+stage2/stage3 IR matched at SHA-256
+`5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+Native non-Windows target-laboratory execution remains WP34/F29 acceptance and
+is not claimed by this Windows packet.
+
 ### F08 - Advanced textures and filtering
 
 - `R3-F08-001`: Advanced texture drawing supports source rectangle,
