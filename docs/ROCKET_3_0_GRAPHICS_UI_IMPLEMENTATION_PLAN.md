@@ -227,9 +227,9 @@ their numeric packet.
 | WP11A | F02 | Complete named-callable parity | COMPLETE / GREEN |
 | WP12 | F04 | Complete `std.math` | COMPLETE / LOCAL-GREEN; target-lab R3-F04-008 pending |
 | WP13 | F05, F06 | Easing plus complete motion/timelines | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 |
-| WP14 | F07 | Safe raylib geometry expansion | READY / RED |
-| WP15 | F08 | Advanced textures/filtering | WAIT FOR WP14 / RED |
-| WP16 | F09 | Render targets, clipping, blending | WAIT FOR WP15 / RED |
+| WP14 | F07 | Safe raylib geometry expansion | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 |
+| WP15 | F08 | Advanced textures/filtering | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 |
+| WP16 | F09 | Render targets, clipping, blending | READY / RED |
 | WP17 | F10 | Safe shader subset | WAIT FOR WP16 / RED |
 | WP18 | F11 | Window/display/rendering quality | WAIT FOR WP16 / RED |
 | WP19 | F12, F13 | Public graphics core types and Color | WAIT FOR WP11, WP12 / RED |

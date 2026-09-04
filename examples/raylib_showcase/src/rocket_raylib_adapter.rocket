@@ -13,6 +13,12 @@ pub extern const RLV_KEY_LEFT: Int = 263
 pub extern const RLV_KEY_DOWN: Int = 264
 pub extern const RLV_KEY_UP: Int = 265
 pub extern const RLV_MOUSE_LEFT: Int = 0
+pub extern const RLV_TEXTURE_FILTER_POINT: Int = 0
+pub extern const RLV_TEXTURE_FILTER_BILINEAR: Int = 1
+pub extern const RLV_TEXTURE_FILTER_TRILINEAR: Int = 2
+pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_4X: Int = 3
+pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_8X: Int = 4
+pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_16X: Int = 5
 pub extern callback RlvIntCallback(value: Int) -> Int
 pub extern fn rlv_version_major() -> Int
 pub extern fn rlv_version_minor() -> Int
@@ -75,6 +81,11 @@ pub extern fn rlv_texture_width(texture_id: Int) -> Int
 pub extern fn rlv_texture_height(texture_id: Int) -> Int
 pub extern fn rlv_texture_draw(frame_id: Int, texture_id: Int, x: Int, y: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_texture_draw_scaled(frame_id: Int, texture_id: Int, x: Int, y: Int, scale: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_texture_draw_pro(frame_id: Int, texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_texture_set_filter(window_id: Int, texture_id: Int, filter_mode: Int) -> Int
+pub extern fn rlv_texture_get_filter(texture_id: Int) -> Int
+pub extern fn rlv_texture_filter_supported(filter_mode: Int) -> Bool
+pub extern fn rlv_texture_max_anisotropy() -> Float
 pub extern fn rlv_texture_unload(texture_id: Int) -> Int
 pub extern fn rlv_texture_live_count() -> Int
 pub extern fn rlv_font_load(window_id: Int, path_buffer_id: Int) -> Int
@@ -95,3 +106,4 @@ pub extern fn rlv_apply_callback(callback: RlvIntCallback, value: Int) -> Int
 pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
 pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
 pub extern fn rlv_test_request_close(requested: Bool) -> Int
+pub extern fn rlv_test_set_anisotropy(level: Int) -> Int

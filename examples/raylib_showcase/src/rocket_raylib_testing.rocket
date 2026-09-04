@@ -53,3 +53,7 @@ pub fn font_live_count() -> Int:
 pub fn sound_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_sound_live_count()
+
+pub fn set_test_anisotropy(level: Int) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_anisotropy(level))

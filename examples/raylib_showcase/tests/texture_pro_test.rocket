@@ -1,0 +1,152 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(error):
+            return false
+
+fn failed(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(error):
+            return true
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+
+    match rocket_raylib.open_window(800, 450, "texture pro test"):
+        case Err(error):
+            return 2
+        case Ok(window):
+            match rocket_raylib.load_texture(window, "assets/orbit.ppm"):
+                case Err(error):
+                    return 3
+                case Ok(texture):
+                    if texture.width != 64 or texture.height != 64:
+                        return 4
+
+                    # Test default filter mode query
+                    match rocket_raylib.get_texture_filter(texture):
+                        case Err(error):
+                            return 5
+                        case Ok(initial_mode):
+                            if initial_mode != rocket_raylib.texture_filter_point():
+                                return 6
+
+                    # Test setting point filter
+                    if not succeeded(rocket_raylib.set_texture_filter(window, texture, rocket_raylib.texture_filter_point())):
+                        return 7
+                    match rocket_raylib.get_texture_filter(texture):
+                        case Err(error):
+                            return 8
+                        case Ok(point_mode):
+                            if point_mode != rocket_raylib.texture_filter_point():
+                                return 9
+
+                    # Test setting bilinear filter
+                    if not succeeded(rocket_raylib.set_texture_filter(window, texture, rocket_raylib.texture_filter_bilinear())):
+                        return 10
+                    match rocket_raylib.get_texture_filter(texture):
+                        case Err(error):
+                            return 11
+                        case Ok(bilinear_mode):
+                            if bilinear_mode != rocket_raylib.texture_filter_bilinear():
+                                return 12
+
+                    # Test setting trilinear filter
+                    if not succeeded(rocket_raylib.set_texture_filter(window, texture, rocket_raylib.texture_filter_trilinear())):
+                        return 13
+                    match rocket_raylib.get_texture_filter(texture):
+                        case Err(error):
+                            return 14
+                        case Ok(trilinear_mode):
+                            if trilinear_mode != rocket_raylib.texture_filter_trilinear():
+                                return 15
+
+                    # Test deterministic anisotropic capabilities
+                    if not rocket_raylib_testing.set_test_anisotropy(16):
+                        return 16
+                    if not rocket_raylib.texture_filter_supported(rocket_raylib.texture_filter_anisotropic_16x()):
+                        return 17
+                    if rocket_raylib.texture_max_anisotropy() < 16.0:
+                        return 18
+
+                    # Set anisotropic 16x
+                    if not succeeded(rocket_raylib.set_texture_filter(window, texture, rocket_raylib.texture_filter_anisotropic_16x())):
+                        return 19
+                    match rocket_raylib.get_texture_filter(texture):
+                        case Err(error):
+                            return 20
+                        case Ok(aniso_mode):
+                            if aniso_mode != rocket_raylib.texture_filter_anisotropic_16x():
+                                return 21
+
+                    # Disable anisotropy to test explicit rejection and fallback resolution
+                    if not rocket_raylib_testing.set_test_anisotropy(0):
+                        return 22
+                    if rocket_raylib.texture_filter_supported(rocket_raylib.texture_filter_anisotropic_16x()):
+                        return 23
+
+                    # Anisotropic must fail when unsupported (never silent downgrade)
+                    if not failed(rocket_raylib.set_texture_filter(window, texture, rocket_raylib.texture_filter_anisotropic_16x())):
+                        return 24
+
+                    # Fallback helper cleanly resolves to fallback mode
+                    match rocket_raylib.set_texture_filter_with_fallback(window, texture, rocket_raylib.texture_filter_anisotropic_16x(), rocket_raylib.texture_filter_bilinear()):
+                        case Err(error):
+                            return 25
+                        case Ok(resolved):
+                            if resolved != rocket_raylib.texture_filter_bilinear():
+                                return 26
+                    match rocket_raylib.get_texture_filter(texture):
+                        case Err(error):
+                            return 27
+                        case Ok(current_mode):
+                            if current_mode != rocket_raylib.texture_filter_bilinear():
+                                return 28
+
+                    # Drawing with draw_texture_pro
+                    match rocket_raylib.begin_frame(window):
+                        case Err(error):
+                            return 29
+                        case Ok(frame):
+                            let source = rocket_raylib.rect(0.0, 0.0, 32.0, 32.0)
+                            let dest = rocket_raylib.rect(100.0, 100.0, 64.0, 64.0)
+                            let origin = rocket_raylib.point(32.0, 32.0)
+                            let white = rocket_raylib.white()
+
+                            # Normal draw_texture_pro
+                            if not succeeded(rocket_raylib.draw_texture_pro(frame, texture, source, dest, origin, 45.0, white)):
+                                return 30
+
+                            # Sub-rectangle with negative height (flipping)
+                            let flip_source = rocket_raylib.rect(0.0, 32.0, 32.0, -32.0)
+                            if not succeeded(rocket_raylib.draw_texture_pro(frame, texture, flip_source, dest, origin, 0.0, white)):
+                                return 31
+
+                            # Out of bounds source rejection
+                            let bad_source = rocket_raylib.rect(0.0, 0.0, 100.0, 100.0)
+                            if not failed(rocket_raylib.draw_texture_pro(frame, texture, bad_source, dest, origin, 0.0, white)):
+                                return 32
+
+                            # Non-finite values rejection
+                            let nan = 0.0 / 0.0
+                            let bad_origin = rocket_raylib.point(nan, 0.0)
+                            if not failed(rocket_raylib.draw_texture_pro(frame, texture, source, dest, bad_origin, 0.0, white)):
+                                return 33
+
+                            # Stale handle rejection
+                            let stale_tex = rocket_raylib.Texture(9999, 64, 64)
+                            if not failed(rocket_raylib.draw_texture_pro(frame, stale_tex, source, dest, origin, 0.0, white)):
+                                return 34
+
+                            let end_result = rocket_raylib.end_frame(frame)
+
+                    let unload_result = rocket_raylib.unload_texture(texture)
+                    let close_result = rocket_raylib.close_window(window)
+                    return 0

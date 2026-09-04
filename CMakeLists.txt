@@ -510,6 +510,15 @@ set_target_properties(rocket_phase14_raylib_adapter_tests PROPERTIES
 add_test(NAME phase14_raylib_adapter COMMAND rocket_phase14_raylib_adapter_tests)
 set_tests_properties(phase14_raylib_adapter PROPERTIES LABELS "phase14;raylib;native;rocket3;wp14;geometry")
 
+add_executable(rocket_phase15_raylib_adapter_tests
+  tests/native/phase15_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase15_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase15_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase15_raylib_adapter COMMAND rocket_phase15_raylib_adapter_tests)
+set_tests_properties(phase15_raylib_adapter PROPERTIES LABELS "phase15;raylib;native;rocket3;wp15;texture")
+
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
 add_test(NAME runtime COMMAND rocketc_runtime_tests)

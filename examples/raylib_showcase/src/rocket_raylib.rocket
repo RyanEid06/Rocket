@@ -19,6 +19,12 @@ pub struct Point:
     x: Float
     y: Float
 
+pub struct Rect:
+    x: Float
+    y: Float
+    width: Float
+    height: Float
+
 pub struct Window:
     id: Int
 
@@ -75,6 +81,31 @@ pub fn key_up() -> Int:
 pub fn mouse_left() -> Int:
     return rocket_raylib_adapter.RLV_MOUSE_LEFT
 
+pub fn point(x: Float, y: Float) -> Point:
+    return Point(x, y)
+
+pub fn rect(x: Float, y: Float, width: Float, height: Float) -> Rect:
+    return Rect(x, y, width, height)
+
+pub fn texture_filter_point() -> Int:
+    return rocket_raylib_adapter.RLV_TEXTURE_FILTER_POINT
+
+pub fn texture_filter_bilinear() -> Int:
+    return rocket_raylib_adapter.RLV_TEXTURE_FILTER_BILINEAR
+
+pub fn texture_filter_trilinear() -> Int:
+    return rocket_raylib_adapter.RLV_TEXTURE_FILTER_TRILINEAR
+
+pub fn texture_filter_anisotropic_4x() -> Int:
+    return rocket_raylib_adapter.RLV_TEXTURE_FILTER_ANISOTROPIC_4X
+
+pub fn texture_filter_anisotropic_8x() -> Int:
+    return rocket_raylib_adapter.RLV_TEXTURE_FILTER_ANISOTROPIC_8X
+
+pub fn texture_filter_anisotropic_16x() -> Int:
+    return rocket_raylib_adapter.RLV_TEXTURE_FILTER_ANISOTROPIC_16X
+
+
 fn status_message(status: Int) -> String:
     if status == rocket_raylib_adapter.RLV_ERR_INVALID_ARGUMENT:
         return "raylib: invalid argument"
@@ -103,6 +134,18 @@ fn valid_rectangle(x: Float, y: Float, width: Float, height: Float) -> Bool:
 
 fn valid_circle(x: Float, y: Float, radius: Float) -> Bool:
     return finite(x) and finite(y) and finite(radius) and radius >= 0.0
+
+fn valid_color_channel(channel: Int) -> Bool:
+    return channel >= 0 and channel <= 255
+
+fn valid_color(value: Color) -> Bool:
+    return valid_color_channel(value.red) and valid_color_channel(value.green) and valid_color_channel(value.blue) and valid_color_channel(value.alpha)
+
+fn abs_float(value: Float) -> Float:
+    if value < 0.0:
+        return 0.0 - value
+    return value
+
 
 fn invalid_geometry() -> Result[Bool, String]:
     return Err("raylib: invalid argument")
@@ -432,6 +475,74 @@ pub fn draw_texture(frame: Frame, texture: Texture, x: Int, y: Int, tint: Color)
 pub fn draw_texture_scaled(frame: Frame, texture: Texture, x: Int, y: Int, scale: Float, tint: Color) -> Result[Bool, String]:
     unsafe:
         return status_result(rocket_raylib_adapter.rlv_texture_draw_scaled(frame.window_id, texture.id, x, y, scale, tint.red, tint.green, tint.blue, tint.alpha))
+
+pub fn draw_texture_pro(frame: Frame, texture: Texture, source: Rect, dest: Rect, origin: Point, rotation: Float, tint: Color) -> Result[Bool, String]:
+    if frame.window_id <= 0 or texture.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not finite(source.x) or not finite(source.y) or not finite(source.width) or not finite(source.height):
+        return invalid_geometry()
+    if not finite(dest.x) or not finite(dest.y) or not finite(dest.width) or not finite(dest.height):
+        return invalid_geometry()
+    if not finite(origin.x) or not finite(origin.y) or not finite(rotation):
+        return invalid_geometry()
+    if not valid_color(tint):
+        return invalid_geometry()
+    if source.width == 0.0 or source.height == 0.0:
+        return invalid_geometry()
+    if source.x < 0.0 or source.y < 0.0:
+        return invalid_geometry()
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_texture_draw_pro(frame.window_id, texture.id, source.x, source.y, source.width, source.height, dest.x, dest.y, dest.width, dest.height, origin.x, origin.y, rotation, tint.red, tint.green, tint.blue, tint.alpha))
+
+pub fn texture_filter_supported(filter_mode: Int) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_texture_filter_supported(filter_mode)
+
+pub fn texture_max_anisotropy() -> Float:
+    unsafe:
+        return rocket_raylib_adapter.rlv_texture_max_anisotropy()
+
+pub fn get_texture_filter(texture: Texture) -> Result[Int, String]:
+    if texture.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        let mode = rocket_raylib_adapter.rlv_texture_get_filter(texture.id)
+        if mode < 0:
+            return Err(status_message(mode))
+        return Ok(mode)
+
+pub fn set_texture_filter(window: Window, texture: Texture, filter_mode: Int) -> Result[Bool, String]:
+    if window.id <= 0 or texture.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if filter_mode < rocket_raylib_adapter.RLV_TEXTURE_FILTER_POINT or filter_mode > rocket_raylib_adapter.RLV_TEXTURE_FILTER_ANISOTROPIC_16X:
+        return Err("raylib: invalid argument")
+    if not texture_filter_supported(filter_mode):
+        return Err("raylib: device or backend unavailable")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_texture_set_filter(window.id, texture.id, filter_mode))
+
+pub fn resolve_texture_filter_fallback(preferred_mode: Int, fallback_mode: Int) -> Result[Int, String]:
+    if preferred_mode < rocket_raylib_adapter.RLV_TEXTURE_FILTER_POINT or preferred_mode > rocket_raylib_adapter.RLV_TEXTURE_FILTER_ANISOTROPIC_16X:
+        return Err("raylib: invalid argument")
+    if fallback_mode < rocket_raylib_adapter.RLV_TEXTURE_FILTER_POINT or fallback_mode > rocket_raylib_adapter.RLV_TEXTURE_FILTER_ANISOTROPIC_16X:
+        return Err("raylib: invalid argument")
+    if texture_filter_supported(preferred_mode):
+        return Ok(preferred_mode)
+    if texture_filter_supported(fallback_mode):
+        return Ok(fallback_mode)
+    return Err("raylib: device or backend unavailable")
+
+pub fn set_texture_filter_with_fallback(window: Window, texture: Texture, preferred_mode: Int, fallback_mode: Int) -> Result[Int, String]:
+    match resolve_texture_filter_fallback(preferred_mode, fallback_mode):
+        case Ok(resolved_mode):
+            match set_texture_filter(window, texture, resolved_mode):
+                case Ok(success):
+                    return Ok(resolved_mode)
+                case Err(error):
+                    return Err(error)
+        case Err(error):
+            return Err(error)
+
 
 pub fn unload_texture(texture: Texture) -> Result[Bool, String]:
     unsafe:

@@ -19,8 +19,10 @@ namespace {
 
 struct TextureRecord {
   Texture2D value{};
+  int64_t windowId = 0;
   int64_t width = 0;
   int64_t height = 0;
+  int64_t filter = RLV_TEXTURE_FILTER_POINT;
   bool native = false;
 };
 
@@ -50,6 +52,7 @@ struct AdapterState {
   int64_t mouseY = 0;
   bool mousePressed = false;
   double testTime = 0.0;
+  int64_t testMaxAnisotropy = 16;
   std::unordered_map<int64_t, std::string> buffers;
   std::unordered_map<int64_t, std::vector<Vector2>> pointBuffers;
   std::unordered_map<int64_t, TextureRecord> textures;
@@ -581,6 +584,7 @@ extern "C" int64_t rlv_texture_load(int64_t windowId, int64_t pathBufferId) {
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   if (!path) return RLV_ERR_INVALID_ARGUMENT;
   TextureRecord record;
+  record.windowId = windowId;
   if (state.testMode) {
     if (simulatedMissing(*path)) return RLV_ERR_NOT_FOUND;
     record.width = 64;
@@ -613,6 +617,7 @@ extern "C" int64_t rlv_texture_draw(int64_t frameId, int64_t textureId, int64_t 
   const auto found = state.textures.find(textureId);
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   if (found == state.textures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
   if (!fitsInt(x) || !fitsInt(y) || !validColor(red, green, blue, alpha)) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
@@ -631,6 +636,7 @@ extern "C" int64_t rlv_texture_draw_scaled(int64_t frameId, int64_t textureId,
   const auto found = state.textures.find(textureId);
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   if (found == state.textures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
   if (!fitsInt(x) || !fitsInt(y) || !std::isfinite(scale) || scale <= 0.0 ||
       !validColor(red, green, blue, alpha)) {
     return RLV_ERR_INVALID_ARGUMENT;
@@ -642,6 +648,113 @@ extern "C" int64_t rlv_texture_draw_scaled(int64_t frameId, int64_t textureId,
   }
   ++state.drawCount;
   return RLV_OK;
+}
+
+extern "C" int64_t rlv_texture_draw_pro(
+    int64_t frameId, int64_t textureId,
+    double sourceX, double sourceY, double sourceWidth, double sourceHeight,
+    double destX, double destY, double destWidth, double destHeight,
+    double originX, double originY, double rotation,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.textures.find(textureId);
+  if (found == state.textures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
+
+  if (!std::isfinite(sourceX) || !std::isfinite(sourceY) ||
+      !std::isfinite(sourceWidth) || !std::isfinite(sourceHeight) ||
+      !std::isfinite(destX) || !std::isfinite(destY) ||
+      !std::isfinite(destWidth) || !std::isfinite(destHeight) ||
+      !std::isfinite(originX) || !std::isfinite(originY) ||
+      !std::isfinite(rotation) || !validColor(red, green, blue, alpha)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+
+  const double absSrcW = std::abs(sourceWidth);
+  const double absSrcH = std::abs(sourceHeight);
+  if (absSrcW <= 0.0 || absSrcH <= 0.0 || sourceX < 0.0 || sourceY < 0.0 ||
+      (sourceX + absSrcW) > static_cast<double>(found->second.width) ||
+      (sourceY + absSrcH) > static_cast<double>(found->second.height)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+
+  if (!state.testMode) {
+    const Rectangle sourceRec{
+        static_cast<float>(sourceX), static_cast<float>(sourceY),
+        static_cast<float>(sourceWidth), static_cast<float>(sourceHeight)};
+    const Rectangle destRec{
+        static_cast<float>(destX), static_cast<float>(destY),
+        static_cast<float>(destWidth), static_cast<float>(destHeight)};
+    const Vector2 originVec{static_cast<float>(originX), static_cast<float>(originY)};
+    DrawTexturePro(found->second.value, sourceRec, destRec, originVec,
+                   static_cast<float>(rotation), color(red, green, blue, alpha));
+  }
+  ++state.drawCount;
+  return RLV_OK;
+}
+
+#ifndef GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT
+#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
+#endif
+
+extern "C" double rlv_texture_max_anisotropy(void) {
+  if (state.testMode) {
+    return static_cast<double>(state.testMaxAnisotropy);
+  }
+  return 16.0;
+}
+
+extern "C" rocket_bool rlv_texture_filter_supported(int64_t filterMode) {
+  if (filterMode == RLV_TEXTURE_FILTER_POINT ||
+      filterMode == RLV_TEXTURE_FILTER_BILINEAR ||
+      filterMode == RLV_TEXTURE_FILTER_TRILINEAR) {
+    return 1;
+  }
+  const double maxAniso = rlv_texture_max_anisotropy();
+  if (filterMode == RLV_TEXTURE_FILTER_ANISOTROPIC_4X) {
+    return maxAniso >= 4.0 ? 1 : 0;
+  }
+  if (filterMode == RLV_TEXTURE_FILTER_ANISOTROPIC_8X) {
+    return maxAniso >= 8.0 ? 1 : 0;
+  }
+  if (filterMode == RLV_TEXTURE_FILTER_ANISOTROPIC_16X) {
+    return maxAniso >= 16.0 ? 1 : 0;
+  }
+  return 0;
+}
+
+extern "C" int64_t rlv_texture_set_filter(int64_t windowId, int64_t textureId, int64_t filterMode) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.textures.find(textureId);
+  if (found == state.textures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != windowId) return RLV_ERR_INVALID_ARGUMENT;
+  if (filterMode < RLV_TEXTURE_FILTER_POINT || filterMode > RLV_TEXTURE_FILTER_ANISOTROPIC_16X) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (!rlv_texture_filter_supported(filterMode)) {
+    return RLV_ERR_UNAVAILABLE;
+  }
+  if (!state.testMode) {
+    int raylibFilter = TEXTURE_FILTER_POINT;
+    switch (filterMode) {
+      case RLV_TEXTURE_FILTER_POINT: raylibFilter = TEXTURE_FILTER_POINT; break;
+      case RLV_TEXTURE_FILTER_BILINEAR: raylibFilter = TEXTURE_FILTER_BILINEAR; break;
+      case RLV_TEXTURE_FILTER_TRILINEAR: raylibFilter = TEXTURE_FILTER_TRILINEAR; break;
+      case RLV_TEXTURE_FILTER_ANISOTROPIC_4X: raylibFilter = TEXTURE_FILTER_ANISOTROPIC_4X; break;
+      case RLV_TEXTURE_FILTER_ANISOTROPIC_8X: raylibFilter = TEXTURE_FILTER_ANISOTROPIC_8X; break;
+      case RLV_TEXTURE_FILTER_ANISOTROPIC_16X: raylibFilter = TEXTURE_FILTER_ANISOTROPIC_16X; break;
+      default: return RLV_ERR_INVALID_ARGUMENT;
+    }
+    SetTextureFilter(found->second.value, raylibFilter);
+  }
+  found->second.filter = filterMode;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_texture_get_filter(int64_t textureId) {
+  const auto found = state.textures.find(textureId);
+  if (found == state.textures.end()) return RLV_ERR_STALE_HANDLE;
+  return found->second.filter;
 }
 
 extern "C" int64_t rlv_texture_unload(int64_t textureId) {
@@ -842,5 +955,11 @@ extern "C" int64_t rlv_test_set_mouse(int64_t x, int64_t y,
 extern "C" int64_t rlv_test_request_close(rocket_bool requested) {
   if (!state.testMode) return RLV_ERR_INVALID_STATE;
   state.closeRequested = requested != 0;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_test_set_anisotropy(int64_t level) {
+  if (!state.testMode || level < 0) return RLV_ERR_INVALID_STATE;
+  state.testMaxAnisotropy = level;
   return RLV_OK;
 }
