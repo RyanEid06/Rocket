@@ -901,6 +901,21 @@ LOCAL-GREEN; native non-Windows target-laboratory execution remains WP34/F29.
 capabilities/fallbacks, resource validation, deterministic backend tests, and
 native target evidence.
 
+**WP15 evidence (2026-09-07):** Added value-based `Rect`/`Point` texture
+drawing with finite/float-range, source-region, frame-token, texture-token,
+window-ownership, and tint validation. Point, bilinear, trilinear, and 4x/8x/
+16x anisotropic filters expose capability queries and explicit fallback results;
+trilinear generation creates mipmaps before selecting the mode, while native
+anisotropy queries the active OpenGL extension and maximum level. The
+deterministic backend simulates anisotropy limits and covers stale handles,
+invalid regions, non-finite/overflowing values, flipping, cleanup, and fallback
+selection. The showcase package reports `6 passed; 0 failed` under stage0,
+self-hosted, Debug, Release, and the 184-case Windows bootstrap. Full Debug and
+Release CTest suites passed `235/235`; the LLVM-disabled predecessor selection
+passed `11/11`; stage0/stage3 documentation each generated two matching files
+with 220 public API items. Native non-Windows target-lab execution remains
+WP34/F29 acceptance and is not claimed by this Windows packet.
+
 **Checkpoint:** `feat: add advanced safe texture drawing`
 
 ### WP16 - Render targets, clipping, and blending
@@ -1071,7 +1086,7 @@ file/test/doc/evidence links when executed.
 | F05 Easing | WP13 | LOCAL-GREEN: bundled `rocket.motion` has every required easing family, exact endpoints, unclamped intermediate progress, deterministic Bounce, intentional Back/Elastic overshoot, stage0/self-host parity, Debug/Release `234/234`, LLVM-disabled predecessor `5/5`, four-target source/lowering checks, and matching stage2/stage3 IR `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`; native non-Windows target-lab acceptance remains WP34/F29 | WP34 |
 | F06 Motion/reduced motion | WP06, WP13 | LOCAL-GREEN: public value-owned Float/Vec2/Color tweens, explicit reduced-motion policy, delay/sequence/parallel/repeat/yoyo/cancel timelines, all convenience constructors, and defined zero/negative/repeat/large-delta behavior; WP06 remains a superseded internal kernel, while WP13 carries the final public contract and the same validation evidence | WP34 |
 | F07 Safe geometry backend | WP14 | LOCAL-GREEN: complete reviewed primitive adapter and safe value API for all required geometry, pre-native validation, stale-frame and token-buffer cleanup, deterministic backend counts, Debug/Release `234/234`, focused `10/10`, LLVM-disabled `8/8`, four-target stage0/self-host checks, 191-item docs/search parity, and matching stage2/stage3 IR `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`; native non-Windows target-lab acceptance remains WP34/F29 | WP34 |
-| F08 Textures/filtering | WP15 | RED | WP34 |
+| F08 Textures/filtering | WP15 | LOCAL-GREEN: checked source/destination/pivot/rotation/tint drawing, explicit filter capability and fallback behavior, mipmap-backed trilinear filtering, context-based anisotropy queries, deterministic/native tests, Debug/Release `235/235`, LLVM-disabled `11/11`, documentation parity, and deterministic bootstrap `184` cases; native non-Windows target-lab acceptance remains WP34/F29 | WP34 |
 | F09 Render targets/scopes | WP16 | RED | WP34 |
 | F10 Shaders | WP17 | RED | WP34 |
 | F11 Display quality | WP18 | RED | WP34 |
@@ -1103,7 +1118,7 @@ with the next eligible packet before committing. A failed or blocked packet
 does not rotate this slot. Do not preserve completed prompts here; Git history
 is their archive.
 
-**Current packet:** WP15 - Advanced textures and filtering
+**Current packet:** WP16 - Render targets, clipping, and blending
 
 ```text
 Work only in the main Rocket checkout:
@@ -1112,24 +1127,20 @@ C:\Users\Administrator\Desktop\Projects\Rocket
 Set that path as the working directory first. Read AGENTS.md,
 docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and
 docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md. Verify `master`, a clean
-checkout, and the pushed WP14 checkpoint. Phase 19 and WP09 through WP14 are
-complete; WP15 is the lowest-numbered eligible packet. The retained Rocket 3
+checkout, and the pushed WP15 checkpoint. Phase 19 and WP09 through WP15 are
+complete; WP16 is the lowest-numbered eligible packet. The retained Rocket 3
 foundations remain internal INTEGRATION-READY inputs, not public APIs. Push any
 preceding committed Rocket 3 checkpoint before editing.
 
-Execute only WP15, F08: expand the reviewed portable raylib adapter and safe
-Rocket texture module. Add advanced texture drawing with source rectangle,
-destination rectangle, pivot/origin, rotation, and tint. Add explicit point,
-bilinear, trilinear, and raylib/platform-supported anisotropic filter modes,
-with queryable capability and defined fallback behavior that never silently
-selects a materially different mode. Reject invalid or stale texture tokens,
-invalid source regions, non-finite values, and wrong-window use through the
-defined error contract before unsafe drawing where the safe layer can decide
-it. Preserve reviewed tokens/state and value-based safe APIs: do not expose raw
-native structures, pointers, or backend-owned handles. Provide deterministic
-backend behavior, native tests, package generation, documentation/search
-metadata, and supported-target acceptance. Do not begin WP16 or add render
-targets, scissor/blend scopes, shaders, UI, new assets, visual-regression, or
+Execute only WP16, F09: expand the reviewed portable raylib adapter and safe
+Rocket graphics module with checked render textures and scoped target, scissor,
+and blend state machines. Support virtual resolution, compositing, screenshots,
+UI layering, transitions, shader-pass preparation, valid nesting, deterministic
+cleanup, stale-token detection, wrong-window rejection, and native tests. Keep
+all state value-based and scoped; do not expose raw native structures, pointers,
+or backend-owned handles. Provide deterministic backend behavior, package
+generation, documentation/search metadata, and supported-target acceptance. Do
+not begin WP17 or add shaders, UI controls, new assets, visual-regression, or
 Scroll2Roll work.
 
 Use TDD: add focused positive, validation, boundary, failure, state/token, and
@@ -1137,12 +1148,12 @@ deterministic-backend tests before production code, and capture their RED
 baseline. Implement matching permanent C++20 stage0 and Rocket-written compiler
 behavior, public metadata, HIR/MIR and LLVM/LLVM-disabled lowering, runtime work
 only where necessary, formatter, LSP, docs, and supported editor behavior.
-Preserve valid Rocket 2.1/WP10/WP11/WP11A/WP12/WP13/WP14 programs, runtime ABI
+Preserve valid Rocket 2.1/WP10/WP11/WP11A/WP12/WP13/WP14/WP15 programs, runtime ABI
 v1, and backend ABI.
 
 Before Rocket commands, confirm no task build/test process is active. Run all
 commands sequentially; put all generated state only below
-`out/rocket3-provisional/wp15`; never automatically retry a timeout; stop and
+`out/rocket3-provisional/wp16`; never automatically retry a timeout; stop and
 report a task process that exceeds 4 GiB or continues growing rapidly. Inspect
 current build guidance and estimate combined matrix disk use before configuring;
 ask the owner before any operation that could exceed 20 GiB.
@@ -1150,15 +1161,15 @@ ask the owner before any operation that could exceed 20 GiB.
 Run focused compiler/runtime/module/docs/formatter/LSP/cross-target checks, then
 the RED packet's predecessor compatibility, LLVM-disabled stage0, full
 Debug/Release, supported-target evidence, and deterministic stage0-to-stage3
-bootstrap without weakening gates. Only if all pass, update WP15 evidence and
-traceability and rotate section 9 to a complete self-contained WP16 prompt.
-Run `git diff --check`, review only the packet diff, and commit all WP15 work
+bootstrap without weakening gates. Only if all pass, update WP16 evidence and
+traceability and rotate section 9 to a complete self-contained WP17 prompt.
+Run `git diff --check`, review only the packet diff, and commit all WP16 work
 with exactly:
 
-feat: add advanced safe texture drawing
+feat: add safe render scopes
 
-Push `master` to `origin` after the commit and stop; do not begin WP16. If any
-implementation or required validation fails, leave WP15 current, do not rotate,
+Push `master` to `origin` after the commit and stop; do not begin WP17. If any
+implementation or required validation fails, leave WP16 current, do not rotate,
 and report the blocker.
 ```
 

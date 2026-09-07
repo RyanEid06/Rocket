@@ -617,7 +617,7 @@ set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
 add_test(NAME cli_test_phase14_raylib_reference
   COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
-  PASS_REGULAR_EXPRESSION "5 passed; 0 failed"
+  PASS_REGULAR_EXPRESSION "6 passed\; 0 failed"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_phase14_unsafe_failure
@@ -1265,7 +1265,7 @@ if(LLVM_FOUND)
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib;native"
-    PASS_REGULAR_EXPRESSION "5 passed; 0 failed"
+    PASS_REGULAR_EXPRESSION "6 passed\; 0 failed"
     WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
   add_test(NAME cli_phase14_raylib_generation_parity
     COMMAND ${CMAKE_COMMAND}

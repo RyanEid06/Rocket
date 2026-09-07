@@ -135,7 +135,7 @@ try {
         $process.Dispose()
     }
 
-    Invoke-Rocket @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) '5 passed; 0 failed'
+    Invoke-Rocket @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) '6 passed; 0 failed'
     Invoke-Rocket @('run', (Join-Path $projectRoot 'examples\ownership_concurrency.rocket')) '41[\r\n]+3[\r\n]+42'
 
     $reportPath = Join-Path $work 'application-validation.json'

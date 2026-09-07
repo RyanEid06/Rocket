@@ -100,3 +100,26 @@ regular polygons have at least three sides; quadratic Bezier point counts are
 contract errors before the foreign call. The native adapter repeats those
 checks, enforces the narrower float range for unsafe callers, and validates the
 active frame and point-buffer tokens before drawing.
+
+## Advanced textures and filtering
+
+`draw_texture_pro(frame, texture, source, dest, origin, rotation, tint)` takes
+value-based `Rect` and `Point` arguments. Source coordinates are nonnegative;
+nonzero signed source dimensions support flipping and must stay within the
+texture. Coordinates, sizes, pivot, rotation, and tint are validated before
+drawing; stale frame/texture tokens and wrong-window use return errors.
+
+Choose point, bilinear, trilinear, or anisotropic 4x/8x/16x using the
+`texture_filter_*` functions. `texture_filter_supported` and
+`texture_max_anisotropy` query the current backend; native anisotropy is zero
+without an active window or a supported extension. Trilinear selection generates
+mipmaps when needed and returns an unavailable error if they cannot be created.
+Anisotropic modes use a bilinear base; switching away clears anisotropy.
+`set_texture_filter_with_fallback` takes an explicit fallback and returns the
+mode actually selected. `get_texture_filter` reports the last successful mode.
+The deterministic backend's `set_test_anisotropy` controls capability tests.
+
+For a real GPU regression, run `rocket_phase15_raylib_adapter_tests` with the
+absolute path to `assets/orbit.ppm`. It opens a hidden window and checks that
+trilinear selection does not silently degrade to bilinear. Without the argument,
+the executable runs only deterministic tests suitable for headless CI.

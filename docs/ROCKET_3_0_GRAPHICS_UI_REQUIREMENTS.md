@@ -434,6 +434,18 @@ is not claimed by this Windows packet.
 - `R3-F08-004`: Invalid or stale texture tokens, invalid source regions, and
   wrong-window use fail through the defined error contract.
 
+**WP15 acceptance (2026-09-07):** The safe raylib surface now provides
+value-based source/destination/pivot/rotation/tint drawing with explicit
+validation and window/frame/texture ownership checks. Filter capability queries
+cover point, bilinear, trilinear, and context-supported 4x/8x/16x anisotropy;
+trilinear generates mipmaps before selection and unsupported modes return an
+explicit unavailable error or the caller-selected fallback. Deterministic and
+native adapter tests cover stale handles, invalid regions, non-finite and
+float-overflowing values, flipping, cleanup, capability limits, and fallback
+selection. Debug and Release each passed `235/235`, the LLVM-disabled selection
+passed `11/11`, and deterministic bootstrap passed `184` validation cases.
+Native non-Windows target-laboratory execution remains WP34/F29 acceptance.
+
 ### F09 - Render targets, clipping, and blending
 
 - `R3-F09-001`: Checked render textures support virtual resolution,

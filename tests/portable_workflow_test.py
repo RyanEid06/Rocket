@@ -206,7 +206,7 @@ def application(args: argparse.Namespace) -> None:
         if process.returncode != 0:
             raise WorkflowError(f"parallel package build failed:\n{stdout}{stderr}")
     compiler_case(compiler, ["test", str(source_dir / "examples" / "raylib_showcase")],
-                  r"5 passed; 0 failed", "raylib headless tests")
+                  r"6 passed; 0 failed", "raylib headless tests")
     compiler_case(compiler, ["run", str(source_dir / "examples" / "ownership_concurrency.rocket")],
                   r"41[\r\n]+3[\r\n]+42", "ownership application")
     report = work / "application-validation.json"

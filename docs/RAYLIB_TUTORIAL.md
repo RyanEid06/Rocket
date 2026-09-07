@@ -65,3 +65,20 @@ those checks and additionally rejects finite values outside raylib's float
 range. All failures return `Err` without drawing. Curve points are copied
 through a short-lived adapter token; raw raylib structures and pointers are
 never exposed.
+
+## Advanced textures
+
+Use `draw_texture_pro(frame, texture, source, dest, origin, rotation, tint)`
+with `rect(x, y, width, height)` and `point(x, y)` values for sprite regions,
+scaling, pivot rotation in degrees, and tinting. Source dimensions may be
+negative for flipping, but their absolute extents must remain inside the
+texture. The adapter rejects non-finite and float-overflowing coordinates.
+
+`set_texture_filter_with_fallback(window, texture, preferred_mode, fallback_mode)`
+returns the mode actually applied. For example, request
+`texture_filter_anisotropic_16x()` with `texture_filter_bilinear()` as the
+explicit fallback. Native support is queried from the active graphics context;
+test mode can simulate lower limits. Trilinear mode creates mipmaps on demand
+and fails explicitly if mipmaps are unavailable. `get_texture_filter(texture)`
+reports the last successful selection. These APIs preserve checked resource
+tokens and expose no raw graphics handles.

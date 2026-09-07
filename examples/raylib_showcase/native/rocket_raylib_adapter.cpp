@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <raylib.h>
+#include <rlgl.h>
 
 #include <cmath>
 #include <cstdint>
@@ -661,12 +662,10 @@ extern "C" int64_t rlv_texture_draw_pro(
   if (found == state.textures.end()) return RLV_ERR_STALE_HANDLE;
   if (found->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
 
-  if (!std::isfinite(sourceX) || !std::isfinite(sourceY) ||
-      !std::isfinite(sourceWidth) || !std::isfinite(sourceHeight) ||
-      !std::isfinite(destX) || !std::isfinite(destY) ||
-      !std::isfinite(destWidth) || !std::isfinite(destHeight) ||
-      !std::isfinite(originX) || !std::isfinite(originY) ||
-      !std::isfinite(rotation) || !validColor(red, green, blue, alpha)) {
+  if (!finiteFloats({sourceX, sourceY, sourceWidth, sourceHeight,
+                     destX, destY, destWidth, destHeight,
+                     originX, originY, rotation}) ||
+      !validColor(red, green, blue, alpha)) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
 
@@ -701,7 +700,26 @@ extern "C" double rlv_texture_max_anisotropy(void) {
   if (state.testMode) {
     return static_cast<double>(state.testMaxAnisotropy);
   }
-  return 16.0;
+  if (!state.windowOpen) return 0.0;
+  const auto getInteger = reinterpret_cast<void (*)(unsigned int, int*)>(
+      rlGetProcAddress("glGetIntegerv"));
+  const auto getString = reinterpret_cast<const unsigned char* (*)(unsigned int, unsigned int)>(
+      rlGetProcAddress("glGetStringi"));
+  const auto getFloat = reinterpret_cast<void (*)(unsigned int, float*)>(
+      rlGetProcAddress("glGetFloatv"));
+  if (!getInteger || !getString || !getFloat) return 0.0;
+  int extensionCount = 0;
+  getInteger(0x821D, &extensionCount);
+  for (int index = 0; index < extensionCount; ++index) {
+    const auto extension = getString(0x1F03, static_cast<unsigned int>(index));
+    if (extension && std::string(reinterpret_cast<const char*>(extension)) ==
+                         "GL_EXT_texture_filter_anisotropic") {
+      float maximum = 0.0f;
+      getFloat(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maximum);
+      return std::isfinite(maximum) && maximum >= 2.0f ? maximum : 0.0;
+    }
+  }
+  return 0.0;
 }
 
 extern "C" rocket_bool rlv_texture_filter_supported(int64_t filterMode) {
@@ -735,6 +753,10 @@ extern "C" int64_t rlv_texture_set_filter(int64_t windowId, int64_t textureId, i
     return RLV_ERR_UNAVAILABLE;
   }
   if (!state.testMode) {
+    if (filterMode == RLV_TEXTURE_FILTER_TRILINEAR) {
+      if (found->second.value.mipmaps <= 1) GenTextureMipmaps(&found->second.value);
+      if (found->second.value.mipmaps <= 1) return RLV_ERR_UNAVAILABLE;
+    }
     int raylibFilter = TEXTURE_FILTER_POINT;
     switch (filterMode) {
       case RLV_TEXTURE_FILTER_POINT: raylibFilter = TEXTURE_FILTER_POINT; break;
@@ -744,6 +766,11 @@ extern "C" int64_t rlv_texture_set_filter(int64_t windowId, int64_t textureId, i
       case RLV_TEXTURE_FILTER_ANISOTROPIC_8X: raylibFilter = TEXTURE_FILTER_ANISOTROPIC_8X; break;
       case RLV_TEXTURE_FILTER_ANISOTROPIC_16X: raylibFilter = TEXTURE_FILTER_ANISOTROPIC_16X; break;
       default: return RLV_ERR_INVALID_ARGUMENT;
+    }
+    if (filterMode >= RLV_TEXTURE_FILTER_ANISOTROPIC_4X) {
+      SetTextureFilter(found->second.value, TEXTURE_FILTER_BILINEAR);
+    } else if (found->second.filter >= RLV_TEXTURE_FILTER_ANISOTROPIC_4X) {
+      rlTextureParameters(found->second.value.id, RL_TEXTURE_FILTER_ANISOTROPIC, 1);
     }
     SetTextureFilter(found->second.value, raylibFilter);
   }

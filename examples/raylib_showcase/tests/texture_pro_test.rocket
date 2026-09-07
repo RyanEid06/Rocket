@@ -1,5 +1,6 @@
 import src.rocket_raylib
 import src.rocket_raylib_testing
+import std.math
 
 fn succeeded(result: Result[Bool, String]) -> Bool:
     match result:
@@ -135,7 +136,7 @@ fn main() -> Int:
                                 return 32
 
                             # Non-finite values rejection
-                            let nan = 0.0 / 0.0
+                            let nan = math.sqrt(-1.0)
                             let bad_origin = rocket_raylib.point(nan, 0.0)
                             if not failed(rocket_raylib.draw_texture_pro(frame, texture, source, dest, bad_origin, 0.0, white)):
                                 return 33

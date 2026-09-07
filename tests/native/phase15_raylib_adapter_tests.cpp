@@ -6,6 +6,9 @@
 #include <limits>
 #include <string_view>
 #include <type_traits>
+#include <raylib.h>
+#include <cstdarg>
+#include <cstdio>
 
 static_assert(std::is_same_v<decltype(&rlv_texture_set_filter),
                              int64_t (*)(int64_t, int64_t, int64_t)>);
@@ -27,6 +30,15 @@ static_assert(std::is_same_v<decltype(&rlv_test_set_anisotropy),
 namespace {
 
 int failures = 0;
+bool missingMipmaps = false;
+
+void captureTextureWarning(int, const char* format, va_list arguments) {
+  char message[2048];
+  std::vsnprintf(message, sizeof(message), format, arguments);
+  if (std::string_view(message).find("No mipmaps available") != std::string_view::npos) {
+    missingMipmaps = true;
+  }
+}
 
 void expect(bool condition, std::string_view message) {
   if (condition) return;
@@ -170,6 +182,11 @@ void textureDrawProCycle() {
   // Rejections for invalid geometry / out-of-bounds
   const double nan = std::numeric_limits<double>::quiet_NaN();
   const double inf = std::numeric_limits<double>::infinity();
+  expect(rlv_texture_draw_pro(frame, texture,
+                              0.0, 0.0, 32.0, 32.0,
+                              1.0e100, 0.0, 64.0, 64.0,
+                              0.0, 0.0, 0.0, 255, 255, 255, 255) == RLV_ERR_INVALID_ARGUMENT,
+         "reject finite coordinates that overflow native float");
 
   expect(rlv_texture_draw_pro(frame, texture,
                               nan, 0.0, 64.0, 64.0,
@@ -249,7 +266,29 @@ void textureDrawProCycle() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  expect(rlv_texture_max_anisotropy() == 0.0,
+         "no native filtering capability without an active window");
+  expect(!rlv_texture_filter_supported(RLV_TEXTURE_FILTER_ANISOTROPIC_4X),
+         "anisotropy unavailable without a context");
+  if (argc == 2) {
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    SetTraceLogCallback(captureTextureWarning);
+    const int64_t title = textBuffer("WP15 native filtering regression");
+    const int64_t window = rlv_window_open(128, 128, title);
+    expect(window > 0, "open native GPU window");
+    const int64_t path = textBuffer(argv[1]);
+    const int64_t texture = rlv_texture_load(window, path);
+    expect(texture > 0, "load native texture");
+    expect(rlv_texture_set_filter(window, texture, RLV_TEXTURE_FILTER_TRILINEAR) == RLV_OK,
+           "enable native trilinear filtering");
+    expect(!missingMipmaps, "trilinear must not silently fall back to bilinear");
+    expect(rlv_texture_unload(texture) == RLV_OK, "unload native texture");
+    expect(rlv_window_close(window) == RLV_OK, "close native window");
+    expect(rlv_buffer_destroy(path) == RLV_OK, "release native path");
+    expect(rlv_buffer_destroy(title) == RLV_OK, "release native title");
+    SetTraceLogCallback(nullptr);
+  }
   expect(rlv_version_major() == 6 && rlv_version_minor() == 0,
          "adapter is compiled against raylib 6.0");
   expect(rlv_enable_test_mode(1) == RLV_OK, "enable test mode");

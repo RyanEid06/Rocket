@@ -1102,12 +1102,30 @@ Known limitations remain those in the implementation-state list above; no langua
   WP14 generated state occupied 3.932 GiB. Native non-Windows execution remains
   a WP34/F29 target-laboratory acceptance item.
 
+**Rocket 3 WP15 - advanced textures and filtering**
+
+- Added checked `draw_texture_pro` source/destination/pivot/rotation/tint
+  drawing and point, bilinear, trilinear, and context-supported anisotropic
+  filter modes. Native code validates float range, source bounds, frame and
+  window ownership, generates mipmaps for trilinear mode, and reports explicit
+  unavailable results for unsupported filters; the Rocket wrapper exposes only
+  value types and explicit fallback resolution.
+- Deterministic and hidden-window native tests cover valid flipping and
+  rotation, stale handles, wrong-window use, invalid regions, non-finite and
+  overflowing values, anisotropy limits, mipmap behavior, fallback selection,
+  and cleanup. Full Debug/Release CTest passed `235/235`; LLVM-disabled
+  compatibility passed `11/11`; stage0/stage3 docs matched at 220 public items;
+  and the deterministic bootstrap passed `184` cases with identical stage2/
+  stage3 IR SHA-256 `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+- Native non-Windows target-laboratory execution remains a WP34/F29 acceptance
+  item.
+
 ## Current next task
 
 **Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
-WP14 is complete and LOCAL-GREEN; native non-Windows target-laboratory
+WP15 is complete and LOCAL-GREEN; native non-Windows target-laboratory
 acceptance remains a WP34/F29 item. The lowest-numbered next eligible Rocket 3
-packet is WP15, advanced textures and filtering. The exact one-packet scope and
+packet is WP16, render targets, clipping, and blending. The exact one-packet scope and
 success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit

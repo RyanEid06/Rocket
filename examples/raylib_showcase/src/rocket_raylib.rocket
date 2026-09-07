@@ -539,6 +539,12 @@ pub fn set_texture_filter_with_fallback(window: Window, texture: Texture, prefer
                 case Ok(success):
                     return Ok(resolved_mode)
                 case Err(error):
+                    if error == "raylib: device or backend unavailable" and resolved_mode != fallback_mode:
+                        match set_texture_filter(window, texture, fallback_mode):
+                            case Ok(success):
+                                return Ok(fallback_mode)
+                            case Err(fallback_error):
+                                return Err(fallback_error)
                     return Err(error)
         case Err(error):
             return Err(error)
