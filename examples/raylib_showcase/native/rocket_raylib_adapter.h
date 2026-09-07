@@ -28,6 +28,13 @@ typedef uint8_t rocket_bool;
 #define RLV_TEXTURE_FILTER_ANISOTROPIC_8X 4
 #define RLV_TEXTURE_FILTER_ANISOTROPIC_16X 5
 
+#define RLV_BLEND_ALPHA 0
+#define RLV_BLEND_ADDITIVE 1
+#define RLV_BLEND_MULTIPLIED 2
+#define RLV_BLEND_ADD_COLORS 3
+#define RLV_BLEND_SUBTRACT_COLORS 4
+#define RLV_BLEND_ALPHA_PREMULTIPLIED 5
+
 #ifndef ROCKET_API
 #define ROCKET_API
 #endif
@@ -62,6 +69,7 @@ ROCKET_API double rlv_time(int64_t window_id);
 
 ROCKET_API int64_t rlv_begin_drawing(int64_t window_id);
 ROCKET_API int64_t rlv_end_drawing(int64_t frame_id);
+ROCKET_API int64_t rlv_abort_drawing(int64_t frame_id);
 ROCKET_API int64_t rlv_clear_background(int64_t frame_id, int64_t red, int64_t green, int64_t blue, int64_t alpha);
 ROCKET_API int64_t rlv_draw_rectangle(int64_t frame_id, int64_t x, int64_t y, int64_t width, int64_t height, int64_t red, int64_t green, int64_t blue, int64_t alpha);
 ROCKET_API int64_t rlv_draw_circle(int64_t frame_id, int64_t x, int64_t y, double radius, int64_t red, int64_t green, int64_t blue, int64_t alpha);
@@ -112,6 +120,25 @@ ROCKET_API double rlv_texture_max_anisotropy(void);
 ROCKET_API int64_t rlv_texture_unload(int64_t texture_id);
 ROCKET_API int64_t rlv_texture_live_count(void);
 
+ROCKET_API int64_t rlv_render_texture_load(int64_t window_id, int64_t width, int64_t height);
+ROCKET_API int64_t rlv_render_texture_width(int64_t render_texture_id);
+ROCKET_API int64_t rlv_render_texture_height(int64_t render_texture_id);
+ROCKET_API int64_t rlv_render_texture_unload(int64_t render_texture_id);
+ROCKET_API int64_t rlv_render_texture_live_count(void);
+ROCKET_API int64_t rlv_render_target_begin(int64_t frame_id, int64_t render_texture_id);
+ROCKET_API int64_t rlv_render_target_end(int64_t scope_id);
+ROCKET_API int64_t rlv_render_texture_draw(int64_t frame_id, int64_t render_texture_id, double source_x, double source_y, double source_width, double source_height, double dest_x, double dest_y, double dest_width, double dest_height, double origin_x, double origin_y, double rotation, int64_t red, int64_t green, int64_t blue, int64_t alpha);
+ROCKET_API int64_t rlv_render_texture_save_png(int64_t window_id, int64_t render_texture_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_scissor_begin(int64_t frame_id, double x, double y, double width, double height);
+ROCKET_API int64_t rlv_scissor_end(int64_t scope_id);
+ROCKET_API int64_t rlv_blend_begin(int64_t frame_id, int64_t blend_mode);
+ROCKET_API int64_t rlv_blend_end(int64_t scope_id);
+ROCKET_API int64_t rlv_scope_depth(void);
+ROCKET_API int64_t rlv_render_target_switch_count(void);
+ROCKET_API int64_t rlv_scissor_switch_count(void);
+ROCKET_API int64_t rlv_blend_switch_count(void);
+ROCKET_API int64_t rlv_screenshot_count(void);
+
 ROCKET_API int64_t rlv_font_load(int64_t window_id, int64_t path_buffer_id);
 ROCKET_API int64_t rlv_font_draw(int64_t frame_id, int64_t font_id, int64_t text_buffer_id, int64_t x, int64_t y, double size, double spacing, int64_t red, int64_t green, int64_t blue, int64_t alpha);
 ROCKET_API int64_t rlv_font_unload(int64_t font_id);
@@ -134,6 +161,11 @@ ROCKET_API int64_t rlv_test_set_key(int64_t key, rocket_bool pressed, rocket_boo
 ROCKET_API int64_t rlv_test_set_mouse(int64_t x, int64_t y, rocket_bool pressed);
 ROCKET_API int64_t rlv_test_request_close(rocket_bool requested);
 ROCKET_API int64_t rlv_test_set_anisotropy(int64_t level);
+ROCKET_API int64_t rlv_test_scissor_x(void);
+ROCKET_API int64_t rlv_test_scissor_y(void);
+ROCKET_API int64_t rlv_test_scissor_width(void);
+ROCKET_API int64_t rlv_test_scissor_height(void);
+ROCKET_API int64_t rlv_test_blend_mode(void);
 
 #ifdef __cplusplus
 }

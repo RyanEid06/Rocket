@@ -27,6 +27,28 @@ struct TextureRecord {
   bool native = false;
 };
 
+struct RenderTextureRecord {
+  RenderTexture2D value{};
+  int64_t windowId = 0;
+  int64_t width = 0;
+  int64_t height = 0;
+  bool native = false;
+};
+
+enum class ScopeKind { RenderTarget, Scissor, Blend };
+
+struct ScopeRecord {
+  int64_t id = 0;
+  int64_t frameId = 0;
+  ScopeKind kind = ScopeKind::RenderTarget;
+  int64_t resourceId = 0;
+  int64_t x = 0;
+  int64_t y = 0;
+  int64_t width = 0;
+  int64_t height = 0;
+  int64_t blendMode = RLV_BLEND_ALPHA;
+};
+
 struct SoundRecord {
   Sound value{};
   bool native = false;
@@ -49,6 +71,10 @@ struct AdapterState {
   int64_t nextId = 1;
   int64_t drawCount = 0;
   int64_t geometryCallCount = 0;
+  int64_t renderTargetSwitchCount = 0;
+  int64_t scissorSwitchCount = 0;
+  int64_t blendSwitchCount = 0;
+  int64_t screenshotCount = 0;
   int64_t mouseX = 0;
   int64_t mouseY = 0;
   bool mousePressed = false;
@@ -57,8 +83,10 @@ struct AdapterState {
   std::unordered_map<int64_t, std::string> buffers;
   std::unordered_map<int64_t, std::vector<Vector2>> pointBuffers;
   std::unordered_map<int64_t, TextureRecord> textures;
+  std::unordered_map<int64_t, RenderTextureRecord> renderTextures;
   std::unordered_map<int64_t, FontRecord> fonts;
   std::unordered_map<int64_t, SoundRecord> sounds;
+  std::vector<ScopeRecord> scopes;
   std::unordered_set<int64_t> pressedKeys;
   std::unordered_set<int64_t> downKeys;
 };
@@ -131,6 +159,45 @@ int64_t requireDrawing(int64_t frameId) {
              : RLV_ERR_STALE_HANDLE;
 }
 
+const ScopeRecord* activeScope(ScopeKind kind) {
+  for (auto current = state.scopes.rbegin(); current != state.scopes.rend(); ++current) {
+    if (current->kind == kind) return &*current;
+  }
+  return nullptr;
+}
+
+bool scopeExists(int64_t scopeId) {
+  return std::any_of(state.scopes.begin(), state.scopes.end(),
+                     [scopeId](const ScopeRecord& scope) { return scope.id == scopeId; });
+}
+
+bool renderTargetActive(int64_t renderTextureId) {
+  return std::any_of(state.scopes.begin(), state.scopes.end(),
+                     [renderTextureId](const ScopeRecord& scope) {
+                       return scope.kind == ScopeKind::RenderTarget &&
+                              scope.resourceId == renderTextureId;
+                     });
+}
+
+int raylibBlendMode(int64_t blendMode) {
+  switch (blendMode) {
+    case RLV_BLEND_ALPHA: return BLEND_ALPHA;
+    case RLV_BLEND_ADDITIVE: return BLEND_ADDITIVE;
+    case RLV_BLEND_MULTIPLIED: return BLEND_MULTIPLIED;
+    case RLV_BLEND_ADD_COLORS: return BLEND_ADD_COLORS;
+    case RLV_BLEND_SUBTRACT_COLORS: return BLEND_SUBTRACT_COLORS;
+    case RLV_BLEND_ALPHA_PREMULTIPLIED: return BLEND_ALPHA_PREMULTIPLY;
+    default: return -1;
+  }
+}
+
+void closeNativeScope(const ScopeRecord& scope) {
+  if (state.testMode) return;
+  if (scope.kind == ScopeKind::RenderTarget) EndTextureMode();
+  else if (scope.kind == ScopeKind::Scissor) EndScissorMode();
+  else EndBlendMode();
+}
+
 }  // namespace
 
 extern "C" int64_t rlv_version_major(void) { return RAYLIB_VERSION_MAJOR; }
@@ -139,7 +206,8 @@ extern "C" int64_t rlv_version_minor(void) { return RAYLIB_VERSION_MINOR; }
 
 extern "C" int64_t rlv_enable_test_mode(rocket_bool enabled) {
   if (state.windowOpen || state.audioOpen || !state.textures.empty() ||
-      !state.fonts.empty() || !state.sounds.empty() || !state.pointBuffers.empty()) {
+      !state.renderTextures.empty() || !state.fonts.empty() ||
+      !state.sounds.empty() || !state.pointBuffers.empty() || !state.scopes.empty()) {
     return RLV_ERR_RESOURCE_LIVE;
   }
   state.testMode = enabled != 0;
@@ -217,7 +285,8 @@ extern "C" int64_t rlv_window_open(int64_t width, int64_t height,
 extern "C" int64_t rlv_window_close(int64_t windowId) {
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   if (state.drawing) return RLV_ERR_INVALID_STATE;
-  if (!state.textures.empty() || !state.fonts.empty()) return RLV_ERR_RESOURCE_LIVE;
+  if (!state.textures.empty() || !state.renderTextures.empty() ||
+      !state.fonts.empty() || !state.scopes.empty()) return RLV_ERR_RESOURCE_LIVE;
   if (!state.testMode) CloseWindow();
   state.windowOpen = false;
   state.windowId = 0;
@@ -264,6 +333,24 @@ extern "C" int64_t rlv_begin_drawing(int64_t windowId) {
 
 extern "C" int64_t rlv_end_drawing(int64_t frameId) {
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  if (!state.scopes.empty()) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) EndDrawing();
+  state.drawing = false;
+  state.frameId = 0;
+  state.testTime += 1.0 / 60.0;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_abort_drawing(int64_t frameId) {
+  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  while (!state.scopes.empty()) {
+    const ScopeRecord scope = state.scopes.back();
+    closeNativeScope(scope);
+    if (scope.kind == ScopeKind::RenderTarget) ++state.renderTargetSwitchCount;
+    else if (scope.kind == ScopeKind::Scissor) ++state.scissorSwitchCount;
+    else ++state.blendSwitchCount;
+    state.scopes.pop_back();
+  }
   if (!state.testMode) EndDrawing();
   state.drawing = false;
   state.frameId = 0;
@@ -797,6 +884,252 @@ extern "C" int64_t rlv_texture_live_count(void) {
   return static_cast<int64_t>(state.textures.size());
 }
 
+extern "C" int64_t rlv_render_texture_load(int64_t windowId, int64_t width,
+                                             int64_t height) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  if (width <= 0 || height <= 0 || !fitsInt(width) || !fitsInt(height)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  RenderTextureRecord record;
+  record.windowId = windowId;
+  record.width = width;
+  record.height = height;
+  if (!state.testMode) {
+    record.value = LoadRenderTexture(static_cast<int>(width), static_cast<int>(height));
+    if (!IsRenderTextureValid(record.value)) return RLV_ERR_UNAVAILABLE;
+    record.native = true;
+  }
+  const int64_t id = nextId();
+  state.renderTextures.emplace(id, record);
+  return id;
+}
+
+extern "C" int64_t rlv_render_texture_width(int64_t renderTextureId) {
+  const auto found = state.renderTextures.find(renderTextureId);
+  return found == state.renderTextures.end() ? RLV_ERR_STALE_HANDLE
+                                             : found->second.width;
+}
+
+extern "C" int64_t rlv_render_texture_height(int64_t renderTextureId) {
+  const auto found = state.renderTextures.find(renderTextureId);
+  return found == state.renderTextures.end() ? RLV_ERR_STALE_HANDLE
+                                             : found->second.height;
+}
+
+extern "C" int64_t rlv_render_texture_unload(int64_t renderTextureId) {
+  const auto found = state.renderTextures.find(renderTextureId);
+  if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
+  if (state.drawing || renderTargetActive(renderTextureId)) return RLV_ERR_INVALID_STATE;
+  if (found->second.native) UnloadRenderTexture(found->second.value);
+  state.renderTextures.erase(found);
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_render_texture_live_count(void) {
+  return static_cast<int64_t>(state.renderTextures.size());
+}
+
+extern "C" int64_t rlv_render_target_begin(int64_t frameId,
+                                             int64_t renderTextureId) {
+  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.renderTextures.find(renderTextureId);
+  if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
+  if (renderTargetActive(renderTextureId)) return RLV_ERR_INVALID_STATE;
+  const int64_t scopeId = nextId();
+  if (!state.testMode) BeginTextureMode(found->second.value);
+  state.scopes.push_back(ScopeRecord{scopeId, frameId, ScopeKind::RenderTarget,
+                                     renderTextureId});
+  ++state.renderTargetSwitchCount;
+  return scopeId;
+}
+
+extern "C" int64_t rlv_render_target_end(int64_t scopeId) {
+  if (!scopeExists(scopeId)) return RLV_ERR_STALE_HANDLE;
+  if (state.scopes.empty() || state.scopes.back().id != scopeId ||
+      state.scopes.back().kind != ScopeKind::RenderTarget) {
+    return RLV_ERR_INVALID_STATE;
+  }
+  closeNativeScope(state.scopes.back());
+  state.scopes.pop_back();
+  ++state.renderTargetSwitchCount;
+  const ScopeRecord* parent = activeScope(ScopeKind::RenderTarget);
+  if (parent) {
+    const auto found = state.renderTextures.find(parent->resourceId);
+    if (found == state.renderTextures.end()) return RLV_ERR_INVALID_STATE;
+    if (!state.testMode) BeginTextureMode(found->second.value);
+    ++state.renderTargetSwitchCount;
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_render_texture_draw(
+    int64_t frameId, int64_t renderTextureId,
+    double sourceX, double sourceY, double sourceWidth, double sourceHeight,
+    double destX, double destY, double destWidth, double destHeight,
+    double originX, double originY, double rotation,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.renderTextures.find(renderTextureId);
+  if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
+  if (renderTargetActive(renderTextureId)) return RLV_ERR_INVALID_STATE;
+  if (!finiteFloats({sourceX, sourceY, sourceWidth, sourceHeight, destX, destY,
+                     destWidth, destHeight, originX, originY, rotation}) ||
+      !validColor(red, green, blue, alpha)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const double absWidth = std::abs(sourceWidth);
+  const double absHeight = std::abs(sourceHeight);
+  if (absWidth <= 0.0 || absHeight <= 0.0 || sourceX < 0.0 || sourceY < 0.0 ||
+      sourceX + absWidth > static_cast<double>(found->second.width) ||
+      sourceY + absHeight > static_cast<double>(found->second.height)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (!state.testMode) {
+    DrawTexturePro(found->second.value.texture,
+                   rectangle(sourceX, sourceY, sourceWidth, sourceHeight),
+                   rectangle(destX, destY, destWidth, destHeight),
+                   point(originX, originY), static_cast<float>(rotation),
+                   color(red, green, blue, alpha));
+  }
+  ++state.drawCount;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_render_texture_save_png(int64_t windowId,
+                                                 int64_t renderTextureId,
+                                                 int64_t pathBufferId) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.renderTextures.find(renderTextureId);
+  if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != windowId) return RLV_ERR_INVALID_ARGUMENT;
+  const std::string* path = buffer(pathBufferId);
+  if (!path || path->size() < 5 || path->substr(path->size() - 4) != ".png") {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (state.drawing || renderTargetActive(renderTextureId)) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) {
+    Image image = LoadImageFromTexture(found->second.value.texture);
+    if (!IsImageValid(image)) return RLV_ERR_UNAVAILABLE;
+    ImageFlipVertical(&image);
+    const bool saved = ExportImage(image, path->c_str());
+    UnloadImage(image);
+    if (!saved) return RLV_ERR_UNAVAILABLE;
+  }
+  ++state.screenshotCount;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_scissor_begin(int64_t frameId, double x, double y,
+                                       double width, double height) {
+  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  if (!finiteFloats({x, y, width, height}) || width < 0.0 || height < 0.0) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const double right = x + width;
+  const double bottom = y + height;
+  if (!finiteFloats({right, bottom}) || x < std::numeric_limits<int>::min() ||
+      y < std::numeric_limits<int>::min() || right > std::numeric_limits<int>::max() ||
+      bottom > std::numeric_limits<int>::max()) return RLV_ERR_INVALID_ARGUMENT;
+  int64_t effectiveX = static_cast<int64_t>(std::floor(x));
+  int64_t effectiveY = static_cast<int64_t>(std::floor(y));
+  int64_t effectiveRight = static_cast<int64_t>(std::ceil(right));
+  int64_t effectiveBottom = static_cast<int64_t>(std::ceil(bottom));
+  const ScopeRecord* parent = activeScope(ScopeKind::Scissor);
+  if (parent) {
+    effectiveX = std::max(effectiveX, parent->x);
+    effectiveY = std::max(effectiveY, parent->y);
+    effectiveRight = std::min(effectiveRight, parent->x + parent->width);
+    effectiveBottom = std::min(effectiveBottom, parent->y + parent->height);
+  }
+  const int64_t effectiveWidth = std::max<int64_t>(0, effectiveRight - effectiveX);
+  const int64_t effectiveHeight = std::max<int64_t>(0, effectiveBottom - effectiveY);
+  if (!fitsInt(effectiveX) || !fitsInt(effectiveY) ||
+      !fitsInt(effectiveWidth) || !fitsInt(effectiveHeight)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const int64_t scopeId = nextId();
+  if (!state.testMode) BeginScissorMode(static_cast<int>(effectiveX),
+      static_cast<int>(effectiveY), static_cast<int>(effectiveWidth),
+      static_cast<int>(effectiveHeight));
+  ScopeRecord scope{scopeId, frameId, ScopeKind::Scissor};
+  scope.x = effectiveX;
+  scope.y = effectiveY;
+  scope.width = effectiveWidth;
+  scope.height = effectiveHeight;
+  state.scopes.push_back(scope);
+  ++state.scissorSwitchCount;
+  return scopeId;
+}
+
+extern "C" int64_t rlv_scissor_end(int64_t scopeId) {
+  if (!scopeExists(scopeId)) return RLV_ERR_STALE_HANDLE;
+  if (state.scopes.empty() || state.scopes.back().id != scopeId ||
+      state.scopes.back().kind != ScopeKind::Scissor) {
+    return RLV_ERR_INVALID_STATE;
+  }
+  closeNativeScope(state.scopes.back());
+  state.scopes.pop_back();
+  ++state.scissorSwitchCount;
+  const ScopeRecord* parent = activeScope(ScopeKind::Scissor);
+  if (parent) {
+    if (!state.testMode) BeginScissorMode(static_cast<int>(parent->x),
+        static_cast<int>(parent->y), static_cast<int>(parent->width),
+        static_cast<int>(parent->height));
+    ++state.scissorSwitchCount;
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_blend_begin(int64_t frameId, int64_t blendMode) {
+  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  const int nativeMode = raylibBlendMode(blendMode);
+  if (nativeMode < 0) return RLV_ERR_INVALID_ARGUMENT;
+  const int64_t scopeId = nextId();
+  if (!state.testMode) BeginBlendMode(nativeMode);
+  ScopeRecord scope{scopeId, frameId, ScopeKind::Blend};
+  scope.blendMode = blendMode;
+  state.scopes.push_back(scope);
+  ++state.blendSwitchCount;
+  return scopeId;
+}
+
+extern "C" int64_t rlv_blend_end(int64_t scopeId) {
+  if (!scopeExists(scopeId)) return RLV_ERR_STALE_HANDLE;
+  if (state.scopes.empty() || state.scopes.back().id != scopeId ||
+      state.scopes.back().kind != ScopeKind::Blend) {
+    return RLV_ERR_INVALID_STATE;
+  }
+  closeNativeScope(state.scopes.back());
+  state.scopes.pop_back();
+  ++state.blendSwitchCount;
+  const ScopeRecord* parent = activeScope(ScopeKind::Blend);
+  if (parent) {
+    if (!state.testMode) BeginBlendMode(raylibBlendMode(parent->blendMode));
+    ++state.blendSwitchCount;
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_scope_depth(void) {
+  return static_cast<int64_t>(state.scopes.size());
+}
+
+extern "C" int64_t rlv_render_target_switch_count(void) {
+  return state.renderTargetSwitchCount;
+}
+
+extern "C" int64_t rlv_scissor_switch_count(void) {
+  return state.scissorSwitchCount;
+}
+
+extern "C" int64_t rlv_blend_switch_count(void) {
+  return state.blendSwitchCount;
+}
+
+extern "C" int64_t rlv_screenshot_count(void) { return state.screenshotCount; }
+
 extern "C" int64_t rlv_font_load(int64_t windowId, int64_t pathBufferId) {
   const std::string* path = buffer(pathBufferId);
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
@@ -989,4 +1322,34 @@ extern "C" int64_t rlv_test_set_anisotropy(int64_t level) {
   if (!state.testMode || level < 0) return RLV_ERR_INVALID_STATE;
   state.testMaxAnisotropy = level;
   return RLV_OK;
+}
+
+extern "C" int64_t rlv_test_scissor_x(void) {
+  if (!state.testMode) return RLV_ERR_INVALID_STATE;
+  const ScopeRecord* scope = activeScope(ScopeKind::Scissor);
+  return scope ? scope->x : RLV_ERR_INVALID_STATE;
+}
+
+extern "C" int64_t rlv_test_scissor_y(void) {
+  if (!state.testMode) return RLV_ERR_INVALID_STATE;
+  const ScopeRecord* scope = activeScope(ScopeKind::Scissor);
+  return scope ? scope->y : RLV_ERR_INVALID_STATE;
+}
+
+extern "C" int64_t rlv_test_scissor_width(void) {
+  if (!state.testMode) return RLV_ERR_INVALID_STATE;
+  const ScopeRecord* scope = activeScope(ScopeKind::Scissor);
+  return scope ? scope->width : RLV_ERR_INVALID_STATE;
+}
+
+extern "C" int64_t rlv_test_scissor_height(void) {
+  if (!state.testMode) return RLV_ERR_INVALID_STATE;
+  const ScopeRecord* scope = activeScope(ScopeKind::Scissor);
+  return scope ? scope->height : RLV_ERR_INVALID_STATE;
+}
+
+extern "C" int64_t rlv_test_blend_mode(void) {
+  if (!state.testMode) return RLV_ERR_INVALID_STATE;
+  const ScopeRecord* scope = activeScope(ScopeKind::Blend);
+  return scope ? scope->blendMode : RLV_ERR_INVALID_STATE;
 }

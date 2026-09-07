@@ -1,0 +1,83 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(error):
+            return false
+
+fn failed(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(error):
+            return true
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    match rocket_raylib.open_window(640, 360, "render scopes"):
+        case Err(error):
+            return 2
+        case Ok(window):
+            match rocket_raylib.create_render_texture(window, 320, 180):
+                case Err(error):
+                    return 3
+                case Ok(target):
+                    if target.width != 320 or target.height != 180:
+                        return 4
+                    match rocket_raylib.begin_frame(window):
+                        case Err(error):
+                            return 5
+                        case Ok(frame):
+                            match rocket_raylib.begin_render_target(frame, target):
+                                case Err(error):
+                                    return 6
+                                case Ok(target_scope):
+                                    match rocket_raylib.begin_scissor(frame, rocket_raylib.rect(10.0, 20.0, 100.0, 80.0)):
+                                        case Err(error):
+                                            return 7
+                                        case Ok(scissor_scope):
+                                            match rocket_raylib.begin_blend(frame, rocket_raylib.blend_additive()):
+                                                case Err(error):
+                                                    return 8
+                                                case Ok(blend_scope):
+                                                    if not succeeded(rocket_raylib.draw_circle(frame, 40, 40, 20.0, rocket_raylib.white())):
+                                                        return 9
+                                                    if not succeeded(rocket_raylib.end_blend(blend_scope)):
+                                                        return 10
+                                            if not succeeded(rocket_raylib.end_scissor(scissor_scope)):
+                                                return 11
+                                    if not succeeded(rocket_raylib.end_render_target(target_scope)):
+                                        return 12
+                            let source = rocket_raylib.rect(0.0, 0.0, 320.0, -180.0)
+                            let destination = rocket_raylib.rect(0.0, 0.0, 640.0, 360.0)
+                            if not succeeded(rocket_raylib.draw_render_texture(frame, target, source, destination, rocket_raylib.point(0.0, 0.0), 0.0, rocket_raylib.white())):
+                                return 13
+                            if not succeeded(rocket_raylib.end_frame(frame)):
+                                return 14
+                    if not succeeded(rocket_raylib.save_render_texture_png(window, target, "out/render-scopes-test.png")):
+                        return 15
+                    match rocket_raylib.begin_frame(window):
+                        case Err(error):
+                            return 16
+                        case Ok(cleanup_frame):
+                            match rocket_raylib.begin_render_target(cleanup_frame, target):
+                                case Err(error):
+                                    return 17
+                                case Ok(cleanup_target):
+                                    match rocket_raylib.begin_blend(cleanup_frame, rocket_raylib.blend_alpha()):
+                                        case Err(error):
+                                            return 18
+                                        case Ok(cleanup_blend):
+                                            if not succeeded(rocket_raylib.abort_frame(cleanup_frame)):
+                                                return 19
+                    if not succeeded(rocket_raylib.unload_render_texture(target)):
+                        return 20
+                    if rocket_raylib_testing.render_texture_live_count() != 0 or rocket_raylib_testing.scope_depth() != 0:
+                        return 21
+                    if not succeeded(rocket_raylib.close_window(window)):
+                        return 22
+                    return 0

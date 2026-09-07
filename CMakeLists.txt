@@ -169,7 +169,7 @@ foreach(ROCKET_RAYLIB_DISABLED_FEATURE IN ITEMS
     SUPPORT_FILEFORMAT_GIF SUPPORT_FILEFORMAT_QOI SUPPORT_FILEFORMAT_PSD
     SUPPORT_FILEFORMAT_DDS SUPPORT_FILEFORMAT_HDR SUPPORT_FILEFORMAT_PIC
     SUPPORT_FILEFORMAT_KTX SUPPORT_FILEFORMAT_ASTC SUPPORT_FILEFORMAT_PKM
-    SUPPORT_FILEFORMAT_PVR SUPPORT_IMAGE_EXPORT SUPPORT_IMAGE_GENERATION
+    SUPPORT_FILEFORMAT_PVR SUPPORT_IMAGE_GENERATION
     SUPPORT_FILEFORMAT_BDF SUPPORT_FILEFORMAT_OBJ SUPPORT_FILEFORMAT_MTL
     SUPPORT_FILEFORMAT_IQM SUPPORT_FILEFORMAT_GLTF SUPPORT_FILEFORMAT_VOX
     SUPPORT_FILEFORMAT_M3D SUPPORT_MESH_GENERATION SUPPORT_GPU_SKINNING
@@ -181,7 +181,7 @@ foreach(ROCKET_RAYLIB_ENABLED_FEATURE IN ITEMS
     SUPPORT_MODULE_RAUDIO SUPPORT_FILEFORMAT_PNG SUPPORT_FILEFORMAT_BMP
     SUPPORT_FILEFORMAT_JPG SUPPORT_FILEFORMAT_PNM SUPPORT_FILEFORMAT_TTF
     SUPPORT_FILEFORMAT_FNT SUPPORT_FILEFORMAT_WAV SUPPORT_FILEFORMAT_OGG
-    SUPPORT_FILEFORMAT_MP3 SUPPORT_FILEFORMAT_QOA)
+    SUPPORT_FILEFORMAT_MP3 SUPPORT_FILEFORMAT_QOA SUPPORT_IMAGE_EXPORT)
   set(${ROCKET_RAYLIB_ENABLED_FEATURE} ON CACHE BOOL "Rocket raylib profile" FORCE)
 endforeach()
 set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
@@ -519,6 +519,22 @@ set_target_properties(rocket_phase15_raylib_adapter_tests PROPERTIES
 add_test(NAME phase15_raylib_adapter COMMAND rocket_phase15_raylib_adapter_tests)
 set_tests_properties(phase15_raylib_adapter PROPERTIES LABELS "phase15;raylib;native;rocket3;wp15;texture")
 
+add_executable(rocket_phase16_raylib_adapter_tests
+  tests/native/phase16_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase16_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase16_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase16_raylib_adapter COMMAND rocket_phase16_raylib_adapter_tests)
+set_tests_properties(phase16_raylib_adapter PROPERTIES
+  LABELS "phase16;raylib;native;rocket3;wp16;render-scopes")
+add_test(NAME phase16_raylib_adapter_native
+  COMMAND rocket_phase16_raylib_adapter_tests
+    "${CMAKE_BINARY_DIR}/phase16-render-target.png")
+set_tests_properties(phase16_raylib_adapter_native PROPERTIES
+  LABELS "phase16;raylib;native;rocket3;wp16;render-scopes;gpu"
+  TIMEOUT 60)
+
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
 add_test(NAME runtime COMMAND rocketc_runtime_tests)
@@ -617,7 +633,7 @@ set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
 add_test(NAME cli_test_phase14_raylib_reference
   COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
-  PASS_REGULAR_EXPRESSION "6 passed\; 0 failed"
+  PASS_REGULAR_EXPRESSION "7 passed\; 0 failed"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_phase14_unsafe_failure
@@ -1265,7 +1281,7 @@ if(LLVM_FOUND)
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib;native"
-    PASS_REGULAR_EXPRESSION "6 passed\; 0 failed"
+    PASS_REGULAR_EXPRESSION "7 passed\; 0 failed"
     WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
   add_test(NAME cli_phase14_raylib_generation_parity
     COMMAND ${CMAKE_COMMAND}

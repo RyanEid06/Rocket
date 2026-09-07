@@ -459,6 +459,20 @@ Native non-Windows target-laboratory execution remains WP34/F29 acceptance.
 - `R3-F09-005`: Scope cleanup remains deterministic on ordinary early-return
   and `Result` propagation paths supported by Rocket.
 
+**WP16 acceptance (2026-09-07):** The reviewed primitive adapter and safe
+Rocket wrapper now own checked render textures and value-based render-target,
+scissor, and blend scopes. Validation covers dimensions, source regions,
+finite/float-range coordinates, window ownership, stale tokens, self-sampling,
+and strict LIFO nesting. Ordinary completion and explicit frame abort both
+restore deterministic native state, while screenshot export is checked and
+PNG-only. Deterministic and hidden-window native tests cover virtual-resolution
+composition, nested clipping/blending, invalid ordering, cleanup, and PNG
+output. Debug and Release each passed `237/237`; the eligible LLVM-disabled
+matrix passed `182/182`; the showcase package passed `7/7`; and the deterministic
+Windows bootstrap passed `184` validation cases with identical stage2/stage3 IR
+SHA-256 `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+Native non-Windows target-laboratory execution remains WP34/F29 acceptance.
+
 ### F10 - Safe shaders
 
 - `R3-F10-001`: Load, validate, report failure, and unload shaders through

@@ -23,7 +23,9 @@ The basic lifecycle is:
 
 1. Open a window and handle `Err`.
 2. Load textures/fonts and optionally open audio/create sounds.
-3. Poll input, begin one frame, draw, and end that exact frame.
+3. Poll input, begin one frame, draw, close nested render scopes in reverse
+   order, and end that exact frame. Use `abort_frame` to unwind scopes on an
+   early-return cleanup path.
 4. Unload sounds and close audio.
 5. Unload fonts/textures and close the window.
 
@@ -82,3 +84,48 @@ test mode can simulate lower limits. Trilinear mode creates mipmaps on demand
 and fails explicitly if mipmaps are unavailable. `get_texture_filter(texture)`
 reports the last successful selection. These APIs preserve checked resource
 tokens and expose no raw graphics handles.
+
+## Virtual targets, clipping, and blending
+
+Create a virtual-resolution layer with
+`create_render_texture(window, width, height)`. Drawing into it is an explicit
+scope, and compositing it back to the window uses the same checked rectangle,
+pivot, rotation, and tint values as advanced textures:
+
+```rocket
+match rocket_raylib.begin_render_target(frame, layer):
+    case Err(error):
+        let cleaned = rocket_raylib.abort_frame(frame)
+        return 1
+    case Ok(target_scope):
+        match rocket_raylib.begin_scissor(
+            frame, rocket_raylib.rect(16.0, 16.0, 288.0, 148.0)):
+            case Err(error):
+                let cleaned = rocket_raylib.abort_frame(frame)
+                return 1
+            case Ok(clip_scope):
+                let drawn = rocket_raylib.draw_circle(
+                    frame, 160, 90, 24.0, rocket_raylib.accent())
+                let clip_ended = rocket_raylib.end_scissor(clip_scope)
+        let target_ended = rocket_raylib.end_render_target(target_scope)
+
+let composed = rocket_raylib.draw_render_texture(
+    frame, layer,
+    rocket_raylib.rect(0.0, 0.0, 320.0, -180.0),
+    rocket_raylib.rect(0.0, 0.0, 1280.0, 720.0),
+    rocket_raylib.point(0.0, 0.0), 0.0, rocket_raylib.white())
+```
+
+The negative source height corrects raylib render-texture orientation. Target,
+scissor, and blend scopes share one LIFO stack: close the most recently opened
+scope first. Nested targets restore the parent framebuffer; nested scissor
+rectangles intersect and then restore the parent; nested blend scopes restore
+the prior reviewed mode. Available modes are alpha, additive, multiplied,
+add-colors, subtract-colors, and premultiplied alpha. Custom native blend
+equations are not exposed.
+
+After ending or aborting the frame, `save_render_texture_png` can persist a
+vertically corrected target image. Unload each render texture before closing
+its window. Stale tokens, wrong-window use, invalid dimensions/source regions,
+out-of-order scope ends, active-resource unloads, and failed image exports all
+return explicit errors.

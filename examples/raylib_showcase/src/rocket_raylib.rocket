@@ -36,6 +36,20 @@ pub struct Texture:
     width: Int
     height: Int
 
+pub struct RenderTexture:
+    id: Int
+    width: Int
+    height: Int
+
+pub struct RenderTargetScope:
+    id: Int
+
+pub struct ScissorScope:
+    id: Int
+
+pub struct BlendScope:
+    id: Int
+
 pub struct Font:
     id: Int
 
@@ -104,6 +118,24 @@ pub fn texture_filter_anisotropic_8x() -> Int:
 
 pub fn texture_filter_anisotropic_16x() -> Int:
     return rocket_raylib_adapter.RLV_TEXTURE_FILTER_ANISOTROPIC_16X
+
+pub fn blend_alpha() -> Int:
+    return rocket_raylib_adapter.RLV_BLEND_ALPHA
+
+pub fn blend_additive() -> Int:
+    return rocket_raylib_adapter.RLV_BLEND_ADDITIVE
+
+pub fn blend_multiplied() -> Int:
+    return rocket_raylib_adapter.RLV_BLEND_MULTIPLIED
+
+pub fn blend_add_colors() -> Int:
+    return rocket_raylib_adapter.RLV_BLEND_ADD_COLORS
+
+pub fn blend_subtract_colors() -> Int:
+    return rocket_raylib_adapter.RLV_BLEND_SUBTRACT_COLORS
+
+pub fn blend_alpha_premultiplied() -> Int:
+    return rocket_raylib_adapter.RLV_BLEND_ALPHA_PREMULTIPLIED
 
 
 fn status_message(status: Int) -> String:
@@ -223,6 +255,10 @@ pub fn begin_frame(window: Window) -> Result[Frame, String]:
 pub fn end_frame(frame: Frame) -> Result[Bool, String]:
     unsafe:
         return status_result(rocket_raylib_adapter.rlv_end_drawing(frame.window_id))
+
+pub fn abort_frame(frame: Frame) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_abort_drawing(frame.window_id))
 
 pub fn clear(frame: Frame, value: Color) -> Result[Bool, String]:
     unsafe:
@@ -553,6 +589,101 @@ pub fn set_texture_filter_with_fallback(window: Window, texture: Texture, prefer
 pub fn unload_texture(texture: Texture) -> Result[Bool, String]:
     unsafe:
         return status_result(rocket_raylib_adapter.rlv_texture_unload(texture.id))
+
+pub fn create_render_texture(window: Window, width: Int, height: Int) -> Result[RenderTexture, String]:
+    if window.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if width <= 0 or height <= 0:
+        return Err("raylib: invalid argument")
+    unsafe:
+        let target_id = rocket_raylib_adapter.rlv_render_texture_load(window.id, width, height)
+        if target_id <= 0:
+            return Err(status_message(target_id))
+        return Ok(RenderTexture(target_id, width, height))
+
+pub fn unload_render_texture(target: RenderTexture) -> Result[Bool, String]:
+    if target.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_render_texture_unload(target.id))
+
+pub fn begin_render_target(frame: Frame, target: RenderTexture) -> Result[RenderTargetScope, String]:
+    if frame.window_id <= 0 or target.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        let scope_id = rocket_raylib_adapter.rlv_render_target_begin(frame.window_id, target.id)
+        if scope_id <= 0:
+            return Err(status_message(scope_id))
+        return Ok(RenderTargetScope(scope_id))
+
+pub fn end_render_target(scope: RenderTargetScope) -> Result[Bool, String]:
+    if scope.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_render_target_end(scope.id))
+
+pub fn begin_scissor(frame: Frame, bounds: Rect) -> Result[ScissorScope, String]:
+    if frame.window_id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not valid_rectangle(bounds.x, bounds.y, bounds.width, bounds.height):
+        return Err("raylib: invalid argument")
+    unsafe:
+        let scope_id = rocket_raylib_adapter.rlv_scissor_begin(frame.window_id, bounds.x, bounds.y, bounds.width, bounds.height)
+        if scope_id <= 0:
+            return Err(status_message(scope_id))
+        return Ok(ScissorScope(scope_id))
+
+pub fn end_scissor(scope: ScissorScope) -> Result[Bool, String]:
+    if scope.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_scissor_end(scope.id))
+
+pub fn begin_blend(frame: Frame, blend_mode: Int) -> Result[BlendScope, String]:
+    if frame.window_id <= 0:
+        return Err("raylib: stale or already released handle")
+    if blend_mode < rocket_raylib_adapter.RLV_BLEND_ALPHA or blend_mode > rocket_raylib_adapter.RLV_BLEND_ALPHA_PREMULTIPLIED:
+        return Err("raylib: invalid argument")
+    unsafe:
+        let scope_id = rocket_raylib_adapter.rlv_blend_begin(frame.window_id, blend_mode)
+        if scope_id <= 0:
+            return Err(status_message(scope_id))
+        return Ok(BlendScope(scope_id))
+
+pub fn end_blend(scope: BlendScope) -> Result[Bool, String]:
+    if scope.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_blend_end(scope.id))
+
+pub fn draw_render_texture(frame: Frame, target: RenderTexture, source: Rect, dest: Rect, origin: Point, rotation: Float, tint: Color) -> Result[Bool, String]:
+    if frame.window_id <= 0 or target.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not finite(source.x) or not finite(source.y) or not finite(source.width) or not finite(source.height):
+        return invalid_geometry()
+    if not finite(dest.x) or not finite(dest.y) or not finite(dest.width) or not finite(dest.height):
+        return invalid_geometry()
+    if not finite(origin.x) or not finite(origin.y) or not finite(rotation) or not valid_color(tint):
+        return invalid_geometry()
+    if source.width == 0.0 or source.height == 0.0 or source.x < 0.0 or source.y < 0.0:
+        return invalid_geometry()
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_render_texture_draw(frame.window_id, target.id, source.x, source.y, source.width, source.height, dest.x, dest.y, dest.width, dest.height, origin.x, origin.y, rotation, tint.red, tint.green, tint.blue, tint.alpha))
+
+pub fn save_render_texture_png(window: Window, target: RenderTexture, path: String) -> Result[Bool, String]:
+    if window.id <= 0 or target.id <= 0:
+        return Err("raylib: stale or already released handle")
+    match encode_text(path):
+        case Ok(buffer_id):
+            var status = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                status = rocket_raylib_adapter.rlv_render_texture_save_png(window.id, target.id, buffer_id)
+            let released = release_text(buffer_id)
+            if status != rocket_raylib_adapter.RLV_OK:
+                return Err(status_message(status))
+            return released
+        case Err(error):
+            return Err(error)
 
 pub fn load_font(window: Window, path: String) -> Result[Font, String]:
     match encode_text(path):

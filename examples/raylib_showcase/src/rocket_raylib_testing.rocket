@@ -46,6 +46,30 @@ pub fn texture_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_texture_live_count()
 
+pub fn render_texture_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_render_texture_live_count()
+
+pub fn scope_depth() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_scope_depth()
+
+pub fn render_target_switch_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_render_target_switch_count()
+
+pub fn scissor_switch_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_scissor_switch_count()
+
+pub fn blend_switch_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_blend_switch_count()
+
+pub fn screenshot_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_screenshot_count()
+
 pub fn font_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_font_live_count()

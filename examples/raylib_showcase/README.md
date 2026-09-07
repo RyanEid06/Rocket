@@ -54,9 +54,12 @@ The generated low-level binding and native build outputs remain ignored.
 ## Ownership and lifetime contract
 
 - A `Window` owns one raylib window/context. Only one may be live. Every loaded
-  texture must be unloaded before the window is closed.
+  texture and render texture must be unloaded before the window is closed.
 - `begin_frame` returns a single-use `Frame` token. Drawing requires that exact
-  token; `end_frame` consumes it. Frames are synchronous and never stored.
+  token; `end_frame` consumes it after every nested render/scissor/blend scope
+  has closed. `abort_frame` deterministically unwinds all live scopes before
+  consuming the frame, providing the cleanup path for early returns and `Result`
+  propagation. Frames are synchronous and never stored.
 - A `Texture` owns one GPU texture and is released exactly once with
   `unload_texture`. Copied or forged Rocket values are harmless: stale tokens
   produce `Err` and never dereference foreign memory.
@@ -123,3 +126,26 @@ For a real GPU regression, run `rocket_phase15_raylib_adapter_tests` with the
 absolute path to `assets/orbit.ppm`. It opens a hidden window and checks that
 trilinear selection does not silently degrade to bilinear. Without the argument,
 the executable runs only deterministic tests suitable for headless CI.
+
+## Render textures and scoped render state
+
+`create_render_texture(window, width, height)` creates a checked GPU target at
+an explicit virtual resolution. A `RenderTexture` belongs to the creating
+window, cannot be unloaded during a frame or while targeted, and becomes a
+stale token after one successful unload. `draw_render_texture` composites it
+with source/destination rectangles, pivot, rotation, and tint; a negative source
+height performs the raylib render-texture vertical correction. The source must
+remain inside the target and a target cannot sample itself while it is active.
+`save_render_texture_png` performs a vertically corrected readback after the
+frame and reports path, image, and export failures through `Result`.
+
+`begin_render_target`, `begin_scissor`, and `begin_blend` return distinct
+single-use scope tokens. All three participate in one global LIFO stack, so an
+out-of-order end is an explicit lifecycle error. Nested targets restore the
+parent framebuffer; nested scissors use the deterministic intersection of all
+active scissor rectangles and restore the parent rectangle; nested blend modes
+restore the parent mode. Reviewed blend choices are alpha, additive,
+multiplied, add-colors, subtract-colors, and premultiplied alpha. Custom raylib
+blend equations are intentionally not exposed. These value-only scopes support
+virtual canvases, UI layers, transitions, and future shader passes without
+letting native structures, pointers, or backend handles cross the Rocket ABI.

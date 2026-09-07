@@ -19,6 +19,12 @@ pub extern const RLV_TEXTURE_FILTER_TRILINEAR: Int = 2
 pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_4X: Int = 3
 pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_8X: Int = 4
 pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_16X: Int = 5
+pub extern const RLV_BLEND_ALPHA: Int = 0
+pub extern const RLV_BLEND_ADDITIVE: Int = 1
+pub extern const RLV_BLEND_MULTIPLIED: Int = 2
+pub extern const RLV_BLEND_ADD_COLORS: Int = 3
+pub extern const RLV_BLEND_SUBTRACT_COLORS: Int = 4
+pub extern const RLV_BLEND_ALPHA_PREMULTIPLIED: Int = 5
 pub extern callback RlvIntCallback(value: Int) -> Int
 pub extern fn rlv_version_major() -> Int
 pub extern fn rlv_version_minor() -> Int
@@ -41,6 +47,7 @@ pub extern fn rlv_frame_time(window_id: Int) -> Float
 pub extern fn rlv_time(window_id: Int) -> Float
 pub extern fn rlv_begin_drawing(window_id: Int) -> Int
 pub extern fn rlv_end_drawing(frame_id: Int) -> Int
+pub extern fn rlv_abort_drawing(frame_id: Int) -> Int
 pub extern fn rlv_clear_background(frame_id: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_draw_rectangle(frame_id: Int, x: Int, y: Int, width: Int, height: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_draw_circle(frame_id: Int, x: Int, y: Int, radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
@@ -88,6 +95,24 @@ pub extern fn rlv_texture_filter_supported(filter_mode: Int) -> Bool
 pub extern fn rlv_texture_max_anisotropy() -> Float
 pub extern fn rlv_texture_unload(texture_id: Int) -> Int
 pub extern fn rlv_texture_live_count() -> Int
+pub extern fn rlv_render_texture_load(window_id: Int, width: Int, height: Int) -> Int
+pub extern fn rlv_render_texture_width(render_texture_id: Int) -> Int
+pub extern fn rlv_render_texture_height(render_texture_id: Int) -> Int
+pub extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
+pub extern fn rlv_render_texture_live_count() -> Int
+pub extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int
+pub extern fn rlv_render_target_end(scope_id: Int) -> Int
+pub extern fn rlv_render_texture_draw(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_render_texture_save_png(window_id: Int, render_texture_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_scissor_begin(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+pub extern fn rlv_scissor_end(scope_id: Int) -> Int
+pub extern fn rlv_blend_begin(frame_id: Int, blend_mode: Int) -> Int
+pub extern fn rlv_blend_end(scope_id: Int) -> Int
+pub extern fn rlv_scope_depth() -> Int
+pub extern fn rlv_render_target_switch_count() -> Int
+pub extern fn rlv_scissor_switch_count() -> Int
+pub extern fn rlv_blend_switch_count() -> Int
+pub extern fn rlv_screenshot_count() -> Int
 pub extern fn rlv_font_load(window_id: Int, path_buffer_id: Int) -> Int
 pub extern fn rlv_font_draw(frame_id: Int, font_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Float, spacing: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_font_unload(font_id: Int) -> Int
@@ -107,3 +132,8 @@ pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
 pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
 pub extern fn rlv_test_request_close(requested: Bool) -> Int
 pub extern fn rlv_test_set_anisotropy(level: Int) -> Int
+pub extern fn rlv_test_scissor_x() -> Int
+pub extern fn rlv_test_scissor_y() -> Int
+pub extern fn rlv_test_scissor_width() -> Int
+pub extern fn rlv_test_scissor_height() -> Int
+pub extern fn rlv_test_blend_mode() -> Int

@@ -1120,12 +1120,31 @@ Known limitations remain those in the implementation-state list above; no langua
 - Native non-Windows target-laboratory execution remains a WP34/F29 acceptance
   item.
 
+**Rocket 3 WP16 - render targets, clipping, and blending**
+
+- Added checked render textures plus value-based render-target, scissor, and
+  reviewed blend scopes to the portable raylib adapter and safe Rocket wrapper.
+  Virtual-resolution composition, screenshot export, nested clipping/blending,
+  UI-layer/transition primitives, and shader-pass preparation are available
+  without exposing raw native structures, pointers, or backend handles.
+- Wrapper and native validation reject invalid dimensions and source regions,
+  non-finite/overflowing values, stale tokens, wrong-window use, self-sampling,
+  and invalid LIFO order. Explicit frame abort deterministically unwinds every
+  live scope. Deterministic and hidden-window tests cover cleanup and PNG output.
+- The showcase package passed `7/7`; full Debug and Release CTest each passed
+  `237/237`; the eligible LLVM-disabled matrix passed `182/182`; and the
+  deterministic bootstrap passed `184` cases with matching stage2/stage3 IR
+  SHA-256 `5383af22c8e6cb8049a2dc180a80295dfee494dba04f434a1f701a0ff4139f9c`.
+  The checksummed Windows showcase archive is 1,535,687 bytes with SHA-256
+  `b942c38c00c4ed4111f030fdfd54284f29d55cc2a4d7b0e618687ccbfe5a5083`.
+  Native non-Windows target-laboratory execution remains WP34/F29 acceptance.
+
 ## Current next task
 
 **Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
-WP15 is complete and LOCAL-GREEN; native non-Windows target-laboratory
+WP16 is complete and LOCAL-GREEN; native non-Windows target-laboratory
 acceptance remains a WP34/F29 item. The lowest-numbered next eligible Rocket 3
-packet is WP16, render targets, clipping, and blending. The exact one-packet scope and
+packet is WP17, safe shaders. The exact one-packet scope and
 success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
