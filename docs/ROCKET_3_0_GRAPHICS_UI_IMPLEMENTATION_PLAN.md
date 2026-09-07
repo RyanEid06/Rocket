@@ -10,12 +10,15 @@
 **Goal:** Deliver Rocket 3.0's additive language ergonomics and complete, safe,
 portable, game-oriented graphics/UI stack on the accepted Rocket 2.1 baseline.
 
-**Architecture:** Rocket 3.0 work proceeds directly on `master`, which contains
-the accepted Rocket 2.1 portability baseline. Foundation kernels stay intentionally internal until their
-named public-integration packets; compiler, native, SDK, platform, package, and
-release work are available whenever a packet owns them. WP09 audits the rebased
-foundation before public promotion, and all work remains in narrow vertical
-packets.
+**Architecture:** `master` is the single accepted integration baseline. Starting
+after completed WP16, Ryan and Eddy implement dependency-safe packets concurrently
+on isolated per-wave branches created from the same pushed `origin/master`
+checkpoint. Foundation kernels stay intentionally internal until their named
+public-integration packets; compiler, native, SDK, platform, package, and release
+work remain owned by the packet that requires them. Ordinary packets prove their
+own focused and directly affected surfaces; expensive repository-wide regression,
+bootstrap, package, and integration matrices run once at defined wave barriers
+instead of being repeated after every packet.
 
 **Tech stack:** Rocket, C++20 permanent stage0, Rocket self-hosted compiler,
 LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
@@ -40,9 +43,11 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 - Do not migrate Scroll2Roll in this plan.
 - Run builds and tests sequentially. Stop and report a process over 4 GiB or one
   that grows continuously.
-- A packet handles one or two feature groups, updates its traceability rows,
-  rotates the current next-chat prompt, commits those changes together, pushes
-  `master` to `origin`, and stops.
+- A packet handles one or two feature groups and remains independently
+  reviewable. During a parallel wave it commits and pushes only to its owner's
+  wave branch after focused verification; shared roadmap/traceability state is
+  reconciled once by the integration owner at the wave barrier. `master` changes
+  only when an integration barrier has passed.
 
 ---
 
@@ -50,25 +55,32 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 
 | Field | Recorded value |
 | --- | --- |
-| Active branch | `master` |
-| Active checkout | `C:\Users\User\Documents\ChatGPT\Rocket 3.0` |
+| Integration branch | `master` |
 | Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
 | Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
-| Branch integration state | Rocket 3.0 foundation commits fast-forwarded into `master` on 2026-08-29 |
-| Packet generated output | `out/rocket3-provisional/` inside the active checkout |
-| Delivery policy | every successful packet commits and pushes `master` to `origin` |
+| Rocket 3 shared baseline | pushed `origin/master` containing completed WP16 (`feat: add safe render scopes`) |
+| WP16 implementation owner | Eddy |
+| Packet generated output | packet-local paths below `out/rocket3-provisional/`; never share generated state between developer checkouts |
+| Parallel delivery policy | Ryan and Eddy push isolated wave branches; Ryan integrates only at a defined barrier after required verification |
 
-The accepted baseline is provenance for Rocket 3.0 compatibility. Before every
-packet, verify the branch is clean and still contains the accepted baseline:
+The accepted Rocket 2.1 baseline remains compatibility provenance. The current
+parallel baseline is the pushed `origin/master` commit containing WP16. At the
+start of each wave, record that exact commit with `git rev-parse origin/master`;
+both developer branches for that wave must be created from that same SHA.
+
+Before a lane starts a packet, verify all of the following:
 
 ```powershell
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' status --short --branch
-git -C 'C:\Users\Administrator\Desktop\Projects\Rocket' merge-base --is-ancestor 19596db HEAD
+git status --short --branch
+git fetch origin
+git rev-parse origin/master
+git merge-base --is-ancestor 19596db HEAD
 ```
 
-The accepted Phase 19 baseline no longer blocks files or tests. Use the packet's
-scope and risk classification to select the appropriate compatibility,
-bootstrap, platform, package, or release checks.
+`master` is an integration baseline, not a simultaneous development branch.
+Neither Ryan nor Eddy implements ordinary wave packets directly on `master`. If
+they work in one local clone, use separate Git worktrees; if they use independent
+clones, use the same branch names and common-baseline rules below.
 
 ## 2. Maturity and isolation states
 
@@ -157,98 +169,371 @@ tools/rocket-visual-compare
 WP09 confirms the accepted Rocket 2.1 SDK layout before public promotion and
 updates these locations only when the current repository requires it.
 
-## 4. Per-packet execution protocol
+## 4. Parallel packet execution protocol
 
-Every new chat must perform this sequence:
+The remaining Rocket 3 work is scheduled by dependency and conflict surface, not
+by the lowest numerical WP alone. WP numbers remain stable requirement/traceability
+identifiers; the schedule in section 5A is the execution authority from WP17
+through WP34.
 
-- [ ] Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, both Rocket 3.0 documents,
-  and only the existing code/specifications relevant to the packet.
-- [ ] Verify the active checkout, `master`, clean starting state, and accepted
-  Rocket 2.1 baseline.
-- [ ] Verify `master` has no unpushed checkpoint; push any existing
-  committed work before editing.
-- [ ] Refresh GREEN/YELLOW/RED classification before editing.
-- [ ] Confirm no Rocket build/test processes from this task are active before
-  running a Rocket command.
-- [ ] Write focused failing tests for the packet's behavior.
-- [ ] Run the tests and capture the expected failure.
-- [ ] Implement only the packet's named feature(s).
-- [ ] Re-run focused tests and relevant formatting/static checks.
-- [ ] Update this plan's packet status and atomic traceability evidence.
-- [ ] After all required checks pass, select the lowest-numbered incomplete
-  packet whose dependencies are complete and whose isolation state permits it
-  to run.
-- [ ] Replace the completed packet's label and fenced block under
-  `Current next-chat prompt` with a complete prompt for that selected packet.
-  If no implementation packet is eligible, install a status-only holding
-  prompt that waits for or audits the condition that blocks the next packet.
-- [ ] Run `git diff --check` and review the scoped diff.
-- [ ] Commit only the packet's files and the plan/status/prompt rotation with
-  the prescribed message, then push `master` to `origin`.
-- [ ] Stop after a successful push. Do not begin the next packet in the same
-  chat.
+### 4.1 Shared rules for Ryan and Eddy
 
-Prompt rotation is a success-only handoff. If implementation or verification
-fails, do not advance the packet label or replace its prompt. Record the blocker
-outside the fenced prompt when useful, leave the same packet as current, and
-stop. If the checkpoint commit succeeds but push fails, do not begin a new
-packet: preserve the committed rotation and resolve the push before continuing.
-The permanent launcher in section 10 never changes during ordinary packet work.
+Every packet chat must perform this sequence:
 
-Every replacement prompt must remain self-contained: repeat the exact checkout
-and branch, required document reads, clean/baseline checks, packet-only scope
-and exclusions, test and generated-output boundaries, resource-safety rules,
-recommended model and reasoning effort, checkpoint message, success-only
-rotation, push, and stop condition. The small launcher is a pointer to this full
-operational prompt, not a substitute for it.
+- [ ] Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, both Rocket 3.0 planning
+  documents, the packet definition, and only the code/specifications relevant to
+  that packet.
+- [ ] Identify the human owner from section 5A and use only that owner's current
+  wave branch. Never implement a packet assigned to the other owner unless the
+  plan is first changed at an integration barrier.
+- [ ] Fetch `origin`, verify the branch descends from the current wave baseline,
+  and verify all packet dependencies are already in that baseline or were
+  completed earlier in the same owner's lane. Cross-lane unmerged work is never a
+  valid dependency.
+- [ ] Confirm no Rocket build/test process from this task is active before a
+  Rocket command and keep generated state inside the packet's checkout under
+  `out/rocket3-provisional/wpNN`.
+- [ ] Use TDD: add focused failing tests, run the RED case, then implement only
+  the packet's named feature groups.
+- [ ] Run an incremental build of the changed/affected targets. Do not clean and
+  rebuild the repository merely from habit.
+- [ ] Run the packet's focused tests plus directly affected subsystem, formatter,
+  documentation/search, package, target-surface, fallback, self-host, or native
+  checks when that packet actually touches those surfaces.
+- [ ] Do not automatically run the complete repository Debug+Release+bootstrap+
+  package matrix after an ordinary packet. Those expensive gates belong to the
+  wave barrier unless section 4.4 says the packet forces an immediate barrier.
+- [ ] Run `git diff --check` and review the packet-only diff.
+- [ ] Commit the packet independently using its existing checkpoint subject. Add
+  a commit body recording `Owner`, `Packet`, focused commands/results, affected
+  regression commands/results, and `Lane state: LANE-GREEN`.
+- [ ] Push the owner's wave branch. Never push an ordinary in-wave packet directly
+  to `master`.
+- [ ] Continue to the next packet in the same owner's wave only if section 5A
+  explicitly places it next in that lane and all of its dependencies are already
+  satisfied in that lane/baseline.
+
+A failed focused build/test stops that lane immediately. Do not stack later
+packets on known-broken work. Investigate and fix the root cause before continuing.
+The other lane may continue only if it is genuinely independent of the failure.
+
+### 4.2 Scheduling states
+
+These are execution states and do not replace the requirements document's
+PROVISIONAL/INTEGRATION-READY/PUBLIC/ACCEPTED maturity terminology.
+
+- `BLOCKED`: at least one required dependency is absent from the lane baseline.
+- `READY`: all dependencies are integrated and no active cross-lane contract
+  collision exists.
+- `ACTIVE-RYAN`: Ryan is implementing the packet.
+- `ACTIVE-EDDY`: Eddy is implementing the packet.
+- `LANE-GREEN`: focused and directly affected verification passed on the owner's
+  branch; full wave integration has not yet been claimed.
+- `WAVE-GREEN`: the combined wave passed the barrier and is present in the new
+  common `master` baseline.
+
+### 4.3 Shared-file and documentation ownership
+
+Parallelism must not turn the live roadmap itself into a merge-conflict hotspot.
+During an active wave:
+
+- Ryan and Eddy do **not** edit
+  `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`,
+  `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md`, `docs/PROJECT_CONTEXT.md`,
+  `docs/ROADMAP.md`, or the root `README.md` for status/handoff updates.
+- Packet-specific source documentation, generated/search metadata, focused tests,
+  and feature-local docs may change when required by the packet.
+- Ryan is the roadmap integration owner. At the wave barrier he reads both lanes'
+  commits and verification evidence, updates packet status/traceability/global
+  handoff once, and includes that documentation update in the integration commit.
+- Eddy reviews the integrated roadmap/status diff for factual correctness before
+  the barrier is considered closed.
+
+Some remaining packets necessarily append to shared implementation files such as
+the raylib adapter/header, root CMake registration, or bundled-module loader.
+The wave schedule eliminates dependency/semantic collisions, but a mechanical Git
+conflict can still occur in these files. During a wave, each owner must make only
+the minimal WP-specific additions and must not perform unrelated refactors of a
+shared file. Ryan resolves any mechanical merge conflict on the integration
+branch by preserving both packet contracts and rerunning both packets' focused
+tests before the full barrier matrix.
+
+### 4.4 Immediate-barrier rule
+
+A packet forces an early full barrier before either developer continues if its
+actual implementation changes a foundational contract more broadly than the
+packet definition predicted, including:
+
+- parser/semantic/HIR/MIR/backend conventions used by later packets;
+- runtime ABI v1 or backend ABI;
+- general bundled-module resolution/security behavior;
+- global graphics resource-lifetime representation;
+- the core public `rocket.graphics` or `rocket.ui` lifecycle contract in a way
+  that invalidates the current wave's other packet assumptions.
+
+Do not weaken the packet or bypass the barrier to preserve the schedule.
+
+### 4.5 Wave integration barrier
+
+Ryan is the primary integration operator. At each full barrier:
+
+1. Fetch both pushed owner branches and verify every scheduled packet has a
+   LANE-GREEN commit with its prescribed checkpoint subject.
+2. Create a clean `rocket3/integration-wave-<letter>` branch from the exact wave
+   baseline.
+3. Merge Ryan's and Eddy's wave branches without squashing away individual WP
+   commits.
+4. Resolve only genuine integration conflicts; do not redesign features during
+   the merge. Re-run the focused tests for every packet involved in a conflict.
+5. Run the full Windows/local Debug and Release repository suites appropriate to
+   the current development stage.
+6. Run the eligible LLVM-disabled/predecessor compatibility matrix.
+7. Run deterministic stage0 -> stage1 -> stage2 -> stage3 bootstrap/self-host
+   acceptance and compare the required stage2/stage3 evidence.
+8. Run package/docs/search/formatter/LSP/target-surface/relocation checks required
+   by the combined wave.
+9. Run relevant graphics/UI native, deterministic-backend, visual, and resource
+   cleanup checks introduced so far.
+10. Keep native Linux x64, Linux ARM64, and macOS ARM64 final target-laboratory
+    acceptance deferred to WP34 unless a packet explicitly requires earlier
+    native evidence. Never mislabel cross-compilation as native evidence.
+11. Update the two Rocket 3 planning documents and global handoff once with the
+    integrated evidence.
+12. Run `git diff --check`, review the integration diff, merge the accepted
+    integration branch to `master`, push `master`, and record the new baseline
+    SHA.
+
+Only after this sequence passes may the next wave's branches be created.
 
 ## 5. Packet index
 
-`WP00` is the planning checkpoint, `WP01` through `WP08` are complete
-foundation packets, and WP09 completed their integration audit. WP10, WP11,
-the mandatory suffixed successor WP11A, WP12, and WP13 are now complete, making
-WP14 the lowest-numbered eligible packet. Suffixed packets sort immediately after
-their numeric packet.
+`WP00` through `WP16` are completed history. WP16 was completed by Eddy and is
+the starting common baseline for the parallel schedule. From WP17 onward, packet
+numbers are stable identifiers rather than a requirement to execute every lower
+number first. A packet may run when its real dependencies are satisfied and
+section 5A assigns it to the current owner/wave.
 
-| Packet | Feature groups | Maximum scope | Current state |
+| Packet | Feature groups | Maximum scope | Current state | Planned owner | Wave |
+| --- | --- | --- | --- | --- | --- |
+| WP00 | F01, F30 planning | Requirements and live plan only | COMPLETE / PROVISIONAL | historical | complete |
+| WP01 | F12, F15 | Provisional geometry and hit-testing kernels | COMPLETE / PROVISIONAL | historical | complete |
+| WP02 | F13 | Provisional color kernel | COMPLETE / PROVISIONAL | historical | complete |
+| WP03 | F19, F17 | Provisional layout and VirtualCanvas math | COMPLETE / PROVISIONAL | historical | complete |
+| WP04 | F20 | Provisional theme/style data | COMPLETE / PROVISIONAL | historical | complete |
+| WP05 | F18, F25 | Provisional widget IDs and bounded state | COMPLETE / PROVISIONAL | historical | complete |
+| WP06 | F06 | Provisional reduced-motion state kernel only | COMPLETE / PROVISIONAL | historical | complete |
+| WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | COMPLETE / PROVISIONAL | historical | complete |
+| WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | COMPLETE / PROVISIONAL | historical | complete |
+| WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | COMPLETE / INTEGRATION-READY | historical | complete |
+| WP10 | F02 | Named arguments | COMPLETE / GREEN | historical | complete |
+| WP11 | F03 | Default arguments | COMPLETE / GREEN | historical | complete |
+| WP11A | F02 | Complete named-callable parity | COMPLETE / GREEN | historical | complete |
+| WP12 | F04 | Complete `std.math` | COMPLETE / LOCAL-GREEN; target-lab R3-F04-008 pending | historical | complete |
+| WP13 | F05, F06 | Easing plus complete motion/timelines | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 | historical | complete |
+| WP14 | F07 | Safe raylib geometry expansion | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 | historical | complete |
+| WP15 | F08 | Advanced textures/filtering | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 | historical | complete |
+| WP16 | F09 | Render targets, clipping, blending | COMPLETE / LOCAL-GREEN | Eddy | baseline |
+| WP17 | F10 | Safe shader subset | READY / RED | Ryan | A |
+| WP18 | F11 | Window/display/rendering quality | READY / RED; WP16 complete | Ryan | A |
+| WP19 | F12, F13 | Public graphics core types and Color | READY / RED; WP11/WP12 complete | Eddy | A |
+| WP20 | F14, F15 | Public shapes and input/hit testing | BLOCKED until Wave A integrates WP19 / RED | Ryan | B |
+| WP21 | F17 | Integrated `VirtualCanvas` | BLOCKED until Wave A plus Ryan WP20 / RED | Ryan | B |
+| WP22 | F16 | Typography | BLOCKED until Wave A integrates WP19 / RED | Eddy | B |
+| WP23 | F18 | Public UI context/response/IDs | BLOCKED until Ryan WP20/WP21 / RED | Ryan | B |
+| WP24 | F19 | Public layout integration | BLOCKED until Ryan WP23 / RED | Ryan | B |
+| WP25 | F20 | Public themes/styles | BLOCKED until Wave B integrates WP22/WP24 / RED | Eddy | C |
+| WP26 | F21 | Controls | BLOCKED until Eddy WP25 and integrated WP23 / RED | Eddy | C |
+| WP27 | F22 | Containers/dialogs/transient UI | BLOCKED until Eddy WP26 / RED | Eddy | C |
+| WP28 | F23 | Typed asset store | BLOCKED until Wave A WP17 plus Eddy WP22 / RED | Eddy | B |
+| WP29 | F24 | Unified errors and lifetime hardening | BLOCKED until Wave C integrates WP27/WP28; intentionally scheduled after WP30 | Ryan | D |
+| WP30 | F25 | Bounded-state/cache integration | BLOCKED until Eddy WP27 plus integrated WP22/WP28 / RED | Eddy | C |
+| WP31 | F26 | Performance instrumentation and budgets | BLOCKED until Wave C integrates WP30 / RED | Eddy | D |
+| WP32 | F27 | Visual scenes, image I/O, goldens, CI | BLOCKED until Eddy WP31 and integrated WP17 / RED | Eddy | D |
+| WP33 | F28 | Focused examples and premium showcase | BLOCKED until Eddy WP32 / RED | Eddy | D |
+| WP34 | F29 | Full compiler/platform/compatibility acceptance | BLOCKED until Wave D integrates WP33 / RED | Ryan + Eddy | FINAL |
+| WP35 | F30 | Documentation, release, traceability closure | WAIT FOR WP34 / RED | release owner after WP34 | post-parallel |
+
+## 5A. Ryan/Eddy dependency-safe execution schedule
+
+This schedule is now authoritative for WP17-WP34. It intentionally executes
+WP28 before WP25 and WP30 before WP29. Those reorderings satisfy the existing
+DAG, keep each wave internally independent across developers, and reduce
+cross-cutting merge conflicts. They do not change any feature requirement or WP
+number.
+
+### Common starting baseline
+
+- `master` contains completed WP16.
+- WP16 owner: **Eddy**.
+- At Wave A start, both developers run `git fetch origin` and record the exact
+  `origin/master` SHA containing `feat: add safe render scopes`.
+- Ryan creates/pushes `rocket3/ryan-wave-a` from that SHA.
+- Eddy creates/pushes `rocket3/eddy-wave-a` from that SHA.
+
+### Wave A - backend quality plus public graphics foundation
+
+**Ryan lane**
+
+1. **WP17 - Safe shaders**
+2. **WP18 - Window and rendering quality**
+
+WP17 and WP18 deliberately stay in the same lane because both extend the
+reviewed raylib adapter/safe wrapper and therefore have a high same-file conflict
+surface. WP18 may consume WP17 only if its implementation naturally uses shader
+capabilities; it does not require Eddy's unmerged work.
+
+**Eddy lane**
+
+1. **WP19 - Public graphics types and Color**
+
+WP19 is independent of WP17/WP18 at the requirements level and primarily owns
+public graphics value types/Color promotion and their compiler/module/public API
+integration. When implementing WP19, prefer a deterministic, security-preserving
+bundled-module registration/resolution structure that does not require every
+later `rocket.graphics`/`rocket.ui` module to add another ad-hoc hard-coded
+loader special case. Do not broaden imports outside the existing standard-library
+security model merely for convenience.
+
+**Wave A barrier:** FULL. Merge both lanes and run section 4.5. The resulting
+`master` is the sole baseline for Wave B.
+
+### Wave B - graphics/UI foundation in two independent chains
+
+Create `rocket3/ryan-wave-b` and `rocket3/eddy-wave-b` from the Wave A accepted
+`master` SHA.
+
+**Ryan lane**
+
+1. **WP20 - Public shapes and input/hit testing**
+2. **WP21 - Integrated `VirtualCanvas`**
+3. **WP23 - Public UI context and interaction**
+4. **WP24 - Public layout**
+
+The chain is intentionally kept on Ryan's branch because WP21 depends on WP20,
+WP23 depends on WP20+WP21, and WP24 depends on WP23. No cross-lane merge is
+needed inside the wave.
+
+**Eddy lane**
+
+1. **WP22 - Typography**
+2. **WP28 - Typed asset store**
+
+WP28 depends on WP17, which is already in the Wave A baseline, and WP22, which
+Eddy completes earlier in the same lane. It does not depend on Ryan's Wave B
+packets.
+
+**Conflict discipline for Wave B:** Ryan owns shape/input/VirtualCanvas/UI-context/
+layout changes; Eddy owns typography and typed asset/resource-store changes. Both
+may need minimal additions in the shared raylib adapter/header or root CMake
+registration. Do not refactor shared adapter state, error codes, loader structure,
+or build layout merely for style. Make only packet-specific additions; the
+integration branch owns mechanical reconciliation.
+
+**Wave B barrier:** FULL. This barrier integrates six packets and is mandatory
+before WP25 begins.
+
+### Wave C - serial public-UI completion and cache integration
+
+Create `rocket3/eddy-wave-c` from the Wave B accepted `master` SHA. Ryan does not
+start another implementation packet during this wave; he may review Eddy's pushed
+commits, but must not duplicate or pre-implement blocked WP29 work. The apparent
+idle lane is intentional: the remaining public UI chain is dependency-serial, and
+forcing fake parallelism here would create more rework than it saves.
+
+**Eddy lane**
+
+1. **WP25 - Public themes and styles**
+2. **WP26 - Controls**
+3. **WP27 - Containers and transient UI**
+4. **WP30 - Bounded state and caches**
+
+WP30 is deliberately scheduled before WP29. Its existing dependencies are WP22,
+WP27, and WP28, all satisfied by this point. Landing cache/state integration
+first allows WP29's later cross-cutting hardening audit to include the final cache
+layer rather than forcing two developers to modify the same UI/state files in
+parallel.
+
+**Wave C barrier:** FULL. Ryan integrates Eddy's lane, runs section 4.5, and
+creates the common baseline that unlocks WP29 and WP31.
+
+### Wave D - hardening versus performance/visual/examples
+
+Create `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the Wave C accepted
+`master` SHA.
+
+**Ryan lane**
+
+1. **WP29 - Unified error and lifetime hardening**
+
+Because WP30 is now already integrated, WP29 audits/hardens the final bounded
+state/cache layer as part of the public graphics/UI lifetime taxonomy. Ryan must
+not add new product scope; this remains the existing F24 closure packet.
+
+**Eddy lane**
+
+1. **WP31 - Performance budgets**
+2. **WP32 - Visual regression system**
+3. **WP33 - Examples and showcase**
+
+This chain is dependency-serial inside Eddy's lane and does not require WP29.
+WP31 owns calibrated instrumentation/budgets, WP32 consumes those final integrated
+surfaces for visual acceptance, and WP33 consumes the accepted visual/public API
+surface for examples/showcase.
+
+**Wave D conflict discipline:** WP29 may touch many production contracts, while
+WP31-WP33 should keep instrumentation, visual tooling, fixtures, CI, examples,
+and showcase work localized. If WP31 needs production instrumentation hooks, keep
+them minimal and do not refactor error/lifetime behavior owned by WP29. A genuine
+contract collision triggers section 4.4.
+
+**Wave D barrier:** FULL. After it passes, every implementation packet through
+WP33 is in one accepted common baseline.
+
+### FINAL - WP34 shared full compatibility/platform acceptance
+
+WP34 is not an ordinary wave and must not use the reduced per-packet test policy.
+It runs the full F29 acceptance contract. Ryan and Eddy work from the same WP33
+integration baseline but divide evidence, not product semantics.
+
+**Ryan primary responsibilities**
+
+- integration owner and defect-fix coordinator;
+- Windows x64 full Debug/Release acceptance;
+- stage0, self-host, stage1-stage3 deterministic bootstrap and compiler parity;
+- predecessor compatibility/runtime ABI/package/application/hardening matrices;
+- Windows packaging, installation, relocation, checksum/provenance evidence;
+- final merge of verified WP34 defect fixes and F29 traceability.
+
+**Eddy primary responsibilities**
+
+- Linux x64, Linux ARM64, and macOS ARM64 native target-laboratory coordination
+  and evidence where actual native hosts are available;
+- supported-target graphics capability/failure behavior;
+- non-Windows visual portability subsets and structural/numerical checks;
+- independent review of F29 requirements and Ryan's Windows/bootstrap evidence.
+
+Cross-compilation, workflow configuration, or emulation does not count as native
+host evidence where F29 requires a native host. If a required target host is not
+available, record WP34 as blocked rather than fabricating acceptance.
+
+Ryan and Eddy may run independent WP34 matrices simultaneously, but no test result
+may be silently skipped, weakened, or replaced. WP34 becomes COMPLETE only after
+the original F29 contract is satisfied and the combined evidence is integrated.
+
+### Wave summary
+
+| Wave | Ryan | Eddy | Barrier |
 | --- | --- | --- | --- |
-| WP00 | F01, F30 planning | Requirements and live plan only | COMPLETE / PROVISIONAL |
-| WP01 | F12, F15 | Provisional geometry and hit-testing kernels | COMPLETE / PROVISIONAL |
-| WP02 | F13 | Provisional color kernel | COMPLETE / PROVISIONAL |
-| WP03 | F19, F17 | Provisional layout and VirtualCanvas math | COMPLETE / PROVISIONAL |
-| WP04 | F20 | Provisional theme/style data | COMPLETE / PROVISIONAL |
-| WP05 | F18, F25 | Provisional widget IDs and bounded state | COMPLETE / PROVISIONAL |
-| WP06 | F06 | Provisional reduced-motion state kernel only | COMPLETE / PROVISIONAL |
-| WP07 | F27 | Raw-RGBA comparator kernel and synthetic fixtures | COMPLETE / PROVISIONAL |
-| WP08 | F26, F27 | Provisional metric/golden schemas and synthetic budgets | COMPLETE / PROVISIONAL |
-| WP09 | F01, F29 | Rocket 2.1 baseline audit and foundation integration | COMPLETE / INTEGRATION-READY |
-| WP10 | F02 | Named arguments | COMPLETE / GREEN |
-| WP11 | F03 | Default arguments | COMPLETE / GREEN |
-| WP11A | F02 | Complete named-callable parity | COMPLETE / GREEN |
-| WP12 | F04 | Complete `std.math` | COMPLETE / LOCAL-GREEN; target-lab R3-F04-008 pending |
-| WP13 | F05, F06 | Easing plus complete motion/timelines | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 |
-| WP14 | F07 | Safe raylib geometry expansion | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 |
-| WP15 | F08 | Advanced textures/filtering | COMPLETE / LOCAL-GREEN; target-lab acceptance pending WP34/F29 |
-| WP16 | F09 | Render targets, clipping, blending | COMPLETE / LOCAL-GREEN |
-| WP17 | F10 | Safe shader subset | READY / RED |
-| WP18 | F11 | Window/display/rendering quality | WAIT FOR WP16 / RED |
-| WP19 | F12, F13 | Public graphics core types and Color | WAIT FOR WP11, WP12 / RED |
-| WP20 | F14, F15 | Public shapes and input/hit testing | WAIT FOR WP14, WP19 / RED |
-| WP21 | F17 | Integrated `VirtualCanvas` | WAIT FOR WP16, WP18, WP20 / RED |
-| WP22 | F16 | Typography | WAIT FOR WP15, WP19 / RED |
-| WP23 | F18 | Public UI context/response/IDs | WAIT FOR WP20, WP21 / RED |
-| WP24 | F19 | Public layout integration | WAIT FOR WP23 / RED |
-| WP25 | F20 | Public themes/styles | WAIT FOR WP22, WP24 / RED |
-| WP26 | F21 | Controls | WAIT FOR WP23, WP25 / RED |
-| WP27 | F22 | Containers/dialogs/transient UI | WAIT FOR WP16, WP26 / RED |
-| WP28 | F23 | Typed asset store | WAIT FOR WP15, WP17, WP22 / RED |
-| WP29 | F24 | Unified errors and lifetime hardening | WAIT FOR WP17, WP27, WP28 / RED |
-| WP30 | F25 | Bounded-state/cache integration | WAIT FOR WP22, WP27, WP28 / RED |
-| WP31 | F26 | Performance instrumentation and budgets | WAIT FOR WP30 / RED |
-| WP32 | F27 | Visual scenes, image I/O, goldens, CI | WAIT FOR WP17, WP31 / RED |
-| WP33 | F28 | Focused examples and premium showcase | WAIT FOR WP32 / RED |
-| WP34 | F29 | Full compiler/platform/compatibility acceptance | WAIT FOR WP33 / RED |
-| WP35 | F30 | Documentation, release, traceability closure | WAIT FOR WP34 / RED |
+| A | WP17 -> WP18 | WP19 | FULL |
+| B | WP20 -> WP21 -> WP23 -> WP24 | WP22 -> WP28 | FULL |
+| C | review/integration support only | WP25 -> WP26 -> WP27 -> WP30 | FULL |
+| D | WP29 | WP31 -> WP32 -> WP33 | FULL |
+| FINAL | WP34 Windows/compiler/integration evidence | WP34 non-Windows/platform/review evidence | F29 FULL ACCEPTANCE |
+
+This reduces the routine full-repository regression cadence from once per packet
+to four pre-WP34 wave barriers, while still requiring focused correctness after
+every packet. WP34 then performs the comprehensive final acceptance that earlier
+LOCAL-GREEN packets intentionally defer.
 
 ## 6. Foundation work packets
 
@@ -1133,92 +1418,100 @@ file/test/doc/evidence links when executed.
 | F29 Platform/compatibility | WP09, WP34 | WP09 INTEGRATION-READY baseline: four accepted target identities, observed Phase 19 native/cross evidence, and fresh Windows target/self-host/compatibility/package/raylib checks recorded above; full Rocket 3 acceptance remains RED | WP34 |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
 
-## 9. Current next-chat prompt
+## 9. Current parallel handoff
 
-This is the single mutable handoff slot. It must contain exactly one current
-packet label and one fenced `text` prompt. A successful packet replaces both
-with the next eligible packet before committing. A failed or blocked packet
-does not rotate this slot. Do not preserve completed prompts here; Git history
-is their archive.
+This section replaces the former single mutable next-packet slot. It is updated
+only by Ryan during a successful full wave barrier, after both lane branches have
+been integrated and verified. Ordinary packet chats never rotate this section.
 
-**Current packet:** WP17 - Safe shaders
+**Current common baseline:** pushed `origin/master` containing completed WP16
+(`feat: add safe render scopes`).
+
+**Current wave:** Wave A
+
+**Ryan current lane:**
+
+1. WP17 - Safe shaders
+2. WP18 - Window and rendering quality
+3. Stop at Wave A barrier.
+
+**Eddy current lane:**
+
+1. WP19 - Public graphics types and Color
+2. Stop at Wave A barrier.
+
+**Wave A completion condition:** Ryan WP17+WP18 and Eddy WP19 are each
+LANE-GREEN and pushed to their Wave A branches. Ryan then performs section 4.5.
+Only after the accepted integration is pushed to `master` may Wave B launchers
+start.
+
+When a barrier succeeds, Ryan replaces only the current baseline/wave/lane block
+above with the next wave's exact queues from section 5A and records the new master
+SHA. Completed packet definitions/evidence remain in their existing sections; Git
+history is not used as a substitute for the live status table.
+
+## 10. Permanent reusable launchers
+
+Use the launcher matching the human developer. These launchers are stable; the
+current wave and packet order come from sections 5A and 9.
+
+### Ryan launcher
 
 ```text
-Work only in the main Rocket checkout:
-C:\Users\User\Documents\ChatGPT\Rocket 3.0
+You are Ryan's Rocket 3 implementation worker. Work only on the packet currently
+assigned to Ryan in sections 5A and 9 of
+docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md. Read AGENTS.md,
+docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and the
+implementation plan first. Use the model and reasoning effort assigned to the
+current WP in section 11. Fetch origin, use Ryan's branch for the current wave,
+and verify it descends from the exact common master baseline recorded in section
+9. Never implement Eddy's packet and never consume Eddy's unmerged branch.
 
-Set that path as the working directory first. Read AGENTS.md,
-docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and
-docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md. Verify `master`, a clean
-checkout, and the pushed WP16 checkpoint. Phase 19 and WP09 through WP16 are
-complete; WP17 is the lowest-numbered eligible packet. The retained Rocket 3
-foundations remain internal INTEGRATION-READY inputs, not public APIs. Push any
-preceding committed Rocket 3 checkpoint before editing.
+Use TDD. For each Ryan packet, run the RED focused test, implement only that WP,
+run an incremental affected-target build, the packet-focused tests, and directly
+affected subsystem/formatter/docs/package/target/fallback/self-host/native checks.
+Do not run the complete repository Debug+Release+bootstrap matrix after an
+ordinary packet unless section 4.4 forces an immediate barrier. If any focused
+verification fails, stop Ryan's lane and fix the root cause before continuing.
 
-Use GPT-5.6 Sol with High reasoning effort.
-
-Execute only WP17, F10: expand the reviewed portable raylib adapter and safe
-Rocket graphics module with checked shader loading, explicit load failures,
-unload and stale-token handling, reviewed uniform lookup/setting for primitive
-and graphics value types, scoped shader use, render-target integration, and
-supported-target capability behavior. Reject wrong-window resources, invalid
-uniform locations/types, invalid scope order, and use-after-unload before unsafe
-native calls. Keep all state value-based and scoped; do not expose raw native
-structures, pointers, or backend-owned handles. Provide deterministic backend
-behavior, package generation, documentation/search metadata, and native tests.
-Do not begin WP18 or add display-quality controls, public UI controls, new
-assets, visual-regression, or Scroll2Roll work.
-
-Use TDD: add focused positive, validation, boundary, failure, state/token, and
-deterministic-backend tests before production code, and capture their RED
-baseline. Implement matching permanent C++20 stage0 and Rocket-written compiler
-behavior, public metadata, HIR/MIR and LLVM/LLVM-disabled lowering, runtime work
-only where necessary, formatter, LSP, docs, and supported editor behavior.
-Preserve valid Rocket 2.1/WP10/WP11/WP11A/WP12/WP13/WP14/WP15/WP16 programs,
-runtime ABI v1, and backend ABI.
-
-Before Rocket commands, confirm no task build/test process is active. Run all
-commands sequentially; put all generated state only below
-`out/rocket3-provisional/wp17`; never automatically retry a timeout; stop and
-report a task process that exceeds 4 GiB or continues growing rapidly. Inspect
-current build guidance and estimate combined matrix disk use before configuring;
-ask the owner before any operation that could exceed 20 GiB.
-
-Run focused compiler/runtime/module/docs/formatter/LSP/cross-target checks, then
-the RED packet's predecessor compatibility, LLVM-disabled stage0, full
-Debug/Release, supported-target evidence, and deterministic stage0-to-stage3
-bootstrap without weakening gates. Only if all pass, update WP17 evidence and
-traceability and rotate section 9 to a complete self-contained WP18 prompt.
-Run `git diff --check`, review only the packet diff, and commit all WP17 work
-with exactly:
-
-feat: add safe shader support
-
-Push `master` to `origin` after the commit and stop; do not begin WP18. If any
-implementation or required validation fails, leave WP17 current, do not rotate,
-and report the blocker.
+Do not edit the shared Rocket 3 plan/requirements/global status documents during
+the active wave. Commit each WP independently with its prescribed checkpoint
+subject and a body recording Owner: Ryan, Packet, commands/results, and Lane
+state: LANE-GREEN; push Ryan's wave branch. Continue only to the next Ryan packet
+explicitly listed in the same wave. At the wave boundary stop implementation.
+Ryan is the integration owner: after both lanes are pushed LANE-GREEN, perform
+section 4.5 on a clean integration branch, update shared plan/traceability once,
+push the accepted master baseline, and stop. Do not begin the next wave in the
+same chat.
 ```
 
-## 10. Permanent reusable launcher
-
-The owner may send this exact message at the start of every Rocket 3.0 packet
-chat. Do not customize it for individual packets; section 9 supplies the
-changing scope.
+### Eddy launcher
 
 ```text
-Work only in the main Rocket checkout on `master`. Read AGENTS.md and
-both Rocket 3.0 planning documents, then execute exactly the "Current next-chat
-prompt" in the implementation plan. After successful completion, replace it
-with the next eligible packet's prompt, commit everything, push `master` to
-origin, and verify `git status --short --branch` reports no unpushed commits.
-Do not stop after a local-only commit. If the push fails, do not begin the next
-packet: report the push blocker and preserve the committed handoff. Stop only
-after the push has succeeded. If this launcher is invoked with `/goal`, treat
-it as permission for exactly this one current packet only: after the intended
-packet's push and final synchronization check succeed, call `update_goal` with
-status `complete` immediately and stop. The rotated next-packet prompt is a
-handoff for a future chat, not approval to start that packet, and `/goal` must
-never be used to infer that approval.
+You are Eddy's Rocket 3 implementation worker. Work only on the packet currently
+assigned to Eddy in sections 5A and 9 of
+docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md. Read AGENTS.md,
+docs/PROJECT_CONTEXT.md, docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md, and the
+implementation plan first. Use the model and reasoning effort assigned to the
+current WP in section 11. Fetch origin, use Eddy's branch for the current wave,
+and verify it descends from the exact common master baseline recorded in section
+9. Never implement Ryan's packet and never consume Ryan's unmerged branch.
+
+Use TDD. For each Eddy packet, run the RED focused test, implement only that WP,
+run an incremental affected-target build, the packet-focused tests, and directly
+affected subsystem/formatter/docs/package/target/fallback/self-host/native checks.
+Do not run the complete repository Debug+Release+bootstrap matrix after an
+ordinary packet unless section 4.4 forces an immediate barrier. If any focused
+verification fails, stop Eddy's lane and fix the root cause before continuing.
+
+Do not edit the shared Rocket 3 plan/requirements/global status documents during
+the active wave. Commit each WP independently with its prescribed checkpoint
+subject and a body recording Owner: Eddy, Packet, commands/results, and Lane
+state: LANE-GREEN; push Eddy's wave branch. Continue only to the next Eddy packet
+explicitly listed in the same wave. At the wave boundary stop implementation and
+report the pushed branch/commits and exact verification evidence to Ryan. Do not
+merge to master, rotate the global handoff, take Ryan's work, or begin the next
+wave until Ryan publishes the accepted barrier baseline.
 ```
 
 ## 11. Packet model routing
