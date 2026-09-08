@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <raylib.h>
+#include <external/glfw/deps/glad/gl.h>
 #include <rlgl.h>
 
 #include <cmath>
@@ -10,6 +11,7 @@
 #include <cfloat>
 #include <initializer_list>
 #include <limits>
+#include <regex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -35,7 +37,20 @@ struct RenderTextureRecord {
   bool native = false;
 };
 
-enum class ScopeKind { RenderTarget, Scissor, Blend };
+struct ShaderRecord {
+  Shader value{};
+  int64_t windowId = 0;
+  bool native = false;
+  std::unordered_map<std::string, int64_t> uniformTypes;
+};
+
+struct ShaderUniformRecord {
+  int64_t shaderId = 0;
+  int location = -1;
+  int64_t type = RLV_SHADER_UNIFORM_FLOAT;
+};
+
+enum class ScopeKind { RenderTarget, Scissor, Blend, Shader };
 
 struct ScopeRecord {
   int64_t id = 0;
@@ -74,16 +89,20 @@ struct AdapterState {
   int64_t renderTargetSwitchCount = 0;
   int64_t scissorSwitchCount = 0;
   int64_t blendSwitchCount = 0;
+  int64_t shaderSwitchCount = 0;
   int64_t screenshotCount = 0;
   int64_t mouseX = 0;
   int64_t mouseY = 0;
   bool mousePressed = false;
   double testTime = 0.0;
   int64_t testMaxAnisotropy = 16;
+  bool testShaderSupported = true;
   std::unordered_map<int64_t, std::string> buffers;
   std::unordered_map<int64_t, std::vector<Vector2>> pointBuffers;
   std::unordered_map<int64_t, TextureRecord> textures;
   std::unordered_map<int64_t, RenderTextureRecord> renderTextures;
+  std::unordered_map<int64_t, ShaderRecord> shaders;
+  std::unordered_map<int64_t, ShaderUniformRecord> shaderUniforms;
   std::unordered_map<int64_t, FontRecord> fonts;
   std::unordered_map<int64_t, SoundRecord> sounds;
   std::vector<ScopeRecord> scopes;
@@ -179,6 +198,109 @@ bool renderTargetActive(int64_t renderTextureId) {
                      });
 }
 
+bool shaderActive(int64_t shaderId) {
+  return std::any_of(state.scopes.begin(), state.scopes.end(),
+                     [shaderId](const ScopeRecord& scope) {
+                       return scope.kind == ScopeKind::Shader &&
+                              scope.resourceId == shaderId;
+                     });
+}
+
+bool validShaderUniformType(int64_t type) {
+  return type >= RLV_SHADER_UNIFORM_FLOAT &&
+         type <= RLV_SHADER_UNIFORM_COLOR;
+}
+
+int nativeShaderUniformType(int64_t type) {
+  switch (type) {
+    case RLV_SHADER_UNIFORM_FLOAT: return SHADER_UNIFORM_FLOAT;
+    case RLV_SHADER_UNIFORM_INT: return SHADER_UNIFORM_INT;
+    case RLV_SHADER_UNIFORM_VEC2: return SHADER_UNIFORM_VEC2;
+    case RLV_SHADER_UNIFORM_COLOR: return SHADER_UNIFORM_VEC4;
+    default: return -1;
+  }
+}
+
+constexpr int64_t unsupportedShaderUniformType = -1;
+
+int64_t reviewedShaderUniformType(unsigned int type) {
+  switch (type) {
+    case GL_FLOAT: return RLV_SHADER_UNIFORM_FLOAT;
+    case GL_INT: return RLV_SHADER_UNIFORM_INT;
+    case GL_FLOAT_VEC2: return RLV_SHADER_UNIFORM_VEC2;
+    case GL_FLOAT_VEC4: return RLV_SHADER_UNIFORM_COLOR;
+    default: return unsupportedShaderUniformType;
+  }
+}
+
+int64_t reviewedShaderUniformType(const std::string& type) {
+  if (type == "float") return RLV_SHADER_UNIFORM_FLOAT;
+  if (type == "int") return RLV_SHADER_UNIFORM_INT;
+  if (type == "vec2") return RLV_SHADER_UNIFORM_VEC2;
+  if (type == "vec4") return RLV_SHADER_UNIFORM_COLOR;
+  return unsupportedShaderUniformType;
+}
+
+void addShaderUniformType(ShaderRecord& record, std::string name,
+                          int64_t type, bool array) {
+  const size_t bracket = name.find('[');
+  if (bracket != std::string::npos) {
+    record.uniformTypes.insert_or_assign(
+        name, unsupportedShaderUniformType);
+    name.resize(bracket);
+    array = true;
+  }
+  record.uniformTypes.insert_or_assign(
+      std::move(name), array ? unsupportedShaderUniformType : type);
+}
+
+void reflectShaderUniformTypes(ShaderRecord& record) {
+  int count = 0;
+  int maxNameLength = 0;
+  glGetProgramiv(record.value.id, GL_ACTIVE_UNIFORMS, &count);
+  glGetProgramiv(record.value.id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxNameLength);
+  if (maxNameLength <= 0) return;
+  std::vector<char> name(static_cast<size_t>(maxNameLength));
+  for (int index = 0; index < count; ++index) {
+    int length = 0;
+    int arraySize = 0;
+    unsigned int type = 0;
+    glGetActiveUniform(record.value.id, static_cast<unsigned int>(index),
+                       maxNameLength, &length, &arraySize, &type, name.data());
+    if (length <= 0) continue;
+    addShaderUniformType(
+        record, std::string(name.data(), static_cast<size_t>(length)),
+        reviewedShaderUniformType(type), arraySize != 1);
+  }
+}
+
+void parseTestShaderUniformTypes(ShaderRecord& record,
+                                 const std::string& source) {
+  static const std::regex declaration(
+      R"(\buniform\s+(?:(?:lowp|mediump|highp)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_][A-Za-z0-9_]*)(\s*\[[^\]]+\])?)");
+  for (std::sregex_iterator current(source.begin(), source.end(), declaration),
+       end;
+       current != end; ++current) {
+    const bool array = (*current)[3].matched;
+    addShaderUniformType(record, (*current)[2].str(),
+                         reviewedShaderUniformType((*current)[1].str()),
+                         array);
+  }
+}
+
+int64_t validateShaderUniform(int64_t shaderId, int64_t uniformId,
+                              int64_t expectedType) {
+  const auto shader = state.shaders.find(shaderId);
+  if (shader == state.shaders.end()) return RLV_ERR_STALE_HANDLE;
+  const auto uniform = state.shaderUniforms.find(uniformId);
+  if (uniform == state.shaderUniforms.end()) return RLV_ERR_STALE_HANDLE;
+  if (uniform->second.shaderId != shaderId) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (uniform->second.type != expectedType) return RLV_ERR_SHADER_TYPE;
+  return RLV_OK;
+}
+
 int raylibBlendMode(int64_t blendMode) {
   switch (blendMode) {
     case RLV_BLEND_ALPHA: return BLEND_ALPHA;
@@ -195,7 +317,8 @@ void closeNativeScope(const ScopeRecord& scope) {
   if (state.testMode) return;
   if (scope.kind == ScopeKind::RenderTarget) EndTextureMode();
   else if (scope.kind == ScopeKind::Scissor) EndScissorMode();
-  else EndBlendMode();
+  else if (scope.kind == ScopeKind::Blend) EndBlendMode();
+  else EndShaderMode();
 }
 
 }  // namespace
@@ -206,7 +329,8 @@ extern "C" int64_t rlv_version_minor(void) { return RAYLIB_VERSION_MINOR; }
 
 extern "C" int64_t rlv_enable_test_mode(rocket_bool enabled) {
   if (state.windowOpen || state.audioOpen || !state.textures.empty() ||
-      !state.renderTextures.empty() || !state.fonts.empty() ||
+      !state.renderTextures.empty() || !state.shaders.empty() ||
+      !state.shaderUniforms.empty() || !state.fonts.empty() ||
       !state.sounds.empty() || !state.pointBuffers.empty() || !state.scopes.empty()) {
     return RLV_ERR_RESOURCE_LIVE;
   }
@@ -286,6 +410,7 @@ extern "C" int64_t rlv_window_close(int64_t windowId) {
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   if (state.drawing) return RLV_ERR_INVALID_STATE;
   if (!state.textures.empty() || !state.renderTextures.empty() ||
+      !state.shaders.empty() || !state.shaderUniforms.empty() ||
       !state.fonts.empty() || !state.scopes.empty()) return RLV_ERR_RESOURCE_LIVE;
   if (!state.testMode) CloseWindow();
   state.windowOpen = false;
@@ -348,7 +473,8 @@ extern "C" int64_t rlv_abort_drawing(int64_t frameId) {
     closeNativeScope(scope);
     if (scope.kind == ScopeKind::RenderTarget) ++state.renderTargetSwitchCount;
     else if (scope.kind == ScopeKind::Scissor) ++state.scissorSwitchCount;
-    else ++state.blendSwitchCount;
+    else if (scope.kind == ScopeKind::Blend) ++state.blendSwitchCount;
+    else ++state.shaderSwitchCount;
     state.scopes.pop_back();
   }
   if (!state.testMode) EndDrawing();
@@ -1130,6 +1256,266 @@ extern "C" int64_t rlv_blend_switch_count(void) {
 
 extern "C" int64_t rlv_screenshot_count(void) { return state.screenshotCount; }
 
+extern "C" rocket_bool rlv_shader_supported(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  if (state.testMode) return state.testShaderSupported ? 1 : 0;
+  const int version = rlGetVersion();
+  return version != RL_OPENGL_SOFTWARE && version != RL_OPENGL_11 ? 1 : 0;
+}
+
+extern "C" int64_t rlv_shader_load_files(int64_t windowId,
+                                           int64_t vertexPathBufferId,
+                                           int64_t fragmentPathBufferId) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  const std::string* vertexPath = buffer(vertexPathBufferId);
+  const std::string* fragmentPath = buffer(fragmentPathBufferId);
+  if (!vertexPath || !fragmentPath ||
+      (vertexPath->empty() && fragmentPath->empty())) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (!rlv_shader_supported(windowId)) return RLV_ERR_UNAVAILABLE;
+  if ((!vertexPath->empty() &&
+       (state.testMode ? simulatedMissing(*vertexPath)
+                       : !FileExists(vertexPath->c_str()))) ||
+      (!fragmentPath->empty() &&
+       (state.testMode ? simulatedMissing(*fragmentPath)
+                       : !FileExists(fragmentPath->c_str())))) {
+    return RLV_ERR_NOT_FOUND;
+  }
+
+  ShaderRecord record;
+  record.windowId = windowId;
+  char* vertexSource = nullptr;
+  char* fragmentSource = nullptr;
+  if (!vertexPath->empty()) {
+    vertexSource = LoadFileText(vertexPath->c_str());
+    if (!vertexSource) return RLV_ERR_NOT_FOUND;
+  }
+  if (!fragmentPath->empty()) {
+    fragmentSource = LoadFileText(fragmentPath->c_str());
+    if (!fragmentSource) {
+      if (vertexSource) UnloadFileText(vertexSource);
+      return RLV_ERR_NOT_FOUND;
+    }
+  }
+  if (state.testMode) {
+    if (vertexSource) parseTestShaderUniformTypes(record, vertexSource);
+    if (fragmentSource) parseTestShaderUniformTypes(record, fragmentSource);
+  } else {
+    record.value = LoadShaderFromMemory(vertexSource, fragmentSource);
+    if (!IsShaderValid(record.value) ||
+        record.value.id == rlGetShaderIdDefault()) {
+      UnloadShader(record.value);
+      if (vertexSource) UnloadFileText(vertexSource);
+      if (fragmentSource) UnloadFileText(fragmentSource);
+      return RLV_ERR_INVALID_SHADER;
+    }
+    record.native = true;
+    reflectShaderUniformTypes(record);
+  }
+  if (vertexSource) UnloadFileText(vertexSource);
+  if (fragmentSource) UnloadFileText(fragmentSource);
+  const int64_t id = nextId();
+  state.shaders.emplace(id, record);
+  return id;
+}
+
+extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
+                                            int64_t vertexSourceBufferId,
+                                            int64_t fragmentSourceBufferId) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  const std::string* vertexSource = buffer(vertexSourceBufferId);
+  const std::string* fragmentSource = buffer(fragmentSourceBufferId);
+  if (!vertexSource || !fragmentSource ||
+      (vertexSource->empty() && fragmentSource->empty())) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (!rlv_shader_supported(windowId)) return RLV_ERR_UNAVAILABLE;
+  if (state.testMode &&
+      (*vertexSource == "invalid_shader" ||
+       *fragmentSource == "invalid_shader")) {
+    return RLV_ERR_INVALID_SHADER;
+  }
+
+  ShaderRecord record;
+  record.windowId = windowId;
+  if (state.testMode) {
+    parseTestShaderUniformTypes(record, *vertexSource);
+    parseTestShaderUniformTypes(record, *fragmentSource);
+  } else {
+    record.value = LoadShaderFromMemory(
+        vertexSource->empty() ? nullptr : vertexSource->c_str(),
+        fragmentSource->empty() ? nullptr : fragmentSource->c_str());
+    if (!IsShaderValid(record.value) ||
+        record.value.id == rlGetShaderIdDefault()) {
+      UnloadShader(record.value);
+      return RLV_ERR_INVALID_SHADER;
+    }
+    record.native = true;
+    reflectShaderUniformTypes(record);
+  }
+  const int64_t id = nextId();
+  state.shaders.emplace(id, record);
+  return id;
+}
+
+extern "C" int64_t rlv_shader_unload(int64_t shaderId) {
+  const auto found = state.shaders.find(shaderId);
+  if (found == state.shaders.end()) return RLV_ERR_STALE_HANDLE;
+  if (state.drawing || shaderActive(shaderId)) return RLV_ERR_INVALID_STATE;
+  if (found->second.native) UnloadShader(found->second.value);
+  for (auto uniform = state.shaderUniforms.begin();
+       uniform != state.shaderUniforms.end();) {
+    if (uniform->second.shaderId == shaderId) {
+      uniform = state.shaderUniforms.erase(uniform);
+    } else {
+      ++uniform;
+    }
+  }
+  state.shaders.erase(found);
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_shader_live_count(void) {
+  return static_cast<int64_t>(state.shaders.size());
+}
+
+extern "C" int64_t rlv_shader_uniform_live_count(void) {
+  return static_cast<int64_t>(state.shaderUniforms.size());
+}
+
+extern "C" int64_t rlv_shader_uniform(int64_t shaderId,
+                                        int64_t nameBufferId,
+                                        int64_t uniformType) {
+  const auto shader = state.shaders.find(shaderId);
+  if (shader == state.shaders.end()) return RLV_ERR_STALE_HANDLE;
+  if (shader->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
+  const std::string* name = buffer(nameBufferId);
+  if (!name || name->empty() || !validShaderUniformType(uniformType)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const auto declaredType = shader->second.uniformTypes.find(*name);
+  if (declaredType == shader->second.uniformTypes.end()) {
+    return RLV_ERR_NOT_FOUND;
+  }
+  if (declaredType->second != uniformType) return RLV_ERR_SHADER_TYPE;
+  int location = 0;
+  if (!state.testMode) {
+    location = GetShaderLocation(shader->second.value, name->c_str());
+    if (location < 0) return RLV_ERR_NOT_FOUND;
+  }
+  const int64_t id = nextId();
+  state.shaderUniforms.emplace(
+      id, ShaderUniformRecord{shaderId, location, uniformType});
+  return id;
+}
+
+extern "C" int64_t rlv_shader_set_float(int64_t shaderId,
+                                          int64_t uniformId, double value) {
+  const int64_t status = validateShaderUniform(
+      shaderId, uniformId, RLV_SHADER_UNIFORM_FLOAT);
+  if (status != RLV_OK) return status;
+  if (!finiteFloat(value)) return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) {
+    const float converted = static_cast<float>(value);
+    const auto& shader = state.shaders.at(shaderId);
+    const auto& uniform = state.shaderUniforms.at(uniformId);
+    SetShaderValue(shader.value, uniform.location, &converted,
+                   nativeShaderUniformType(uniform.type));
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_shader_set_int(int64_t shaderId,
+                                        int64_t uniformId, int64_t value) {
+  const int64_t status = validateShaderUniform(
+      shaderId, uniformId, RLV_SHADER_UNIFORM_INT);
+  if (status != RLV_OK) return status;
+  if (!fitsInt(value)) return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) {
+    const int converted = static_cast<int>(value);
+    const auto& shader = state.shaders.at(shaderId);
+    const auto& uniform = state.shaderUniforms.at(uniformId);
+    SetShaderValue(shader.value, uniform.location, &converted,
+                   nativeShaderUniformType(uniform.type));
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_shader_set_vec2(int64_t shaderId,
+                                         int64_t uniformId,
+                                         double x, double y) {
+  const int64_t status = validateShaderUniform(
+      shaderId, uniformId, RLV_SHADER_UNIFORM_VEC2);
+  if (status != RLV_OK) return status;
+  if (!finiteFloats({x, y})) return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) {
+    const float converted[2] = {static_cast<float>(x), static_cast<float>(y)};
+    const auto& shader = state.shaders.at(shaderId);
+    const auto& uniform = state.shaderUniforms.at(uniformId);
+    SetShaderValue(shader.value, uniform.location, converted,
+                   nativeShaderUniformType(uniform.type));
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_shader_set_color(int64_t shaderId,
+                                          int64_t uniformId,
+                                          int64_t red, int64_t green,
+                                          int64_t blue, int64_t alpha) {
+  const int64_t status = validateShaderUniform(
+      shaderId, uniformId, RLV_SHADER_UNIFORM_COLOR);
+  if (status != RLV_OK) return status;
+  if (!validColor(red, green, blue, alpha)) return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) {
+    constexpr float scale = 1.0f / 255.0f;
+    const float converted[4] = {
+        static_cast<float>(red) * scale, static_cast<float>(green) * scale,
+        static_cast<float>(blue) * scale, static_cast<float>(alpha) * scale};
+    const auto& shader = state.shaders.at(shaderId);
+    const auto& uniform = state.shaderUniforms.at(uniformId);
+    SetShaderValue(shader.value, uniform.location, converted,
+                   nativeShaderUniformType(uniform.type));
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_shader_begin(int64_t frameId, int64_t shaderId) {
+  if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
+  const auto shader = state.shaders.find(shaderId);
+  if (shader == state.shaders.end()) return RLV_ERR_STALE_HANDLE;
+  if (shader->second.windowId != state.windowId) return RLV_ERR_INVALID_ARGUMENT;
+  const int64_t scopeId = nextId();
+  if (!state.testMode) BeginShaderMode(shader->second.value);
+  state.scopes.push_back(
+      ScopeRecord{scopeId, frameId, ScopeKind::Shader, shaderId});
+  ++state.shaderSwitchCount;
+  return scopeId;
+}
+
+extern "C" int64_t rlv_shader_end(int64_t scopeId) {
+  if (!scopeExists(scopeId)) return RLV_ERR_STALE_HANDLE;
+  if (state.scopes.empty() || state.scopes.back().id != scopeId ||
+      state.scopes.back().kind != ScopeKind::Shader) {
+    return RLV_ERR_INVALID_STATE;
+  }
+  closeNativeScope(state.scopes.back());
+  state.scopes.pop_back();
+  ++state.shaderSwitchCount;
+  const ScopeRecord* parent = activeScope(ScopeKind::Shader);
+  if (parent) {
+    const auto shader = state.shaders.find(parent->resourceId);
+    if (shader == state.shaders.end()) return RLV_ERR_INVALID_STATE;
+    if (!state.testMode) BeginShaderMode(shader->second.value);
+    ++state.shaderSwitchCount;
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_shader_switch_count(void) {
+  return state.shaderSwitchCount;
+}
+
 extern "C" int64_t rlv_font_load(int64_t windowId, int64_t pathBufferId) {
   const std::string* path = buffer(pathBufferId);
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
@@ -1321,6 +1707,12 @@ extern "C" int64_t rlv_test_request_close(rocket_bool requested) {
 extern "C" int64_t rlv_test_set_anisotropy(int64_t level) {
   if (!state.testMode || level < 0) return RLV_ERR_INVALID_STATE;
   state.testMaxAnisotropy = level;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_test_set_shader_supported(rocket_bool supported) {
+  if (!state.testMode || supported > 1) return RLV_ERR_INVALID_STATE;
+  state.testShaderSupported = supported != 0;
   return RLV_OK;
 }
 

@@ -6,6 +6,8 @@ pub extern const RLV_ERR_NOT_FOUND: Int = -3
 pub extern const RLV_ERR_RESOURCE_LIVE: Int = -4
 pub extern const RLV_ERR_UNAVAILABLE: Int = -5
 pub extern const RLV_ERR_STALE_HANDLE: Int = -6
+pub extern const RLV_ERR_INVALID_SHADER: Int = -7
+pub extern const RLV_ERR_SHADER_TYPE: Int = -8
 pub extern const RLV_KEY_SPACE: Int = 32
 pub extern const RLV_KEY_ESCAPE: Int = 256
 pub extern const RLV_KEY_RIGHT: Int = 262
@@ -25,6 +27,10 @@ pub extern const RLV_BLEND_MULTIPLIED: Int = 2
 pub extern const RLV_BLEND_ADD_COLORS: Int = 3
 pub extern const RLV_BLEND_SUBTRACT_COLORS: Int = 4
 pub extern const RLV_BLEND_ALPHA_PREMULTIPLIED: Int = 5
+pub extern const RLV_SHADER_UNIFORM_FLOAT: Int = 0
+pub extern const RLV_SHADER_UNIFORM_INT: Int = 1
+pub extern const RLV_SHADER_UNIFORM_VEC2: Int = 2
+pub extern const RLV_SHADER_UNIFORM_COLOR: Int = 3
 pub extern callback RlvIntCallback(value: Int) -> Int
 pub extern fn rlv_version_major() -> Int
 pub extern fn rlv_version_minor() -> Int
@@ -113,6 +119,20 @@ pub extern fn rlv_render_target_switch_count() -> Int
 pub extern fn rlv_scissor_switch_count() -> Int
 pub extern fn rlv_blend_switch_count() -> Int
 pub extern fn rlv_screenshot_count() -> Int
+pub extern fn rlv_shader_supported(window_id: Int) -> Bool
+pub extern fn rlv_shader_load_files(window_id: Int, vertex_path_buffer_id: Int, fragment_path_buffer_id: Int) -> Int
+pub extern fn rlv_shader_load_memory(window_id: Int, vertex_source_buffer_id: Int, fragment_source_buffer_id: Int) -> Int
+pub extern fn rlv_shader_unload(shader_id: Int) -> Int
+pub extern fn rlv_shader_live_count() -> Int
+pub extern fn rlv_shader_uniform_live_count() -> Int
+pub extern fn rlv_shader_uniform(shader_id: Int, name_buffer_id: Int, uniform_type: Int) -> Int
+pub extern fn rlv_shader_set_float(shader_id: Int, uniform_id: Int, value: Float) -> Int
+pub extern fn rlv_shader_set_int(shader_id: Int, uniform_id: Int, value: Int) -> Int
+pub extern fn rlv_shader_set_vec2(shader_id: Int, uniform_id: Int, x: Float, y: Float) -> Int
+pub extern fn rlv_shader_set_color(shader_id: Int, uniform_id: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_shader_begin(frame_id: Int, shader_id: Int) -> Int
+pub extern fn rlv_shader_end(scope_id: Int) -> Int
+pub extern fn rlv_shader_switch_count() -> Int
 pub extern fn rlv_font_load(window_id: Int, path_buffer_id: Int) -> Int
 pub extern fn rlv_font_draw(frame_id: Int, font_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Float, spacing: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_font_unload(font_id: Int) -> Int
@@ -132,6 +152,7 @@ pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
 pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
 pub extern fn rlv_test_request_close(requested: Bool) -> Int
 pub extern fn rlv_test_set_anisotropy(level: Int) -> Int
+pub extern fn rlv_test_set_shader_supported(supported: Bool) -> Int
 pub extern fn rlv_test_scissor_x() -> Int
 pub extern fn rlv_test_scissor_y() -> Int
 pub extern fn rlv_test_scissor_width() -> Int

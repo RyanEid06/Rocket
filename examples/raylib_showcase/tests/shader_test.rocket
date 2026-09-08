@@ -1,0 +1,127 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(error):
+            return false
+
+fn failed_bool(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(error):
+            return true
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    match rocket_raylib.open_window(640, 360, "shader test"):
+        case Err(error):
+            return 2
+        case Ok(window):
+            if not rocket_raylib.shader_supported(window):
+                return 3
+            if not rocket_raylib_testing.set_shader_supported(false):
+                return 30
+            match rocket_raylib.load_shader_from_memory(window, "", "uniform float value;"):
+                case Ok(unexpected):
+                    return 31
+                case Err(error):
+                    if error != "raylib: device or backend unavailable":
+                        return 32
+            if not rocket_raylib_testing.set_shader_supported(true):
+                return 33
+            match rocket_raylib.load_shader(window, "missing.vert", ""):
+                case Ok(unexpected):
+                    return 34
+                case Err(error):
+                    if error != "raylib: asset or uniform not found":
+                        return 35
+            match rocket_raylib.load_shader_from_memory(window, "", "invalid_shader"):
+                case Ok(unexpected):
+                    return 28
+                case Err(error):
+                    if error != "raylib: invalid shader program":
+                        return 29
+            match rocket_raylib.load_shader_from_memory(window, "", "uniform float intensity; uniform int mode; uniform vec2 offset; uniform vec4 tint;"):
+                case Err(error):
+                    return 4
+                case Ok(shader):
+                    match rocket_raylib.shader_uniform(shader, "tint", rocket_raylib.shader_uniform_float()):
+                        case Ok(unexpected):
+                            return 36
+                        case Err(error):
+                            if error != "raylib: shader uniform type mismatch or unsupported type":
+                                return 37
+                    match rocket_raylib.shader_uniform(shader, "intensity", rocket_raylib.shader_uniform_float()):
+                        case Err(error):
+                            return 5
+                        case Ok(intensity):
+                            if not succeeded(rocket_raylib.set_shader_float(shader, intensity, 0.75)):
+                                return 6
+                            match rocket_raylib.set_shader_int(shader, intensity, 1):
+                                case Ok(unexpected):
+                                    return 7
+                                case Err(error):
+                                    if error != "raylib: shader uniform type mismatch or unsupported type":
+                                        return 38
+                    match rocket_raylib.shader_uniform(shader, "offset", rocket_raylib.shader_uniform_vec2()):
+                        case Err(error):
+                            return 8
+                        case Ok(offset):
+                            if not succeeded(rocket_raylib.set_shader_vec2(shader, offset, rocket_raylib.point(2.0, -1.0))):
+                                return 9
+                    match rocket_raylib.shader_uniform(shader, "tint", rocket_raylib.shader_uniform_color()):
+                        case Err(error):
+                            return 10
+                        case Ok(tint):
+                            if not succeeded(rocket_raylib.set_shader_color(shader, tint, rocket_raylib.color(12, 34, 56, 200))):
+                                return 11
+                    match rocket_raylib.create_render_texture(window, 320, 180):
+                        case Err(error):
+                            return 12
+                        case Ok(target):
+                            match rocket_raylib.begin_frame(window):
+                                case Err(error):
+                                    return 13
+                                case Ok(frame):
+                                    match rocket_raylib.begin_render_target(frame, target):
+                                        case Err(error):
+                                            return 14
+                                        case Ok(target_scope):
+                                            match rocket_raylib.begin_shader(frame, shader):
+                                                case Err(error):
+                                                    return 15
+                                                case Ok(shader_scope):
+                                                    if not failed_bool(rocket_raylib.end_render_target(target_scope)):
+                                                        return 16
+                                                    if not succeeded(rocket_raylib.end_shader(shader_scope)):
+                                                        return 17
+                                            if not succeeded(rocket_raylib.end_render_target(target_scope)):
+                                                return 18
+                                    if not succeeded(rocket_raylib.end_frame(frame)):
+                                        return 19
+                            if not succeeded(rocket_raylib.unload_render_texture(target)):
+                                return 20
+                    match rocket_raylib.begin_frame(window):
+                        case Err(error):
+                            return 21
+                        case Ok(abort_frame):
+                            match rocket_raylib.begin_shader(abort_frame, shader):
+                                case Err(error):
+                                    return 22
+                                case Ok(abort_scope):
+                                    if not succeeded(rocket_raylib.abort_frame(abort_frame)):
+                                        return 23
+                    if rocket_raylib_testing.scope_depth() != 0:
+                        return 24
+                    if not succeeded(rocket_raylib.unload_shader(shader)):
+                        return 25
+                    if rocket_raylib_testing.shader_live_count() != 0:
+                        return 26
+            if not succeeded(rocket_raylib.close_window(window)):
+                return 27
+            return 0

@@ -50,6 +50,15 @@ pub struct ScissorScope:
 pub struct BlendScope:
     id: Int
 
+pub struct Shader:
+    id: Int
+
+pub struct ShaderUniform:
+    id: Int
+
+pub struct ShaderScope:
+    id: Int
+
 pub struct Font:
     id: Int
 
@@ -137,6 +146,18 @@ pub fn blend_subtract_colors() -> Int:
 pub fn blend_alpha_premultiplied() -> Int:
     return rocket_raylib_adapter.RLV_BLEND_ALPHA_PREMULTIPLIED
 
+pub fn shader_uniform_float() -> Int:
+    return rocket_raylib_adapter.RLV_SHADER_UNIFORM_FLOAT
+
+pub fn shader_uniform_int() -> Int:
+    return rocket_raylib_adapter.RLV_SHADER_UNIFORM_INT
+
+pub fn shader_uniform_vec2() -> Int:
+    return rocket_raylib_adapter.RLV_SHADER_UNIFORM_VEC2
+
+pub fn shader_uniform_color() -> Int:
+    return rocket_raylib_adapter.RLV_SHADER_UNIFORM_COLOR
+
 
 fn status_message(status: Int) -> String:
     if status == rocket_raylib_adapter.RLV_ERR_INVALID_ARGUMENT:
@@ -144,13 +165,17 @@ fn status_message(status: Int) -> String:
     if status == rocket_raylib_adapter.RLV_ERR_INVALID_STATE:
         return "raylib: invalid lifecycle state"
     if status == rocket_raylib_adapter.RLV_ERR_NOT_FOUND:
-        return "raylib: asset not found or invalid"
+        return "raylib: asset or uniform not found"
     if status == rocket_raylib_adapter.RLV_ERR_RESOURCE_LIVE:
         return "raylib: owned resource is still live"
     if status == rocket_raylib_adapter.RLV_ERR_UNAVAILABLE:
         return "raylib: device or backend unavailable"
     if status == rocket_raylib_adapter.RLV_ERR_STALE_HANDLE:
         return "raylib: stale or already released handle"
+    if status == rocket_raylib_adapter.RLV_ERR_INVALID_SHADER:
+        return "raylib: invalid shader program"
+    if status == rocket_raylib_adapter.RLV_ERR_SHADER_TYPE:
+        return "raylib: shader uniform type mismatch or unsupported type"
     return "raylib: unknown native failure"
 
 fn status_result(status: Int) -> Result[Bool, String]:
@@ -684,6 +709,110 @@ pub fn save_render_texture_png(window: Window, target: RenderTexture, path: Stri
             return released
         case Err(error):
             return Err(error)
+
+pub fn shader_supported(window: Window) -> Bool:
+    if window.id <= 0:
+        return false
+    unsafe:
+        return rocket_raylib_adapter.rlv_shader_supported(window.id)
+
+fn load_shader_buffers(window: Window, vertex: String, fragment: String, from_memory: Bool) -> Result[Shader, String]:
+    if window.id <= 0:
+        return Err("raylib: stale or already released handle")
+    match encode_text(vertex):
+        case Err(error):
+            return Err(error)
+        case Ok(vertex_buffer):
+            match encode_text(fragment):
+                case Err(error):
+                    let released_vertex = release_text(vertex_buffer)
+                    return Err(error)
+                case Ok(fragment_buffer):
+                    var shader_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+                    unsafe:
+                        if from_memory:
+                            shader_id = rocket_raylib_adapter.rlv_shader_load_memory(window.id, vertex_buffer, fragment_buffer)
+                        else:
+                            shader_id = rocket_raylib_adapter.rlv_shader_load_files(window.id, vertex_buffer, fragment_buffer)
+                    let released_vertex = release_text(vertex_buffer)
+                    let released_fragment = release_text(fragment_buffer)
+                    if shader_id <= 0:
+                        return Err(status_message(shader_id))
+                    return Ok(Shader(shader_id))
+
+pub fn load_shader(window: Window, vertex_path: String, fragment_path: String) -> Result[Shader, String]:
+    return load_shader_buffers(window, vertex_path, fragment_path, false)
+
+pub fn load_shader_from_memory(window: Window, vertex_source: String, fragment_source: String) -> Result[Shader, String]:
+    return load_shader_buffers(window, vertex_source, fragment_source, true)
+
+pub fn unload_shader(shader: Shader) -> Result[Bool, String]:
+    if shader.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_shader_unload(shader.id))
+
+pub fn shader_uniform(shader: Shader, name: String, uniform_type: Int) -> Result[ShaderUniform, String]:
+    if shader.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if uniform_type < rocket_raylib_adapter.RLV_SHADER_UNIFORM_FLOAT or uniform_type > rocket_raylib_adapter.RLV_SHADER_UNIFORM_COLOR:
+        return Err("raylib: invalid argument")
+    match encode_text(name):
+        case Err(error):
+            return Err(error)
+        case Ok(name_buffer):
+            var uniform_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                uniform_id = rocket_raylib_adapter.rlv_shader_uniform(shader.id, name_buffer, uniform_type)
+            let released = release_text(name_buffer)
+            if uniform_id <= 0:
+                return Err(status_message(uniform_id))
+            return Ok(ShaderUniform(uniform_id))
+
+pub fn set_shader_float(shader: Shader, uniform: ShaderUniform, value: Float) -> Result[Bool, String]:
+    if shader.id <= 0 or uniform.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not finite(value):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_shader_set_float(shader.id, uniform.id, value))
+
+pub fn set_shader_int(shader: Shader, uniform: ShaderUniform, value: Int) -> Result[Bool, String]:
+    if shader.id <= 0 or uniform.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_shader_set_int(shader.id, uniform.id, value))
+
+pub fn set_shader_vec2(shader: Shader, uniform: ShaderUniform, value: Point) -> Result[Bool, String]:
+    if shader.id <= 0 or uniform.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not finite(value.x) or not finite(value.y):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_shader_set_vec2(shader.id, uniform.id, value.x, value.y))
+
+pub fn set_shader_color(shader: Shader, uniform: ShaderUniform, value: Color) -> Result[Bool, String]:
+    if shader.id <= 0 or uniform.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not valid_color(value):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_shader_set_color(shader.id, uniform.id, value.red, value.green, value.blue, value.alpha))
+
+pub fn begin_shader(frame: Frame, shader: Shader) -> Result[ShaderScope, String]:
+    if frame.window_id <= 0 or shader.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        let scope_id = rocket_raylib_adapter.rlv_shader_begin(frame.window_id, shader.id)
+        if scope_id <= 0:
+            return Err(status_message(scope_id))
+        return Ok(ShaderScope(scope_id))
+
+pub fn end_shader(scope: ShaderScope) -> Result[Bool, String]:
+    if scope.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_shader_end(scope.id))
 
 pub fn load_font(window: Window, path: String) -> Result[Font, String]:
     match encode_text(path):

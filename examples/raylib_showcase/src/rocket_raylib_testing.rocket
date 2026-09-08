@@ -70,6 +70,18 @@ pub fn screenshot_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_screenshot_count()
 
+pub fn shader_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_shader_live_count()
+
+pub fn shader_uniform_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_shader_uniform_live_count()
+
+pub fn shader_switch_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_shader_switch_count()
+
 pub fn font_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_font_live_count()
@@ -81,3 +93,7 @@ pub fn sound_live_count() -> Int:
 pub fn set_test_anisotropy(level: Int) -> Bool:
     unsafe:
         return checked(rocket_raylib_adapter.rlv_test_set_anisotropy(level))
+
+pub fn set_shader_supported(supported: Bool) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_shader_supported(supported))

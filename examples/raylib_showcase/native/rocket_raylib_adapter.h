@@ -12,6 +12,8 @@ typedef uint8_t rocket_bool;
 #define RLV_ERR_RESOURCE_LIVE -4
 #define RLV_ERR_UNAVAILABLE -5
 #define RLV_ERR_STALE_HANDLE -6
+#define RLV_ERR_INVALID_SHADER -7
+#define RLV_ERR_SHADER_TYPE -8
 
 #define RLV_KEY_SPACE 32
 #define RLV_KEY_ESCAPE 256
@@ -34,6 +36,11 @@ typedef uint8_t rocket_bool;
 #define RLV_BLEND_ADD_COLORS 3
 #define RLV_BLEND_SUBTRACT_COLORS 4
 #define RLV_BLEND_ALPHA_PREMULTIPLIED 5
+
+#define RLV_SHADER_UNIFORM_FLOAT 0
+#define RLV_SHADER_UNIFORM_INT 1
+#define RLV_SHADER_UNIFORM_VEC2 2
+#define RLV_SHADER_UNIFORM_COLOR 3
 
 #ifndef ROCKET_API
 #define ROCKET_API
@@ -139,6 +146,21 @@ ROCKET_API int64_t rlv_scissor_switch_count(void);
 ROCKET_API int64_t rlv_blend_switch_count(void);
 ROCKET_API int64_t rlv_screenshot_count(void);
 
+ROCKET_API rocket_bool rlv_shader_supported(int64_t window_id);
+ROCKET_API int64_t rlv_shader_load_files(int64_t window_id, int64_t vertex_path_buffer_id, int64_t fragment_path_buffer_id);
+ROCKET_API int64_t rlv_shader_load_memory(int64_t window_id, int64_t vertex_source_buffer_id, int64_t fragment_source_buffer_id);
+ROCKET_API int64_t rlv_shader_unload(int64_t shader_id);
+ROCKET_API int64_t rlv_shader_live_count(void);
+ROCKET_API int64_t rlv_shader_uniform_live_count(void);
+ROCKET_API int64_t rlv_shader_uniform(int64_t shader_id, int64_t name_buffer_id, int64_t uniform_type);
+ROCKET_API int64_t rlv_shader_set_float(int64_t shader_id, int64_t uniform_id, double value);
+ROCKET_API int64_t rlv_shader_set_int(int64_t shader_id, int64_t uniform_id, int64_t value);
+ROCKET_API int64_t rlv_shader_set_vec2(int64_t shader_id, int64_t uniform_id, double x, double y);
+ROCKET_API int64_t rlv_shader_set_color(int64_t shader_id, int64_t uniform_id, int64_t red, int64_t green, int64_t blue, int64_t alpha);
+ROCKET_API int64_t rlv_shader_begin(int64_t frame_id, int64_t shader_id);
+ROCKET_API int64_t rlv_shader_end(int64_t scope_id);
+ROCKET_API int64_t rlv_shader_switch_count(void);
+
 ROCKET_API int64_t rlv_font_load(int64_t window_id, int64_t path_buffer_id);
 ROCKET_API int64_t rlv_font_draw(int64_t frame_id, int64_t font_id, int64_t text_buffer_id, int64_t x, int64_t y, double size, double spacing, int64_t red, int64_t green, int64_t blue, int64_t alpha);
 ROCKET_API int64_t rlv_font_unload(int64_t font_id);
@@ -161,6 +183,7 @@ ROCKET_API int64_t rlv_test_set_key(int64_t key, rocket_bool pressed, rocket_boo
 ROCKET_API int64_t rlv_test_set_mouse(int64_t x, int64_t y, rocket_bool pressed);
 ROCKET_API int64_t rlv_test_request_close(rocket_bool requested);
 ROCKET_API int64_t rlv_test_set_anisotropy(int64_t level);
+ROCKET_API int64_t rlv_test_set_shader_supported(rocket_bool supported);
 ROCKET_API int64_t rlv_test_scissor_x(void);
 ROCKET_API int64_t rlv_test_scissor_y(void);
 ROCKET_API int64_t rlv_test_scissor_width(void);

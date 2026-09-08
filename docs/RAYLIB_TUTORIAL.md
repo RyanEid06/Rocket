@@ -129,3 +129,50 @@ vertically corrected target image. Unload each render texture before closing
 its window. Stale tokens, wrong-window use, invalid dimensions/source regions,
 out-of-order scope ends, active-resource unloads, and failed image exports all
 return explicit errors.
+
+## Shaders and post-processing effects
+
+Check `shader_supported(window)` and keep a non-shader fallback for unavailable
+graphics backends. Load a vertex/fragment pair from files with `load_shader`,
+or pass source strings to `load_shader_from_memory`; either stage may be empty,
+but not both. Create each uniform token with its reviewed type and use only the
+matching setter:
+
+```rocket
+match rocket_raylib.load_shader_from_memory(
+        window, "", fragment_source):
+    case Err(error):
+        return 1
+    case Ok(shader):
+        match rocket_raylib.shader_uniform(
+                shader, "tint", rocket_raylib.shader_uniform_color()):
+            case Err(error):
+                let released = rocket_raylib.unload_shader(shader)
+                return 1
+            case Ok(tint):
+                let configured = rocket_raylib.set_shader_color(
+                    shader, tint, rocket_raylib.accent())
+        match rocket_raylib.begin_shader(frame, shader):
+            case Err(error):
+                let cleaned = rocket_raylib.abort_frame(frame)
+                let released = rocket_raylib.unload_shader(shader)
+                return 1
+            case Ok(shader_scope):
+                let drawn = rocket_raylib.draw_render_texture(
+                    frame, layer,
+                    rocket_raylib.rect(0.0, 0.0, 320.0, -180.0),
+                    rocket_raylib.rect(0.0, 0.0, 1280.0, 720.0),
+                    rocket_raylib.point(0.0, 0.0), 0.0,
+                    rocket_raylib.white())
+                let shader_ended = rocket_raylib.end_shader(shader_scope)
+```
+
+Float, Int, Vec2 (`Point`), and Color uniforms are supported. Uniform tokens
+belong to one shader and expose no native location. Lookup checks the linked
+program's active-uniform metadata; a mismatched requested type, sampler, array,
+or other unreviewed GLSL type returns a distinct type error. Missing/unreadable
+files, invalid programs, and unavailable shader backends are also distinct
+errors. Shader scopes participate in the same LIFO ordering as render-target,
+scissor, and blend scopes; nested
+shaders restore the parent. End or abort the frame before unloading the shader,
+and unload every shader before closing its window.
