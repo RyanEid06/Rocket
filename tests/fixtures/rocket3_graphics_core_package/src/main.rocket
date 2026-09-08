@@ -1,0 +1,9 @@
+import rocket.graphics
+
+pub fn sample_color(red: Float, green: Float, blue: Float, alpha: Float = 1.0) -> graphics.Color:
+    return graphics.color_from_rgba(red, green, blue, alpha)
+
+fn main() -> Int:
+    let color = sample_color(red: 0.2, green: 0.4, blue: 0.6)
+    print(color.alpha == 1.0)
+    return 0

@@ -386,6 +386,40 @@ delta completes at the final state; cancellation returns a completed,
 cancelled sample. `fade`, `move`, `slide`, `scale`, `rotate`, `pulse`, and
 `color_transition` are convenience constructors over those tween types.
 
+## `rocket.graphics`
+
+`rocket.graphics` is an ordinary bundled Rocket source module at
+`stdlib/rocket/graphics.rocket`; import it with `import rocket.graphics`. It
+defines public graphics-facing value types without exposing renderer handles:
+`Vec2`, `Size`, `Rect`, `Transform2D`, `Color`, `TextStyle`, `TextMetrics`,
+`WindowConfig`, and `VirtualCanvas`.
+
+Constructors are ordinary functions with stable parameter names:
+`vec2(x, y)`, `size(width, height)`, `rect(x, y, width, height)`,
+`transform2d(translation, rotation, scale, pivot)`, `text_style(font_name,
+size, letter_spacing = 0.0, line_height = 1.0)`, `text_metrics(width, height,
+baseline, line_height)`, `window_config(width, height, title, high_dpi = true,
+msaa4x = true, resizable = true)`, and `virtual_canvas(logical_size, viewport,
+scale)`.
+
+Geometry helpers include `vec2_add`, `vec2_subtract`, `vec2_scale`,
+`vec2_is_finite`, `size_is_valid`, `rect_is_finite`,
+`rect_has_nonnegative_size`, `rect_normalized`, `rect_translate`,
+`rect_scale`, `rect_contains`, `rect_intersects`, `rect_intersection`, and
+`transform_point`. Rectangle containment includes the boundary; invalid or
+non-finite rectangles and points return false from predicate helpers.
+`transform_point` scales around the pivot, rotates counterclockwise in radians,
+then translates.
+
+Color helpers include `color_from_rgb`, `color_from_rgba(alpha = 1.0)`,
+`color_from_hex`, `color_from_hsv(alpha = 1.0)`, `color_with_alpha`,
+`color_mix`, `color_lerp`, `color_lighten`, `color_darken`,
+`color_saturate`, and `color_desaturate`. RGB byte inputs and HSV saturation,
+value, and alpha channels clamp deterministically to `0.0..1.0`; hue wraps;
+malformed hex returns `Result.Err` with a stable message. Hex accepts `RRGGBB`
+and `RRGGBBAA`, each with an optional leading `#`; six-digit input defaults
+alpha to `1.0`.
+
 ## `std.file` and `std.path`
 
 `file.read_text`, `write_text`, and `append_text` use binary byte-preserving I/O

@@ -3044,12 +3044,17 @@ fn source_parent(path_value: String) -> String:
         return string.slice(path_value, 0, 1)
     return string.slice(path_value, 0, separator)
 
+fn is_bundled_source_module(name: String) -> Bool:
+    return name == "std.testing" or name == "rocket.motion" or name == "rocket.graphics"
+
 fn standard_module_path(name: String) -> String:
-    if name != "std.testing" and name != "rocket.motion":
+    if not is_bundled_source_module(name):
         return ""
     var relative = "stdlib/std/testing.rocket"
     if name == "rocket.motion":
         relative = "stdlib/rocket/motion.rocket"
+    if name == "rocket.graphics":
+        relative = "stdlib/rocket/graphics.rocket"
     let working = process.working_directory()
     match working:
         case Ok(directory):
@@ -3234,11 +3239,28 @@ fn mapped_local_type_base(module: AstModule, prefix_name: String, base: String) 
             return mapped_declaration_name(prefix_name, base, module.enums[index].public_declaration)
     return base
 
+fn mapped_imported_type_base(module: AstModule, base: String) -> String:
+    if not string.contains(base, "."):
+        return base
+    let pieces = string.split(base, ".")
+    if collections.length(pieces) < 2:
+        return base
+    let alias = pieces[0]
+    for index in 0..collections.length(module.imports):
+        let imported = module.imports[index].name
+        let imported_pieces = string.split(imported, ".")
+        if collections.length(imported_pieces) > 0 and imported_pieces[collections.length(imported_pieces) - 1] == alias and (string.starts_with(imported, "std.") or is_bundled_source_module(imported)):
+            var suffix: Array[String] = []
+            for piece_index in 1..collections.length(pieces):
+                suffix = append(suffix, pieces[piece_index])
+            return string.concat(imported, string.concat(".", collections.join(suffix, ".")))
+    return base
+
 fn mapped_local_type(module: AstModule, prefix_name: String, type_name: String) -> String:
     if type_name == "":
         return ""
     let arguments = type_arguments(type_name)
-    let base = mapped_local_type_base(module, prefix_name, type_base(type_name))
+    let base = mapped_local_type_base(module, prefix_name, mapped_imported_type_base(module, type_base(type_name)))
     if collections.length(arguments) == 0:
         return base
     var mapped_arguments: Array[String] = []
@@ -3326,8 +3348,6 @@ fn map_module_statements(module: AstModule, prefix_name: String, statements: Arr
     return result
 
 fn map_imported_module(module: AstModule, prefix_name: String) -> AstModule:
-    if prefix_name == "":
-        return module
     var structs: Array[AstStructDecl] = []
     for declaration_index in 0..collections.length(module.structs):
         let declaration = module.structs[declaration_index]
@@ -3398,7 +3418,7 @@ fn load_state_source_bytes(state: ProgramLoadState, source_bytes: Int) -> Progra
 fn diagnose_import_aliases(state: ProgramLoadState, imports: Array[AstImport]) -> ProgramLoadState:
     var next = state
     for left in 0..collections.length(imports):
-        if string.starts_with(imports[left].name, "std.") or imports[left].name == "rocket.motion":
+        if string.starts_with(imports[left].name, "std.") or is_bundled_source_module(imports[left].name):
             continue
         for right in left + 1..collections.length(imports):
             if import_alias(imports[left].name) == import_alias(imports[right].name):
@@ -3434,7 +3454,7 @@ fn load_program_module(state: ProgramLoadState, source_path: String, prefix_name
                     next = diagnose_import_aliases(next, parsed.module.imports)
                     for index in 0..collections.length(parsed.module.imports):
                         let imported = parsed.module.imports[index]
-                        if imported.name == "std.testing" or imported.name == "rocket.motion":
+                        if is_bundled_source_module(imported.name):
                             let standard_path = standard_module_path(imported.name)
                             if standard_path == "":
                                 next = load_state_diagnostics(next, append(next.diagnostics, make_diagnostic("R3001", imported.line, imported.column, string.concat("cannot locate bundled standard module '", string.concat(imported.name, "'")))))
@@ -3543,7 +3563,7 @@ fn standard_callable(module: AstModule, name: String) -> String:
     for index in 0..collections.length(module.imports):
         let imported = module.imports[index].name
         let imported_pieces = string.split(imported, ".")
-        if collections.length(imported_pieces) > 0 and imported_pieces[collections.length(imported_pieces) - 1] == alias and (string.starts_with(imported, "std.") or imported == "rocket.motion"):
+        if collections.length(imported_pieces) > 0 and imported_pieces[collections.length(imported_pieces) - 1] == alias and (string.starts_with(imported, "std.") or is_bundled_source_module(imported)):
             var suffix: Array[String] = []
             for piece_index in 1..collections.length(pieces):
                 suffix = append(suffix, pieces[piece_index])

@@ -1,0 +1,392 @@
+# Public Rocket 3 graphics value types. The module is pure Rocket source and
+# intentionally exposes values, not renderer-owned native handles.
+
+pub struct Vec2:
+    x: Float
+    y: Float
+
+pub struct Size:
+    width: Float
+    height: Float
+
+pub struct Rect:
+    x: Float
+    y: Float
+    width: Float
+    height: Float
+
+pub struct Transform2D:
+    translation: Vec2
+    rotation: Float
+    scale: Vec2
+    pivot: Vec2
+
+pub struct Color:
+    red: Float
+    green: Float
+    blue: Float
+    alpha: Float
+
+pub struct TextStyle:
+    font_name: String
+    size: Float
+    letter_spacing: Float
+    line_height: Float
+
+pub struct TextMetrics:
+    width: Float
+    height: Float
+    baseline: Float
+    line_height: Float
+
+pub struct WindowConfig:
+    width: Int
+    height: Int
+    title: String
+    high_dpi: Bool
+    msaa4x: Bool
+    resizable: Bool
+
+pub struct VirtualCanvas:
+    logical_size: Size
+    viewport: Rect
+    scale: Float
+
+pub fn vec2(x: Float, y: Float) -> Vec2:
+    return Vec2(x, y)
+
+pub fn size(width: Float, height: Float) -> Size:
+    return Size(width, height)
+
+pub fn rect(x: Float, y: Float, width: Float, height: Float) -> Rect:
+    return Rect(x, y, width, height)
+
+pub fn transform2d(translation: Vec2, rotation: Float, scale: Vec2, pivot: Vec2) -> Transform2D:
+    return Transform2D(translation, rotation, scale, pivot)
+
+pub fn text_style(font_name: String, size: Float, letter_spacing: Float = 0.0, line_height: Float = 1.0) -> TextStyle:
+    return TextStyle(font_name, size, letter_spacing, line_height)
+
+pub fn text_metrics(width: Float, height: Float, baseline: Float, line_height: Float) -> TextMetrics:
+    return TextMetrics(width, height, baseline, line_height)
+
+pub fn window_config(width: Int, height: Int, title: String, high_dpi: Bool = true, msaa4x: Bool = true, resizable: Bool = true) -> WindowConfig:
+    return WindowConfig(width, height, title, high_dpi, msaa4x, resizable)
+
+pub fn virtual_canvas(logical_size: Size, viewport: Rect, scale: Float) -> VirtualCanvas:
+    return VirtualCanvas(logical_size, viewport, scale)
+
+pub fn vec2_add(left: Vec2, right: Vec2) -> Vec2:
+    return Vec2(left.x + right.x, left.y + right.y)
+
+pub fn vec2_subtract(left: Vec2, right: Vec2) -> Vec2:
+    return Vec2(left.x - right.x, left.y - right.y)
+
+pub fn vec2_scale(value: Vec2, factor: Float) -> Vec2:
+    return Vec2(value.x * factor, value.y * factor)
+
+pub fn vec2_is_finite(value: Vec2) -> Bool:
+    return is_finite(value.x) and is_finite(value.y)
+
+pub fn size_is_valid(value: Size) -> Bool:
+    return is_finite(value.width) and is_finite(value.height) and value.width >= 0.0 and value.height >= 0.0
+
+pub fn rect_is_finite(value: Rect) -> Bool:
+    return is_finite(value.x) and is_finite(value.y) and is_finite(value.width) and is_finite(value.height)
+
+pub fn rect_has_nonnegative_size(value: Rect) -> Bool:
+    return rect_is_finite(value) and value.width >= 0.0 and value.height >= 0.0
+
+pub fn rect_normalized(value: Rect) -> Rect:
+    var x = value.x
+    var y = value.y
+    var width = value.width
+    var height = value.height
+    if width < 0.0:
+        x = x + width
+        width = -width
+    if height < 0.0:
+        y = y + height
+        height = -height
+    return Rect(x, y, width, height)
+
+pub fn rect_translate(value: Rect, offset: Vec2) -> Rect:
+    return Rect(value.x + offset.x, value.y + offset.y, value.width, value.height)
+
+pub fn rect_scale(value: Rect, factor: Float) -> Rect:
+    return Rect(value.x * factor, value.y * factor, value.width * factor, value.height * factor)
+
+pub fn rect_contains(rectangle: Rect, point: Vec2) -> Bool:
+    if not rect_has_nonnegative_size(rectangle) or not vec2_is_finite(point):
+        return false
+    return point.x >= rectangle.x and point.y >= rectangle.y and point.x <= rectangle.x + rectangle.width and point.y <= rectangle.y + rectangle.height
+
+pub fn rect_intersects(left: Rect, right: Rect) -> Bool:
+    if not rect_has_nonnegative_size(left) or not rect_has_nonnegative_size(right):
+        return false
+    return left.x <= right.x + right.width and right.x <= left.x + left.width and left.y <= right.y + right.height and right.y <= left.y + left.height
+
+pub fn rect_intersection(left: Rect, right: Rect) -> Option[Rect]:
+    if not rect_intersects(left, right):
+        return None()
+    let x = maximum(left.x, right.x)
+    let y = maximum(left.y, right.y)
+    let right_edge = minimum(left.x + left.width, right.x + right.width)
+    let bottom_edge = minimum(left.y + left.height, right.y + right.height)
+    let width = right_edge - x
+    let height = bottom_edge - y
+    if width <= 0.0 or height <= 0.0:
+        return None()
+    return Some(Rect(x, y, width, height))
+
+pub fn transform_point(transform: Transform2D, point: Vec2) -> Vec2:
+    let local_x =(point.x - transform.pivot.x) * transform.scale.x
+    let local_y =(point.y - transform.pivot.y) * transform.scale.y
+    let sine = sin_radians(transform.rotation)
+    let cosine = cos_radians(transform.rotation)
+    return Vec2(local_x * cosine - local_y * sine + transform.pivot.x + transform.translation.x, local_x * sine + local_y * cosine + transform.pivot.y + transform.translation.y)
+
+pub fn color_from_rgb(red: Float, green: Float, blue: Float) -> Color:
+    return color_from_rgba(red / 255.0, green / 255.0, blue / 255.0, 1.0)
+
+pub fn color_from_rgba(red: Float, green: Float, blue: Float, alpha: Float = 1.0) -> Color:
+    return Color(clamp_unit(red), clamp_unit(green), clamp_unit(blue), clamp_unit(alpha))
+
+pub fn color_with_alpha(value: Color, alpha: Float) -> Color:
+    return Color(value.red, value.green, value.blue, clamp_unit(alpha))
+
+pub fn color_from_hex(text: String) -> Result[Color, String]:
+    let length = text.byte_length()
+    var prefix = 0
+    if length > 0 and text.byte_value_at(0) == 35:
+        prefix = 1
+    let digits = length - prefix
+    if length == 0 or(digits != 6 and digits != 8):
+        return Err("expected six or eight hexadecimal color digits")
+    let red = hex_byte(text, prefix)
+    let green = hex_byte(text, prefix + 2)
+    let blue = hex_byte(text, prefix + 4)
+    if red < 0 or green < 0 or blue < 0:
+        return Err("color contains a non-hexadecimal digit")
+    var alpha = 255
+    if digits == 8:
+        alpha = hex_byte(text, prefix + 6)
+        if alpha < 0:
+            return Err("color contains a non-hexadecimal digit")
+    return Ok(color_from_rgba(float_from_byte(red) / 255.0, float_from_byte(green) / 255.0, float_from_byte(blue) / 255.0, float_from_byte(alpha) / 255.0))
+
+pub fn color_from_hsv(hue: Float, saturation: Float, value: Float, alpha: Float = 1.0) -> Color:
+    let normalized_hue = wrap_hue(hue)
+    let normalized_saturation = clamp_unit(saturation)
+    let normalized_value = clamp_unit(value)
+    let chroma = normalized_value * normalized_saturation
+    let sector = normalized_hue / 60.0
+    var second = 0.0
+    if sector < 1.0:
+        second = chroma * sector
+    else:
+        if sector < 2.0:
+            second = chroma *(2.0 - sector)
+        else:
+            if sector < 3.0:
+                second = chroma *(sector - 2.0)
+            else:
+                if sector < 4.0:
+                    second = chroma *(4.0 - sector)
+                else:
+                    if sector < 5.0:
+                        second = chroma *(sector - 4.0)
+                    else:
+                        second = chroma *(6.0 - sector)
+    let base = normalized_value - chroma
+    if sector < 1.0:
+        return color_from_rgba(chroma + base, second + base, base, alpha)
+    if sector < 2.0:
+        return color_from_rgba(second + base, chroma + base, base, alpha)
+    if sector < 3.0:
+        return color_from_rgba(base, chroma + base, second + base, alpha)
+    if sector < 4.0:
+        return color_from_rgba(base, second + base, chroma + base, alpha)
+    if sector < 5.0:
+        return color_from_rgba(second + base, base, chroma + base, alpha)
+    return color_from_rgba(chroma + base, base, second + base, alpha)
+
+pub fn color_mix(left: Color, right: Color, progress: Float) -> Color:
+    let amount = clamp_unit(progress)
+    return color_from_rgba(left.red +(right.red - left.red) * amount, left.green +(right.green - left.green) * amount, left.blue +(right.blue - left.blue) * amount, left.alpha +(right.alpha - left.alpha) * amount)
+
+pub fn color_lerp(start: Color, end: Color, progress: Float) -> Color:
+    return color_mix(start, end, progress)
+
+pub fn color_lighten(value: Color, amount: Float) -> Color:
+    return color_mix(value, Color(1.0, 1.0, 1.0, value.alpha), amount)
+
+pub fn color_darken(value: Color, amount: Float) -> Color:
+    return color_mix(value, Color(0.0, 0.0, 0.0, value.alpha), amount)
+
+pub fn color_saturate(value: Color, amount: Float) -> Color:
+    return with_saturation(value, saturation_of(value) + amount)
+
+pub fn color_desaturate(value: Color, amount: Float) -> Color:
+    return with_saturation(value, saturation_of(value) - amount)
+
+fn with_saturation(value: Color, saturation: Float) -> Color:
+    return color_from_hsv(hue_of(value), saturation, maximum_channel(value), value.alpha)
+
+fn saturation_of(value: Color) -> Float:
+    let maximum = maximum_channel(value)
+    if maximum == 0.0:
+        return 0.0
+    return(maximum - minimum_channel(value)) / maximum
+
+fn hue_of(value: Color) -> Float:
+    let maximum = maximum_channel(value)
+    let minimum = minimum_channel(value)
+    let delta = maximum - minimum
+    if delta == 0.0:
+        return 0.0
+    if maximum == value.red:
+        let hue = 60.0 *((value.green - value.blue) / delta)
+        return wrap_hue(hue)
+    if maximum == value.green:
+        return 60.0 *((value.blue - value.red) / delta + 2.0)
+    return 60.0 *((value.red - value.green) / delta + 4.0)
+
+fn maximum_channel(value: Color) -> Float:
+    return maximum(value.red, maximum(value.green, value.blue))
+
+fn minimum_channel(value: Color) -> Float:
+    return minimum(value.red, minimum(value.green, value.blue))
+
+fn hex_byte(text: String, offset: Int) -> Int:
+    let high = hex_nibble(text.byte_value_at(offset))
+    let low = hex_nibble(text.byte_value_at(offset + 1))
+    if high < 0 or low < 0:
+        return -1
+    return high * 16 + low
+
+fn hex_nibble(value: Int) -> Int:
+    if value >= 48 and value <= 57:
+        return value - 48
+    if value >= 65 and value <= 70:
+        return value - 65 + 10
+    if value >= 97 and value <= 102:
+        return value - 97 + 10
+    return -1
+
+fn float_from_byte(value: Int) -> Float:
+    var result = 0.0
+    var index = 0
+    while index < value:
+        result = result + 1.0
+        index = index + 1
+    return result
+
+fn clamp_unit(value: Float) -> Float:
+    if not is_finite(value):
+        if value > 0.0:
+            return 1.0
+        return 0.0
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+fn wrap_hue(value: Float) -> Float:
+    if not is_finite(value):
+        return 0.0
+    if value < 0.0:
+        let wrapped = wrap_positive_hue(-value)
+        if wrapped == 0.0:
+            return 0.0
+        return 360.0 - wrapped
+    return wrap_positive_hue(value)
+
+fn wrap_positive_hue(value: Float) -> Float:
+    if value < 360.0:
+        return value
+    var step = 360.0
+    var expansion_count = 0
+    while step <= value / 2.0 and expansion_count < 1024:
+        let doubled = step * 2.0
+        if not is_finite(doubled):
+            break
+        step = doubled
+        expansion_count = expansion_count + 1
+    var remainder = value
+    var reduction_count = 0
+    while step >= 360.0 and reduction_count < 1025:
+        if remainder >= step:
+            remainder = remainder - step
+        step = step / 2.0
+        reduction_count = reduction_count + 1
+    return remainder
+
+fn wrap_radians(value: Float) -> Float:
+    if not is_finite(value):
+        return 0.0
+    let tau = 6.283185307179586
+    var result = wrap_positive_radians(value)
+    if value < 0.0:
+        result = -wrap_positive_radians(-value)
+    if result > 3.141592653589793:
+        return result - tau
+    if result < -3.141592653589793:
+        return result + tau
+    return result
+
+fn wrap_positive_radians(value: Float) -> Float:
+    let tau = 6.283185307179586
+    if value < tau:
+        return value
+    var step = tau
+    var expansion_count = 0
+    while step <= value / 2.0 and expansion_count < 1024:
+        let doubled = step * 2.0
+        if not is_finite(doubled):
+            break
+        step = doubled
+        expansion_count = expansion_count + 1
+    var remainder = value
+    var reduction_count = 0
+    while step >= tau and reduction_count < 1025:
+        if remainder >= step:
+            remainder = remainder - step
+        step = step / 2.0
+        reduction_count = reduction_count + 1
+    return remainder
+
+fn sin_radians(value: Float) -> Float:
+    var x = wrap_radians(value)
+    if x > 1.5707963267948966:
+        x = 3.141592653589793 - x
+    if x < -1.5707963267948966:
+        x = -3.141592653589793 - x
+    let x2 = x * x
+    return x - x * x2 / 6.0 + x * x2 * x2 / 120.0 - x * x2 * x2 * x2 / 5040.0 + x * x2 * x2 * x2 * x2 / 362880.0 - x * x2 * x2 * x2 * x2 * x2 / 39916800.0 + x * x2 * x2 * x2 * x2 * x2 * x2 / 6227020800.0
+
+fn cos_radians(value: Float) -> Float:
+    var x = wrap_radians(value)
+    var sign = 1.0
+    if x > 1.5707963267948966:
+        x = 3.141592653589793 - x
+        sign = -1.0
+    if x < -1.5707963267948966:
+        x = -3.141592653589793 - x
+        sign = -1.0
+    let x2 = x * x
+    return sign *(1.0 - x2 / 2.0 + x2 * x2 / 24.0 - x2 * x2 * x2 / 720.0 + x2 * x2 * x2 * x2 / 40320.0 - x2 * x2 * x2 * x2 * x2 / 3628800.0 + x2 * x2 * x2 * x2 * x2 * x2 / 479001600.0)
+
+fn is_finite(value: Float) -> Bool:
+    return value - value == 0.0
+
+fn minimum(left: Float, right: Float) -> Float:
+    if left < right:
+        return left
+    return right
+
+fn maximum(left: Float, right: Float) -> Float:
+    if left > right:
+        return left
+    return right
