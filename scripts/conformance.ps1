@@ -8,6 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $configurationName = $Configuration.ToLowerInvariant()
+$buildDirectory = Join-Path $projectRoot "out\build\windows-$configurationName"
 if (-not $Compiler) {
     . (Join-Path $projectRoot 'dependencies\activate.ps1')
     $Compiler = Join-Path $projectRoot "out\bootstrap\windows-$configurationName\stage3.exe"
@@ -20,8 +21,11 @@ if (-not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
 $fixtures = Join-Path $projectRoot 'tests\fixtures'
 $reportDirectory = Join-Path $projectRoot 'out\conformance'
 New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-$reportPath = Join-Path $reportDirectory "rocket-2.0-$configurationName.txt"
-$env:ROCKET_STAGE0 = Join-Path $projectRoot "out\build\windows-$configurationName\rocketc.exe"
+$reportPath = Join-Path $reportDirectory "rocket-2.1-$configurationName.txt"
+$env:ROCKET_CLANG = Join-Path $projectRoot 'dependencies\installed\llvm-22.1.6\bin\clang.exe'
+$env:ROCKET_RUNTIME = Join-Path $buildDirectory 'rocket_runtime.lib'
+$env:ROCKET_STAGE0 = Join-Path $buildDirectory 'rocketc.exe'
+$env:ROCKET_NATIVE_LIBRARY_ROOT = Join-Path $buildDirectory 'native\windows-x64'
 $results = [System.Collections.Generic.List[string]]::new()
 
 function Invoke-ConformanceCase {
@@ -46,7 +50,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 2\.0\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 2\.1\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -163,7 +167,7 @@ Invoke-ConformanceCase 'remove-bounds' @('run', (Join-Path $fixtures 'phase11_re
 Invoke-ConformanceCase 'checked-overflow' @('run', (Join-Path $fixtures 'int_overflow.rocket')) 101 'Int arithmetic overflow'
 
 $header = @(
-    'Rocket 2.0 conformance report'
+    'Rocket 2.1 conformance report'
     "compiler  $Compiler"
     "sha256  $((Get-FileHash -LiteralPath $Compiler -Algorithm SHA256).Hash.ToLowerInvariant())"
     "configuration  $Configuration"
@@ -171,4 +175,4 @@ $header = @(
     ''
 )
 Set-Content -LiteralPath $reportPath -Value ($header + $results) -Encoding utf8
-Write-Output "Rocket 2.0 conformance passed: $($results.Count) cases ($reportPath)"
+Write-Output "Rocket 2.1 conformance passed: $($results.Count) cases ($reportPath)"

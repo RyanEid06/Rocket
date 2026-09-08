@@ -524,6 +524,18 @@ Native non-Windows target-laboratory execution remains WP34/F29 acceptance.
 - `R3-F13-005`: Conversion, interpolation, clamping, and round-trip tests use
   stable numeric vectors.
 
+Wave A acceptance promoted F10-F13 to WAVE-GREEN. The preserved WP17, WP18,
+and WP19 commits passed fresh full Debug/Release `244/244`, eligible
+LLVM-disabled `187/187`, focused stage0/self-host/native/deterministic/
+formatter/docs/search/LSP/four-target `9/9` in each configuration, hardening
+`17/17` in each configuration, standalone Rocket 2.1 conformance `90/90`, and
+the 184-case deterministic bootstrap with matching stage2/stage3 IR SHA-256
+`8c24bfc2e00ccc2242ffe932d7bb8bb02796665abd2f6e1bb4078a2bd9f3862e`.
+The relocated Windows SDK passed with 960 checksummed files and archive SHA-256
+`357928f5dadc3ccc2f3f67248d4b85a349ead04781e7bd15f8c6218ac723804e`.
+Native Linux x64, Linux ARM64, and macOS ARM64 execution remains explicitly
+deferred to WP34/F29 rather than inferred from source/lowering checks.
+
 ### F14 - Rocket-facing shapes
 
 - `R3-F14-001`: Provide concepts equivalent to `rect`, `rect_outline`,

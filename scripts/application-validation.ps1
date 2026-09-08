@@ -147,7 +147,7 @@ try {
         package_count = $PackageCount + 1
         repeated_runs = $Iterations
         parallel_package_builds = 2
-        raylib_headless_tests = 8
+        raylib_headless_tests = 9
         ownership_concurrency_application = 'passed'
         compiler_sha256 = Get-Sha256 -Path $Compiler
     } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $reportPath -Encoding utf8

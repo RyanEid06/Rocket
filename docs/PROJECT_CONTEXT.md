@@ -1139,13 +1139,39 @@ Known limitations remain those in the implementation-state list above; no langua
   `b942c38c00c4ed4111f030fdfd54284f29d55cc2a4d7b0e618687ccbfe5a5083`.
   Native non-Windows target-laboratory execution remains WP34/F29 acceptance.
 
+**Rocket 3 Wave A - accepted graphics foundation**
+
+- Preserved and integrated WP17 `000b8c86` (safe shaders), WP18 `badf152`
+  (display quality), and WP19 `b8aff97` (public graphics core types and Color)
+  through the non-squash Wave A merges. The reviewed integration fixes are at
+  `0a946eeae664bdabd9bbe5a4897c005b7812b962`.
+- Fresh full Debug and Release suites passed `244/244` each. The eligible
+  LLVM-disabled matrix passed `187/187`; focused WP17-WP19 native,
+  deterministic, stage0/self-host, formatter/docs/search, LSP, and four-target
+  source/lowering gates passed `9/9` in both configurations; hardening passed
+  `17/17` in each configuration.
+- The exact Release bootstrap and the independent Phase 19 bootstrap produced
+  identical stage2/stage3 IR SHA-256
+  `8c24bfc2e00ccc2242ffe932d7bb8bb02796665abd2f6e1bb4078a2bd9f3862e`.
+  Phase 19 passed 184 validation cases, the raylib package passed `9/9`, and
+  standalone Rocket 2.1 conformance passed `90/90`. The conformance runner was
+  repaired to use the repository's 2.1 identity and the same native-toolchain
+  environment as bootstrap.
+- The canonical Windows SDK package and sanitized-path relocation passed with
+  960 files. The 279,286,807-byte archive SHA-256 is
+  `357928f5dadc3ccc2f3f67248d4b85a349ead04781e7bd15f8c6218ac723804e`.
+  Native Linux x64, Linux ARM64, and macOS ARM64 execution remains deferred to
+  WP34/F29 target-laboratory acceptance.
+
 ## Current next task
 
-**Phase 19 remains the accepted Rocket 2.1 portability baseline, and Rocket 3
-WP16 is complete and LOCAL-GREEN; native non-Windows target-laboratory
-acceptance remains a WP34/F29 item. The lowest-numbered next eligible Rocket 3
-packet is WP17, safe shaders. The exact one-packet scope and
-success-only handoff are in
+**Rocket 3 Wave A is accepted and WAVE-GREEN; its Wave B branch point is the
+final barrier commit on `origin/master` after publication. Wave B is ready for
+simultaneous work without creating either lane branch in this barrier task.
+Ryan's exact queue is WP20, WP21, WP23, then WP24; Eddy's exact queue is WP22,
+then WP28. Each owner stops at the Wave B barrier. Native non-Windows
+target-laboratory acceptance remains a WP34/F29 item. The exact packet scopes
+and success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
 remain baseline state.**
