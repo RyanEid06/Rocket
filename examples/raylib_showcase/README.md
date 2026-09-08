@@ -54,7 +54,8 @@ The generated low-level binding and native build outputs remain ignored.
 ## Ownership and lifetime contract
 
 - A `Window` owns one raylib window/context. Only one may be live. Every loaded
-  texture and render texture must be unloaded before the window is closed.
+  texture, render texture, and shader must be unloaded before the window is
+  closed.
 - `begin_frame` returns a single-use `Frame` token. Drawing requires that exact
   token; `end_frame` consumes it after every nested render/scissor/blend scope
   has closed. `abort_frame` deterministically unwinds all live scopes before
@@ -149,3 +150,48 @@ multiplied, add-colors, subtract-colors, and premultiplied alpha. Custom raylib
 blend equations are intentionally not exposed. These value-only scopes support
 virtual canvases, UI layers, transitions, and future shader passes without
 letting native structures, pointers, or backend handles cross the Rocket ABI.
+
+## Safe shaders and effects
+
+Call `shader_supported(window)` before selecting a shader path. Load reviewed
+vertex/fragment files with `load_shader`, or sources with
+`load_shader_from_memory`; at least one stage must be present. Both return a
+checked `Shader` token and report unsupported backends, missing files, and
+invalid programs as distinct `Result` errors. Each supplied file stage is read
+successfully before compilation, so raylib cannot silently substitute a default
+stage. `unload_shader` invalidates the shader and all uniform tokens created
+from it, rejects active shaders, and is required before closing the window.
+
+`shader_uniform` creates a shader-bound token with an explicit Float, Int,
+Vec2 (`Point`), or Color type. The matching `set_shader_*` function validates
+the requested type against the linked program's active-uniform metadata and
+then validates the token and value before calling raylib. Arrays, samplers, and
+other unreviewed uniform types return an explicit type error. Raw locations,
+pointers, and backend handles never cross the Rocket API. `begin_shader` returns a
+single-use `ShaderScope`. Shader, render-target, scissor, and blend scopes share
+the global LIFO stack; nested shader scopes restore their parent, and
+`abort_frame` unwinds them deterministically. This lets an effect render inside
+a `RenderTexture` pass while preserving the safe ownership boundary.
+
+## Window and display quality
+
+`open_window_quality` configures resizable, high-DPI, and MSAA4x flags before
+raylib creates the window. The flags are requests: use the logical-size,
+framebuffer-size, and DPI-scale queries for the live values. Monitor selection
+and information, exclusive fullscreen, borderless fullscreen, and checked PNG
+screenshots are available through value-only functions. Each optional feature
+has an explicit capability query and returns an unavailable error if the target
+cannot perform it.
+Because raylib 6.0 adds process-lifetime pre-window flags, native reopen may keep
+the same quality flags or add more; attempting to remove an already-used flag
+returns an explicit unavailable error.
+
+Display transitions increment `window_display_revision`; viewport and
+virtual-canvas users should recompute cached mapping when the revision changes.
+Window metrics remain cached for the duration of a frame, including nested
+render-target scopes, so a temporary target cannot masquerade as the window
+framebuffer.
+Mouse input remains in logical coordinates, while `mouse_framebuffer_x` and
+`mouse_framebuffer_y` convert with the current physical-to-logical ratio.
+Exclusive and borderless fullscreen never remain enabled together. Screenshots
+must be requested outside an active frame and capture the physical framebuffer.

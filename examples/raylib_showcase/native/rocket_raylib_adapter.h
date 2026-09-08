@@ -12,6 +12,8 @@ typedef uint8_t rocket_bool;
 #define RLV_ERR_RESOURCE_LIVE -4
 #define RLV_ERR_UNAVAILABLE -5
 #define RLV_ERR_STALE_HANDLE -6
+#define RLV_ERR_INVALID_SHADER -7
+#define RLV_ERR_SHADER_TYPE -8
 
 #define RLV_KEY_SPACE 32
 #define RLV_KEY_ESCAPE 256
@@ -34,6 +36,11 @@ typedef uint8_t rocket_bool;
 #define RLV_BLEND_ADD_COLORS 3
 #define RLV_BLEND_SUBTRACT_COLORS 4
 #define RLV_BLEND_ALPHA_PREMULTIPLIED 5
+
+#define RLV_SHADER_UNIFORM_FLOAT 0
+#define RLV_SHADER_UNIFORM_INT 1
+#define RLV_SHADER_UNIFORM_VEC2 2
+#define RLV_SHADER_UNIFORM_COLOR 3
 
 #ifndef ROCKET_API
 #define ROCKET_API
@@ -60,9 +67,43 @@ ROCKET_API int64_t rlv_point_buffer_destroy(int64_t buffer_id);
 ROCKET_API int64_t rlv_point_buffer_live_count(void);
 
 ROCKET_API int64_t rlv_window_open(int64_t width, int64_t height, int64_t title_buffer_id);
+ROCKET_API int64_t rlv_window_open_quality(int64_t width, int64_t height, int64_t title_buffer_id, rocket_bool resizable, rocket_bool high_dpi, rocket_bool msaa4x);
 ROCKET_API int64_t rlv_window_close(int64_t window_id);
 ROCKET_API rocket_bool rlv_window_ready(int64_t window_id);
 ROCKET_API rocket_bool rlv_window_should_close(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_resizable(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_high_dpi(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_msaa4x(int64_t window_id);
+ROCKET_API int64_t rlv_window_logical_width(int64_t window_id);
+ROCKET_API int64_t rlv_window_logical_height(int64_t window_id);
+ROCKET_API int64_t rlv_window_framebuffer_width(int64_t window_id);
+ROCKET_API int64_t rlv_window_framebuffer_height(int64_t window_id);
+ROCKET_API double rlv_window_dpi_scale_x(int64_t window_id);
+ROCKET_API double rlv_window_dpi_scale_y(int64_t window_id);
+ROCKET_API int64_t rlv_window_display_revision(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_resized(int64_t window_id);
+ROCKET_API int64_t rlv_window_monitor_count(int64_t window_id);
+ROCKET_API int64_t rlv_window_current_monitor(int64_t window_id);
+ROCKET_API rocket_bool rlv_monitor_valid(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_monitor_x(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_monitor_y(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_monitor_width(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_monitor_height(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_monitor_physical_width(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_monitor_physical_height(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_monitor_refresh_rate(int64_t window_id, int64_t monitor);
+ROCKET_API rocket_bool rlv_window_resize_supported(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_fullscreen_supported(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_borderless_supported(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_monitor_selection_supported(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_screenshot_supported(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_fullscreen(int64_t window_id);
+ROCKET_API rocket_bool rlv_window_borderless(int64_t window_id);
+ROCKET_API int64_t rlv_window_set_size(int64_t window_id, int64_t width, int64_t height);
+ROCKET_API int64_t rlv_window_set_monitor(int64_t window_id, int64_t monitor);
+ROCKET_API int64_t rlv_window_set_fullscreen(int64_t window_id, rocket_bool enabled);
+ROCKET_API int64_t rlv_window_set_borderless(int64_t window_id, rocket_bool enabled);
+ROCKET_API int64_t rlv_window_screenshot(int64_t window_id, int64_t path_buffer_id);
 ROCKET_API int64_t rlv_set_target_fps(int64_t window_id, int64_t fps);
 ROCKET_API double rlv_frame_time(int64_t window_id);
 ROCKET_API double rlv_time(int64_t window_id);
@@ -106,6 +147,8 @@ ROCKET_API rocket_bool rlv_key_down(int64_t window_id, int64_t key);
 ROCKET_API rocket_bool rlv_mouse_pressed(int64_t window_id, int64_t button);
 ROCKET_API int64_t rlv_mouse_x(int64_t window_id);
 ROCKET_API int64_t rlv_mouse_y(int64_t window_id);
+ROCKET_API double rlv_mouse_framebuffer_x(int64_t window_id);
+ROCKET_API double rlv_mouse_framebuffer_y(int64_t window_id);
 
 ROCKET_API int64_t rlv_texture_load(int64_t window_id, int64_t path_buffer_id);
 ROCKET_API int64_t rlv_texture_width(int64_t texture_id);
@@ -139,6 +182,21 @@ ROCKET_API int64_t rlv_scissor_switch_count(void);
 ROCKET_API int64_t rlv_blend_switch_count(void);
 ROCKET_API int64_t rlv_screenshot_count(void);
 
+ROCKET_API rocket_bool rlv_shader_supported(int64_t window_id);
+ROCKET_API int64_t rlv_shader_load_files(int64_t window_id, int64_t vertex_path_buffer_id, int64_t fragment_path_buffer_id);
+ROCKET_API int64_t rlv_shader_load_memory(int64_t window_id, int64_t vertex_source_buffer_id, int64_t fragment_source_buffer_id);
+ROCKET_API int64_t rlv_shader_unload(int64_t shader_id);
+ROCKET_API int64_t rlv_shader_live_count(void);
+ROCKET_API int64_t rlv_shader_uniform_live_count(void);
+ROCKET_API int64_t rlv_shader_uniform(int64_t shader_id, int64_t name_buffer_id, int64_t uniform_type);
+ROCKET_API int64_t rlv_shader_set_float(int64_t shader_id, int64_t uniform_id, double value);
+ROCKET_API int64_t rlv_shader_set_int(int64_t shader_id, int64_t uniform_id, int64_t value);
+ROCKET_API int64_t rlv_shader_set_vec2(int64_t shader_id, int64_t uniform_id, double x, double y);
+ROCKET_API int64_t rlv_shader_set_color(int64_t shader_id, int64_t uniform_id, int64_t red, int64_t green, int64_t blue, int64_t alpha);
+ROCKET_API int64_t rlv_shader_begin(int64_t frame_id, int64_t shader_id);
+ROCKET_API int64_t rlv_shader_end(int64_t scope_id);
+ROCKET_API int64_t rlv_shader_switch_count(void);
+
 ROCKET_API int64_t rlv_font_load(int64_t window_id, int64_t path_buffer_id);
 ROCKET_API int64_t rlv_font_draw(int64_t frame_id, int64_t font_id, int64_t text_buffer_id, int64_t x, int64_t y, double size, double spacing, int64_t red, int64_t green, int64_t blue, int64_t alpha);
 ROCKET_API int64_t rlv_font_unload(int64_t font_id);
@@ -161,6 +219,9 @@ ROCKET_API int64_t rlv_test_set_key(int64_t key, rocket_bool pressed, rocket_boo
 ROCKET_API int64_t rlv_test_set_mouse(int64_t x, int64_t y, rocket_bool pressed);
 ROCKET_API int64_t rlv_test_request_close(rocket_bool requested);
 ROCKET_API int64_t rlv_test_set_anisotropy(int64_t level);
+ROCKET_API int64_t rlv_test_set_shader_supported(rocket_bool supported);
+ROCKET_API int64_t rlv_test_set_display_metrics(int64_t logical_width, int64_t logical_height, int64_t framebuffer_width, int64_t framebuffer_height, double dpi_scale_x, double dpi_scale_y, int64_t monitor_count, int64_t current_monitor);
+ROCKET_API int64_t rlv_test_set_display_capabilities(rocket_bool resize, rocket_bool fullscreen, rocket_bool borderless, rocket_bool monitor_selection, rocket_bool screenshot);
 ROCKET_API int64_t rlv_test_scissor_x(void);
 ROCKET_API int64_t rlv_test_scissor_y(void);
 ROCKET_API int64_t rlv_test_scissor_width(void);

@@ -535,6 +535,38 @@ set_tests_properties(phase16_raylib_adapter_native PROPERTIES
   LABELS "phase16;raylib;native;rocket3;wp16;render-scopes;gpu"
   TIMEOUT 60)
 
+add_executable(rocket_phase17_raylib_adapter_tests
+  tests/native/phase17_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase17_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase17_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase17_raylib_adapter
+  COMMAND rocket_phase17_raylib_adapter_tests)
+set_tests_properties(phase17_raylib_adapter PROPERTIES
+  LABELS "phase17;raylib;native;rocket3;wp17;shader")
+add_test(NAME phase17_raylib_adapter_native
+  COMMAND rocket_phase17_raylib_adapter_tests native)
+set_tests_properties(phase17_raylib_adapter_native PROPERTIES
+  LABELS "phase17;raylib;native;rocket3;wp17;shader;gpu"
+  TIMEOUT 60)
+
+add_executable(rocket_phase18_raylib_adapter_tests
+  tests/native/phase18_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase18_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase18_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase18_raylib_adapter
+  COMMAND rocket_phase18_raylib_adapter_tests)
+set_tests_properties(phase18_raylib_adapter PROPERTIES
+  LABELS "phase18;raylib;native;rocket3;wp18;display")
+add_test(NAME phase18_raylib_adapter_native
+  COMMAND rocket_phase18_raylib_adapter_tests native)
+set_tests_properties(phase18_raylib_adapter_native PROPERTIES
+  LABELS "phase18;raylib;native;rocket3;wp18;display;gpu"
+  TIMEOUT 60)
+
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
 add_test(NAME runtime COMMAND rocketc_runtime_tests)
@@ -633,7 +665,7 @@ set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
 add_test(NAME cli_test_phase14_raylib_reference
   COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
-  PASS_REGULAR_EXPRESSION "7 passed\; 0 failed"
+  PASS_REGULAR_EXPRESSION "9 passed\; 0 failed"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_phase14_unsafe_failure
@@ -1281,7 +1313,7 @@ if(LLVM_FOUND)
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib;native"
-    PASS_REGULAR_EXPRESSION "7 passed\; 0 failed"
+    PASS_REGULAR_EXPRESSION "9 passed\; 0 failed"
     WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
   add_test(NAME cli_phase14_raylib_generation_parity
     COMMAND ${CMAKE_COMMAND}

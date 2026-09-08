@@ -70,6 +70,18 @@ pub fn screenshot_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_screenshot_count()
 
+pub fn shader_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_shader_live_count()
+
+pub fn shader_uniform_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_shader_uniform_live_count()
+
+pub fn shader_switch_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_shader_switch_count()
+
 pub fn font_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_font_live_count()
@@ -81,3 +93,15 @@ pub fn sound_live_count() -> Int:
 pub fn set_test_anisotropy(level: Int) -> Bool:
     unsafe:
         return checked(rocket_raylib_adapter.rlv_test_set_anisotropy(level))
+
+pub fn set_shader_supported(supported: Bool) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_shader_supported(supported))
+
+pub fn set_display_metrics(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_scale_x: Float, dpi_scale_y: Float, monitor_count: Int, current_monitor: Int) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_display_metrics(logical_width, logical_height, framebuffer_width, framebuffer_height, dpi_scale_x, dpi_scale_y, monitor_count, current_monitor))
+
+pub fn set_display_capabilities(resize: Bool, fullscreen: Bool, borderless: Bool, monitor_selection: Bool, screenshot: Bool) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_display_capabilities(resize, fullscreen, borderless, monitor_selection, screenshot))

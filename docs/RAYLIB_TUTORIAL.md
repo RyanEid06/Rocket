@@ -129,3 +129,93 @@ vertically corrected target image. Unload each render texture before closing
 its window. Stale tokens, wrong-window use, invalid dimensions/source regions,
 out-of-order scope ends, active-resource unloads, and failed image exports all
 return explicit errors.
+
+## Shaders and post-processing effects
+
+Check `shader_supported(window)` and keep a non-shader fallback for unavailable
+graphics backends. Load a vertex/fragment pair from files with `load_shader`,
+or pass source strings to `load_shader_from_memory`; either stage may be empty,
+but not both. Create each uniform token with its reviewed type and use only the
+matching setter:
+
+```rocket
+match rocket_raylib.load_shader_from_memory(
+        window, "", fragment_source):
+    case Err(error):
+        return 1
+    case Ok(shader):
+        match rocket_raylib.shader_uniform(
+                shader, "tint", rocket_raylib.shader_uniform_color()):
+            case Err(error):
+                let released = rocket_raylib.unload_shader(shader)
+                return 1
+            case Ok(tint):
+                let configured = rocket_raylib.set_shader_color(
+                    shader, tint, rocket_raylib.accent())
+        match rocket_raylib.begin_shader(frame, shader):
+            case Err(error):
+                let cleaned = rocket_raylib.abort_frame(frame)
+                let released = rocket_raylib.unload_shader(shader)
+                return 1
+            case Ok(shader_scope):
+                let drawn = rocket_raylib.draw_render_texture(
+                    frame, layer,
+                    rocket_raylib.rect(0.0, 0.0, 320.0, -180.0),
+                    rocket_raylib.rect(0.0, 0.0, 1280.0, 720.0),
+                    rocket_raylib.point(0.0, 0.0), 0.0,
+                    rocket_raylib.white())
+                let shader_ended = rocket_raylib.end_shader(shader_scope)
+```
+
+Float, Int, Vec2 (`Point`), and Color uniforms are supported. Uniform tokens
+belong to one shader and expose no native location. Lookup checks the linked
+program's active-uniform metadata; a mismatched requested type, sampler, array,
+or other unreviewed GLSL type returns a distinct type error. Missing/unreadable
+files, invalid programs, and unavailable shader backends are also distinct
+errors. Shader scopes participate in the same LIFO ordering as render-target,
+scissor, and blend scopes; nested
+shaders restore the parent. End or abort the frame before unloading the shader,
+and unload every shader before closing its window.
+
+## Display quality and screenshots
+
+Use `open_window_quality(width, height, title, resizable, high_dpi, msaa4x)`
+when display-quality flags must be configured before window creation. High-DPI
+and MSAA4x values record requested configuration; query the live framebuffer
+and DPI values instead of assuming either hint was accepted by the platform.
+The original `open_window` remains the no-quality-flags convenience entry point.
+
+Window coordinates have three deliberately separate representations:
+
+- `window_logical_width` and `window_logical_height` are the coordinate space
+  used by drawing and `mouse_x`/`mouse_y`.
+- `window_framebuffer_width` and `window_framebuffer_height` are physical pixel
+  dimensions used by screenshots and pixel-sensitive render work.
+- `window_dpi_scale_x` and `window_dpi_scale_y` are the platform-reported DPI
+  scale. `mouse_framebuffer_x` and `mouse_framebuffer_y` use the actual
+  framebuffer-to-logical ratio, so pointer conversion remains correct when the
+  two axes or the reported DPI scale differ.
+
+`window_display_revision` changes when size, framebuffer, DPI, monitor, or
+fullscreen state changes. Window metrics are sampled before a frame and remain
+stable while render-target scopes temporarily replace raylib's active
+framebuffer. Cache the revision with any viewport or virtual-canvas mapping and
+recompute the mapping when it changes. `set_window_size`,
+`set_window_monitor`, `set_window_fullscreen`, and `set_window_borderless`
+return `Result`; exclusive and borderless fullscreen are mutually exclusive.
+Query the matching `*_supported` function before optional transitions. An
+unavailable platform returns the standard backend-unavailable error rather than
+silently accepting the request.
+
+raylib 6.0 keeps pre-window quality flags for the process and only adds new
+flags. Reopening with the same flags or a strict superset is supported;
+attempting to remove resizable, high-DPI, or MSAA4x after a native window has
+used it returns the backend-unavailable error instead of reporting a false
+configuration.
+
+Monitor indices range from zero through `window_monitor_count(window) - 1`.
+The monitor position, logical dimensions, physical millimetres, and refresh
+rate getters return `Result` and reject an index outside that range. Call
+`screenshot(window, "capture.png")` only outside an active frame. It captures
+the physical framebuffer, accepts a `.png` path, and reports capture/export or
+platform failures through `Result`.
