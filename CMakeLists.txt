@@ -825,6 +825,7 @@ add_test(NAME cli_run_self_hosted_parser_tests
 set_tests_properties(cli_run_self_hosted_parser_tests PROPERTIES
   PASS_REGULAR_EXPRESSION "self-hosted parser tests passed"
   FIXTURES_REQUIRED self_hosted_compiler)
+if(LLVM_FOUND)
 add_test(NAME rocket3_named_arguments_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -927,6 +928,7 @@ set_tests_properties(rocket3_graphics_core_target_surface PROPERTIES
   LABELS "rocket3;wp19;graphics;color;target;surface;selfhost"
   TIMEOUT 360
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+endif()
 add_test(NAME cli_run_self_hosted_syntax_check
   COMMAND "${ROCKET_SELFHOST_COMPILER}" --check-syntax
     "${CMAKE_SOURCE_DIR}/examples/hello.rocket")

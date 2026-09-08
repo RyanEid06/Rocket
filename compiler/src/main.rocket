@@ -3316,6 +3316,11 @@ fn map_module_expression(module: AstModule, prefix_name: String, expression: Ast
         if module_qualified_callable(module, raw_constant):
             return AstExpr(expr_name(), raw_constant, [], expression.line, expression.column)
     if expression.kind == expr_call() and collections.length(expression.children) > 0:
+        if expression.children[0].kind == expr_lambda():
+            var lambda_children: Array[AstExpr] = [map_module_expression(module, prefix_name, expression.children[0])]
+            for lambda_index in 1..collections.length(expression.children):
+                lambda_children = append(lambda_children, map_module_expression(module, prefix_name, expression.children[lambda_index]))
+            return AstExpr(expression.kind, expression.text, lambda_children, expression.line, expression.column)
         let raw_name = callable_name(expression.children[0])
         let mapped_name = mapped_local_callable(module, prefix_name, raw_name)
         if expression.children[0].kind == expr_field() and not module_qualified_callable(module, raw_name):

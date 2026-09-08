@@ -41,6 +41,7 @@ foreach ($required in $stage0, $runtime, $clang, $compilerSource) {
 $env:ROCKET_CLANG = $clang
 $env:ROCKET_RUNTIME = $runtime
 $env:ROCKET_STAGE0 = $stage0
+$env:ROCKET_NATIVE_LIBRARY_ROOT = Join-Path $buildDirectory 'native\windows-x64'
 
 if (Test-Path -LiteralPath $bootstrapRoot) {
     Remove-Item -LiteralPath $bootstrapRoot -Recurse -Force
@@ -50,7 +51,7 @@ New-Item -ItemType Directory -Path $bootstrapRoot -Force | Out-Null
 Write-Output 'stage0 -> stage1'
 & $stage0 build $compilerPackage
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-$packageStage1 = Join-Path $compilerPackage '.rocketc\main.exe'
+$packageStage1 = Join-Path $compilerPackage '.rocketc\targets\windows-x64\main.exe'
 if (-not (Test-Path -LiteralPath $packageStage1 -PathType Leaf)) {
     throw 'Stage 0 did not produce the expected stage1 compiler.'
 }

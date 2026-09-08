@@ -2651,12 +2651,12 @@ std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
     const std::vector<std::unique_ptr<Expr>>& sourceArguments) {
   const Function* genericDeclaration = nullptr;
   const Function* declaration = nullptr;
-  const HirSymbol* signature = nullptr;
+  std::optional<HirSymbol> signature;
   if (auto generic = genericFunctions_.find(name); generic != genericFunctions_.end()) {
     genericDeclaration = generic->second;
     declaration = generic->second;
   } else if (auto found = functions_.find(name); found != functions_.end()) {
-    signature = &hir_.symbol(found->second);
+    signature = hir_.symbol(found->second);
     if (auto source = functionDeclarations_.find(name);
         source != functionDeclarations_.end())
       declaration = source->second;
@@ -3046,8 +3046,8 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
 
     if (aggregateDeclaration.has_value()) {
       const auto& declaration = hir_.typeDeclarations[*aggregateDeclaration];
-      const auto& variant = declaration.variants[tag];
-      if (namedArguments && !structConstructor && variant.payloadNames.empty()) {
+      if (namedArguments && !structConstructor &&
+          declaration.variants[tag].payloadNames.empty()) {
         diagnostics_.error(expression.location,
                            "named arguments are not supported for anonymous enum payloads",
                            DiagnosticCode::Arity);
@@ -3075,7 +3075,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
           for (const auto& field : declaration.fields)
             parameterNames.push_back(field.name);
         else
-          parameterNames = variant.payloadNames;
+          parameterNames = declaration.variants[tag].payloadNames;
         binding = bindNamedArguments(call.arguments, parameterNames, expression.location,
                                      diagnostics_);
         arguments.resize(patterns.size());
