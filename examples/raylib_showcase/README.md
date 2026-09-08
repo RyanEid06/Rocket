@@ -172,3 +172,26 @@ single-use `ShaderScope`. Shader, render-target, scissor, and blend scopes share
 the global LIFO stack; nested shader scopes restore their parent, and
 `abort_frame` unwinds them deterministically. This lets an effect render inside
 a `RenderTexture` pass while preserving the safe ownership boundary.
+
+## Window and display quality
+
+`open_window_quality` configures resizable, high-DPI, and MSAA4x flags before
+raylib creates the window. The flags are requests: use the logical-size,
+framebuffer-size, and DPI-scale queries for the live values. Monitor selection
+and information, exclusive fullscreen, borderless fullscreen, and checked PNG
+screenshots are available through value-only functions. Each optional feature
+has an explicit capability query and returns an unavailable error if the target
+cannot perform it.
+Because raylib 6.0 adds process-lifetime pre-window flags, native reopen may keep
+the same quality flags or add more; attempting to remove an already-used flag
+returns an explicit unavailable error.
+
+Display transitions increment `window_display_revision`; viewport and
+virtual-canvas users should recompute cached mapping when the revision changes.
+Window metrics remain cached for the duration of a frame, including nested
+render-target scopes, so a temporary target cannot masquerade as the window
+framebuffer.
+Mouse input remains in logical coordinates, while `mouse_framebuffer_x` and
+`mouse_framebuffer_y` convert with the current physical-to-logical ratio.
+Exclusive and borderless fullscreen never remain enabled together. Screenshots
+must be requested outside an active frame and capture the physical framebuffer.

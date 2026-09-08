@@ -74,6 +74,16 @@ struct FontRecord {
   bool native = false;
 };
 
+struct MonitorRecord {
+  int64_t x = 0;
+  int64_t y = 0;
+  int64_t width = 1920;
+  int64_t height = 1080;
+  int64_t physicalWidth = 530;
+  int64_t physicalHeight = 300;
+  int64_t refreshRate = 60;
+};
+
 struct AdapterState {
   bool testMode = false;
   bool windowOpen = false;
@@ -94,6 +104,25 @@ struct AdapterState {
   int64_t mouseX = 0;
   int64_t mouseY = 0;
   bool mousePressed = false;
+  bool windowResizable = false;
+  bool windowHighDpi = false;
+  bool windowMsaa4x = false;
+  int64_t logicalWidth = 0;
+  int64_t logicalHeight = 0;
+  int64_t framebufferWidth = 0;
+  int64_t framebufferHeight = 0;
+  double dpiScaleX = 1.0;
+  double dpiScaleY = 1.0;
+  int64_t currentMonitor = 0;
+  int64_t displayRevision = 0;
+  bool windowResized = false;
+  bool fullscreen = false;
+  bool borderless = false;
+  bool resizeSupported = true;
+  bool fullscreenSupported = true;
+  bool borderlessSupported = true;
+  bool monitorSelectionSupported = true;
+  bool screenshotSupported = true;
   double testTime = 0.0;
   int64_t testMaxAnisotropy = 16;
   bool testShaderSupported = true;
@@ -106,11 +135,13 @@ struct AdapterState {
   std::unordered_map<int64_t, FontRecord> fonts;
   std::unordered_map<int64_t, SoundRecord> sounds;
   std::vector<ScopeRecord> scopes;
+  std::vector<MonitorRecord> monitors{MonitorRecord{}};
   std::unordered_set<int64_t> pressedKeys;
   std::unordered_set<int64_t> downKeys;
 };
 
 AdapterState state;
+unsigned int nativeQualityFlags = 0;
 
 bool fitsInt(int64_t value) {
   return value >= std::numeric_limits<int>::min() &&
@@ -160,6 +191,66 @@ int64_t nextId() {
 }
 
 bool validWindow(int64_t id) { return state.windowOpen && id == state.windowId; }
+
+bool nativeDisplayCapability() {
+#if defined(PLATFORM_DESKTOP)
+  return true;
+#else
+  return false;
+#endif
+}
+
+void markDisplayTransition() {
+  if (state.displayRevision == std::numeric_limits<int64_t>::max()) {
+    state.displayRevision = 1;
+  } else {
+    ++state.displayRevision;
+  }
+  state.windowResized = true;
+}
+
+void refreshDisplayMetrics() {
+  // GetRenderWidth/Height describe the active render target while drawing.
+  // Window metrics are sampled only outside a frame and cached for its duration.
+  if (!state.windowOpen || state.testMode || state.drawing) return;
+  const int64_t logicalWidth = GetScreenWidth();
+  const int64_t logicalHeight = GetScreenHeight();
+  const int64_t framebufferWidth = GetRenderWidth();
+  const int64_t framebufferHeight = GetRenderHeight();
+  Vector2 dpi = GetWindowScaleDPI();
+  if (dpi.x <= 0.0f && logicalWidth > 0) {
+    dpi.x = static_cast<float>(framebufferWidth) /
+            static_cast<float>(logicalWidth);
+  }
+  if (dpi.y <= 0.0f && logicalHeight > 0) {
+    dpi.y = static_cast<float>(framebufferHeight) /
+            static_cast<float>(logicalHeight);
+  }
+  const int64_t currentMonitor = GetCurrentMonitor();
+  const bool fullscreen = IsWindowFullscreen();
+  const bool borderless = IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
+  const bool changed = logicalWidth != state.logicalWidth ||
+      logicalHeight != state.logicalHeight ||
+      framebufferWidth != state.framebufferWidth ||
+      framebufferHeight != state.framebufferHeight ||
+      static_cast<double>(dpi.x) != state.dpiScaleX ||
+      static_cast<double>(dpi.y) != state.dpiScaleY ||
+      currentMonitor != state.currentMonitor ||
+      fullscreen != state.fullscreen || borderless != state.borderless;
+  if (changed) {
+    state.logicalWidth = logicalWidth;
+    state.logicalHeight = logicalHeight;
+    state.framebufferWidth = framebufferWidth;
+    state.framebufferHeight = framebufferHeight;
+    state.dpiScaleX = dpi.x;
+    state.dpiScaleY = dpi.y;
+    state.currentMonitor = currentMonitor;
+    state.fullscreen = fullscreen;
+    state.borderless = borderless;
+    markDisplayTransition();
+  }
+  state.windowResized = changed || IsWindowResized();
+}
 
 bool validAudio(int64_t id) { return state.audioOpen && id == state.audioId; }
 
@@ -391,18 +482,60 @@ extern "C" int64_t rlv_point_buffer_live_count(void) {
 
 extern "C" int64_t rlv_window_open(int64_t width, int64_t height,
                                      int64_t titleBufferId) {
+  return rlv_window_open_quality(width, height, titleBufferId, 0, 0, 0);
+}
+
+extern "C" int64_t rlv_window_open_quality(int64_t width, int64_t height,
+                                             int64_t titleBufferId,
+                                             rocket_bool resizable,
+                                             rocket_bool highDpi,
+                                             rocket_bool msaa4x) {
   const std::string* title = buffer(titleBufferId);
   if (!title || width <= 0 || height <= 0 || !fitsInt(width) || !fitsInt(height)) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
   if (state.windowOpen) return RLV_ERR_INVALID_STATE;
   if (!state.testMode) {
+    unsigned int flags = 0;
+    if (resizable) flags |= FLAG_WINDOW_RESIZABLE;
+    if (highDpi) flags |= FLAG_WINDOW_HIGHDPI;
+    if (msaa4x) flags |= FLAG_MSAA_4X_HINT;
+    // raylib 6.0 stores pre-window flags process-wide and SetConfigFlags is
+    // additive. Refuse a downgrade instead of silently reopening with flags
+    // that Rocket reports as disabled.
+    if ((nativeQualityFlags & ~flags) != 0) return RLV_ERR_UNAVAILABLE;
+    SetConfigFlags(flags);
+    nativeQualityFlags |= flags;
     InitWindow(static_cast<int>(width), static_cast<int>(height), title->c_str());
     if (!IsWindowReady()) return RLV_ERR_UNAVAILABLE;
   }
   state.windowOpen = true;
   state.closeRequested = false;
   state.windowId = nextId();
+  state.windowResizable = resizable != 0;
+  state.windowHighDpi = highDpi != 0;
+  state.windowMsaa4x = msaa4x != 0;
+  state.logicalWidth = state.testMode ? width : GetScreenWidth();
+  state.logicalHeight = state.testMode ? height : GetScreenHeight();
+  state.framebufferWidth = state.testMode ? width : GetRenderWidth();
+  state.framebufferHeight = state.testMode ? height : GetRenderHeight();
+  if (!state.testMode) {
+    const Vector2 dpi = GetWindowScaleDPI();
+    state.dpiScaleX = dpi.x > 0.0f ? dpi.x : 1.0;
+    state.dpiScaleY = dpi.y > 0.0f ? dpi.y : 1.0;
+    state.currentMonitor = GetCurrentMonitor();
+    state.monitors.resize(static_cast<size_t>(std::max(0, GetMonitorCount())));
+    state.fullscreen = IsWindowFullscreen();
+    state.borderless = IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
+    const bool supported = nativeDisplayCapability();
+    state.resizeSupported = supported;
+    state.fullscreenSupported = supported;
+    state.borderlessSupported = supported;
+    state.monitorSelectionSupported = supported;
+    state.screenshotSupported = supported;
+  }
+  state.displayRevision = 1;
+  state.windowResized = false;
   return state.windowId;
 }
 
@@ -416,6 +549,8 @@ extern "C" int64_t rlv_window_close(int64_t windowId) {
   state.windowOpen = false;
   state.windowId = 0;
   state.closeRequested = false;
+  state.displayRevision = 0;
+  state.windowResized = false;
   return RLV_OK;
 }
 
@@ -450,6 +585,7 @@ extern "C" double rlv_time(int64_t windowId) {
 extern "C" int64_t rlv_begin_drawing(int64_t windowId) {
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   if (state.drawing) return RLV_ERR_INVALID_STATE;
+  refreshDisplayMetrics();
   if (!state.testMode) BeginDrawing();
   state.drawing = true;
   state.frameId = nextId();
@@ -463,6 +599,7 @@ extern "C" int64_t rlv_end_drawing(int64_t frameId) {
   state.drawing = false;
   state.frameId = 0;
   state.testTime += 1.0 / 60.0;
+  if (state.testMode) state.windowResized = false;
   return RLV_OK;
 }
 
@@ -480,6 +617,7 @@ extern "C" int64_t rlv_abort_drawing(int64_t frameId) {
   if (!state.testMode) EndDrawing();
   state.drawing = false;
   state.frameId = 0;
+  if (state.testMode) state.windowResized = false;
   state.testTime += 1.0 / 60.0;
   return RLV_OK;
 }
@@ -791,6 +929,24 @@ extern "C" int64_t rlv_mouse_x(int64_t windowId) {
 extern "C" int64_t rlv_mouse_y(int64_t windowId) {
   if (!validWindow(windowId)) return 0;
   return state.testMode ? state.mouseY : GetMouseY();
+}
+
+extern "C" double rlv_mouse_framebuffer_x(int64_t windowId) {
+  if (!validWindow(windowId)) return 0.0;
+  refreshDisplayMetrics();
+  if (state.logicalWidth <= 0) return 0.0;
+  return static_cast<double>(rlv_mouse_x(windowId)) *
+         static_cast<double>(state.framebufferWidth) /
+         static_cast<double>(state.logicalWidth);
+}
+
+extern "C" double rlv_mouse_framebuffer_y(int64_t windowId) {
+  if (!validWindow(windowId)) return 0.0;
+  refreshDisplayMetrics();
+  if (state.logicalHeight <= 0) return 0.0;
+  return static_cast<double>(rlv_mouse_y(windowId)) *
+         static_cast<double>(state.framebufferHeight) /
+         static_cast<double>(state.logicalHeight);
 }
 
 extern "C" int64_t rlv_texture_load(int64_t windowId, int64_t pathBufferId) {
@@ -1263,6 +1419,302 @@ extern "C" rocket_bool rlv_shader_supported(int64_t windowId) {
   return version != RL_OPENGL_SOFTWARE && version != RL_OPENGL_11 ? 1 : 0;
 }
 
+extern "C" rocket_bool rlv_window_resizable(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  return state.windowResizable ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_high_dpi(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  return state.windowHighDpi ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_msaa4x(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  return state.windowMsaa4x ? 1 : 0;
+}
+
+extern "C" int64_t rlv_window_logical_width(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.logicalWidth;
+}
+
+extern "C" int64_t rlv_window_logical_height(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.logicalHeight;
+}
+
+extern "C" int64_t rlv_window_framebuffer_width(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.framebufferWidth;
+}
+
+extern "C" int64_t rlv_window_framebuffer_height(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.framebufferHeight;
+}
+
+extern "C" double rlv_window_dpi_scale_x(int64_t windowId) {
+  if (!validWindow(windowId)) return 0.0;
+  refreshDisplayMetrics();
+  return state.dpiScaleX;
+}
+
+extern "C" double rlv_window_dpi_scale_y(int64_t windowId) {
+  if (!validWindow(windowId)) return 0.0;
+  refreshDisplayMetrics();
+  return state.dpiScaleY;
+}
+
+extern "C" int64_t rlv_window_display_revision(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.displayRevision;
+}
+
+extern "C" rocket_bool rlv_window_resized(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.windowResized ? 1 : 0;
+}
+
+extern "C" int64_t rlv_window_monitor_count(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  return state.testMode ? static_cast<int64_t>(state.monitors.size())
+                        : static_cast<int64_t>(GetMonitorCount());
+}
+
+extern "C" int64_t rlv_window_current_monitor(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.currentMonitor;
+}
+
+extern "C" rocket_bool rlv_monitor_valid(int64_t windowId, int64_t monitor) {
+  if (!validWindow(windowId) || monitor < 0) return 0;
+  const int64_t count = state.testMode
+      ? static_cast<int64_t>(state.monitors.size())
+      : static_cast<int64_t>(GetMonitorCount());
+  return monitor < count ? 1 : 0;
+}
+
+extern "C" int64_t rlv_monitor_x(int64_t windowId, int64_t monitor) {
+  if (!rlv_monitor_valid(windowId, monitor)) return 0;
+  return state.testMode ? state.monitors[static_cast<size_t>(monitor)].x
+                        : static_cast<int64_t>(
+                              GetMonitorPosition(static_cast<int>(monitor)).x);
+}
+
+extern "C" int64_t rlv_monitor_y(int64_t windowId, int64_t monitor) {
+  if (!rlv_monitor_valid(windowId, monitor)) return 0;
+  return state.testMode ? state.monitors[static_cast<size_t>(monitor)].y
+                        : static_cast<int64_t>(
+                              GetMonitorPosition(static_cast<int>(monitor)).y);
+}
+
+extern "C" int64_t rlv_monitor_width(int64_t windowId, int64_t monitor) {
+  if (!rlv_monitor_valid(windowId, monitor)) return 0;
+  return state.testMode ? state.monitors[static_cast<size_t>(monitor)].width
+                        : GetMonitorWidth(static_cast<int>(monitor));
+}
+
+extern "C" int64_t rlv_monitor_height(int64_t windowId, int64_t monitor) {
+  if (!rlv_monitor_valid(windowId, monitor)) return 0;
+  return state.testMode ? state.monitors[static_cast<size_t>(monitor)].height
+                        : GetMonitorHeight(static_cast<int>(monitor));
+}
+
+extern "C" int64_t rlv_monitor_physical_width(int64_t windowId,
+                                                int64_t monitor) {
+  if (!rlv_monitor_valid(windowId, monitor)) return 0;
+  return state.testMode
+      ? state.monitors[static_cast<size_t>(monitor)].physicalWidth
+      : GetMonitorPhysicalWidth(static_cast<int>(monitor));
+}
+
+extern "C" int64_t rlv_monitor_physical_height(int64_t windowId,
+                                                 int64_t monitor) {
+  if (!rlv_monitor_valid(windowId, monitor)) return 0;
+  return state.testMode
+      ? state.monitors[static_cast<size_t>(monitor)].physicalHeight
+      : GetMonitorPhysicalHeight(static_cast<int>(monitor));
+}
+
+extern "C" int64_t rlv_monitor_refresh_rate(int64_t windowId,
+                                              int64_t monitor) {
+  if (!rlv_monitor_valid(windowId, monitor)) return 0;
+  return state.testMode
+      ? state.monitors[static_cast<size_t>(monitor)].refreshRate
+      : GetMonitorRefreshRate(static_cast<int>(monitor));
+}
+
+extern "C" rocket_bool rlv_window_resize_supported(int64_t windowId) {
+  return validWindow(windowId) && state.resizeSupported ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_fullscreen_supported(int64_t windowId) {
+  return validWindow(windowId) && state.fullscreenSupported ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_borderless_supported(int64_t windowId) {
+  return validWindow(windowId) && state.borderlessSupported ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_monitor_selection_supported(
+    int64_t windowId) {
+  return validWindow(windowId) && state.monitorSelectionSupported ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_screenshot_supported(int64_t windowId) {
+  return validWindow(windowId) && state.screenshotSupported ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_fullscreen(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.fullscreen ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_window_borderless(int64_t windowId) {
+  if (!validWindow(windowId)) return 0;
+  refreshDisplayMetrics();
+  return state.borderless ? 1 : 0;
+}
+
+extern "C" int64_t rlv_window_set_size(int64_t windowId, int64_t width,
+                                         int64_t height) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  if (state.drawing) return RLV_ERR_INVALID_STATE;
+  if (width <= 0 || height <= 0 || !fitsInt(width) || !fitsInt(height)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (!state.resizeSupported) return RLV_ERR_UNAVAILABLE;
+  if (state.testMode) {
+    if (width == state.logicalWidth && height == state.logicalHeight) return RLV_OK;
+    const double scaleX = state.logicalWidth > 0
+        ? static_cast<double>(state.framebufferWidth) / state.logicalWidth
+        : state.dpiScaleX;
+    const double scaleY = state.logicalHeight > 0
+        ? static_cast<double>(state.framebufferHeight) / state.logicalHeight
+        : state.dpiScaleY;
+    state.logicalWidth = width;
+    state.logicalHeight = height;
+    state.framebufferWidth = static_cast<int64_t>(std::llround(width * scaleX));
+    state.framebufferHeight = static_cast<int64_t>(std::llround(height * scaleY));
+    markDisplayTransition();
+    return RLV_OK;
+  }
+  SetWindowSize(static_cast<int>(width), static_cast<int>(height));
+  const int64_t observedWidth = GetScreenWidth();
+  const int64_t observedHeight = GetScreenHeight();
+  if ((observedWidth != width || observedHeight != height) &&
+      observedWidth > 0 && observedHeight > 0) {
+    const double scaleX = static_cast<double>(GetRenderWidth()) /
+                          static_cast<double>(observedWidth);
+    const double scaleY = static_cast<double>(GetRenderHeight()) /
+                          static_cast<double>(observedHeight);
+    const double correctedWidth = static_cast<double>(width) * scaleX;
+    const double correctedHeight = static_cast<double>(height) * scaleY;
+    if (!finiteFloats({correctedWidth, correctedHeight}) ||
+        correctedWidth > std::numeric_limits<int>::max() ||
+        correctedHeight > std::numeric_limits<int>::max()) {
+      refreshDisplayMetrics();
+      return RLV_ERR_UNAVAILABLE;
+    }
+    SetWindowSize(static_cast<int>(std::llround(correctedWidth)),
+                  static_cast<int>(std::llround(correctedHeight)));
+  }
+  refreshDisplayMetrics();
+  return state.logicalWidth == width && state.logicalHeight == height
+      ? RLV_OK
+      : RLV_ERR_UNAVAILABLE;
+}
+
+extern "C" int64_t rlv_window_set_monitor(int64_t windowId,
+                                            int64_t monitor) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  if (state.drawing) return RLV_ERR_INVALID_STATE;
+  if (!rlv_monitor_valid(windowId, monitor)) return RLV_ERR_NOT_FOUND;
+  if (!state.monitorSelectionSupported) return RLV_ERR_UNAVAILABLE;
+  if (state.currentMonitor == monitor) return RLV_OK;
+  if (state.testMode) {
+    state.currentMonitor = monitor;
+    markDisplayTransition();
+    return RLV_OK;
+  }
+  SetWindowMonitor(static_cast<int>(monitor));
+  refreshDisplayMetrics();
+  return state.currentMonitor == monitor ? RLV_OK : RLV_ERR_UNAVAILABLE;
+}
+
+extern "C" int64_t rlv_window_set_fullscreen(int64_t windowId,
+                                               rocket_bool enabled) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  if (state.drawing) return RLV_ERR_INVALID_STATE;
+  if (!state.fullscreenSupported) return RLV_ERR_UNAVAILABLE;
+  const bool target = enabled != 0;
+  if (state.fullscreen == target && (!target || !state.borderless)) return RLV_OK;
+  if (state.testMode) {
+    state.fullscreen = target;
+    if (target) state.borderless = false;
+    markDisplayTransition();
+    return RLV_OK;
+  }
+  if (target && state.borderless) ToggleBorderlessWindowed();
+  if (IsWindowFullscreen() != target) ToggleFullscreen();
+  refreshDisplayMetrics();
+  return state.fullscreen == target && (!target || !state.borderless)
+      ? RLV_OK
+      : RLV_ERR_UNAVAILABLE;
+}
+
+extern "C" int64_t rlv_window_set_borderless(int64_t windowId,
+                                               rocket_bool enabled) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  if (state.drawing) return RLV_ERR_INVALID_STATE;
+  if (!state.borderlessSupported) return RLV_ERR_UNAVAILABLE;
+  const bool target = enabled != 0;
+  if (state.borderless == target && (!target || !state.fullscreen)) return RLV_OK;
+  if (state.testMode) {
+    state.borderless = target;
+    if (target) state.fullscreen = false;
+    markDisplayTransition();
+    return RLV_OK;
+  }
+  if (target && IsWindowFullscreen()) ToggleFullscreen();
+  if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) != target) {
+    ToggleBorderlessWindowed();
+  }
+  refreshDisplayMetrics();
+  return state.borderless == target && (!target || !state.fullscreen)
+      ? RLV_OK
+      : RLV_ERR_UNAVAILABLE;
+}
+
+extern "C" int64_t rlv_window_screenshot(int64_t windowId,
+                                           int64_t pathBufferId) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  if (state.drawing) return RLV_ERR_INVALID_STATE;
+  const std::string* path = buffer(pathBufferId);
+  if (!path || path->size() < 5 || path->substr(path->size() - 4) != ".png") {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (!state.screenshotSupported) return RLV_ERR_UNAVAILABLE;
+  if (!state.testMode) {
+    Image image = LoadImageFromScreen();
+    if (!IsImageValid(image)) return RLV_ERR_UNAVAILABLE;
+    const bool saved = ExportImage(image, path->c_str());
+    UnloadImage(image);
+    if (!saved) return RLV_ERR_UNAVAILABLE;
+  }
+  ++state.screenshotCount;
+  return RLV_OK;
+}
+
 extern "C" int64_t rlv_shader_load_files(int64_t windowId,
                                            int64_t vertexPathBufferId,
                                            int64_t fragmentPathBufferId) {
@@ -1713,6 +2165,54 @@ extern "C" int64_t rlv_test_set_anisotropy(int64_t level) {
 extern "C" int64_t rlv_test_set_shader_supported(rocket_bool supported) {
   if (!state.testMode || supported > 1) return RLV_ERR_INVALID_STATE;
   state.testShaderSupported = supported != 0;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_test_set_display_metrics(
+    int64_t logicalWidth, int64_t logicalHeight, int64_t framebufferWidth,
+    int64_t framebufferHeight, double dpiScaleX, double dpiScaleY,
+    int64_t monitorCount, int64_t currentMonitor) {
+  if (!state.testMode || !state.windowOpen) return RLV_ERR_INVALID_STATE;
+  if (logicalWidth <= 0 || logicalHeight <= 0 || framebufferWidth <= 0 ||
+      framebufferHeight <= 0 || !fitsInt(logicalWidth) ||
+      !fitsInt(logicalHeight) || !fitsInt(framebufferWidth) ||
+      !fitsInt(framebufferHeight) || !finiteFloats({dpiScaleX, dpiScaleY}) ||
+      dpiScaleX <= 0.0 || dpiScaleY <= 0.0 || monitorCount <= 0 ||
+      monitorCount > 64 ||
+      currentMonitor < 0 || currentMonitor >= monitorCount) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const bool changed = logicalWidth != state.logicalWidth ||
+      logicalHeight != state.logicalHeight ||
+      framebufferWidth != state.framebufferWidth ||
+      framebufferHeight != state.framebufferHeight ||
+      dpiScaleX != state.dpiScaleX || dpiScaleY != state.dpiScaleY ||
+      monitorCount != static_cast<int64_t>(state.monitors.size()) ||
+      currentMonitor != state.currentMonitor;
+  state.logicalWidth = logicalWidth;
+  state.logicalHeight = logicalHeight;
+  state.framebufferWidth = framebufferWidth;
+  state.framebufferHeight = framebufferHeight;
+  state.dpiScaleX = dpiScaleX;
+  state.dpiScaleY = dpiScaleY;
+  state.monitors.resize(static_cast<size_t>(monitorCount));
+  state.currentMonitor = currentMonitor;
+  if (changed) markDisplayTransition();
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_test_set_display_capabilities(
+    rocket_bool resize, rocket_bool fullscreen, rocket_bool borderless,
+    rocket_bool monitorSelection, rocket_bool screenshot) {
+  if (!state.testMode || resize > 1 || fullscreen > 1 || borderless > 1 ||
+      monitorSelection > 1 || screenshot > 1) {
+    return RLV_ERR_INVALID_STATE;
+  }
+  state.resizeSupported = resize != 0;
+  state.fullscreenSupported = fullscreen != 0;
+  state.borderlessSupported = borderless != 0;
+  state.monitorSelectionSupported = monitorSelection != 0;
+  state.screenshotSupported = screenshot != 0;
   return RLV_OK;
 }
 

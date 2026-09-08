@@ -246,6 +246,19 @@ pub fn open_window(width: Int, height: Int, title: String) -> Result[Window, Str
         case Err(error):
             return Err(error)
 
+pub fn open_window_quality(width: Int, height: Int, title: String, resizable: Bool, high_dpi: Bool, msaa4x: Bool) -> Result[Window, String]:
+    match encode_text(title):
+        case Ok(buffer_id):
+            var window_id = 0
+            unsafe:
+                window_id = rocket_raylib_adapter.rlv_window_open_quality(width, height, buffer_id, resizable, high_dpi, msaa4x)
+            let released = release_text(buffer_id)
+            if window_id > 0:
+                return Ok(Window(window_id))
+            return Err(status_message(window_id))
+        case Err(error):
+            return Err(error)
+
 pub fn close_window(window: Window) -> Result[Bool, String]:
     unsafe:
         return status_result(rocket_raylib_adapter.rlv_window_close(window.id))
@@ -257,6 +270,159 @@ pub fn window_ready(window: Window) -> Bool:
 pub fn window_should_close(window: Window) -> Bool:
     unsafe:
         return rocket_raylib_adapter.rlv_window_should_close(window.id)
+
+pub fn window_resizable(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_resizable(window.id)
+
+pub fn window_high_dpi(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_high_dpi(window.id)
+
+pub fn window_msaa4x(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_msaa4x(window.id)
+
+pub fn window_logical_width(window: Window) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_logical_width(window.id)
+
+pub fn window_logical_height(window: Window) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_logical_height(window.id)
+
+pub fn window_framebuffer_width(window: Window) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_framebuffer_width(window.id)
+
+pub fn window_framebuffer_height(window: Window) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_framebuffer_height(window.id)
+
+pub fn window_dpi_scale_x(window: Window) -> Float:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_dpi_scale_x(window.id)
+
+pub fn window_dpi_scale_y(window: Window) -> Float:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_dpi_scale_y(window.id)
+
+pub fn window_display_revision(window: Window) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_display_revision(window.id)
+
+pub fn window_resized(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_resized(window.id)
+
+pub fn window_monitor_count(window: Window) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_monitor_count(window.id)
+
+pub fn window_current_monitor(window: Window) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_current_monitor(window.id)
+
+fn valid_monitor(window: Window, monitor: Int) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_monitor_valid(window.id, monitor)
+
+pub fn monitor_x(window: Window, monitor: Int) -> Result[Int, String]:
+    if not valid_monitor(window, monitor):
+        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+    unsafe:
+        return Ok(rocket_raylib_adapter.rlv_monitor_x(window.id, monitor))
+
+pub fn monitor_y(window: Window, monitor: Int) -> Result[Int, String]:
+    if not valid_monitor(window, monitor):
+        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+    unsafe:
+        return Ok(rocket_raylib_adapter.rlv_monitor_y(window.id, monitor))
+
+pub fn monitor_width(window: Window, monitor: Int) -> Result[Int, String]:
+    if not valid_monitor(window, monitor):
+        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+    unsafe:
+        return Ok(rocket_raylib_adapter.rlv_monitor_width(window.id, monitor))
+
+pub fn monitor_height(window: Window, monitor: Int) -> Result[Int, String]:
+    if not valid_monitor(window, monitor):
+        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+    unsafe:
+        return Ok(rocket_raylib_adapter.rlv_monitor_height(window.id, monitor))
+
+pub fn monitor_physical_width(window: Window, monitor: Int) -> Result[Int, String]:
+    if not valid_monitor(window, monitor):
+        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+    unsafe:
+        return Ok(rocket_raylib_adapter.rlv_monitor_physical_width(window.id, monitor))
+
+pub fn monitor_physical_height(window: Window, monitor: Int) -> Result[Int, String]:
+    if not valid_monitor(window, monitor):
+        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+    unsafe:
+        return Ok(rocket_raylib_adapter.rlv_monitor_physical_height(window.id, monitor))
+
+pub fn monitor_refresh_rate(window: Window, monitor: Int) -> Result[Int, String]:
+    if not valid_monitor(window, monitor):
+        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+    unsafe:
+        return Ok(rocket_raylib_adapter.rlv_monitor_refresh_rate(window.id, monitor))
+
+pub fn window_resize_supported(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_resize_supported(window.id)
+
+pub fn window_fullscreen_supported(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_fullscreen_supported(window.id)
+
+pub fn window_borderless_supported(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_borderless_supported(window.id)
+
+pub fn window_monitor_selection_supported(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_monitor_selection_supported(window.id)
+
+pub fn window_screenshot_supported(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_screenshot_supported(window.id)
+
+pub fn window_fullscreen(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_fullscreen(window.id)
+
+pub fn window_borderless(window: Window) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_window_borderless(window.id)
+
+pub fn set_window_size(window: Window, width: Int, height: Int) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_window_set_size(window.id, width, height))
+
+pub fn set_window_monitor(window: Window, monitor: Int) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_window_set_monitor(window.id, monitor))
+
+pub fn set_window_fullscreen(window: Window, enabled: Bool) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_window_set_fullscreen(window.id, enabled))
+
+pub fn set_window_borderless(window: Window, enabled: Bool) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_window_set_borderless(window.id, enabled))
+
+pub fn screenshot(window: Window, path: String) -> Result[Bool, String]:
+    match encode_text(path):
+        case Ok(buffer_id):
+            var status = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                status = rocket_raylib_adapter.rlv_window_screenshot(window.id, buffer_id)
+            let released = release_text(buffer_id)
+            return status_result(status)
+        case Err(error):
+            return Err(error)
 
 pub fn set_target_fps(window: Window, fps: Int) -> Result[Bool, String]:
     unsafe:
@@ -512,6 +678,14 @@ pub fn mouse_x(window: Window) -> Int:
 pub fn mouse_y(window: Window) -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_mouse_y(window.id)
+
+pub fn mouse_framebuffer_x(window: Window) -> Float:
+    unsafe:
+        return rocket_raylib_adapter.rlv_mouse_framebuffer_x(window.id)
+
+pub fn mouse_framebuffer_y(window: Window) -> Float:
+    unsafe:
+        return rocket_raylib_adapter.rlv_mouse_framebuffer_y(window.id)
 
 pub fn load_texture(window: Window, path: String) -> Result[Texture, String]:
     match encode_text(path):

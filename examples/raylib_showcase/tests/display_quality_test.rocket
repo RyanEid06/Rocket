@@ -1,0 +1,86 @@
+import src.rocket_raylib
+import src.rocket_raylib_testing
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(error):
+            return false
+
+fn int_value(result: Result[Int, String]) -> Int:
+    match result:
+        case Ok(value):
+            return value
+        case Err(error):
+            return -9999
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    match rocket_raylib.open_window_quality(640, 360, "display quality", true, true, true):
+        case Err(error):
+            return 2
+        case Ok(window):
+            if not rocket_raylib.window_resizable(window) or not rocket_raylib.window_high_dpi(window) or not rocket_raylib.window_msaa4x(window):
+                return 3
+            if rocket_raylib.window_logical_width(window) != 640 or rocket_raylib.window_logical_height(window) != 360:
+                return 4
+            let revision = rocket_raylib.window_display_revision(window)
+            if not rocket_raylib_testing.set_display_metrics(800, 450, 1600, 900, 2.0, 2.0, 2, 1):
+                return 5
+            if rocket_raylib.window_framebuffer_width(window) != 1600 or rocket_raylib.window_framebuffer_height(window) != 900:
+                return 6
+            if rocket_raylib.window_dpi_scale_x(window) != 2.0 or rocket_raylib.window_dpi_scale_y(window) != 2.0:
+                return 7
+            if rocket_raylib.window_display_revision(window) != revision + 1 or not rocket_raylib.window_resized(window):
+                return 8
+            if rocket_raylib.window_monitor_count(window) != 2 or rocket_raylib.window_current_monitor(window) != 1:
+                return 9
+            if int_value(rocket_raylib.monitor_width(window, 1)) <= 0 or int_value(rocket_raylib.monitor_refresh_rate(window, 1)) <= 0:
+                return 10
+            match rocket_raylib.monitor_width(window, 2):
+                case Ok(unexpected):
+                    return 11
+                case Err(error):
+                    if error != "raylib: asset or uniform not found":
+                        return 12
+            if not rocket_raylib_testing.set_mouse(125, 50, false):
+                return 13
+            if rocket_raylib.mouse_framebuffer_x(window) != 250.0 or rocket_raylib.mouse_framebuffer_y(window) != 100.0:
+                return 14
+            if not succeeded(rocket_raylib.set_window_size(window, 1024, 576)):
+                return 15
+            if not rocket_raylib_testing.set_display_capabilities(true, true, true, true, true):
+                return 16
+            if not rocket_raylib.window_resize_supported(window) or not rocket_raylib.window_fullscreen_supported(window) or not rocket_raylib.window_borderless_supported(window):
+                return 17
+            if not succeeded(rocket_raylib.set_window_fullscreen(window, true)) or not rocket_raylib.window_fullscreen(window):
+                return 18
+            if not succeeded(rocket_raylib.set_window_borderless(window, true)) or not rocket_raylib.window_borderless(window) or rocket_raylib.window_fullscreen(window):
+                return 19
+            if not succeeded(rocket_raylib.screenshot(window, "wp18-safe.png")):
+                return 20
+            if not rocket_raylib_testing.set_display_capabilities(false, false, false, false, false):
+                return 21
+            match rocket_raylib.set_window_size(window, 800, 450):
+                case Ok(unexpected):
+                    return 27
+                case Err(error):
+                    if error != "raylib: device or backend unavailable":
+                        return 28
+            match rocket_raylib.set_window_fullscreen(window, true):
+                case Ok(unexpected):
+                    return 22
+                case Err(error):
+                    if error != "raylib: device or backend unavailable":
+                        return 23
+            match rocket_raylib.screenshot(window, "wp18-unsupported.png"):
+                case Ok(unexpected):
+                    return 24
+                case Err(error):
+                    if error != "raylib: device or backend unavailable":
+                        return 25
+            if not succeeded(rocket_raylib.close_window(window)):
+                return 26
+            return 0

@@ -45,9 +45,43 @@ pub extern fn rlv_point_buffer_push(buffer_id: Int, x: Float, y: Float) -> Int
 pub extern fn rlv_point_buffer_destroy(buffer_id: Int) -> Int
 pub extern fn rlv_point_buffer_live_count() -> Int
 pub extern fn rlv_window_open(width: Int, height: Int, title_buffer_id: Int) -> Int
+pub extern fn rlv_window_open_quality(width: Int, height: Int, title_buffer_id: Int, resizable: Bool, high_dpi: Bool, msaa4x: Bool) -> Int
 pub extern fn rlv_window_close(window_id: Int) -> Int
 pub extern fn rlv_window_ready(window_id: Int) -> Bool
 pub extern fn rlv_window_should_close(window_id: Int) -> Bool
+pub extern fn rlv_window_resizable(window_id: Int) -> Bool
+pub extern fn rlv_window_high_dpi(window_id: Int) -> Bool
+pub extern fn rlv_window_msaa4x(window_id: Int) -> Bool
+pub extern fn rlv_window_logical_width(window_id: Int) -> Int
+pub extern fn rlv_window_logical_height(window_id: Int) -> Int
+pub extern fn rlv_window_framebuffer_width(window_id: Int) -> Int
+pub extern fn rlv_window_framebuffer_height(window_id: Int) -> Int
+pub extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
+pub extern fn rlv_window_dpi_scale_y(window_id: Int) -> Float
+pub extern fn rlv_window_display_revision(window_id: Int) -> Int
+pub extern fn rlv_window_resized(window_id: Int) -> Bool
+pub extern fn rlv_window_monitor_count(window_id: Int) -> Int
+pub extern fn rlv_window_current_monitor(window_id: Int) -> Int
+pub extern fn rlv_monitor_valid(window_id: Int, monitor: Int) -> Bool
+pub extern fn rlv_monitor_x(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_y(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_width(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_height(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_physical_width(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_physical_height(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_refresh_rate(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_window_resize_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_fullscreen_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_borderless_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_monitor_selection_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_screenshot_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_fullscreen(window_id: Int) -> Bool
+pub extern fn rlv_window_borderless(window_id: Int) -> Bool
+pub extern fn rlv_window_set_size(window_id: Int, width: Int, height: Int) -> Int
+pub extern fn rlv_window_set_monitor(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_window_set_fullscreen(window_id: Int, enabled: Bool) -> Int
+pub extern fn rlv_window_set_borderless(window_id: Int, enabled: Bool) -> Int
+pub extern fn rlv_window_screenshot(window_id: Int, path_buffer_id: Int) -> Int
 pub extern fn rlv_set_target_fps(window_id: Int, fps: Int) -> Int
 pub extern fn rlv_frame_time(window_id: Int) -> Float
 pub extern fn rlv_time(window_id: Int) -> Float
@@ -89,6 +123,8 @@ pub extern fn rlv_key_down(window_id: Int, key: Int) -> Bool
 pub extern fn rlv_mouse_pressed(window_id: Int, button: Int) -> Bool
 pub extern fn rlv_mouse_x(window_id: Int) -> Int
 pub extern fn rlv_mouse_y(window_id: Int) -> Int
+pub extern fn rlv_mouse_framebuffer_x(window_id: Int) -> Float
+pub extern fn rlv_mouse_framebuffer_y(window_id: Int) -> Float
 pub extern fn rlv_texture_load(window_id: Int, path_buffer_id: Int) -> Int
 pub extern fn rlv_texture_width(texture_id: Int) -> Int
 pub extern fn rlv_texture_height(texture_id: Int) -> Int
@@ -153,6 +189,8 @@ pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
 pub extern fn rlv_test_request_close(requested: Bool) -> Int
 pub extern fn rlv_test_set_anisotropy(level: Int) -> Int
 pub extern fn rlv_test_set_shader_supported(supported: Bool) -> Int
+pub extern fn rlv_test_set_display_metrics(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_scale_x: Float, dpi_scale_y: Float, monitor_count: Int, current_monitor: Int) -> Int
+pub extern fn rlv_test_set_display_capabilities(resize: Bool, fullscreen: Bool, borderless: Bool, monitor_selection: Bool, screenshot: Bool) -> Int
 pub extern fn rlv_test_scissor_x() -> Int
 pub extern fn rlv_test_scissor_y() -> Int
 pub extern fn rlv_test_scissor_width() -> Int
