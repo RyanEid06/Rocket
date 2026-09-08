@@ -515,10 +515,11 @@ native artifact; independent binary module artifacts are not part of draft 0.6.
 
 Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files, except for explicitly bundled source modules
-such as `std.testing`. The public `rocket.motion` module is likewise resolved
-from bundled ordinary Rocket source at `stdlib/rocket/motion.rocket`; it is not
-a compiler intrinsic. Their function signatures are statically checked and
-lower to typed MIR calls. The stable foundational modules are `std.string`,
+such as `std.testing`. The public `rocket.motion` and `rocket.graphics` modules
+are likewise resolved from bundled ordinary Rocket source at
+`stdlib/rocket/motion.rocket` and `stdlib/rocket/graphics.rocket`; they are not
+compiler intrinsics. Their function signatures are statically checked and lower
+to typed MIR calls. The stable foundational modules are `std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,
 `std.unicode`, `std.regex`, `std.crypto`, `std.net`, `std.http`, `std.datetime`,

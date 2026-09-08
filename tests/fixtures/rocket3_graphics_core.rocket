@@ -1,0 +1,93 @@
+import rocket.graphics
+
+fn close(left: Float, right: Float) -> Bool:
+    let difference = left - right
+    if difference < 0.0:
+        return -difference < 0.000001
+    return difference < 0.000001
+
+fn color_close(left: graphics.Color, right: graphics.Color) -> Bool:
+    return close(left.red, right.red) and close(left.green, right.green) and close(left.blue, right.blue) and close(left.alpha, right.alpha)
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 300:
+        value = value * 10.0
+        index = index + 1
+    return value
+
+fn main() -> Int:
+    let position = graphics.vec2(3.0, 4.0)
+    let moved = graphics.vec2_add(position, graphics.vec2(y: 2.0, x: 1.0))
+    print(close(moved.x, 4.0) and close(moved.y, 6.0))
+    let subtracted = graphics.vec2_subtract(position, graphics.vec2(1.0, 6.0))
+    let scaled_vector = graphics.vec2_scale(subtracted, -0.5)
+    print(close(scaled_vector.x, -1.0) and close(scaled_vector.y, 1.0) and graphics.vec2_is_finite(scaled_vector) and graphics.size_is_valid(graphics.size(0.0, 4.0)))
+
+    let area = graphics.rect(x: 10.0, y: 20.0, width: 50.0, height: 30.0)
+    print(graphics.rect_contains(area, graphics.vec2(10.0, 20.0)) and graphics.rect_contains(area, graphics.vec2(60.0, 50.0)) and not graphics.rect_contains(area, graphics.vec2(60.1, 50.0)))
+    let flipped = graphics.rect_normalized(graphics.rect(12.0, 18.0, -4.0, -6.0))
+    print(close(flipped.x, 8.0) and close(flipped.y, 12.0) and close(flipped.width, 4.0) and close(flipped.height, 6.0))
+    match graphics.rect_intersection(area, graphics.rect(40.0, 10.0, 40.0, 20.0)):
+        case Some(overlap):
+            print(close(overlap.x, 40.0) and close(overlap.y, 20.0) and close(overlap.width, 20.0) and close(overlap.height, 10.0))
+        case None:
+            print(false)
+    let translated = graphics.rect_translate(area, graphics.vec2(-10.0, 5.0))
+    let scaled_rect = graphics.rect_scale(translated, 0.5)
+    print(graphics.rect_is_finite(scaled_rect) and graphics.rect_has_nonnegative_size(scaled_rect) and close(scaled_rect.x, 0.0) and close(scaled_rect.y, 12.5) and close(scaled_rect.width, 25.0) and close(scaled_rect.height, 15.0))
+    let touching = graphics.rect(60.0, 20.0, 5.0, 5.0)
+    print(graphics.rect_intersects(area, touching) and not graphics.rect_contains(graphics.rect(0.0, 0.0, -1.0, 1.0), graphics.vec2(0.0, 0.0)))
+
+    let transform = graphics.transform2d(translation: graphics.vec2(10.0, 0.0), rotation: 0.0, scale: graphics.vec2(2.0, 3.0), pivot: graphics.vec2(1.0, 1.0))
+    let transformed = graphics.transform_point(transform, graphics.vec2(2.0, 2.0))
+    print(close(transformed.x, 13.0) and close(transformed.y, 4.0))
+    let rotated = graphics.transform_point(graphics.transform2d(graphics.vec2(5.0, 2.0), 1.5707963267948966, graphics.vec2(2.0, 1.0), graphics.vec2(1.0, 1.0)), graphics.vec2(2.0, 1.0))
+    print(close(rotated.x, 6.0) and close(rotated.y, 5.0))
+
+    let red = graphics.color_from_rgb(red: 300.0, green: -5.0, blue: 128.0)
+    print(color_close(red, graphics.Color(1.0, 0.0, 128.0 / 255.0, 1.0)))
+    match graphics.color_from_hex("#336699cc"):
+        case Ok(parsed):
+            print(color_close(parsed, graphics.color_from_rgba(red: 0.2, green: 0.4, blue: 0.6, alpha: 0.8)))
+        case Err(message):
+            print(false)
+    match graphics.color_from_hex("bad"):
+        case Ok(parsed):
+            print(false)
+        case Err(message):
+            print(message.byte_length() > 0)
+    match graphics.color_from_hex("3366CC"):
+        case Ok(parsed):
+            print(color_close(parsed, graphics.color_from_rgba(0.2, 0.4, 0.8)))
+        case Err(message):
+            print(false)
+    match graphics.color_from_hex("#12G45Z"):
+        case Ok(parsed):
+            print(false)
+        case Err(message):
+            print(message.byte_length() > 0)
+    let cyan = graphics.color_from_hsv(hue: -180.0, saturation: 1.0, value: 1.0)
+    print(color_close(cyan, graphics.color_from_rgb(0.0, 255.0, 255.0)))
+    let wrapped = graphics.color_from_hsv(386547056760.0, 2.0, 2.0, -1.0)
+    let hsv_round_trip = graphics.color_from_hsv(210.0, 0.6, 0.75, 0.8)
+    print(color_close(wrapped, graphics.Color(0.0, 1.0, 0.0, 0.0)) and color_close(graphics.color_saturate(hsv_round_trip, 0.0), hsv_round_trip))
+    let enormous = large_value()
+    let non_finite = enormous * enormous
+    print(color_close(graphics.color_from_rgba(non_finite, -non_finite, non_finite - non_finite, 1.0), graphics.Color(1.0, 0.0, 0.0, 1.0)) and not graphics.vec2_is_finite(graphics.vec2(non_finite, 0.0)) and not graphics.size_is_valid(graphics.size(non_finite, 1.0)))
+    let mixed = graphics.color_mix(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.5), graphics.color_from_rgba(1.0, 1.0, 1.0, 1.0), 0.25)
+    print(color_close(mixed, graphics.color_from_rgba(0.25, 0.25, 0.25, 0.625)))
+    print(graphics.color_lighten(graphics.color_from_rgba(0.2, 0.2, 0.2, 0.5), 1.0).alpha == 0.5 and graphics.color_darken(graphics.color_from_rgb(255.0, 255.0, 255.0), 1.0).red == 0.0)
+    print(graphics.color_saturate(graphics.color_from_hsv(120.0, 0.2, 0.5), 0.5).green >= graphics.color_from_hsv(120.0, 0.2, 0.5).green)
+    print(color_close(graphics.color_with_alpha(red, -1.0), graphics.Color(red.red, red.green, red.blue, 0.0)) and color_close(graphics.color_lerp(red, cyan, -1.0), red) and color_close(graphics.color_lerp(red, cyan, 2.0), cyan) and color_close(graphics.color_desaturate(graphics.color_from_rgba(0.5, 0.0, 0.0), 1.0), graphics.Color(0.5, 0.5, 0.5, 1.0)))
+
+    let style = graphics.text_style(font_name: "default", size: 24.0, letter_spacing: 1.0, line_height: 1.25)
+    let metrics = graphics.text_metrics(width: 42.0, height: 18.0, baseline: 14.0, line_height: style.line_height)
+    let config = graphics.window_config(width: 800, height: 450, title: "Rocket", high_dpi: true, msaa4x: true, resizable: true)
+    let canvas = graphics.virtual_canvas(logical_size: graphics.size(1920.0, 1080.0), viewport: area, scale: 0.5)
+    print(style.font_name.byte_length() == 7 and metrics.baseline == 14.0 and config.high_dpi and canvas.scale == 0.5)
+    let default_style = graphics.text_style("default", 16.0)
+    let default_window = graphics.window_config(640, 360, "Rocket")
+    print(default_style.letter_spacing == 0.0 and default_style.line_height == 1.0 and default_window.high_dpi and default_window.msaa4x and default_window.resizable)
+    return 0

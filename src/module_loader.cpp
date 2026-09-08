@@ -55,6 +55,27 @@ std::string localFunctionName(const Function& function) {
   return function.name;
 }
 
+struct BundledSourceModule {
+  std::filesystem::path path;
+  std::string ownerPrefix;
+};
+
+std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) {
+  static const std::map<std::string, BundledSourceModule> modules{
+      {"std.testing",
+       {std::filesystem::path{"std"} / "testing.rocket", "std"}},
+      {"rocket.motion",
+       {std::filesystem::path{"rocket"} / "motion.rocket", "std"}},
+      {"rocket.graphics",
+       {std::filesystem::path{"rocket"} / "graphics.rocket", "rocket"}},
+  };
+  const auto found = modules.find(name);
+  if (found == modules.end()) return std::nullopt;
+  return BundledSourceModule{
+      (standardLibraryRoot / found->second.path).lexically_normal(),
+      found->second.ownerPrefix};
+}
+
 struct LoadedModule {
   std::string name;
   std::filesystem::path path;
@@ -200,16 +221,11 @@ private:
 
     bool valid = true;
     for (const auto& import : module.ast.imports) {
-      if (import.name == "std.testing" || import.name == "rocket.motion") {
+      if (auto bundled = bundledSourceModule(import.name)) {
         module.importTargets[import.name] = import.name;
-        const std::filesystem::path bundledPath =
-            import.name == "std.testing"
-                ? standardLibraryRoot / "std/testing.rocket"
-                : standardLibraryRoot / "rocket/motion.rocket";
-        valid = loadOne(import.name,
-                        bundledPath.lexically_normal(),
-                        import.location, standardLibraryRoot, {}, "std", {},
-                        depth + 1) && valid;
+        valid = loadOne(import.name, bundled->path, import.location,
+                        standardLibraryRoot, {}, bundled->ownerPrefix, {}, depth + 1) &&
+                valid;
         continue;
       }
       if (import.name.rfind("std.", 0) == 0) continue;

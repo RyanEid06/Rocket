@@ -1,0 +1,15 @@
+import rocket.graphics
+
+fn main() -> Int:
+    let point = graphics.vec2(y: 2.0, x: 1.0)
+    let bounds = graphics.rect(height: 4.0, width: 3.0, y: 0.0, x: 0.0)
+    let transform = graphics.transform2d(pivot: graphics.vec2(0.0, 0.0), scale: graphics.vec2(1.0, 1.0), rotation: 0.0, translation: point)
+    let color = graphics.color_from_rgba(alpha: 0.5, blue: 0.25, green: 0.5, red: 0.75)
+    let text = graphics.text_style(line_height: 1.1, letter_spacing: 0.0, size: 16.0, font_name: "default")
+    let metrics = graphics.text_metrics(line_height: text.line_height, baseline: 10.0, height: 12.0, width: 30.0)
+    let window = graphics.window_config(resizable: false, msaa4x: true, high_dpi: true, title: "Rocket", height: 720, width: 1280)
+    let canvas = graphics.virtual_canvas(scale: 1.0, viewport: bounds, logical_size: graphics.size(height: 1080.0, width: 1920.0))
+    let _ok = graphics.rect_contains(rectangle: bounds, point: graphics.transform_point(transform: transform, point: point))
+    let _blend = graphics.color_lerp(progress: 0.25, end: color, start: graphics.color_from_rgb(red: 0.0, green: 0.0, blue: 0.0))
+    print(metrics.width == 30.0 and window.width == 1280 and canvas.logical_size.width == 1920.0)
+    return 0
