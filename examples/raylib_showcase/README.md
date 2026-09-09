@@ -195,3 +195,20 @@ Mouse input remains in logical coordinates, while `mouse_framebuffer_x` and
 `mouse_framebuffer_y` convert with the current physical-to-logical ratio.
 Exclusive and borderless fullscreen never remain enabled together. Screenshots
 must be requested outside an active frame and capture the physical framebuffer.
+
+## Typography
+
+`default_font(window)` and `load_font(window, path)` return checked font tokens.
+Pair the selected token with `rocket.graphics.TextStyle`; selecting a different
+font asset is the explicit weight strategy. `measure_text` returns actual
+selected-font width, height, baseline, line height, bounds, line count, and
+clipped/ellipsized state. `draw_text_layout` uses those same measurements for
+left/center/right and top/middle/baseline/bottom alignment, optional wrapping,
+multiline layout, clipping, and ellipsis. It never estimates centering from text
+length.
+
+Measurements are cached in a deterministic 256-entry LRU keyed by font token,
+UTF-8 text, and every style/container input. Style changes cannot reuse stale
+metrics. `invalidate_font_measurements` clears one font's entries, and
+`unload_font` performs the same invalidation automatically. Temporary layout
+tokens stay inside the safe wrapper and are destroyed before it returns.

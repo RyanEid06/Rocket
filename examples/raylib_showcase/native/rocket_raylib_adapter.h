@@ -42,6 +42,16 @@ typedef uint8_t rocket_bool;
 #define RLV_SHADER_UNIFORM_VEC2 2
 #define RLV_SHADER_UNIFORM_COLOR 3
 
+#define RLV_TEXT_ALIGN_LEFT 0
+#define RLV_TEXT_ALIGN_CENTER 1
+#define RLV_TEXT_ALIGN_RIGHT 2
+#define RLV_TEXT_ALIGN_TOP 0
+#define RLV_TEXT_ALIGN_MIDDLE 1
+#define RLV_TEXT_ALIGN_BASELINE 2
+#define RLV_TEXT_ALIGN_BOTTOM 3
+#define RLV_TEXT_OVERFLOW_CLIP 0
+#define RLV_TEXT_OVERFLOW_ELLIPSIS 1
+
 #ifndef ROCKET_API
 #define ROCKET_API
 #endif
@@ -198,7 +208,24 @@ ROCKET_API int64_t rlv_shader_end(int64_t scope_id);
 ROCKET_API int64_t rlv_shader_switch_count(void);
 
 ROCKET_API int64_t rlv_font_load(int64_t window_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_font_default(int64_t window_id);
 ROCKET_API int64_t rlv_font_draw(int64_t frame_id, int64_t font_id, int64_t text_buffer_id, int64_t x, int64_t y, double size, double spacing, int64_t red, int64_t green, int64_t blue, int64_t alpha);
+ROCKET_API int64_t rlv_font_measure(int64_t font_id, int64_t text_buffer_id, double size, double spacing, double line_height, double max_width, double max_height, rocket_bool wrap, int64_t overflow);
+ROCKET_API double rlv_text_layout_width(int64_t layout_id);
+ROCKET_API double rlv_text_layout_height(int64_t layout_id);
+ROCKET_API double rlv_text_layout_baseline(int64_t layout_id);
+ROCKET_API double rlv_text_layout_line_height(int64_t layout_id);
+ROCKET_API int64_t rlv_text_layout_line_count(int64_t layout_id);
+ROCKET_API rocket_bool rlv_text_layout_clipped(int64_t layout_id);
+ROCKET_API rocket_bool rlv_text_layout_ellipsized(int64_t layout_id);
+ROCKET_API int64_t rlv_text_layout_destroy(int64_t layout_id);
+ROCKET_API int64_t rlv_text_layout_live_count(void);
+ROCKET_API int64_t rlv_font_draw_layout(int64_t frame_id, int64_t font_id, int64_t text_buffer_id, double bounds_x, double bounds_y, double bounds_width, double bounds_height, double size, double spacing, double line_height, int64_t horizontal_align, int64_t vertical_align, rocket_bool wrap, rocket_bool clip, int64_t overflow, int64_t red, int64_t green, int64_t blue, int64_t alpha);
+ROCKET_API int64_t rlv_font_invalidate_measurements(int64_t font_id);
+ROCKET_API int64_t rlv_font_measurement_cache_size(void);
+ROCKET_API int64_t rlv_font_measurement_cache_capacity(void);
+ROCKET_API int64_t rlv_font_measurement_cache_hits(void);
+ROCKET_API int64_t rlv_font_measurement_cache_misses(void);
 ROCKET_API int64_t rlv_font_unload(int64_t font_id);
 ROCKET_API int64_t rlv_font_live_count(void);
 
@@ -227,6 +254,8 @@ ROCKET_API int64_t rlv_test_scissor_y(void);
 ROCKET_API int64_t rlv_test_scissor_width(void);
 ROCKET_API int64_t rlv_test_scissor_height(void);
 ROCKET_API int64_t rlv_test_blend_mode(void);
+ROCKET_API double rlv_test_text_draw_x(void);
+ROCKET_API double rlv_test_text_draw_y(void);
 
 #ifdef __cplusplus
 }

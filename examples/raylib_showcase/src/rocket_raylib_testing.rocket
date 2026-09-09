@@ -86,6 +86,34 @@ pub fn font_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_font_live_count()
 
+pub fn text_layout_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_text_layout_live_count()
+
+pub fn measurement_cache_size() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_font_measurement_cache_size()
+
+pub fn measurement_cache_capacity() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_font_measurement_cache_capacity()
+
+pub fn measurement_cache_hits() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_font_measurement_cache_hits()
+
+pub fn measurement_cache_misses() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_font_measurement_cache_misses()
+
+pub fn text_draw_x() -> Float:
+    unsafe:
+        return rocket_raylib_adapter.rlv_test_text_draw_x()
+
+pub fn text_draw_y() -> Float:
+    unsafe:
+        return rocket_raylib_adapter.rlv_test_text_draw_y()
+
 pub fn sound_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_sound_live_count()

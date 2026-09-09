@@ -449,6 +449,11 @@ borrowed C string becomes a Rocket value.
 One `Window` may be live. `begin_frame` creates a single-use `Frame` token;
 drawing requires that token and `end_frame` consumes it. Textures and fonts are
 owned by the window context and must be unloaded before `close_window` succeeds.
+Typography measurements are derived from the selected checked font token and
+returned as value-only Rocket metrics; temporary native layout tokens are
+consumed by the safe wrapper. The measurement cache is bounded, includes every
+style/layout input in its identity, and is selectively invalidated on font
+change or unload.
 One `AudioDevice` may be live, and every owned `Sound` must be unloaded before
 `close_audio`. Reusing or forging a released token returns a stable error and
 never dereferences foreign state. Rocket 1.4 does not add linear types or

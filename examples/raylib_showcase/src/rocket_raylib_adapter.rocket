@@ -31,6 +31,15 @@ pub extern const RLV_SHADER_UNIFORM_FLOAT: Int = 0
 pub extern const RLV_SHADER_UNIFORM_INT: Int = 1
 pub extern const RLV_SHADER_UNIFORM_VEC2: Int = 2
 pub extern const RLV_SHADER_UNIFORM_COLOR: Int = 3
+pub extern const RLV_TEXT_ALIGN_LEFT: Int = 0
+pub extern const RLV_TEXT_ALIGN_CENTER: Int = 1
+pub extern const RLV_TEXT_ALIGN_RIGHT: Int = 2
+pub extern const RLV_TEXT_ALIGN_TOP: Int = 0
+pub extern const RLV_TEXT_ALIGN_MIDDLE: Int = 1
+pub extern const RLV_TEXT_ALIGN_BASELINE: Int = 2
+pub extern const RLV_TEXT_ALIGN_BOTTOM: Int = 3
+pub extern const RLV_TEXT_OVERFLOW_CLIP: Int = 0
+pub extern const RLV_TEXT_OVERFLOW_ELLIPSIS: Int = 1
 pub extern callback RlvIntCallback(value: Int) -> Int
 pub extern fn rlv_version_major() -> Int
 pub extern fn rlv_version_minor() -> Int
@@ -170,7 +179,24 @@ pub extern fn rlv_shader_begin(frame_id: Int, shader_id: Int) -> Int
 pub extern fn rlv_shader_end(scope_id: Int) -> Int
 pub extern fn rlv_shader_switch_count() -> Int
 pub extern fn rlv_font_load(window_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_font_default(window_id: Int) -> Int
 pub extern fn rlv_font_draw(frame_id: Int, font_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Float, spacing: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_font_measure(font_id: Int, text_buffer_id: Int, size: Float, spacing: Float, line_height: Float, max_width: Float, max_height: Float, wrap: Bool, overflow: Int) -> Int
+pub extern fn rlv_text_layout_width(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_height(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_baseline(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_line_height(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_line_count(layout_id: Int) -> Int
+pub extern fn rlv_text_layout_clipped(layout_id: Int) -> Bool
+pub extern fn rlv_text_layout_ellipsized(layout_id: Int) -> Bool
+pub extern fn rlv_text_layout_destroy(layout_id: Int) -> Int
+pub extern fn rlv_text_layout_live_count() -> Int
+pub extern fn rlv_font_draw_layout(frame_id: Int, font_id: Int, text_buffer_id: Int, bounds_x: Float, bounds_y: Float, bounds_width: Float, bounds_height: Float, size: Float, spacing: Float, line_height: Float, horizontal_align: Int, vertical_align: Int, wrap: Bool, clip: Bool, overflow: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_font_invalidate_measurements(font_id: Int) -> Int
+pub extern fn rlv_font_measurement_cache_size() -> Int
+pub extern fn rlv_font_measurement_cache_capacity() -> Int
+pub extern fn rlv_font_measurement_cache_hits() -> Int
+pub extern fn rlv_font_measurement_cache_misses() -> Int
 pub extern fn rlv_font_unload(font_id: Int) -> Int
 pub extern fn rlv_font_live_count() -> Int
 pub extern fn rlv_audio_open() -> Int
@@ -196,3 +222,5 @@ pub extern fn rlv_test_scissor_y() -> Int
 pub extern fn rlv_test_scissor_width() -> Int
 pub extern fn rlv_test_scissor_height() -> Int
 pub extern fn rlv_test_blend_mode() -> Int
+pub extern fn rlv_test_text_draw_x() -> Float
+pub extern fn rlv_test_text_draw_y() -> Float
