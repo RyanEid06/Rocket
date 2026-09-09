@@ -1,0 +1,40 @@
+# Rocket-facing F15 native pointer mapping over the safe adapter boundary.
+
+import rocket.graphics
+import rocket.raylib.safe
+
+pub fn pointer_position(window: safe.Window) -> graphics.Vec2:
+    return graphics.Vec2(safe.pointer_framebuffer_x(window), safe.pointer_framebuffer_y(window))
+
+pub fn pointer_down(window: safe.Window, button: Int = 0) -> Bool:
+    return safe.pointer_down(window, button)
+
+pub fn pointer_pressed(window: safe.Window, button: Int = 0) -> Bool:
+    return safe.pointer_pressed(window, button)
+
+pub fn pointer_released(window: safe.Window, button: Int = 0) -> Bool:
+    return safe.pointer_released(window, button)
+
+pub fn pointer_position_in_canvas(window: safe.Window, canvas: graphics.VirtualCanvas) -> Option[graphics.Vec2]:
+    if not size_is_positive(canvas.logical_size) or not rect_has_positive_size(canvas.viewport) or not finite(canvas.scale) or canvas.scale <= 0.0:
+        return None()
+    let physical = pointer_position(window)
+    if not graphics.vec2_is_finite(physical):
+        return None()
+    let right = canvas.viewport.x + canvas.viewport.width
+    let bottom = canvas.viewport.y + canvas.viewport.height
+    if physical.x < canvas.viewport.x or physical.x >= right or physical.y < canvas.viewport.y or physical.y >= bottom:
+        return None()
+    let logical = graphics.Vec2((physical.x - canvas.viewport.x) / canvas.scale,(physical.y - canvas.viewport.y) / canvas.scale)
+    if not graphics.vec2_is_finite(logical):
+        return None()
+    return Some(logical)
+
+fn size_is_positive(value: graphics.Size) -> Bool:
+    return graphics.size_is_valid(value) and value.width > 0.0 and value.height > 0.0
+
+fn rect_has_positive_size(value: graphics.Rect) -> Bool:
+    return graphics.rect_has_nonnegative_size(value) and value.width > 0.0 and value.height > 0.0
+
+fn finite(value: Float) -> Bool:
+    return value == value and value - value == 0.0

@@ -386,6 +386,16 @@ delta completes at the final state; cancellation returns a completed,
 cancelled sample. `fade`, `move`, `slide`, `scale`, `rotate`, `pulse`, and
 `color_transition` are convenience constructors over those tween types.
 
+## `rocket.raylib.safe`
+
+`rocket.raylib.safe` is the narrow bundled Rocket 3 native boundary over the
+reviewed raylib adapter. Application code should normally use `rocket.graphics`
+instead. The safe module owns the `Window` and `Frame` token wrappers, validates
+primitive geometry and color arguments before an `unsafe` adapter call, and
+translates adapter status values to `Result`. It exposes no native pointer or
+raylib structure. Pointer queries use framebuffer coordinates and provide
+pressed, down, and released states.
+
 ## `rocket.graphics`
 
 `rocket.graphics` is an ordinary bundled Rocket source module at
@@ -419,6 +429,34 @@ value, and alpha channels clamp deterministically to `0.0..1.0`; hue wraps;
 malformed hex returns `Result.Err` with a stable message. Hex accepts `RRGGBB`
 and `RRGGBBAA`, each with an optional leading `#`; six-digit input defaults
 alpha to `1.0`.
+
+`rocket.graphics.shapes` owns Rocket-facing drawing. Its functions take typed
+`rocket.graphics.Vec2`, `Rect`, and `Color` values and delegate through
+`rocket.raylib.safe`: `draw_rect`, `draw_rect_outline`,
+`draw_rounded_rect`, `draw_rounded_rect_outline`, `draw_circle`,
+`draw_circle_outline`, `draw_ellipse`, `draw_ring`, `draw_ring_sector`,
+`draw_sector`, `draw_line`, `draw_thick_line`, `draw_triangle`,
+`draw_triangle_outline`, `draw_polygon`, `draw_polygon_outline`, `draw_bezier`,
+`draw_gradient_rect`, and `draw_gradient_circle`. Outline/thick-line/Bezier
+operations default to thickness `1.0`; rounded rectangles default to roundness
+`0.25`; polygons default to rotation `0.0`; rectangle gradients default to
+vertical. Invalid or non-finite public geometry returns `Err` before crossing
+the native boundary.
+
+The pure `rocket.graphics` helpers `point_in_rect(point, bounds)` and
+`point_in_circle(point, center, radius)` provide public hit testing. Rectangle
+bounds are half-open: left/top are included and right/bottom are excluded;
+zero-area rectangles never contain a point. Circle containment includes the
+circumference and rejects negative or non-finite radii.
+
+`rocket.graphics.input` owns native pointer mapping. `pointer_position(window)`
+reports physical framebuffer coordinates, while `pointer_down`,
+`pointer_pressed`, and `pointer_released` default to button `0`.
+`pointer_position_in_canvas` converts
+a physical pointer through a `VirtualCanvas` viewport and scale. It returns
+`None` for invalid canvas data, letterbox/pillarbox space, and the exclusive
+right/bottom viewport edges, so outside input cannot be mistaken for logical UI
+input.
 
 ## `std.file` and `std.path`
 

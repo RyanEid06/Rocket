@@ -145,6 +145,8 @@ ROCKET_API int64_t rlv_draw_count(void);
 ROCKET_API rocket_bool rlv_key_pressed(int64_t window_id, int64_t key);
 ROCKET_API rocket_bool rlv_key_down(int64_t window_id, int64_t key);
 ROCKET_API rocket_bool rlv_mouse_pressed(int64_t window_id, int64_t button);
+ROCKET_API rocket_bool rlv_mouse_down(int64_t window_id, int64_t button);
+ROCKET_API rocket_bool rlv_mouse_released(int64_t window_id, int64_t button);
 ROCKET_API int64_t rlv_mouse_x(int64_t window_id);
 ROCKET_API int64_t rlv_mouse_y(int64_t window_id);
 ROCKET_API double rlv_mouse_framebuffer_x(int64_t window_id);
@@ -217,6 +219,7 @@ ROCKET_API int64_t rlv_apply_callback(RlvIntCallback callback, int64_t value);
 
 ROCKET_API int64_t rlv_test_set_key(int64_t key, rocket_bool pressed, rocket_bool down);
 ROCKET_API int64_t rlv_test_set_mouse(int64_t x, int64_t y, rocket_bool pressed);
+ROCKET_API int64_t rlv_test_set_mouse_state(int64_t x, int64_t y, rocket_bool pressed, rocket_bool down, rocket_bool released);
 ROCKET_API int64_t rlv_test_request_close(rocket_bool requested);
 ROCKET_API int64_t rlv_test_set_anisotropy(int64_t level);
 ROCKET_API int64_t rlv_test_set_shader_supported(rocket_bool supported);

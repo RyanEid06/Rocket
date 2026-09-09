@@ -3045,7 +3045,7 @@ fn source_parent(path_value: String) -> String:
     return string.slice(path_value, 0, separator)
 
 fn is_bundled_source_module(name: String) -> Bool:
-    return name == "std.testing" or name == "rocket.motion" or name == "rocket.graphics"
+    return name == "std.testing" or name == "rocket.motion" or name == "rocket.graphics" or name == "rocket.graphics.shapes" or name == "rocket.graphics.input" or name == "rocket.raylib.safe"
 
 fn standard_module_path(name: String) -> String:
     if not is_bundled_source_module(name):
@@ -3055,6 +3055,12 @@ fn standard_module_path(name: String) -> String:
         relative = "stdlib/rocket/motion.rocket"
     if name == "rocket.graphics":
         relative = "stdlib/rocket/graphics.rocket"
+    if name == "rocket.graphics.shapes":
+        relative = "stdlib/rocket/graphics/shapes.rocket"
+    if name == "rocket.graphics.input":
+        relative = "stdlib/rocket/graphics/input.rocket"
+    if name == "rocket.raylib.safe":
+        relative = "stdlib/rocket/raylib/safe.rocket"
     let working = process.working_directory()
     match working:
         case Ok(directory):

@@ -1,0 +1,39 @@
+import rocket.graphics
+import rocket.graphics.shapes
+import rocket.graphics.input
+import rocket.raylib.safe
+
+fn main() -> Int:
+    let frame = safe.Frame(1)
+    let window = safe.Window(1)
+    let bounds = graphics.rect(x: 10.0, y: 20.0, width: 80.0, height: 40.0)
+    let center = graphics.vec2(x: 50.0, y: 40.0)
+    let color = graphics.color_from_rgba(red: 0.25, green: 0.5, blue: 0.75, alpha: 1.0)
+    let other = graphics.color_from_rgb(red: 255.0, green: 64.0, blue: 0.0)
+    let _rect = shapes.draw_rect(frame: frame, bounds: bounds, color: color)
+    let _rect_outline = shapes.draw_rect_outline(frame: frame, bounds: bounds, color: color, thickness: 2.0)
+    let _rounded = shapes.draw_rounded_rect(frame: frame, bounds: bounds, color: color, roundness: 0.25)
+    let _rounded_outline = shapes.draw_rounded_rect_outline(frame: frame, bounds: bounds, color: color, roundness: 0.25, thickness: 2.0)
+    let _circle = shapes.draw_circle(frame: frame, center: center, radius: 12.0, color: color)
+    let _circle_outline = shapes.draw_circle_outline(frame: frame, center: center, radius: 12.0, color: color, thickness: 2.0)
+    let _ellipse = shapes.draw_ellipse(frame: frame, center: center, radii: graphics.vec2(18.0, 10.0), color: color)
+    let _ring = shapes.draw_ring(frame: frame, center: center, inner_radius: 6.0, outer_radius: 12.0, color: color)
+    let _ring_sector = shapes.draw_ring_sector(frame: frame, center: center, inner_radius: 6.0, outer_radius: 12.0, start_angle: 0.0, end_angle: 90.0, color: color)
+    let _sector = shapes.draw_sector(frame: frame, center: center, radius: 12.0, start_angle: 0.0, end_angle: 90.0, color: color)
+    let _line = shapes.draw_line(frame: frame, start: graphics.vec2(0.0, 0.0), end: center, color: color)
+    let _thick = shapes.draw_thick_line(frame: frame, start: graphics.vec2(0.0, 0.0), end: center, color: color, thickness: 3.0)
+    let _triangle = shapes.draw_triangle(frame: frame, first: graphics.vec2(0.0, 0.0), second: graphics.vec2(20.0, 0.0), third: graphics.vec2(10.0, 20.0), color: color)
+    let _triangle_outline = shapes.draw_triangle_outline(frame: frame, first: graphics.vec2(0.0, 0.0), second: graphics.vec2(20.0, 0.0), third: graphics.vec2(10.0, 20.0), color: color, thickness: 2.0)
+    let _polygon = shapes.draw_polygon(frame: frame, center: center, sides: 6, radius: 20.0, rotation: 0.0, color: color)
+    let _polygon_outline = shapes.draw_polygon_outline(frame: frame, center: center, sides: 6, radius: 20.0, rotation: 0.0, color: color, thickness: 2.0)
+    let _bezier = shapes.draw_bezier(frame: frame, start: graphics.vec2(0.0, 0.0), end: center, color: color, thickness: 2.0)
+    let _gradient_rect = shapes.draw_gradient_rect(frame: frame, bounds: bounds, start_color: color, end_color: other, vertical: true)
+    let _gradient_circle = shapes.draw_gradient_circle(frame: frame, center: center, radius: 20.0, inner_color: color, outer_color: other)
+    let _position = input.pointer_position(window: window)
+    let _down = input.pointer_down(window: window)
+    let _pressed = input.pointer_pressed(window: window, button: 0)
+    let _released = input.pointer_released(window: window)
+    let _mapped = input.pointer_position_in_canvas(window: window, canvas: graphics.virtual_canvas(graphics.size(100.0, 100.0), graphics.rect(100.0, 0.0, 200.0, 200.0), 2.0))
+    let _rect_hit = graphics.point_in_rect(point: center, bounds: bounds)
+    let _circle_hit = graphics.point_in_circle(point: center, center: center, radius: 1.0)
+    return 0

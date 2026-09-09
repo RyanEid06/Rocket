@@ -27,6 +27,16 @@ fn main() -> Int:
                         return 9
                     if not rocket_raylib.is_mouse_pressed(window, rocket_raylib.mouse_left()):
                         return 10
+                    if not rocket_raylib_testing.set_mouse_state(41, 52, false, true, true):
+                        return 18
+                    if not rocket_raylib.is_mouse_down(window, rocket_raylib.mouse_left()):
+                        return 19
+                    if not rocket_raylib.is_mouse_released(window, rocket_raylib.mouse_left()):
+                        return 20
+                    if rocket_raylib.is_mouse_released(window, rocket_raylib.mouse_left()):
+                        return 21
+                    if not rocket_raylib.is_mouse_down(window, rocket_raylib.mouse_left()):
+                        return 22
                     var font_id = 0
                     match rocket_raylib.load_font(window, "assets/test-font.ttf"):
                         case Ok(font):

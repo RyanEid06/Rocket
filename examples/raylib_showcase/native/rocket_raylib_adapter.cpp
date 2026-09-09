@@ -104,6 +104,8 @@ struct AdapterState {
   int64_t mouseX = 0;
   int64_t mouseY = 0;
   bool mousePressed = false;
+  bool mouseDown = false;
+  bool mouseReleased = false;
   bool windowResizable = false;
   bool windowHighDpi = false;
   bool windowMsaa4x = false;
@@ -919,6 +921,21 @@ extern "C" rocket_bool rlv_mouse_pressed(int64_t windowId, int64_t button) {
   const bool pressed = state.mousePressed;
   state.mousePressed = false;
   return pressed ? 1 : 0;
+}
+
+extern "C" rocket_bool rlv_mouse_down(int64_t windowId, int64_t button) {
+  if (!validWindow(windowId) || !fitsInt(button)) return 0;
+  return state.testMode
+             ? static_cast<rocket_bool>(state.mouseDown)
+             : static_cast<rocket_bool>(IsMouseButtonDown(static_cast<int>(button)));
+}
+
+extern "C" rocket_bool rlv_mouse_released(int64_t windowId, int64_t button) {
+  if (!validWindow(windowId) || !fitsInt(button)) return 0;
+  if (!state.testMode) return IsMouseButtonReleased(static_cast<int>(button)) ? 1 : 0;
+  const bool released = state.mouseReleased;
+  state.mouseReleased = false;
+  return released ? 1 : 0;
 }
 
 extern "C" int64_t rlv_mouse_x(int64_t windowId) {
@@ -2147,6 +2164,21 @@ extern "C" int64_t rlv_test_set_mouse(int64_t x, int64_t y,
   state.mouseX = x;
   state.mouseY = y;
   state.mousePressed = pressed != 0;
+  state.mouseDown = false;
+  state.mouseReleased = false;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_test_set_mouse_state(int64_t x, int64_t y,
+                                              rocket_bool pressed,
+                                              rocket_bool down,
+                                              rocket_bool released) {
+  if (!state.testMode || !fitsInt(x) || !fitsInt(y)) return RLV_ERR_INVALID_STATE;
+  state.mouseX = x;
+  state.mouseY = y;
+  state.mousePressed = pressed != 0;
+  state.mouseDown = down != 0;
+  state.mouseReleased = released != 0;
   return RLV_OK;
 }
 

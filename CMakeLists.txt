@@ -512,6 +512,17 @@ set_tests_properties(rocket3_graphics_core_stage0 PROPERTIES
   TIMEOUT 300
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_shapes_input_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp20/${CMAKE_BUILD_TYPE}/stage0"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_shapes_input_test.cmake")
+set_tests_properties(rocket3_shapes_input_stage0 PROPERTIES
+  LABELS "rocket3;wp20;graphics;shapes;input;stage0"
+  TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_executable(rocket_phase14_raylib_adapter_tests
   tests/native/phase14_raylib_adapter_tests.cpp)
 target_link_libraries(rocket_phase14_raylib_adapter_tests PRIVATE
@@ -577,6 +588,17 @@ add_test(NAME phase18_raylib_adapter_native
 set_tests_properties(phase18_raylib_adapter_native PROPERTIES
   LABELS "phase18;raylib;native;rocket3;wp18;display;gpu"
   TIMEOUT 60)
+
+add_executable(rocket_phase20_raylib_adapter_tests
+  tests/native/phase20_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase20_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase20_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket3_phase20_raylib_adapter
+  COMMAND rocket_phase20_raylib_adapter_tests)
+set_tests_properties(rocket3_phase20_raylib_adapter PROPERTIES
+  LABELS "rocket3;wp20;raylib;native;input")
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
@@ -892,6 +914,18 @@ set_tests_properties(rocket3_graphics_core_self_hosted PROPERTIES
   LABELS "rocket3;wp19;graphics;color;selfhost"
   TIMEOUT 360
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_shapes_input_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp20/${CMAKE_BUILD_TYPE}/self-hosted"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_shapes_input_test.cmake")
+set_tests_properties(rocket3_shapes_input_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp20;graphics;shapes;input;selfhost"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME rocket3_std_math_target_surface
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -927,6 +961,19 @@ set_tests_properties(rocket3_graphics_core_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp19;graphics;color;target;surface;selfhost"
   TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_shapes_input_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp20/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_shapes_input_target_surface_test.cmake")
+set_tests_properties(rocket3_shapes_input_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp20;graphics;shapes;input;target;surface;selfhost"
+  TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()
 add_test(NAME cli_run_self_hosted_syntax_check

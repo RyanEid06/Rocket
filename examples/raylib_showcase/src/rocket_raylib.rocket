@@ -671,6 +671,14 @@ pub fn is_mouse_pressed(window: Window, button: Int) -> Bool:
     unsafe:
         return rocket_raylib_adapter.rlv_mouse_pressed(window.id, button)
 
+pub fn is_mouse_down(window: Window, button: Int) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_mouse_down(window.id, button)
+
+pub fn is_mouse_released(window: Window, button: Int) -> Bool:
+    unsafe:
+        return rocket_raylib_adapter.rlv_mouse_released(window.id, button)
+
 pub fn mouse_x(window: Window) -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_mouse_x(window.id)

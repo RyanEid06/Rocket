@@ -22,6 +22,10 @@ pub fn set_mouse(x: Int, y: Int, pressed: Bool) -> Bool:
     unsafe:
         return checked(rocket_raylib_adapter.rlv_test_set_mouse(x, y, pressed))
 
+pub fn set_mouse_state(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Bool:
+    unsafe:
+        return checked(rocket_raylib_adapter.rlv_test_set_mouse_state(x, y, pressed, down, released))
+
 pub fn request_close(value: Bool) -> Bool:
     unsafe:
         return checked(rocket_raylib_adapter.rlv_test_request_close(value))

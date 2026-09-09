@@ -1,0 +1,20 @@
+extern fn rlv_enable_test_mode(enabled: Bool) -> Int
+extern fn rlv_test_reset() -> Int
+extern fn rlv_test_set_mouse_state(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Int
+extern fn rlv_geometry_call_count() -> Int
+
+pub fn enable() -> Bool:
+    unsafe:
+        return rlv_enable_test_mode(true) == 0
+
+pub fn reset() -> Bool:
+    unsafe:
+        return rlv_test_reset() == 0
+
+pub fn set_mouse(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Bool:
+    unsafe:
+        return rlv_test_set_mouse_state(x, y, pressed, down, released) == 0
+
+pub fn geometry_calls() -> Int:
+    unsafe:
+        return rlv_geometry_call_count()
