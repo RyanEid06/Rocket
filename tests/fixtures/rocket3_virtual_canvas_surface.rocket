@@ -1,0 +1,57 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.graphics.input
+import rocket.raylib.safe
+
+fn consume_result(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(message):
+            return false
+
+fn main() -> Int:
+    let logical = graphics.size(1920.0, 1080.0)
+    match graphics.fit_virtual_canvas(logical, graphics.size(1600.0, 1200.0)):
+        case Err(message):
+            return 1
+        case Ok(mapping):
+            let physical = graphics.virtual_canvas_logical_to_physical(mapping, graphics.vec2(960.0, 540.0))
+            match graphics.virtual_canvas_physical_to_logical(mapping, physical):
+                case None:
+                    return 2
+                case Some(point):
+                    let ignored = point
+            let window = safe.Window(1)
+            match canvas.from_window(window, logical):
+                case Err(message):
+                    return 3
+                case Ok(window_mapping):
+                    let revision = canvas.display_revision(window)
+                    let dpi = canvas.dpi_scale(window)
+                    let ignored_revision = revision
+                    let ignored_dpi = dpi
+                    match canvas.create_target(window, 1920, 1080):
+                        case Err(message):
+                            return 4
+                        case Ok(target):
+                            let frame = safe.Frame(1)
+                            match canvas.begin_target(frame, target):
+                                case Err(message):
+                                    return 5
+                                case Ok(scope):
+                                    if not consume_result(canvas.end_target(scope)):
+                                        return 6
+                            if not consume_result(canvas.present(frame, target, window_mapping)):
+                                return 7
+                            match canvas.begin_clip(frame, window_mapping, graphics.rect(0.0, 0.0, 100.0, 100.0)):
+                                case Err(message):
+                                    return 8
+                                case Ok(clip):
+                                    if not consume_result(canvas.end_clip(clip)):
+                                        return 9
+                            if not consume_result(canvas.save_logical_screenshot(window, target, "canvas.png")):
+                                return 10
+                            if not consume_result(canvas.unload_target(target)):
+                                return 11
+    return 0

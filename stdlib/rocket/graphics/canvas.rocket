@@ -1,0 +1,79 @@
+# Integrated F17 VirtualCanvas rendering/display helpers over the reviewed safe
+# raylib boundary. Pure mapping stays in rocket.graphics so it remains usable
+# without native rendering; this module connects that mapping to live windows.
+
+import rocket.graphics
+import rocket.raylib.safe
+
+pub fn framebuffer_size(window: safe.Window) -> graphics.Size:
+    return graphics.Size(safe.framebuffer_width(window), safe.framebuffer_height(window))
+
+pub fn from_window(window: safe.Window, logical_size: graphics.Size) -> Result[graphics.VirtualCanvas, String]:
+    return graphics.fit_virtual_canvas(logical_size, framebuffer_size(window))
+
+pub fn refresh(window: safe.Window, mapping: graphics.VirtualCanvas) -> Result[graphics.VirtualCanvas, String]:
+    return from_window(window, mapping.logical_size)
+
+pub fn dpi_scale(window: safe.Window) -> graphics.Vec2:
+    return graphics.Vec2(safe.dpi_scale_x(window), safe.dpi_scale_y(window))
+
+pub fn display_revision(window: safe.Window) -> Int:
+    return safe.display_revision(window)
+
+pub fn create_target(window: safe.Window, width: Int, height: Int) -> Result[safe.RenderTexture, String]:
+    return safe.create_render_texture(window, width, height)
+
+pub fn unload_target(target: safe.RenderTexture) -> Result[Bool, String]:
+    return safe.unload_render_texture(target)
+
+pub fn begin_target(frame: safe.Frame, target: safe.RenderTexture) -> Result[safe.RenderTargetScope, String]:
+    return safe.begin_render_target(frame, target)
+
+pub fn end_target(scope: safe.RenderTargetScope) -> Result[Bool, String]:
+    return safe.end_render_target(scope)
+
+pub fn present(frame: safe.Frame, target: safe.RenderTexture, mapping: graphics.VirtualCanvas) -> Result[Bool, String]:
+    if not graphics.virtual_canvas_is_valid(mapping):
+        return Err("virtual canvas mapping is invalid")
+    let target_width = safe.render_texture_width(target)
+    let target_height = safe.render_texture_height(target)
+    if target_width != mapping.logical_size.width or target_height != mapping.logical_size.height:
+        return Err("virtual canvas target size does not match logical size")
+    return safe.draw_render_texture_framebuffer(frame, target, 0.0, 0.0, mapping.logical_size.width, -mapping.logical_size.height, mapping.viewport.x, mapping.viewport.y, mapping.viewport.width, mapping.viewport.height)
+
+pub fn begin_clip(frame: safe.Frame, mapping: graphics.VirtualCanvas, logical_bounds: graphics.Rect) -> Result[safe.ScissorScope, String]:
+    if not graphics.virtual_canvas_is_valid(mapping) or not graphics.rect_has_nonnegative_size(logical_bounds):
+        return Err("virtual canvas clip bounds are invalid")
+    let physical = graphics.virtual_canvas_rect_to_physical(mapping, logical_bounds)
+    match graphics.rect_intersection(physical, mapping.viewport):
+        case None:
+            return safe.begin_framebuffer_scissor(frame, mapping.viewport.x, mapping.viewport.y, 0.0, 0.0)
+        case Some(clipped):
+            return safe.begin_framebuffer_scissor(frame, clipped.x, clipped.y, clipped.width, clipped.height)
+
+pub fn end_clip(scope: safe.ScissorScope) -> Result[Bool, String]:
+    return safe.end_scissor(scope)
+
+pub fn save_logical_screenshot(window: safe.Window, target: safe.RenderTexture, path: String) -> Result[Bool, String]:
+    return safe.save_render_texture_png(window, target, path)
+
+pub fn resize(window: safe.Window, mapping: graphics.VirtualCanvas, width: Int, height: Int) -> Result[graphics.VirtualCanvas, String]:
+    match safe.set_window_size(window, width, height):
+        case Err(error):
+            return Err(error)
+        case Ok(success):
+            return refresh(window, mapping)
+
+pub fn set_fullscreen(window: safe.Window, mapping: graphics.VirtualCanvas, enabled: Bool) -> Result[graphics.VirtualCanvas, String]:
+    match safe.set_window_fullscreen(window, enabled):
+        case Err(error):
+            return Err(error)
+        case Ok(success):
+            return refresh(window, mapping)
+
+pub fn set_borderless(window: safe.Window, mapping: graphics.VirtualCanvas, enabled: Bool) -> Result[graphics.VirtualCanvas, String]:
+    match safe.set_window_borderless(window, enabled):
+        case Err(error):
+            return Err(error)
+        case Ok(success):
+            return refresh(window, mapping)

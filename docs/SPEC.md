@@ -518,15 +518,20 @@ native artifact; independent binary module artifacts are not part of draft 0.6.
 
 Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files, except for explicitly bundled source modules
-such as `std.testing`. The public `rocket.motion`, `rocket.graphics`, `rocket.graphics.shapes`,
-`rocket.graphics.input`, and `rocket.raylib.safe` modules are likewise resolved
-from bundled ordinary Rocket source under `stdlib/rocket`; they are not compiler
-intrinsics. Their function signatures are statically checked and lower to typed
-MIR calls. `rocket.graphics` keeps pure geometry/color/hit-testing values,
-while the native-backed `rocket.graphics.shapes` and `rocket.graphics.input`
-modules delegate only through `rocket.raylib.safe`. The safe module is the
-reviewed native-adapter boundary; applications should prefer the typed graphics
-modules. The
+such as `std.testing`. The public `rocket.motion`, `rocket.graphics`,
+`rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`, and
+`rocket.raylib.safe` modules are likewise resolved from bundled ordinary Rocket
+source under `stdlib/rocket`; they are not compiler intrinsics. Their function
+signatures are statically checked and lower to typed MIR calls.
+`rocket.graphics` keeps pure geometry/color/hit-testing/VirtualCanvas mapping
+values, while the native-backed `rocket.graphics.shapes`, `rocket.graphics.input`,
+and `rocket.graphics.canvas` modules delegate only through
+`rocket.raylib.safe`. The canvas module uses one aspect-preserving mapping
+contract for framebuffer presentation, pointer conversion, clipping, logical
+screenshots, resize/fullscreen transitions, and DPI/display refresh. Physical
+coordinates outside its fitted viewport are outside rather than clamped. The
+safe module is the reviewed native-adapter boundary; applications should prefer
+the typed graphics modules. The
 stable foundational modules are `std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,

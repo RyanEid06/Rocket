@@ -394,7 +394,10 @@ instead. The safe module owns the `Window` and `Frame` token wrappers, validates
 primitive geometry and color arguments before an `unsafe` adapter call, and
 translates adapter status values to `Result`. It exposes no native pointer or
 raylib structure. Pointer queries use framebuffer coordinates and provide
-pressed, down, and released states.
+pressed, down, and released states. F17 also uses this boundary for checked
+render-target/scissor scopes, framebuffer/DPI/display-revision queries,
+resize/fullscreen/borderless transitions, and render-target PNG export; those
+primitives remain backend plumbing rather than the preferred application API.
 
 ## `rocket.graphics`
 
@@ -409,8 +412,12 @@ Constructors are ordinary functions with stable parameter names:
 `transform2d(translation, rotation, scale, pivot)`, `text_style(font_name,
 size, letter_spacing = 0.0, line_height = 1.0)`, `text_metrics(width, height,
 baseline, line_height)`, `window_config(width, height, title, high_dpi = true,
-msaa4x = true, resizable = true)`, and `virtual_canvas(logical_size, viewport,
-scale)`.
+msaa4x = true, resizable = true)`, and the raw
+`virtual_canvas(logical_size, viewport, scale)` value constructor. Prefer
+`fit_virtual_canvas(logical_size, framebuffer_size)` when establishing a real
+mapping: it validates positive finite dimensions, preserves aspect ratio,
+centers the viewport, and returns a recoverable `Err` instead of dividing by
+zero for invalid dimensions.
 
 Geometry helpers include `vec2_add`, `vec2_subtract`, `vec2_scale`,
 `vec2_is_finite`, `size_is_valid`, `rect_is_finite`,
@@ -419,7 +426,12 @@ Geometry helpers include `vec2_add`, `vec2_subtract`, `vec2_scale`,
 `transform_point`. Rectangle containment includes the boundary; invalid or
 non-finite rectangles and points return false from predicate helpers.
 `transform_point` scales around the pivot, rotates counterclockwise in radians,
-then translates.
+then translates. `virtual_canvas_is_valid` validates a mapping before native
+integration. `virtual_canvas_logical_to_physical` and
+`virtual_canvas_physical_to_logical` use the same viewport/scale contract;
+physical-to-logical conversion returns `None` outside the viewport and treats
+right/bottom edges as exclusive. `virtual_canvas_rect_to_physical` applies that
+same transform to logical clipping rectangles.
 
 Color helpers include `color_from_rgb`, `color_from_rgba(alpha = 1.0)`,
 `color_from_hex`, `color_from_hsv(alpha = 1.0)`, `color_with_alpha`,
@@ -457,6 +469,31 @@ a physical pointer through a `VirtualCanvas` viewport and scale. It returns
 `None` for invalid canvas data, letterbox/pillarbox space, and the exclusive
 right/bottom viewport edges, so outside input cannot be mistaken for logical UI
 input.
+
+## `rocket.graphics.canvas`
+
+`rocket.graphics.canvas` integrates the pure `VirtualCanvas` mapping with live
+rendering and display state through `rocket.raylib.safe`. `framebuffer_size`,
+`from_window`, and `refresh` fit the logical design size to the current physical
+framebuffer, while `dpi_scale` and `display_revision` expose the values needed
+to detect DPI/monitor/display changes without inventing a second mapping rule.
+
+`create_target`, `begin_target`, `end_target`, and `unload_target` manage the
+logical-size render target. `present(frame, target, mapping)` requires the
+render-target size to match the logical canvas size, vertically corrects the
+raylib render texture, and composites it into exactly the fitted viewport.
+`begin_clip` maps logical clip bounds through the same transform, intersects
+them with the viewport, and returns a checked scissor scope; `end_clip` closes
+that scope. `save_logical_screenshot` exports the render target itself, so the
+PNG contains logical content rather than framebuffer letterbox/pillarbox bars.
+
+`resize`, `set_fullscreen`, and `set_borderless` first request the checked
+window transition and then recompute the mapping from the resulting framebuffer.
+Unsupported transitions return the adapter's stable recoverable error. Callers
+should also use `refresh` whenever `display_revision` changes because of a DPI,
+monitor, or external resize event. Across pointer mapping, clipping,
+presentation, screenshots, resize/fullscreen, and DPI changes, the fitted
+viewport and its half-open outside rule are the single coordinate contract.
 
 ## `std.file` and `std.path`
 

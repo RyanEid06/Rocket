@@ -72,6 +72,8 @@ std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) 
        {std::filesystem::path{"rocket"} / "graphics" / "shapes.rocket", "rocket"}},
       {"rocket.graphics.input",
        {std::filesystem::path{"rocket"} / "graphics" / "input.rocket", "rocket"}},
+      {"rocket.graphics.canvas",
+       {std::filesystem::path{"rocket"} / "graphics" / "canvas.rocket", "rocket"}},
       {"rocket.raylib.safe",
        {std::filesystem::path{"rocket"} / "raylib" / "safe.rocket", "rocket"}},
   };

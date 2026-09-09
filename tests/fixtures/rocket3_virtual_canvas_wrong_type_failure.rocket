@@ -1,0 +1,7 @@
+import rocket.graphics
+import rocket.graphics.canvas
+
+fn main() -> Int:
+    let logical = graphics.size(1920.0, 1080.0)
+    let invalid = canvas.from_window(graphics.vec2(1.0, 2.0), logical)
+    return 0

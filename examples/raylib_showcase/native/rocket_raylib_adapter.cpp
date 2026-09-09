@@ -278,6 +278,20 @@ const ScopeRecord* activeScope(ScopeKind kind) {
   return nullptr;
 }
 
+bool framebufferToRaylibRectangle(double& x, double& y,
+                                  double& width, double& height) {
+  if (activeScope(ScopeKind::RenderTarget)) return true;
+  if (!finiteFloats({state.dpiScaleX, state.dpiScaleY}) ||
+      state.dpiScaleX <= 0.0 || state.dpiScaleY <= 0.0) {
+    return false;
+  }
+  x /= state.dpiScaleX;
+  width /= state.dpiScaleX;
+  y /= state.dpiScaleY;
+  height /= state.dpiScaleY;
+  return finiteFloats({x, y, width, height});
+}
+
 bool scopeExists(int64_t scopeId) {
   return std::any_of(state.scopes.begin(), state.scopes.end(),
                      [scopeId](const ScopeRecord& scope) { return scope.id == scopeId; });
@@ -1215,6 +1229,20 @@ extern "C" int64_t rlv_render_texture_height(int64_t renderTextureId) {
                                              : found->second.height;
 }
 
+extern "C" double rlv_render_texture_width_f64(int64_t renderTextureId) {
+  const auto found = state.renderTextures.find(renderTextureId);
+  return found == state.renderTextures.end()
+      ? 0.0
+      : static_cast<double>(found->second.width);
+}
+
+extern "C" double rlv_render_texture_height_f64(int64_t renderTextureId) {
+  const auto found = state.renderTextures.find(renderTextureId);
+  return found == state.renderTextures.end()
+      ? 0.0
+      : static_cast<double>(found->second.height);
+}
+
 extern "C" int64_t rlv_render_texture_unload(int64_t renderTextureId) {
   const auto found = state.renderTextures.find(renderTextureId);
   if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
@@ -1296,6 +1324,25 @@ extern "C" int64_t rlv_render_texture_draw(
   return RLV_OK;
 }
 
+extern "C" int64_t rlv_render_texture_draw_framebuffer(
+    int64_t frameId, int64_t renderTextureId,
+    double sourceX, double sourceY, double sourceWidth, double sourceHeight,
+    double destX, double destY, double destWidth, double destHeight,
+    double originX, double originY, double rotation,
+    int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  double originWidth = 0.0;
+  double originHeight = 0.0;
+  if (!framebufferToRaylibRectangle(destX, destY, destWidth, destHeight) ||
+      !framebufferToRaylibRectangle(originX, originY,
+                                    originWidth, originHeight)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  return rlv_render_texture_draw(
+      frameId, renderTextureId, sourceX, sourceY, sourceWidth, sourceHeight,
+      destX, destY, destWidth, destHeight, originX, originY, rotation,
+      red, green, blue, alpha);
+}
+
 extern "C" int64_t rlv_render_texture_save_png(int64_t windowId,
                                                  int64_t renderTextureId,
                                                  int64_t pathBufferId) {
@@ -1360,6 +1407,24 @@ extern "C" int64_t rlv_scissor_begin(int64_t frameId, double x, double y,
   state.scopes.push_back(scope);
   ++state.scissorSwitchCount;
   return scopeId;
+}
+
+extern "C" int64_t rlv_scissor_begin_framebuffer(
+    int64_t frameId, double x, double y, double width, double height) {
+  const bool emptyWidth = width == 0.0;
+  const bool emptyHeight = height == 0.0;
+  if (!framebufferToRaylibRectangle(x, y, width, height)) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  if (emptyWidth) {
+    x = std::floor(x);
+    width = 0.0;
+  }
+  if (emptyHeight) {
+    y = std::floor(y);
+    height = 0.0;
+  }
+  return rlv_scissor_begin(frameId, x, y, width, height);
 }
 
 extern "C" int64_t rlv_scissor_end(int64_t scopeId) {
@@ -1473,6 +1538,14 @@ extern "C" int64_t rlv_window_framebuffer_height(int64_t windowId) {
   if (!validWindow(windowId)) return 0;
   refreshDisplayMetrics();
   return state.framebufferHeight;
+}
+
+extern "C" double rlv_window_framebuffer_width_f64(int64_t windowId) {
+  return static_cast<double>(rlv_window_framebuffer_width(windowId));
+}
+
+extern "C" double rlv_window_framebuffer_height_f64(int64_t windowId) {
+  return static_cast<double>(rlv_window_framebuffer_height(windowId));
 }
 
 extern "C" double rlv_window_dpi_scale_x(int64_t windowId) {

@@ -35,11 +35,40 @@ extern fn rlv_mouse_down(window_id: Int, button: Int) -> Bool
 extern fn rlv_mouse_released(window_id: Int, button: Int) -> Bool
 extern fn rlv_mouse_framebuffer_x(window_id: Int) -> Float
 extern fn rlv_mouse_framebuffer_y(window_id: Int) -> Float
+extern fn rlv_window_framebuffer_width_f64(window_id: Int) -> Float
+extern fn rlv_window_framebuffer_height_f64(window_id: Int) -> Float
+extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
+extern fn rlv_window_dpi_scale_y(window_id: Int) -> Float
+extern fn rlv_window_display_revision(window_id: Int) -> Int
+extern fn rlv_window_set_size(window_id: Int, width: Int, height: Int) -> Int
+extern fn rlv_window_set_fullscreen(window_id: Int, enabled: Bool) -> Int
+extern fn rlv_window_set_borderless(window_id: Int, enabled: Bool) -> Int
+extern fn rlv_render_texture_load(window_id: Int, width: Int, height: Int) -> Int
+extern fn rlv_render_texture_width_f64(render_texture_id: Int) -> Float
+extern fn rlv_render_texture_height_f64(render_texture_id: Int) -> Float
+extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
+extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int
+extern fn rlv_render_target_end(scope_id: Int) -> Int
+extern fn rlv_render_texture_draw(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+extern fn rlv_render_texture_draw_framebuffer(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+extern fn rlv_render_texture_save_png(window_id: Int, render_texture_id: Int, path_buffer_id: Int) -> Int
+extern fn rlv_scissor_begin(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+extern fn rlv_scissor_begin_framebuffer(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+extern fn rlv_scissor_end(scope_id: Int) -> Int
 
 pub struct Window:
     id: Int
 
 pub struct Frame:
+    id: Int
+
+pub struct RenderTexture:
+    id: Int
+
+pub struct RenderTargetScope:
+    id: Int
+
+pub struct ScissorScope:
     id: Int
 
 fn status_message(status: Int) -> String:
@@ -268,3 +297,117 @@ pub fn pointer_framebuffer_x(window: Window) -> Float:
 pub fn pointer_framebuffer_y(window: Window) -> Float:
     unsafe:
         return rlv_mouse_framebuffer_y(window.id)
+
+# F17 display/render-target primitives used by rocket.graphics.canvas.
+pub fn framebuffer_width(window: Window) -> Float:
+    unsafe:
+        return rlv_window_framebuffer_width_f64(window.id)
+
+pub fn framebuffer_height(window: Window) -> Float:
+    unsafe:
+        return rlv_window_framebuffer_height_f64(window.id)
+
+pub fn dpi_scale_x(window: Window) -> Float:
+    unsafe:
+        return rlv_window_dpi_scale_x(window.id)
+
+pub fn dpi_scale_y(window: Window) -> Float:
+    unsafe:
+        return rlv_window_dpi_scale_y(window.id)
+
+pub fn display_revision(window: Window) -> Int:
+    unsafe:
+        return rlv_window_display_revision(window.id)
+
+pub fn set_window_size(window: Window, width: Int, height: Int) -> Result[Bool, String]:
+    if width <= 0 or height <= 0:
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(rlv_window_set_size(window.id, width, height))
+
+pub fn set_window_fullscreen(window: Window, enabled: Bool) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rlv_window_set_fullscreen(window.id, enabled))
+
+pub fn set_window_borderless(window: Window, enabled: Bool) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rlv_window_set_borderless(window.id, enabled))
+
+pub fn create_render_texture(window: Window, width: Int, height: Int) -> Result[RenderTexture, String]:
+    if width <= 0 or height <= 0:
+        return Err("raylib: invalid argument")
+    unsafe:
+        let target_id = rlv_render_texture_load(window.id, width, height)
+        if target_id > 0:
+            return Ok(RenderTexture(target_id))
+        return Err(status_message(target_id))
+
+pub fn render_texture_width(target: RenderTexture) -> Float:
+    unsafe:
+        return rlv_render_texture_width_f64(target.id)
+
+pub fn render_texture_height(target: RenderTexture) -> Float:
+    unsafe:
+        return rlv_render_texture_height_f64(target.id)
+
+pub fn unload_render_texture(target: RenderTexture) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rlv_render_texture_unload(target.id))
+
+pub fn begin_render_target(frame: Frame, target: RenderTexture) -> Result[RenderTargetScope, String]:
+    unsafe:
+        let scope_id = rlv_render_target_begin(frame.id, target.id)
+        if scope_id > 0:
+            return Ok(RenderTargetScope(scope_id))
+        return Err(status_message(scope_id))
+
+pub fn end_render_target(scope: RenderTargetScope) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rlv_render_target_end(scope.id))
+
+pub fn draw_render_texture(frame: Frame, target: RenderTexture, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float) -> Result[Bool, String]:
+    if not finite(source_x) or not finite(source_y) or not finite(source_width) or not finite(source_height) or not finite(dest_x) or not finite(dest_y) or not finite(dest_width) or not finite(dest_height):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(rlv_render_texture_draw(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+
+pub fn draw_render_texture_framebuffer(frame: Frame, target: RenderTexture, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float) -> Result[Bool, String]:
+    if not finite(source_x) or not finite(source_y) or not finite(source_width) or not finite(source_height) or not finite(dest_x) or not finite(dest_y) or not finite(dest_width) or not finite(dest_height):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(rlv_render_texture_draw_framebuffer(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+
+pub fn save_render_texture_png(window: Window, target: RenderTexture, path: String) -> Result[Bool, String]:
+    match encode_text(path):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var status = -2
+            unsafe:
+                status = rlv_render_texture_save_png(window.id, target.id, buffer_id)
+            let released = release_text(buffer_id)
+            if status != 0:
+                return Err(status_message(status))
+            return released
+
+pub fn begin_scissor(frame: Frame, x: Float, y: Float, width: Float, height: Float) -> Result[ScissorScope, String]:
+    if not valid_rect(x, y, width, height):
+        return Err("raylib: invalid argument")
+    unsafe:
+        let scope_id = rlv_scissor_begin(frame.id, x, y, width, height)
+        if scope_id > 0:
+            return Ok(ScissorScope(scope_id))
+        return Err(status_message(scope_id))
+
+pub fn begin_framebuffer_scissor(frame: Frame, x: Float, y: Float, width: Float, height: Float) -> Result[ScissorScope, String]:
+    if not valid_rect(x, y, width, height):
+        return Err("raylib: invalid argument")
+    unsafe:
+        let scope_id = rlv_scissor_begin_framebuffer(frame.id, x, y, width, height)
+        if scope_id > 0:
+            return Ok(ScissorScope(scope_id))
+        return Err(status_message(scope_id))
+
+pub fn end_scissor(scope: ScissorScope) -> Result[Bool, String]:
+    unsafe:
+        return status_result(rlv_scissor_end(scope.id))
