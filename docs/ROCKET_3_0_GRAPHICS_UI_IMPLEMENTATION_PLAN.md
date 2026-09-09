@@ -336,10 +336,10 @@ section 5A assigns it to the current owner/wave.
 | WP17 | F10 | Safe shader subset | COMPLETE / WAVE-GREEN | Ryan | A |
 | WP18 | F11 | Window/display/rendering quality | COMPLETE / WAVE-GREEN | Ryan | A |
 | WP19 | F12, F13 | Public graphics core types and Color | COMPLETE / WAVE-GREEN | Eddy | A |
-| WP20 | F14, F15 | Public shapes and input/hit testing | READY / RED; Wave A baseline accepted | Ryan | B |
-| WP21 | F17 | Integrated `VirtualCanvas` | BLOCKED until Wave A plus Ryan WP20 / RED | Ryan | B |
+| WP20 | F14, F15 | Public shapes and input/hit testing | COMPLETE / LANE-GREEN | Ryan | B |
+| WP21 | F17 | Integrated `VirtualCanvas` | COMPLETE / LANE-GREEN | Ryan | B |
 | WP22 | F16 | Typography | READY / RED; Wave A baseline accepted | Eddy | B |
-| WP23 | F18 | Public UI context/response/IDs | BLOCKED until Ryan WP20/WP21 / RED | Ryan | B |
+| WP23 | F18 | Public UI context/response/IDs | READY / RED; Ryan WP20/WP21 complete on lane branch | Ryan | B |
 | WP24 | F19 | Public layout integration | BLOCKED until Ryan WP23 / RED | Ryan | B |
 | WP25 | F20 | Public themes/styles | BLOCKED until Wave B integrates WP22/WP24 / RED | Eddy | C |
 | WP26 | F21 | Controls | BLOCKED until Eddy WP25 and integrated WP23 / RED | Eddy | C |
@@ -1452,10 +1452,10 @@ final Wave A barrier commit on `origin/master` after this update is published.
 
 **Ryan current lane:**
 
-1. WP20 - Public shapes and input/hit testing
-2. WP21 - Integrated `VirtualCanvas`
-3. WP23 - Public UI context/response/IDs
-4. WP24 - Public layout integration
+1. WP20 - Public shapes and input/hit testing - COMPLETE / LANE-GREEN (`ac01cfb`)
+2. WP21 - Integrated `VirtualCanvas` - COMPLETE / LANE-GREEN (`f82582e`)
+3. **NEXT: WP23 - Public UI context/response/IDs - READY / RED**
+4. WP24 - Public layout integration - BLOCKED until WP23
 5. Stop at Wave B barrier.
 
 **Eddy current lane:**
