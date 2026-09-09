@@ -35,6 +35,8 @@ extern fn rlv_mouse_down(window_id: Int, button: Int) -> Bool
 extern fn rlv_mouse_released(window_id: Int, button: Int) -> Bool
 extern fn rlv_mouse_framebuffer_x(window_id: Int) -> Float
 extern fn rlv_mouse_framebuffer_y(window_id: Int) -> Float
+extern fn rlv_key_pressed(window_id: Int, key: Int) -> Bool
+extern fn rlv_key_down(window_id: Int, key: Int) -> Bool
 extern fn rlv_window_framebuffer_width_f64(window_id: Int) -> Float
 extern fn rlv_window_framebuffer_height_f64(window_id: Int) -> Float
 extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
@@ -289,6 +291,14 @@ pub fn pointer_down(window: Window, button: Int) -> Bool:
 pub fn pointer_released(window: Window, button: Int) -> Bool:
     unsafe:
         return rlv_mouse_released(window.id, button)
+
+pub fn key_pressed(window: Window, key: Int) -> Bool:
+    unsafe:
+        return rlv_key_pressed(window.id, key)
+
+pub fn key_down(window: Window, key: Int) -> Bool:
+    unsafe:
+        return rlv_key_down(window.id, key)
 
 pub fn pointer_framebuffer_x(window: Window) -> Float:
     unsafe:

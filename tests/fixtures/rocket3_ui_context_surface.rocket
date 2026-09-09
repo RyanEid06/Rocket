@@ -1,0 +1,27 @@
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+
+fn consume(value: Result[ui.Interaction, String]) -> Bool:
+    match value:
+        case Ok(interaction):
+            return interaction.response.clicked or not interaction.response.clicked
+        case Err(message):
+            return false
+
+fn main() -> Int:
+    let window = safe.Window(1)
+    let mapping = graphics.virtual_canvas(graphics.size(1920.0, 1080.0), graphics.rect(0.0, 0.0, 1920.0, 1080.0), 1.0)
+    match ui.new_context("surface"):
+        case Err(message):
+            return 1
+        case Ok(context):
+            match ui.begin_frame(context, window, mapping):
+                case Err(message):
+                    return 2
+                case Ok(frame):
+                    let root = ui.widget_id("root")
+                    let child = ui.child_id(root, "button")
+                    if not consume(ui.interact(frame, child, graphics.rect(0.0, 0.0, 100.0, 40.0))):
+                        return 3
+    return 0

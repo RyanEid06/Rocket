@@ -1,0 +1,315 @@
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+import src.wp23_adapter_testing
+
+fn ok(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(message):
+            return false
+
+fn main() -> Int:
+    let root = ui.widget_id("panel")
+    let child = ui.child_id(root, "button")
+    let same_child = ui.child_id(root, "button")
+    if child.path != same_child.path or child.hash != same_child.hash:
+        return 1
+    let slash_parent = ui.widget_id("a/b")
+    let slash_child = ui.child_id(slash_parent, "c")
+    let nested_parent = ui.widget_id("a")
+    let nested_child = ui.child_id(nested_parent, "b/c")
+    if slash_child.path == nested_child.path:
+        return 2
+    let collision_left = ui.WidgetId("left", 7)
+    let collision_right = ui.WidgetId("right", 7)
+
+    if not wp23_adapter_testing.enable() or not wp23_adapter_testing.reset():
+        return 3
+    match safe.open_window(800, 450, "WP23 UI context"):
+        case Err(message):
+            return 4
+        case Ok(window):
+            if not wp23_adapter_testing.set_display(800, 450, 1600, 900, 2.0, 2.0):
+                return 5
+            match graphics.fit_virtual_canvas(graphics.size(1920.0, 1080.0), graphics.size(1600.0, 900.0)):
+                case Err(message):
+                    return 6
+                case Ok(mapping):
+                    match ui.new_context("main", 16):
+                        case Err(message):
+                            return 7
+                        case Ok(initial):
+                            var context = initial
+                            let button = ui.widget_id("button")
+                            let bounds = graphics.rect(900.0, 500.0, 200.0, 100.0)
+
+                            if not wp23_adapter_testing.set_mouse(400, 225, true, true, false):
+                                return 8
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 9
+                                case Ok(frame0):
+                                    match ui.begin_frame(context, window, mapping):
+                                        case Ok(stale_context_frame):
+                                            return 66
+                                        case Err(message):
+                                            let ignored = message
+                                    match ui.begin_frame(frame0.context, window, mapping):
+                                        case Ok(nested):
+                                            return 10
+                                        case Err(message):
+                                            let ignored = message
+                                    match ui.interact(frame0, button, bounds):
+                                        case Err(message):
+                                            return 11
+                                        case Ok(hit):
+                                            if not hit.response.hovered or not hit.response.active or not hit.response.focused or not hit.response.pointer_pressed or hit.response.clicked or hit.response.disabled or hit.response.modal_blocked:
+                                                return 12
+                                            if not ui.response_is_current(hit.frame, hit.response):
+                                                return 13
+                                            match ui.register_widget(hit.frame, ui.widget_id("later")):
+                                                case Err(message):
+                                                    return 69
+                                                case Ok(later_frame):
+                                                    if not ui.response_is_current(later_frame, hit.response):
+                                                        return 70
+                                                    match ui.interact(later_frame, button, bounds):
+                                                        case Ok(duplicate):
+                                                            return 14
+                                                        case Err(message):
+                                                            let ignored = message
+                                                    match ui.interact(frame0, button, bounds):
+                                                        case Ok(stale_branch):
+                                                            return 67
+                                                        case Err(message):
+                                                            let ignored = message
+                                                    match ui.end_frame(later_frame):
+                                                        case Err(message):
+                                                            return 15
+                                                        case Ok(next):
+                                                            context = next
+                                                            if ui.response_is_current_context(context, hit.response):
+                                                                return 16
+                                                            match ui.register_widget(later_frame, ui.widget_id("after-end")):
+                                                                case Ok(stale_frame):
+                                                                    return 68
+                                                                case Err(message):
+                                                                    let ignored = message
+
+                            if not wp23_adapter_testing.set_mouse(400, 225, false, true, false):
+                                return 17
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 18
+                                case Ok(frame1):
+                                    match ui.interact(frame1, button, bounds):
+                                        case Err(message):
+                                            return 19
+                                        case Ok(held):
+                                            if not held.response.active or held.response.clicked:
+                                                return 20
+                                            match ui.end_frame(held.frame):
+                                                case Err(message):
+                                                    return 21
+                                                case Ok(next):
+                                                    context = next
+
+                            if not wp23_adapter_testing.set_mouse(400, 225, false, false, true):
+                                return 22
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 23
+                                case Ok(frame2):
+                                    match ui.interact(frame2, button, bounds):
+                                        case Err(message):
+                                            return 24
+                                        case Ok(released):
+                                            if not released.response.clicked or not released.response.pointer_released or released.response.active or not released.response.focused:
+                                                return 25
+                                            match ui.end_frame(released.frame):
+                                                case Err(message):
+                                                    return 26
+                                                case Ok(next):
+                                                    context = next
+
+                            if not wp23_adapter_testing.set_mouse(400, 225, false, false, false) or not wp23_adapter_testing.set_key(32, true, false):
+                                return 27
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 28
+                                case Ok(frame3):
+                                    match ui.interact(frame3, button, bounds):
+                                        case Err(message):
+                                            return 29
+                                        case Ok(keyed):
+                                            if not keyed.response.keyboard_activated or not keyed.response.clicked or not keyed.response.focused or not ui.activation_pressed(keyed.frame):
+                                                return 30
+                                            match ui.request_focus(keyed.frame, button):
+                                                case Err(message):
+                                                    return 64
+                                                case Ok(refocused):
+                                                    if not ui.focused_is(refocused.context, button):
+                                                        return 65
+                                                    match ui.end_frame(refocused):
+                                                        case Err(message):
+                                                            return 31
+                                                        case Ok(next):
+                                                            context = next
+
+                            if not wp23_adapter_testing.set_mouse(400, 225, true, true, false):
+                                return 32
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 33
+                                case Ok(frame4):
+                                    let disabled_id = ui.widget_id("disabled")
+                                    match ui.interact(frame4, disabled_id, bounds, true):
+                                        case Err(message):
+                                            return 34
+                                        case Ok(disabled):
+                                            if disabled.response.hovered or disabled.response.active or disabled.response.clicked or disabled.response.focused or not disabled.response.disabled:
+                                                return 35
+                                            match ui.end_frame(disabled.frame):
+                                                case Err(message):
+                                                    return 36
+                                                case Ok(next):
+                                                    context = next
+
+                            let modal = ui.widget_id("dialog")
+                            match ui.activate_modal(context, modal):
+                                case Err(message):
+                                    return 37
+                                case Ok(value):
+                                    context = value
+                            if not wp23_adapter_testing.set_mouse(400, 225, true, true, false):
+                                return 38
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 39
+                                case Ok(frame5):
+                                    let outside = ui.widget_id("outside")
+                                    match ui.interact(frame5, outside, bounds):
+                                        case Err(message):
+                                            return 40
+                                        case Ok(blocked):
+                                            if not blocked.response.modal_blocked or blocked.response.hovered or blocked.response.clicked:
+                                                return 41
+                                            match ui.enter_modal(blocked.frame, modal):
+                                                case Err(message):
+                                                    return 42
+                                                case Ok(modal_frame):
+                                                    let inside = ui.child_id(modal, "inside")
+                                                    match ui.interact(modal_frame, inside, bounds):
+                                                        case Err(message):
+                                                            return 43
+                                                        case Ok(allowed):
+                                                            if allowed.response.modal_blocked or not allowed.response.hovered:
+                                                                return 44
+                                                            match ui.exit_modal(allowed.frame):
+                                                                case Err(message):
+                                                                    return 45
+                                                                case Ok(exited):
+                                                                    match ui.end_frame(exited):
+                                                                        case Err(message):
+                                                                            return 46
+                                                                        case Ok(next):
+                                                                            context = next
+                            match ui.clear_modal(context, modal):
+                                case Err(message):
+                                    return 47
+                                case Ok(value):
+                                    context = value
+
+                            if not wp23_adapter_testing.set_display(800, 600, 1600, 1200, 2.0, 2.0) or not wp23_adapter_testing.set_mouse(400, 0, false, false, false):
+                                return 48
+                            match graphics.fit_virtual_canvas(graphics.size(1920.0, 1080.0), graphics.size(1600.0, 1200.0)):
+                                case Err(message):
+                                    return 49
+                                case Ok(letterboxed):
+                                    match ui.begin_frame(context, window, letterboxed):
+                                        case Err(message):
+                                            return 50
+                                        case Ok(frame6):
+                                            let top = ui.widget_id("top")
+                                            match ui.interact(frame6, top, graphics.rect(0.0, 0.0, 1920.0, 1080.0)):
+                                                case Err(message):
+                                                    return 51
+                                                case Ok(outside_canvas):
+                                                    if outside_canvas.response.hovered or outside_canvas.response.clicked:
+                                                        return 52
+                                                    match ui.end_frame(outside_canvas.frame):
+                                                        case Err(message):
+                                                            return 53
+                                                        case Ok(next):
+                                                            context = next
+
+                            match ui.new_context("small", 2):
+                                case Err(message):
+                                    return 54
+                                case Ok(small):
+                                    if not wp23_adapter_testing.set_display(800, 450, 1600, 900, 2.0, 2.0):
+                                        return 55
+                                    match ui.begin_frame(small, window, mapping):
+                                        case Err(message):
+                                            return 56
+                                        case Ok(frame7):
+                                            match ui.register_widget(frame7, collision_left):
+                                                case Err(message):
+                                                    return 57
+                                                case Ok(a):
+                                                    match ui.register_widget(a, collision_right):
+                                                        case Err(message):
+                                                            return 58
+                                                        case Ok(b):
+                                                            match ui.register_widget(b, ui.widget_id("third")):
+                                                                case Ok(c):
+                                                                    return 59
+                                                                case Err(message):
+                                                                    let ignored = message
+                                                            match ui.interact(b, ui.widget_id("bad-bounds"), graphics.rect(0.0, 0.0, -1.0, 10.0)):
+                                                                case Ok(value):
+                                                                    return 60
+                                                                case Err(message):
+                                                                    let ignored = message
+                            match ui.new_context("", 4):
+                                case Ok(value):
+                                    return 61
+                                case Err(message):
+                                    let ignored = message
+                            match ui.new_context("invalid", 0):
+                                case Ok(value):
+                                    return 62
+                                case Err(message):
+                                    let ignored = message
+                            match ui.new_context("shared-namespace", 4):
+                                case Err(message):
+                                    return 72
+                                case Ok(first_context):
+                                    match ui.new_context("shared-namespace", 4):
+                                        case Err(message):
+                                            return 73
+                                        case Ok(second_context):
+                                            match ui.begin_frame(first_context, window, mapping):
+                                                case Err(message):
+                                                    return 74
+                                                case Ok(first_frame):
+                                                    let shared_id = ui.widget_id("shared")
+                                                    match ui.interact(first_frame, shared_id, bounds):
+                                                        case Err(message):
+                                                            return 75
+                                                        case Ok(first_interaction):
+                                                            match ui.begin_frame(second_context, window, mapping):
+                                                                case Err(message):
+                                                                    return 76
+                                                                case Ok(second_frame):
+                                                                    match ui.register_widget(second_frame, shared_id):
+                                                                        case Err(message):
+                                                                            return 77
+                                                                        case Ok(second_registered):
+                                                                            if ui.response_is_current(second_registered, first_interaction.response) or ui.response_is_current_context(second_registered.context, first_interaction.response):
+                                                                                return 71
+            if not ok(safe.close_window(window)):
+                return 63
+    return 0

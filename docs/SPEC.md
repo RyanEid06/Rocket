@@ -519,9 +519,9 @@ native artifact; independent binary module artifacts are not part of draft 0.6.
 Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files, except for explicitly bundled source modules
 such as `std.testing`. The public `rocket.motion`, `rocket.graphics`,
-`rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`, and
-`rocket.raylib.safe` modules are likewise resolved from bundled ordinary Rocket
-source under `stdlib/rocket`; they are not compiler intrinsics. Their function
+`rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`,
+`rocket.ui`, and `rocket.raylib.safe` modules are likewise resolved from bundled
+ordinary Rocket source under `stdlib/rocket`; they are not compiler intrinsics. Their function
 signatures are statically checked and lower to typed MIR calls.
 `rocket.graphics` keeps pure geometry/color/hit-testing/VirtualCanvas mapping
 values, while the native-backed `rocket.graphics.shapes`, `rocket.graphics.input`,
@@ -531,7 +531,11 @@ contract for framebuffer presentation, pointer conversion, clipping, logical
 screenshots, resize/fullscreen transitions, and DPI/display refresh. Physical
 coordinates outside its fitted viewport are outside rather than clamped. The
 safe module is the reviewed native-adapter boundary; applications should prefer
-the typed graphics modules. The
+the typed graphics and UI modules. `rocket.ui` provides a bounded immediate-mode
+context with explicit `begin_frame`/`end_frame` lifecycle, collision-safe stable
+widget IDs, one input snapshot per frame, focus/disabled/modal interaction state,
+duplicate-ID and capacity diagnostics, and frame-scoped `Response` freshness. It
+does not own layout, themes, or concrete controls. The
 stable foundational modules are `std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,

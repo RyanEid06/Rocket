@@ -1,0 +1,27 @@
+import rocket.raylib.safe
+
+extern fn rlv_enable_test_mode(enabled: Bool) -> Int
+extern fn rlv_test_reset() -> Int
+extern fn rlv_test_set_display_metrics(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_scale_x: Float, dpi_scale_y: Float, monitor_count: Int, current_monitor: Int) -> Int
+extern fn rlv_test_set_mouse_state(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Int
+extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
+
+pub fn enable() -> Bool:
+    unsafe:
+        return rlv_enable_test_mode(true) == 0
+
+pub fn reset() -> Bool:
+    unsafe:
+        return rlv_test_reset() == 0
+
+pub fn set_display(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_x: Float, dpi_y: Float) -> Bool:
+    unsafe:
+        return rlv_test_set_display_metrics(logical_width, logical_height, framebuffer_width, framebuffer_height, dpi_x, dpi_y, 1, 0) == 0
+
+pub fn set_mouse(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Bool:
+    unsafe:
+        return rlv_test_set_mouse_state(x, y, pressed, down, released) == 0
+
+pub fn set_key(key: Int, pressed: Bool, down: Bool) -> Bool:
+    unsafe:
+        return rlv_test_set_key(key, pressed, down) == 0

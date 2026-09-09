@@ -394,8 +394,9 @@ instead. The safe module owns the `Window` and `Frame` token wrappers, validates
 primitive geometry and color arguments before an `unsafe` adapter call, and
 translates adapter status values to `Result`. It exposes no native pointer or
 raylib structure. Pointer queries use framebuffer coordinates and provide
-pressed, down, and released states. F17 also uses this boundary for checked
-render-target/scissor scopes, framebuffer/DPI/display-revision queries,
+pressed, down, and released states. `key_pressed` and `key_down` expose reviewed
+integer key queries for higher-level UI input snapshots. F17 also uses this boundary
+for checked render-target/scissor scopes, framebuffer/DPI/display-revision queries,
 resize/fullscreen/borderless transitions, and render-target PNG export; those
 primitives remain backend plumbing rather than the preferred application API.
 
@@ -494,6 +495,32 @@ should also use `refresh` whenever `display_revision` changes because of a DPI,
 monitor, or external resize event. Across pointer mapping, clipping,
 presentation, screenshots, resize/fullscreen, and DPI changes, the fitted
 viewport and its half-open outside rule are the single coordinate contract.
+
+## `rocket.ui`
+
+`rocket.ui` is the Rocket 3 immediate-mode context foundation. `new_context`
+creates a bounded, namespaced state store; `begin_frame(context, window, canvas)`
+opens exactly one `UiFrame` and snapshots pointer and common keyboard state once
+through `rocket.graphics.input` and `rocket.raylib.safe`. `end_frame` closes the
+frame, evicts widget IDs not seen in that frame, and clears stale active, focused,
+or modal state. Nested frames, closed-frame use, duplicate IDs, over-capacity
+registration, invalid bounds, and unclosed modal scopes return recoverable
+contract errors. `Context` and `UiFrame` are single-thread-confined UI state;
+their atomic lease rejects stale copied values but is not a cross-thread
+synchronization contract.
+
+`widget_id` and `child_id` use deterministic length-prefixed composition and keep
+both the composed path and hash, so equal hashes do not collapse distinct widget
+identities. `register_widget` records an ID once per frame. `interact` centralizes
+half-open logical-canvas hit testing, pointer press/hold/release activation,
+focused Space/Enter activation, disabled behavior, and modal capture.
+`request_focus`, `activate_modal`, `enter_modal`, `exit_modal`, and `clear_modal`
+make focus and modal ownership explicit. `Response` records hover/active/click/
+focus/disabled/modal and activation facts for the frame that produced it;
+`response_is_current` and `response_is_current_context` reject stale responses.
+Keyboard helpers expose activation, cancel, focus-next, and directional snapshots
+without rereading native input during widget evaluation. Layout, themes, and
+concrete controls remain later `rocket.ui` layers.
 
 ## `std.file` and `std.path`
 

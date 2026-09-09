@@ -1,0 +1,10 @@
+import rocket.graphics
+import rocket.ui
+
+fn main() -> Int:
+    match ui.new_context("wrong"):
+        case Err(message):
+            return 1
+        case Ok(context):
+            let invalid = ui.begin_frame(context, graphics.vec2(1.0, 2.0), graphics.virtual_canvas(graphics.size(100.0, 100.0), graphics.rect(0.0, 0.0, 100.0, 100.0), 1.0))
+    return 0
