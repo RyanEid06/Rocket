@@ -118,6 +118,22 @@ pub fn sound_live_count() -> Int:
     unsafe:
         return rocket_raylib_adapter.rlv_sound_live_count()
 
+pub fn music_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_music_live_count()
+
+pub fn asset_store_live_count() -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_asset_store_live_count()
+
+pub fn asset_count(store_id: Int) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_asset_store_asset_count(store_id)
+
+pub fn physical_asset_count(store_id: Int) -> Int:
+    unsafe:
+        return rocket_raylib_adapter.rlv_asset_store_physical_count(store_id)
+
 pub fn set_test_anisotropy(level: Int) -> Bool:
     unsafe:
         return checked(rocket_raylib_adapter.rlv_test_set_anisotropy(level))

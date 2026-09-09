@@ -14,6 +14,9 @@ typedef uint8_t rocket_bool;
 #define RLV_ERR_STALE_HANDLE -6
 #define RLV_ERR_INVALID_SHADER -7
 #define RLV_ERR_SHADER_TYPE -8
+#define RLV_ERR_DUPLICATE_ASSET -9
+#define RLV_ERR_ASSET_TYPE -10
+#define RLV_ERR_PATH_ESCAPE -11
 
 #define RLV_KEY_SPACE 32
 #define RLV_KEY_ESCAPE 256
@@ -239,6 +242,29 @@ ROCKET_API int64_t rlv_sound_stop(int64_t sound_id);
 ROCKET_API int64_t rlv_sound_set_volume(int64_t sound_id, double volume);
 ROCKET_API int64_t rlv_sound_unload(int64_t sound_id);
 ROCKET_API int64_t rlv_sound_live_count(void);
+
+ROCKET_API int64_t rlv_music_live_count(void);
+
+ROCKET_API int64_t rlv_asset_store_create(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id);
+ROCKET_API int64_t rlv_asset_store_cleanup(int64_t store_id);
+ROCKET_API int64_t rlv_asset_store_live_count(void);
+ROCKET_API int64_t rlv_asset_store_asset_count(int64_t store_id);
+ROCKET_API int64_t rlv_asset_store_physical_count(int64_t store_id);
+ROCKET_API int64_t rlv_asset_texture_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_font_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_sound_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_music_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_shader_load(int64_t store_id, int64_t name_buffer_id, int64_t vertex_path_buffer_id, int64_t fragment_path_buffer_id);
+ROCKET_API int64_t rlv_asset_texture_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_font_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_sound_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_music_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_shader_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_texture_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_font_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_sound_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_music_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_shader_borrow(int64_t reference_id);
 
 ROCKET_API int64_t rlv_apply_callback(RlvIntCallback callback, int64_t value);
 

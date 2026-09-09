@@ -1,0 +1,289 @@
+import src.rocket_raylib
+import src.rocket_raylib_adapter
+import std.string
+
+# A typed, package-rooted cache over the safe raylib resource adapter. Asset
+# references borrow store-owned resources: callers must keep the AssetStore
+# live and use cleanup() instead of unloading borrowed handles directly.
+
+pub struct AssetStore:
+    id: Int
+
+pub struct TextureRef:
+    id: Int
+
+pub struct FontRef:
+    id: Int
+
+pub struct SoundRef:
+    id: Int
+
+pub struct MusicRef:
+    id: Int
+
+pub struct ShaderRef:
+    id: Int
+
+fn status_message(status: Int) -> String:
+    if status == rocket_raylib_adapter.RLV_ERR_INVALID_ARGUMENT:
+        return "raylib: invalid argument"
+    if status == rocket_raylib_adapter.RLV_ERR_INVALID_STATE:
+        return "raylib: invalid lifecycle state"
+    if status == rocket_raylib_adapter.RLV_ERR_NOT_FOUND:
+        return "raylib: asset or uniform not found"
+    if status == rocket_raylib_adapter.RLV_ERR_RESOURCE_LIVE:
+        return "raylib: owned resource is still live"
+    if status == rocket_raylib_adapter.RLV_ERR_UNAVAILABLE:
+        return "raylib: device or backend unavailable"
+    if status == rocket_raylib_adapter.RLV_ERR_STALE_HANDLE:
+        return "raylib: stale or already released handle"
+    if status == rocket_raylib_adapter.RLV_ERR_INVALID_SHADER:
+        return "raylib: invalid shader program"
+    if status == rocket_raylib_adapter.RLV_ERR_SHADER_TYPE:
+        return "raylib: shader uniform type mismatch or unsupported type"
+    if status == rocket_raylib_adapter.RLV_ERR_DUPLICATE_ASSET:
+        return "raylib: duplicate asset name"
+    if status == rocket_raylib_adapter.RLV_ERR_ASSET_TYPE:
+        return "raylib: asset type mismatch"
+    if status == rocket_raylib_adapter.RLV_ERR_PATH_ESCAPE:
+        return "raylib: asset path escapes package root"
+    return "raylib: unknown native failure"
+
+fn encode_text(value: String) -> Result[Int, String]:
+    unsafe:
+        let buffer_id = rocket_raylib_adapter.rlv_buffer_create()
+        if buffer_id <= 0:
+            return Err(status_message(buffer_id))
+        var index = 0
+        while index < string.byte_length(value):
+            let status = rocket_raylib_adapter.rlv_buffer_push(buffer_id, string.byte_at(value, index))
+            if status != rocket_raylib_adapter.RLV_OK:
+                rocket_raylib_adapter.rlv_buffer_destroy(buffer_id)
+                return Err(status_message(status))
+            index = index + 1
+        return Ok(buffer_id)
+
+fn release_text(buffer_id: Int) -> Result[Bool, String]:
+    unsafe:
+        let status = rocket_raylib_adapter.rlv_buffer_destroy(buffer_id)
+        if status == rocket_raylib_adapter.RLV_OK:
+            return Ok(true)
+        return Err(status_message(status))
+
+fn finish_reference(reference_id: Int) -> Result[Int, String]:
+    if reference_id <= 0:
+        return Err(status_message(reference_id))
+    return Ok(reference_id)
+
+pub fn open(window: rocket_raylib.Window, audio: rocket_raylib.AudioDevice, package_root: String = ".") -> Result[AssetStore, String]:
+    match encode_text(package_root):
+        case Err(message):
+            return Err(message)
+        case Ok(root_buffer):
+            var store_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                store_id = rocket_raylib_adapter.rlv_asset_store_create(window.id, audio.id, root_buffer)
+            match release_text(root_buffer):
+                case Err(message):
+                    return Err(message)
+                case Ok(released):
+                    if store_id <= 0:
+                        return Err(status_message(store_id))
+                    return Ok(AssetStore(store_id))
+
+pub fn cleanup(store: AssetStore) -> Result[Bool, String]:
+    unsafe:
+        let status = rocket_raylib_adapter.rlv_asset_store_cleanup(store.id)
+        if status == rocket_raylib_adapter.RLV_OK:
+            return Ok(true)
+        return Err(status_message(status))
+
+fn load_path(store: AssetStore, name: String, path: String, kind: Int) -> Result[Int, String]:
+    match encode_text(name):
+        case Err(message):
+            return Err(message)
+        case Ok(name_buffer):
+            match encode_text(path):
+                case Err(message):
+                    let released_name = release_text(name_buffer)
+                    return Err(message)
+                case Ok(path_buffer):
+                    var reference_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+                    unsafe:
+                        if kind == 0:
+                            reference_id = rocket_raylib_adapter.rlv_asset_texture_load(store.id, name_buffer, path_buffer)
+                        else:
+                            if kind == 1:
+                                reference_id = rocket_raylib_adapter.rlv_asset_font_load(store.id, name_buffer, path_buffer)
+                            else:
+                                if kind == 2:
+                                    reference_id = rocket_raylib_adapter.rlv_asset_sound_load(store.id, name_buffer, path_buffer)
+                                else:
+                                    reference_id = rocket_raylib_adapter.rlv_asset_music_load(store.id, name_buffer, path_buffer)
+                    let released_name = release_text(name_buffer)
+                    match release_text(path_buffer):
+                        case Err(message):
+                            return Err(message)
+                        case Ok(released_path):
+                            return finish_reference(reference_id)
+
+pub fn load_texture(store: AssetStore, name: String, path: String) -> Result[TextureRef, String]:
+    match load_path(store, name, path, 0):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(TextureRef(reference_id))
+
+pub fn load_font(store: AssetStore, name: String, path: String) -> Result[FontRef, String]:
+    match load_path(store, name, path, 1):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(FontRef(reference_id))
+
+pub fn load_sound(store: AssetStore, name: String, path: String) -> Result[SoundRef, String]:
+    match load_path(store, name, path, 2):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(SoundRef(reference_id))
+
+pub fn load_music(store: AssetStore, name: String, path: String) -> Result[MusicRef, String]:
+    match load_path(store, name, path, 3):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(MusicRef(reference_id))
+
+pub fn load_shader(store: AssetStore, name: String, vertex_path: String, fragment_path: String) -> Result[ShaderRef, String]:
+    match encode_text(name):
+        case Err(message):
+            return Err(message)
+        case Ok(name_buffer):
+            match encode_text(vertex_path):
+                case Err(message):
+                    let released_name = release_text(name_buffer)
+                    return Err(message)
+                case Ok(vertex_buffer):
+                    match encode_text(fragment_path):
+                        case Err(message):
+                            let released_name = release_text(name_buffer)
+                            let released_vertex = release_text(vertex_buffer)
+                            return Err(message)
+                        case Ok(fragment_buffer):
+                            var reference_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+                            unsafe:
+                                reference_id = rocket_raylib_adapter.rlv_asset_shader_load(store.id, name_buffer, vertex_buffer, fragment_buffer)
+                            let released_name = release_text(name_buffer)
+                            let released_vertex = release_text(vertex_buffer)
+                            match release_text(fragment_buffer):
+                                case Err(message):
+                                    return Err(message)
+                                case Ok(released_fragment):
+                                    match finish_reference(reference_id):
+                                        case Err(message):
+                                            return Err(message)
+                                        case Ok(value):
+                                            return Ok(ShaderRef(value))
+
+fn lookup(store: AssetStore, name: String, kind: Int) -> Result[Int, String]:
+    match encode_text(name):
+        case Err(message):
+            return Err(message)
+        case Ok(name_buffer):
+            var reference_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                if kind == 0:
+                    reference_id = rocket_raylib_adapter.rlv_asset_texture_lookup(store.id, name_buffer)
+                else:
+                    if kind == 1:
+                        reference_id = rocket_raylib_adapter.rlv_asset_font_lookup(store.id, name_buffer)
+                    else:
+                        if kind == 2:
+                            reference_id = rocket_raylib_adapter.rlv_asset_sound_lookup(store.id, name_buffer)
+                        else:
+                            if kind == 3:
+                                reference_id = rocket_raylib_adapter.rlv_asset_music_lookup(store.id, name_buffer)
+                            else:
+                                reference_id = rocket_raylib_adapter.rlv_asset_shader_lookup(store.id, name_buffer)
+            match release_text(name_buffer):
+                case Err(message):
+                    return Err(message)
+                case Ok(released):
+                    return finish_reference(reference_id)
+
+pub fn texture(store: AssetStore, name: String) -> Result[TextureRef, String]:
+    match lookup(store, name, 0):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(TextureRef(reference_id))
+
+pub fn font(store: AssetStore, name: String) -> Result[FontRef, String]:
+    match lookup(store, name, 1):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(FontRef(reference_id))
+
+pub fn sound(store: AssetStore, name: String) -> Result[SoundRef, String]:
+    match lookup(store, name, 2):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(SoundRef(reference_id))
+
+pub fn music(store: AssetStore, name: String) -> Result[MusicRef, String]:
+    match lookup(store, name, 3):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(MusicRef(reference_id))
+
+pub fn shader(store: AssetStore, name: String) -> Result[ShaderRef, String]:
+    match lookup(store, name, 4):
+        case Err(message):
+            return Err(message)
+        case Ok(reference_id):
+            return Ok(ShaderRef(reference_id))
+
+pub fn borrow_texture(reference: TextureRef) -> Result[rocket_raylib.Texture, String]:
+    unsafe:
+        let resource_id = rocket_raylib_adapter.rlv_asset_texture_borrow(reference.id)
+        if resource_id <= 0:
+            return Err(status_message(resource_id))
+        let width = rocket_raylib_adapter.rlv_texture_width(resource_id)
+        let height = rocket_raylib_adapter.rlv_texture_height(resource_id)
+        if width <= 0:
+            return Err(status_message(width))
+        if height <= 0:
+            return Err(status_message(height))
+        return Ok(rocket_raylib.Texture(resource_id, width, height))
+
+pub fn borrow_font(reference: FontRef) -> Result[rocket_raylib.Font, String]:
+    unsafe:
+        let resource_id = rocket_raylib_adapter.rlv_asset_font_borrow(reference.id)
+        if resource_id <= 0:
+            return Err(status_message(resource_id))
+        return Ok(rocket_raylib.Font(resource_id))
+
+pub fn borrow_sound(reference: SoundRef) -> Result[rocket_raylib.Sound, String]:
+    unsafe:
+        let resource_id = rocket_raylib_adapter.rlv_asset_sound_borrow(reference.id)
+        if resource_id <= 0:
+            return Err(status_message(resource_id))
+        return Ok(rocket_raylib.Sound(resource_id))
+
+pub fn borrow_music(reference: MusicRef) -> Result[rocket_raylib.Music, String]:
+    unsafe:
+        let resource_id = rocket_raylib_adapter.rlv_asset_music_borrow(reference.id)
+        if resource_id <= 0:
+            return Err(status_message(resource_id))
+        return Ok(rocket_raylib.Music(resource_id))
+
+pub fn borrow_shader(reference: ShaderRef) -> Result[rocket_raylib.Shader, String]:
+    unsafe:
+        let resource_id = rocket_raylib_adapter.rlv_asset_shader_borrow(reference.id)
+        if resource_id <= 0:
+            return Err(status_message(resource_id))
+        return Ok(rocket_raylib.Shader(resource_id))

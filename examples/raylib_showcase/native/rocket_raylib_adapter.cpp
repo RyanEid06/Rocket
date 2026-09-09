@@ -6,10 +6,11 @@
 #include <external/glfw/deps/glad/gl.h>
 #include <rlgl.h>
 
+#include <cfloat>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cfloat>
+#include <filesystem>
 #include <initializer_list>
 #include <limits>
 #include <regex>
@@ -28,6 +29,7 @@ struct TextureRecord {
   int64_t height = 0;
   int64_t filter = RLV_TEXTURE_FILTER_POINT;
   bool native = false;
+  int64_t assetStoreId = 0;
 };
 
 struct RenderTextureRecord {
@@ -42,6 +44,7 @@ struct ShaderRecord {
   Shader value{};
   int64_t windowId = 0;
   bool native = false;
+  int64_t assetStoreId = 0;
   std::unordered_map<std::string, int64_t> uniformTypes;
 };
 
@@ -68,12 +71,50 @@ struct ScopeRecord {
 struct SoundRecord {
   Sound value{};
   bool native = false;
+  int64_t audioId = 0;
+  int64_t assetStoreId = 0;
 };
 
 struct FontRecord {
   Font value{};
   int64_t windowId = 0;
   bool native = false;
+  int64_t assetStoreId = 0;
+};
+
+struct MusicRecord {
+  Music value{};
+  bool native = false;
+  int64_t audioId = 0;
+  int64_t assetStoreId = 0;
+};
+
+enum class AssetKind { Texture, Font, Sound, Music, Shader };
+
+struct AssetReferenceRecord {
+  int64_t storeId = 0;
+  AssetKind kind = AssetKind::Texture;
+  int64_t resourceId = 0;
+};
+
+struct AssetEntry {
+  AssetKind kind = AssetKind::Texture;
+  int64_t referenceId = 0;
+  int64_t resourceId = 0;
+  std::string physicalKey;
+};
+
+struct PhysicalAsset {
+  AssetKind kind = AssetKind::Texture;
+  int64_t resourceId = 0;
+};
+
+struct AssetStoreRecord {
+  int64_t windowId = 0;
+  int64_t audioId = 0;
+  std::filesystem::path packageRoot;
+  std::unordered_map<std::string, AssetEntry> assets;
+  std::unordered_map<std::string, PhysicalAsset> physicalAssets;
 };
 
 struct TextLayoutData {
@@ -159,6 +200,10 @@ struct AdapterState {
   std::unordered_map<int64_t, TextLayoutData> textLayouts;
   std::vector<CachedTextLayout> textMeasurementCache;
   std::unordered_map<int64_t, SoundRecord> sounds;
+  std::unordered_map<int64_t, MusicRecord> musics;
+  std::unordered_map<int64_t, AssetStoreRecord> assetStores;
+  std::unordered_map<int64_t, AssetReferenceRecord> assetReferences;
+  std::unordered_set<int64_t> cleanedAssetStores;
   std::vector<ScopeRecord> scopes;
   std::vector<MonitorRecord> monitors{MonitorRecord{}};
   std::unordered_set<int64_t> pressedKeys;
@@ -698,6 +743,113 @@ void closeNativeScope(const ScopeRecord& scope) {
   else EndShaderMode();
 }
 
+bool pathContainedBy(const std::filesystem::path& root,
+                     const std::filesystem::path& candidate) {
+  const std::filesystem::path relative = candidate.lexically_relative(root);
+  if (relative.empty() || relative.is_absolute()) return false;
+  for (const auto& part : relative) {
+    if (part == "..") return false;
+  }
+  return true;
+}
+
+int64_t resolveAssetPath(const AssetStoreRecord& store,
+                         const std::string& relativePath, bool allowEmpty,
+                         std::string& resolved) {
+  if (relativePath.empty()) {
+    if (!allowEmpty) return RLV_ERR_INVALID_ARGUMENT;
+    resolved.clear();
+    return RLV_OK;
+  }
+  const std::filesystem::path relative(relativePath);
+  if (relative.is_absolute() || relative.has_root_name() ||
+      relative.has_root_directory()) {
+    return RLV_ERR_PATH_ESCAPE;
+  }
+  std::error_code error;
+  const std::filesystem::path candidate =
+      std::filesystem::weakly_canonical(store.packageRoot / relative, error);
+  if (error || !pathContainedBy(store.packageRoot, candidate)) {
+    return RLV_ERR_PATH_ESCAPE;
+  }
+  if (!std::filesystem::is_regular_file(candidate, error) || error) {
+    return RLV_ERR_NOT_FOUND;
+  }
+  resolved = candidate.generic_string();
+  return RLV_OK;
+}
+
+char assetKindCode(AssetKind kind) {
+  switch (kind) {
+    case AssetKind::Texture: return 't';
+    case AssetKind::Font: return 'f';
+    case AssetKind::Sound: return 's';
+    case AssetKind::Music: return 'm';
+    case AssetKind::Shader: return 'h';
+  }
+  return '?';
+}
+
+std::string physicalAssetKey(AssetKind kind, const std::string& first,
+                             const std::string& second = std::string{}) {
+  std::string key(1, assetKindCode(kind));
+  key.push_back('\0');
+  key += first;
+  key.push_back('\0');
+  key += second;
+  return key;
+}
+
+int64_t temporaryTextBuffer(const std::string& value) {
+  const int64_t id = nextId();
+  state.buffers.emplace(id, value);
+  return id;
+}
+
+int64_t assetLookup(int64_t storeId, int64_t nameBufferId,
+                    AssetKind expectedKind) {
+  const auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
+  const std::string* name = buffer(nameBufferId);
+  if (!name || name->empty()) return RLV_ERR_INVALID_ARGUMENT;
+  const auto asset = store->second.assets.find(*name);
+  if (asset == store->second.assets.end()) return RLV_ERR_NOT_FOUND;
+  if (asset->second.kind != expectedKind) return RLV_ERR_ASSET_TYPE;
+  return asset->second.referenceId;
+}
+
+int64_t assetBorrow(int64_t referenceId, AssetKind expectedKind) {
+  const auto reference = state.assetReferences.find(referenceId);
+  if (reference == state.assetReferences.end()) return RLV_ERR_STALE_HANDLE;
+  if (reference->second.kind != expectedKind) return RLV_ERR_ASSET_TYPE;
+  if (state.assetStores.find(reference->second.storeId) ==
+      state.assetStores.end()) {
+    return RLV_ERR_STALE_HANDLE;
+  }
+  return reference->second.resourceId;
+}
+
+int64_t addAssetEntry(int64_t storeId, const std::string& name,
+                      AssetKind kind, int64_t resourceId,
+                      const std::string& physicalKey) {
+  auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
+  const int64_t referenceId = nextId();
+  store->second.assets.emplace(
+      name, AssetEntry{kind, referenceId, resourceId, physicalKey});
+  state.assetReferences.emplace(
+      referenceId, AssetReferenceRecord{storeId, kind, resourceId});
+  return referenceId;
+}
+
+bool storeUsesWindow(const AssetStoreRecord& store, int64_t windowId) {
+  return store.windowId == windowId;
+}
+
+bool storeUsesAudio(const AssetStoreRecord& store, int64_t audioId) {
+  return store.audioId == audioId;
+}
+
 }  // namespace
 
 extern "C" int64_t rlv_version_major(void) { return RAYLIB_VERSION_MAJOR; }
@@ -709,6 +861,8 @@ extern "C" int64_t rlv_enable_test_mode(rocket_bool enabled) {
       !state.renderTextures.empty() || !state.shaders.empty() ||
       !state.shaderUniforms.empty() || !state.fonts.empty() ||
       !state.textLayouts.empty() || !state.sounds.empty() ||
+      !state.musics.empty() || !state.assetStores.empty() ||
+      !state.assetReferences.empty() ||
       !state.pointBuffers.empty() || !state.scopes.empty()) {
     return RLV_ERR_RESOURCE_LIVE;
   }
@@ -829,6 +983,10 @@ extern "C" int64_t rlv_window_open_quality(int64_t width, int64_t height,
 extern "C" int64_t rlv_window_close(int64_t windowId) {
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   if (state.drawing) return RLV_ERR_INVALID_STATE;
+  for (const auto& [storeId, store] : state.assetStores) {
+    (void)storeId;
+    if (storeUsesWindow(store, windowId)) return RLV_ERR_RESOURCE_LIVE;
+  }
   if (!state.textures.empty() || !state.renderTextures.empty() ||
       !state.shaders.empty() || !state.shaderUniforms.empty() ||
       !state.fonts.empty() || !state.textLayouts.empty() ||
@@ -1444,6 +1602,7 @@ extern "C" int64_t rlv_texture_get_filter(int64_t textureId) {
 extern "C" int64_t rlv_texture_unload(int64_t textureId) {
   const auto found = state.textures.find(textureId);
   if (found == state.textures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
   if (state.drawing) return RLV_ERR_INVALID_STATE;
   if (found->second.native) UnloadTexture(found->second.value);
   state.textures.erase(found);
@@ -2102,6 +2261,7 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
 extern "C" int64_t rlv_shader_unload(int64_t shaderId) {
   const auto found = state.shaders.find(shaderId);
   if (found == state.shaders.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
   if (state.drawing || shaderActive(shaderId)) return RLV_ERR_INVALID_STATE;
   if (found->second.native) UnloadShader(found->second.value);
   for (auto uniform = state.shaderUniforms.begin();
@@ -2501,6 +2661,7 @@ extern "C" int64_t rlv_font_measurement_cache_misses(void) {
 extern "C" int64_t rlv_font_unload(int64_t fontId) {
   const auto found = state.fonts.find(fontId);
   if (found == state.fonts.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
   if (state.drawing) return RLV_ERR_INVALID_STATE;
   for (const auto& [layoutId, layout] : state.textLayouts) {
     (void)layoutId;
@@ -2537,7 +2698,13 @@ extern "C" int64_t rlv_audio_open(void) {
 
 extern "C" int64_t rlv_audio_close(int64_t audioId) {
   if (!validAudio(audioId)) return RLV_ERR_STALE_HANDLE;
-  if (!state.sounds.empty()) return RLV_ERR_RESOURCE_LIVE;
+  for (const auto& [storeId, store] : state.assetStores) {
+    (void)storeId;
+    if (storeUsesAudio(store, audioId)) return RLV_ERR_RESOURCE_LIVE;
+  }
+  if (!state.sounds.empty() || !state.musics.empty()) {
+    return RLV_ERR_RESOURCE_LIVE;
+  }
   if (!state.testMode) CloseAudioDevice();
   state.audioOpen = false;
   state.audioId = 0;
@@ -2554,6 +2721,7 @@ extern "C" int64_t rlv_sound_load(int64_t audioId, int64_t pathBufferId) {
   if (!validAudio(audioId)) return RLV_ERR_STALE_HANDLE;
   if (!path) return RLV_ERR_INVALID_ARGUMENT;
   SoundRecord record;
+  record.audioId = audioId;
   if (state.testMode) {
     if (simulatedMissing(*path)) return RLV_ERR_NOT_FOUND;
   } else {
@@ -2574,6 +2742,7 @@ extern "C" int64_t rlv_sound_tone(int64_t audioId, double frequency,
     return RLV_ERR_INVALID_ARGUMENT;
   }
   SoundRecord record;
+  record.audioId = audioId;
   if (!state.testMode) {
     constexpr unsigned int sampleRate = 44100;
     const auto frameCount = static_cast<unsigned int>(sampleRate * seconds);
@@ -2620,6 +2789,7 @@ extern "C" int64_t rlv_sound_set_volume(int64_t soundId, double volume) {
 extern "C" int64_t rlv_sound_unload(int64_t soundId) {
   const auto found = state.sounds.find(soundId);
   if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
   if (found->second.native) UnloadSound(found->second.value);
   state.sounds.erase(found);
   return RLV_OK;
@@ -2627,6 +2797,376 @@ extern "C" int64_t rlv_sound_unload(int64_t soundId) {
 
 extern "C" int64_t rlv_sound_live_count(void) {
   return static_cast<int64_t>(state.sounds.size());
+}
+
+extern "C" int64_t rlv_music_live_count(void) {
+  return static_cast<int64_t>(state.musics.size());
+}
+
+extern "C" int64_t rlv_asset_store_create(
+    int64_t windowId, int64_t audioId, int64_t packageRootBufferId) {
+  if (!validWindow(windowId) || !validAudio(audioId)) {
+    return RLV_ERR_STALE_HANDLE;
+  }
+  const std::string* rootText = buffer(packageRootBufferId);
+  if (!rootText || rootText->empty()) return RLV_ERR_INVALID_ARGUMENT;
+  std::error_code error;
+  std::filesystem::path root =
+      std::filesystem::weakly_canonical(
+          std::filesystem::absolute(*rootText, error), error);
+  if (error || !std::filesystem::is_directory(root, error) || error) {
+    return RLV_ERR_NOT_FOUND;
+  }
+  const int64_t id = nextId();
+  AssetStoreRecord store;
+  store.windowId = windowId;
+  store.audioId = audioId;
+  store.packageRoot = std::move(root);
+  state.assetStores.emplace(id, std::move(store));
+  state.cleanedAssetStores.erase(id);
+  return id;
+}
+
+extern "C" int64_t rlv_asset_store_live_count(void) {
+  return static_cast<int64_t>(state.assetStores.size());
+}
+
+extern "C" int64_t rlv_asset_store_asset_count(int64_t storeId) {
+  const auto store = state.assetStores.find(storeId);
+  return store == state.assetStores.end()
+             ? RLV_ERR_STALE_HANDLE
+             : static_cast<int64_t>(store->second.assets.size());
+}
+
+extern "C" int64_t rlv_asset_store_physical_count(int64_t storeId) {
+  const auto store = state.assetStores.find(storeId);
+  return store == state.assetStores.end()
+             ? RLV_ERR_STALE_HANDLE
+             : static_cast<int64_t>(store->second.physicalAssets.size());
+}
+
+extern "C" int64_t rlv_asset_texture_load(
+    int64_t storeId, int64_t nameBufferId, int64_t pathBufferId) {
+  auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
+  const std::string* nameValue = buffer(nameBufferId);
+  const std::string* pathValue = buffer(pathBufferId);
+  if (!nameValue || nameValue->empty() || !pathValue) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const std::string name = *nameValue;
+  const std::string relativePath = *pathValue;
+  if (store->second.assets.find(name) != store->second.assets.end()) {
+    return RLV_ERR_DUPLICATE_ASSET;
+  }
+  std::string path;
+  const int64_t pathStatus =
+      resolveAssetPath(store->second, relativePath, false, path);
+  if (pathStatus != RLV_OK) return pathStatus;
+  const std::string key = physicalAssetKey(AssetKind::Texture, path);
+  int64_t resourceId = 0;
+  const auto cached = store->second.physicalAssets.find(key);
+  if (cached != store->second.physicalAssets.end()) {
+    resourceId = cached->second.resourceId;
+  } else {
+    const int64_t pathBuffer = temporaryTextBuffer(path);
+    resourceId = rlv_texture_load(store->second.windowId, pathBuffer);
+    state.buffers.erase(pathBuffer);
+    if (resourceId <= 0) return resourceId;
+    state.textures.at(resourceId).assetStoreId = storeId;
+    store->second.physicalAssets.emplace(
+        key, PhysicalAsset{AssetKind::Texture, resourceId});
+  }
+  return addAssetEntry(storeId, name, AssetKind::Texture, resourceId, key);
+}
+
+extern "C" int64_t rlv_asset_font_load(
+    int64_t storeId, int64_t nameBufferId, int64_t pathBufferId) {
+  auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
+  const std::string* nameValue = buffer(nameBufferId);
+  const std::string* pathValue = buffer(pathBufferId);
+  if (!nameValue || nameValue->empty() || !pathValue) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const std::string name = *nameValue;
+  const std::string relativePath = *pathValue;
+  if (store->second.assets.find(name) != store->second.assets.end()) {
+    return RLV_ERR_DUPLICATE_ASSET;
+  }
+  std::string path;
+  const int64_t pathStatus =
+      resolveAssetPath(store->second, relativePath, false, path);
+  if (pathStatus != RLV_OK) return pathStatus;
+  const std::string key = physicalAssetKey(AssetKind::Font, path);
+  int64_t resourceId = 0;
+  const auto cached = store->second.physicalAssets.find(key);
+  if (cached != store->second.physicalAssets.end()) {
+    resourceId = cached->second.resourceId;
+  } else {
+    const int64_t pathBuffer = temporaryTextBuffer(path);
+    resourceId = rlv_font_load(store->second.windowId, pathBuffer);
+    state.buffers.erase(pathBuffer);
+    if (resourceId <= 0) return resourceId;
+    state.fonts.at(resourceId).assetStoreId = storeId;
+    store->second.physicalAssets.emplace(
+        key, PhysicalAsset{AssetKind::Font, resourceId});
+  }
+  return addAssetEntry(storeId, name, AssetKind::Font, resourceId, key);
+}
+
+extern "C" int64_t rlv_asset_sound_load(
+    int64_t storeId, int64_t nameBufferId, int64_t pathBufferId) {
+  auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
+  const std::string* nameValue = buffer(nameBufferId);
+  const std::string* pathValue = buffer(pathBufferId);
+  if (!nameValue || nameValue->empty() || !pathValue) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const std::string name = *nameValue;
+  const std::string relativePath = *pathValue;
+  if (store->second.assets.find(name) != store->second.assets.end()) {
+    return RLV_ERR_DUPLICATE_ASSET;
+  }
+  std::string path;
+  const int64_t pathStatus =
+      resolveAssetPath(store->second, relativePath, false, path);
+  if (pathStatus != RLV_OK) return pathStatus;
+  const std::string key = physicalAssetKey(AssetKind::Sound, path);
+  int64_t resourceId = 0;
+  const auto cached = store->second.physicalAssets.find(key);
+  if (cached != store->second.physicalAssets.end()) {
+    resourceId = cached->second.resourceId;
+  } else {
+    const int64_t pathBuffer = temporaryTextBuffer(path);
+    resourceId = rlv_sound_load(store->second.audioId, pathBuffer);
+    state.buffers.erase(pathBuffer);
+    if (resourceId <= 0) return resourceId;
+    state.sounds.at(resourceId).assetStoreId = storeId;
+    store->second.physicalAssets.emplace(
+        key, PhysicalAsset{AssetKind::Sound, resourceId});
+  }
+  return addAssetEntry(storeId, name, AssetKind::Sound, resourceId, key);
+}
+
+extern "C" int64_t rlv_asset_music_load(
+    int64_t storeId, int64_t nameBufferId, int64_t pathBufferId) {
+  auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
+  const std::string* nameValue = buffer(nameBufferId);
+  const std::string* pathValue = buffer(pathBufferId);
+  if (!nameValue || nameValue->empty() || !pathValue) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const std::string name = *nameValue;
+  const std::string relativePath = *pathValue;
+  if (store->second.assets.find(name) != store->second.assets.end()) {
+    return RLV_ERR_DUPLICATE_ASSET;
+  }
+  std::string path;
+  const int64_t pathStatus =
+      resolveAssetPath(store->second, relativePath, false, path);
+  if (pathStatus != RLV_OK) return pathStatus;
+  const std::string key = physicalAssetKey(AssetKind::Music, path);
+  int64_t resourceId = 0;
+  const auto cached = store->second.physicalAssets.find(key);
+  if (cached != store->second.physicalAssets.end()) {
+    resourceId = cached->second.resourceId;
+  } else {
+    MusicRecord record;
+    record.audioId = store->second.audioId;
+    record.assetStoreId = storeId;
+    if (!state.testMode) {
+      record.value = LoadMusicStream(path.c_str());
+      if (!IsMusicValid(record.value)) return RLV_ERR_NOT_FOUND;
+      record.native = true;
+    }
+    resourceId = nextId();
+    state.musics.emplace(resourceId, record);
+    store->second.physicalAssets.emplace(
+        key, PhysicalAsset{AssetKind::Music, resourceId});
+  }
+  return addAssetEntry(storeId, name, AssetKind::Music, resourceId, key);
+}
+
+extern "C" int64_t rlv_asset_shader_load(
+    int64_t storeId, int64_t nameBufferId, int64_t vertexPathBufferId,
+    int64_t fragmentPathBufferId) {
+  auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
+  const std::string* nameValue = buffer(nameBufferId);
+  const std::string* vertexValue = buffer(vertexPathBufferId);
+  const std::string* fragmentValue = buffer(fragmentPathBufferId);
+  if (!nameValue || nameValue->empty() || !vertexValue || !fragmentValue ||
+      (vertexValue->empty() && fragmentValue->empty())) {
+    return RLV_ERR_INVALID_ARGUMENT;
+  }
+  const std::string name = *nameValue;
+  const std::string vertexRelative = *vertexValue;
+  const std::string fragmentRelative = *fragmentValue;
+  if (store->second.assets.find(name) != store->second.assets.end()) {
+    return RLV_ERR_DUPLICATE_ASSET;
+  }
+  std::string vertexPath;
+  std::string fragmentPath;
+  int64_t pathStatus = resolveAssetPath(
+      store->second, vertexRelative, true, vertexPath);
+  if (pathStatus != RLV_OK) return pathStatus;
+  pathStatus = resolveAssetPath(
+      store->second, fragmentRelative, true, fragmentPath);
+  if (pathStatus != RLV_OK) return pathStatus;
+  const std::string key = physicalAssetKey(
+      AssetKind::Shader, vertexPath, fragmentPath);
+  int64_t resourceId = 0;
+  const auto cached = store->second.physicalAssets.find(key);
+  if (cached != store->second.physicalAssets.end()) {
+    resourceId = cached->second.resourceId;
+  } else {
+    const int64_t vertexBuffer = temporaryTextBuffer(vertexPath);
+    const int64_t fragmentBuffer = temporaryTextBuffer(fragmentPath);
+    resourceId = rlv_shader_load_files(
+        store->second.windowId, vertexBuffer, fragmentBuffer);
+    state.buffers.erase(vertexBuffer);
+    state.buffers.erase(fragmentBuffer);
+    if (resourceId <= 0) return resourceId;
+    state.shaders.at(resourceId).assetStoreId = storeId;
+    store->second.physicalAssets.emplace(
+        key, PhysicalAsset{AssetKind::Shader, resourceId});
+  }
+  return addAssetEntry(storeId, name, AssetKind::Shader, resourceId, key);
+}
+
+extern "C" int64_t rlv_asset_texture_lookup(
+    int64_t storeId, int64_t nameBufferId) {
+  return assetLookup(storeId, nameBufferId, AssetKind::Texture);
+}
+
+extern "C" int64_t rlv_asset_font_lookup(
+    int64_t storeId, int64_t nameBufferId) {
+  return assetLookup(storeId, nameBufferId, AssetKind::Font);
+}
+
+extern "C" int64_t rlv_asset_sound_lookup(
+    int64_t storeId, int64_t nameBufferId) {
+  return assetLookup(storeId, nameBufferId, AssetKind::Sound);
+}
+
+extern "C" int64_t rlv_asset_music_lookup(
+    int64_t storeId, int64_t nameBufferId) {
+  return assetLookup(storeId, nameBufferId, AssetKind::Music);
+}
+
+extern "C" int64_t rlv_asset_shader_lookup(
+    int64_t storeId, int64_t nameBufferId) {
+  return assetLookup(storeId, nameBufferId, AssetKind::Shader);
+}
+
+extern "C" int64_t rlv_asset_texture_borrow(int64_t referenceId) {
+  return assetBorrow(referenceId, AssetKind::Texture);
+}
+
+extern "C" int64_t rlv_asset_font_borrow(int64_t referenceId) {
+  return assetBorrow(referenceId, AssetKind::Font);
+}
+
+extern "C" int64_t rlv_asset_sound_borrow(int64_t referenceId) {
+  return assetBorrow(referenceId, AssetKind::Sound);
+}
+
+extern "C" int64_t rlv_asset_music_borrow(int64_t referenceId) {
+  return assetBorrow(referenceId, AssetKind::Music);
+}
+
+extern "C" int64_t rlv_asset_shader_borrow(int64_t referenceId) {
+  return assetBorrow(referenceId, AssetKind::Shader);
+}
+
+extern "C" int64_t rlv_asset_store_cleanup(int64_t storeId) {
+  auto store = state.assetStores.find(storeId);
+  if (store == state.assetStores.end()) {
+    return state.cleanedAssetStores.find(storeId) !=
+                   state.cleanedAssetStores.end()
+               ? RLV_OK
+               : RLV_ERR_STALE_HANDLE;
+  }
+  if (state.drawing || !state.scopes.empty()) return RLV_ERR_INVALID_STATE;
+  for (const auto& [physicalKey, physical] : store->second.physicalAssets) {
+    (void)physicalKey;
+    if (physical.kind != AssetKind::Font) continue;
+    for (const auto& [layoutId, layout] : state.textLayouts) {
+      (void)layoutId;
+      if (layout.fontId == physical.resourceId) return RLV_ERR_RESOURCE_LIVE;
+    }
+  }
+
+  const auto releaseKind = [&](AssetKind kind) {
+    for (const auto& [physicalKey, physical] :
+         store->second.physicalAssets) {
+      (void)physicalKey;
+      if (physical.kind != kind) continue;
+      const int64_t id = physical.resourceId;
+      if (kind == AssetKind::Music) {
+        const auto found = state.musics.find(id);
+        if (found != state.musics.end()) {
+          if (found->second.native) {
+            StopMusicStream(found->second.value);
+            UnloadMusicStream(found->second.value);
+          }
+          state.musics.erase(found);
+        }
+      } else if (kind == AssetKind::Sound) {
+        const auto found = state.sounds.find(id);
+        if (found != state.sounds.end()) {
+          if (found->second.native) {
+            StopSound(found->second.value);
+            UnloadSound(found->second.value);
+          }
+          state.sounds.erase(found);
+        }
+      } else if (kind == AssetKind::Shader) {
+        const auto found = state.shaders.find(id);
+        if (found != state.shaders.end()) {
+          if (found->second.native) UnloadShader(found->second.value);
+          state.shaders.erase(found);
+        }
+        for (auto uniform = state.shaderUniforms.begin();
+             uniform != state.shaderUniforms.end();) {
+          if (uniform->second.shaderId == id) {
+            uniform = state.shaderUniforms.erase(uniform);
+          } else {
+            ++uniform;
+          }
+        }
+      } else if (kind == AssetKind::Font) {
+        const auto found = state.fonts.find(id);
+        if (found != state.fonts.end()) {
+          if (found->second.native) UnloadFont(found->second.value);
+          invalidateTextMeasurements(id);
+          state.fonts.erase(found);
+        }
+      } else {
+        const auto found = state.textures.find(id);
+        if (found != state.textures.end()) {
+          if (found->second.native) UnloadTexture(found->second.value);
+          state.textures.erase(found);
+        }
+      }
+    }
+  };
+
+  releaseKind(AssetKind::Music);
+  releaseKind(AssetKind::Sound);
+  releaseKind(AssetKind::Shader);
+  releaseKind(AssetKind::Font);
+  releaseKind(AssetKind::Texture);
+  for (const auto& [name, asset] : store->second.assets) {
+    (void)name;
+    state.assetReferences.erase(asset.referenceId);
+  }
+  state.assetStores.erase(store);
+  state.cleanedAssetStores.insert(storeId);
+  return RLV_OK;
 }
 
 extern "C" int64_t rlv_apply_callback(RlvIntCallback callback, int64_t value) {

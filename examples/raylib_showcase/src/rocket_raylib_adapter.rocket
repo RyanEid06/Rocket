@@ -8,6 +8,9 @@ pub extern const RLV_ERR_UNAVAILABLE: Int = -5
 pub extern const RLV_ERR_STALE_HANDLE: Int = -6
 pub extern const RLV_ERR_INVALID_SHADER: Int = -7
 pub extern const RLV_ERR_SHADER_TYPE: Int = -8
+pub extern const RLV_ERR_DUPLICATE_ASSET: Int = -9
+pub extern const RLV_ERR_ASSET_TYPE: Int = -10
+pub extern const RLV_ERR_PATH_ESCAPE: Int = -11
 pub extern const RLV_KEY_SPACE: Int = 32
 pub extern const RLV_KEY_ESCAPE: Int = 256
 pub extern const RLV_KEY_RIGHT: Int = 262
@@ -209,6 +212,27 @@ pub extern fn rlv_sound_stop(sound_id: Int) -> Int
 pub extern fn rlv_sound_set_volume(sound_id: Int, volume: Float) -> Int
 pub extern fn rlv_sound_unload(sound_id: Int) -> Int
 pub extern fn rlv_sound_live_count() -> Int
+pub extern fn rlv_music_live_count() -> Int
+pub extern fn rlv_asset_store_create(window_id: Int, audio_id: Int, package_root_buffer_id: Int) -> Int
+pub extern fn rlv_asset_store_cleanup(store_id: Int) -> Int
+pub extern fn rlv_asset_store_live_count() -> Int
+pub extern fn rlv_asset_store_asset_count(store_id: Int) -> Int
+pub extern fn rlv_asset_store_physical_count(store_id: Int) -> Int
+pub extern fn rlv_asset_texture_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_font_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_sound_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_music_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_shader_load(store_id: Int, name_buffer_id: Int, vertex_path_buffer_id: Int, fragment_path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_texture_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_font_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_sound_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_music_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_shader_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_texture_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_font_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_sound_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_music_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_shader_borrow(reference_id: Int) -> Int
 pub extern fn rlv_apply_callback(callback: RlvIntCallback, value: Int) -> Int
 pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
 pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
