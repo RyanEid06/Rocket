@@ -1,9 +1,11 @@
 # Rocket Master Roadmap
 
-**Current status (updated 2026-08-29):** Rocket 2.1 portability is complete.
-Windows x64, Linux x64, Linux ARM64, and macOS ARM64 native acceptance passed,
-and the supported cross-build paths are green. The Rocket 2.0 Windows x64 SDK
-remains available as the stable compatibility archive.
+**Current status (updated 2026-09-10):** Rocket 2.1 portability is complete and
+Rocket 3 Wave B is accepted on the integrated Windows baseline. Wave C is ready
+to begin with Eddy's WP25 -> WP26 -> WP27 -> WP30 queue; Ryan is review and
+integration support only. Native non-Windows Rocket 3 target-laboratory
+acceptance remains deferred to WP34/F29. The Rocket 2.0 Windows x64 SDK remains
+available as the stable compatibility archive.
 
 ## Long-term objective
 
@@ -576,6 +578,30 @@ ABI v1, and FFI contracts without adding grammar.
   make security and compatibility policies operational.
 - Exact observed commands, counts, limitations, and hashes are recorded in
   `PROJECT_CONTEXT.md` and `PHASE_20_AUDIT.md`; no external adoption is claimed.
+
+### Phase 21 - Rocket 3.0 graphics/UI foundation: Wave B - Accepted
+
+**Completed 2026-09-10 on the integrated Windows baseline.** Wave B promoted
+the public shapes/input, `VirtualCanvas`, typography, UI context/interaction,
+layout, and typed asset-store surfaces through Ryan's WP20 -> WP21 -> WP23 ->
+WP24 chain and Eddy's WP22 -> WP28 chain. The owner commits were preserved in
+non-squash integration commit `6bb9841e185e948a9135a63bdcceeec4e5a8314a`.
+
+- Full Debug and Release CTest suites passed `267/267` each, including native,
+  deterministic stage0/self-host, target-surface, package/docs/search/
+  formatter/LSP, and relocation coverage.
+- Deterministic Release bootstrap passed stage0 -> stage1 -> stage2 -> stage3
+  with matching stage2/stage3 IR SHA-256
+  `1aa7c6d4c15b0ccf4a00b4445827dddb821aea3553d814788d0e4e57ade93edf`.
+- Rocket 2.1 predecessor conformance passed `90` cases, release-line
+  compatibility passed `11` cases, and application validation resolved `32`
+  packages and passed `11` checks.
+- Final Rocket 3.0 `ACCEPTED` maturity and native Linux x64, Linux ARM64, and
+  macOS ARM64 target-laboratory evidence remain WP34/F29 responsibilities.
+
+**Next:** Create `rocket3/eddy-wave-c` from the accepted `master` commit. Eddy
+implements WP25, WP26, WP27, and WP30 in order; Ryan reviews and later performs
+the Wave C barrier integration. WP29 remains deferred until Wave C is accepted.
 
 ## Post-roadmap tooling maintenance
 

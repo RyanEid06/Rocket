@@ -9,6 +9,14 @@ is the accepted Rocket 2.1 portability baseline at
 
 **Companion plan:** `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`
 
+**Wave B status (2026-09-10):** The public F14/F15 shape and input surface,
+F16 typography, F17 `VirtualCanvas`, F18 UI context/interaction, F19 layout,
+and F23 typed asset-store requirements have reached `PUBLIC / WAVE-GREEN` on
+the integrated Wave B tree. The Windows Debug/Release, stage0/self-host,
+bootstrap, predecessor, package/relocation, native, and application evidence
+passes; final `ACCEPTED` maturity and native non-Windows target-laboratory
+coverage remain governed by WP34/F29.
+
 ## 1. Purpose
 
 Rocket 3.0 makes polished, responsive, visually faithful 2D game interfaces a

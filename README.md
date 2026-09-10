@@ -1,4 +1,4 @@
-# Rocket 2.1 portability work
+# Rocket
 
 Rocket is a beginner-friendly, statically typed language for native command-line programs and applications. Local types are inferred, blocks use indentation, and the self-hosted compiler produces native code through LLVM.
 
@@ -11,6 +11,21 @@ Linux ARM64, and macOS ARM64 native matrices and the supported cross-build
 paths have passed. Exact evidence and the remaining optional limitations are
 recorded in [`PHASE_19_AUDIT.md`](docs/PHASE_19_AUDIT.md),
 [`TARGETS.md`](docs/TARGETS.md), and [`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md).
+
+## Rocket 3.0 Wave B status
+
+Wave B is accepted on the integrated Windows baseline at
+`6bb9841e185e948a9135a63bdcceeec4e5a8314a`. It delivers the public shapes and
+input helpers, `VirtualCanvas`, typography, UI context/interaction, layout, and
+typed asset-store surfaces. Debug and Release each pass `267/267`; deterministic
+stage0 -> stage3 bootstrap, predecessor conformance (`90` cases), release-line
+compatibility (`11` cases), package/relocation, and application validation
+(`32` packages, `11` checks) also pass. Native Linux x64, Linux ARM64, and macOS
+ARM64 Rocket 3 target-laboratory acceptance remains deferred to WP34/F29.
+
+Wave C is ready: Eddy proceeds in order through WP25, WP26, WP27, and WP30;
+Ryan provides review and integration support. WP29 remains deferred until the
+Wave C barrier.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for

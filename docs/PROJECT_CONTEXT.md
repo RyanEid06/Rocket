@@ -1163,14 +1163,38 @@ Known limitations remain those in the implementation-state list above; no langua
   Native Linux x64, Linux ARM64, and macOS ARM64 execution remains deferred to
   WP34/F29 target-laboratory acceptance.
 
+**Rocket 3 Wave B - accepted graphics/UI foundation**
+
+- Integrated Ryan WP20 `ac01cfb5d63db1ff5b930a82d06c66b9181e6ba7`, WP21
+  `f82582e8638f082da6b754e98edfe5a2f4e60ed2`, WP23
+  `6e2971a0bf4669089074c772b3c683302977e681`, and WP24
+  `56f4498bfb4f6909b0f633020710dba10275281b` with Eddy WP22
+  `158bc6fc80923f5b358efd906a40d392723fa7bb` and WP28
+  `778de29110dac6c29c99c4eabdd5a4221931db85` in non-squash integration commit
+  `6bb9841e185e948a9135a63bdcceeec4e5a8314a`.
+- The integrated Windows Debug and Release suites each passed `267/267`,
+  including packet stage0/self-host/target-surface gates, native adapter tests,
+  package/docs/search/formatter/LSP coverage, and relocation checks.
+- Release stage0 -> stage1 -> stage2 -> stage3 bootstrap passed with matching
+  stage2/stage3 IR SHA-256
+  `1aa7c6d4c15b0ccf4a00b4445827dddb821aea3553d814788d0e4e57ade93edf`.
+  Rocket 2.1 predecessor conformance passed `90` cases; compatibility passed
+  `11` release-line cases; application validation resolved `32` packages and
+  passed `11` application checks.
+- The WP28 integration edge case was corrected so a missing in-root final path
+  component reports `RLV_ERR_NOT_FOUND`, while traversal and absolute paths
+  remain `RLV_ERR_PATH_ESCAPE`. Native non-Windows target-laboratory execution
+  remains deferred to WP34/F29.
+
 ## Current next task
 
-**Rocket 3 Wave B is active. Ryan completed and pushed WP20 (`ac01cfb`) and
-WP21 (`f82582e`) on `rocket3/ryan-wave-b`; both are LANE-GREEN. Ryan's next
-packet is WP23, followed by WP24. Eddy's independent next packet remains WP22,
-followed by WP28. Each owner stops at the Wave B barrier. Native non-Windows
-target-laboratory acceptance remains a WP34/F29 item. The exact packet scopes
-and success-only handoff are in
+**Rocket 3 Wave C is ready. Wave B is accepted on integration commit
+`6bb9841e185e948a9135a63bdcceeec4e5a8314a`; publish that verified tree to
+`master` before creating `rocket3/eddy-wave-c`. Ryan is review/integration
+support only. Eddy's serial queue is WP25 (public themes/styles), WP26
+(controls), WP27 (containers/transient UI), then WP30 (bounded state/caches).
+Do not begin WP29 in Wave C. Native non-Windows target-laboratory acceptance
+remains a WP34/F29 item. The exact packet scopes and success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
 remain baseline state.**

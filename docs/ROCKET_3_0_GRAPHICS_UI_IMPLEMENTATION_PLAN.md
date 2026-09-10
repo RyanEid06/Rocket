@@ -58,15 +58,17 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 | Integration branch | `master` |
 | Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
 | Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
-| Rocket 3 shared baseline | pushed `origin/master` containing completed WP16 (`feat: add safe render scopes`) |
+| Rocket 3 shared baseline | verified Wave B integration `6bb9841e185e948a9135a63bdcceeec4e5a8314a`; publish this barrier's status commit to `master` |
 | WP16 implementation owner | Eddy |
 | Packet generated output | packet-local paths below `out/rocket3-provisional/`; never share generated state between developer checkouts |
 | Parallel delivery policy | Ryan and Eddy push isolated wave branches; Ryan integrates only at a defined barrier after required verification |
 
-The accepted Rocket 2.1 baseline remains compatibility provenance. The current
-parallel baseline is the pushed `origin/master` commit containing WP16. At the
-start of each wave, record that exact commit with `git rev-parse origin/master`;
-both developer branches for that wave must be created from that same SHA.
+The accepted Rocket 2.1 baseline remains compatibility provenance. The Wave B
+barrier has now verified the integrated tree at `6bb9841e185e948a9135a63bdcceeec4e5a8314a`;
+publish the status commit from this tree to `master` before creating the Wave C
+branch. At the start of each wave, record the exact accepted `origin/master`
+SHA with `git rev-parse origin/master`; both developer branches for that wave
+must be created from that same SHA.
 
 Before a lane starts a packet, verify all of the following:
 
@@ -336,15 +338,15 @@ section 5A assigns it to the current owner/wave.
 | WP17 | F10 | Safe shader subset | COMPLETE / WAVE-GREEN | Ryan | A |
 | WP18 | F11 | Window/display/rendering quality | COMPLETE / WAVE-GREEN | Ryan | A |
 | WP19 | F12, F13 | Public graphics core types and Color | COMPLETE / WAVE-GREEN | Eddy | A |
-| WP20 | F14, F15 | Public shapes and input/hit testing | COMPLETE / LANE-GREEN | Ryan | B |
-| WP21 | F17 | Integrated `VirtualCanvas` | COMPLETE / LANE-GREEN | Ryan | B |
-| WP22 | F16 | Typography | READY / RED; Wave A baseline accepted | Eddy | B |
-| WP23 | F18 | Public UI context/response/IDs | READY / RED; Ryan WP20/WP21 complete on lane branch | Ryan | B |
-| WP24 | F19 | Public layout integration | BLOCKED until Ryan WP23 / RED | Ryan | B |
-| WP25 | F20 | Public themes/styles | BLOCKED until Wave B integrates WP22/WP24 / RED | Eddy | C |
-| WP26 | F21 | Controls | BLOCKED until Eddy WP25 and integrated WP23 / RED | Eddy | C |
+| WP20 | F14, F15 | Public shapes and input/hit testing | COMPLETE / WAVE-GREEN (`ac01cfb`) | Ryan | B |
+| WP21 | F17 | Integrated `VirtualCanvas` | COMPLETE / WAVE-GREEN (`f82582e`) | Ryan | B |
+| WP22 | F16 | Typography | COMPLETE / WAVE-GREEN (`158bc6f`) | Eddy | B |
+| WP23 | F18 | Public UI context/response/IDs | COMPLETE / WAVE-GREEN (`6e2971a`) | Ryan | B |
+| WP24 | F19 | Public layout integration | COMPLETE / WAVE-GREEN (`56f4498`) | Ryan | B |
+| WP25 | F20 | Public themes/styles | READY / RED; Wave B accepted and WP25 is unblocked | Eddy | C |
+| WP26 | F21 | Controls | BLOCKED until Eddy WP25 / RED | Eddy | C |
 | WP27 | F22 | Containers/dialogs/transient UI | BLOCKED until Eddy WP26 / RED | Eddy | C |
-| WP28 | F23 | Typed asset store | BLOCKED until Wave A WP17 plus Eddy WP22 / RED | Eddy | B |
+| WP28 | F23 | Typed asset store | COMPLETE / WAVE-GREEN (`778de291`) | Eddy | B |
 | WP29 | F24 | Unified errors and lifetime hardening | BLOCKED until Wave C integrates WP27/WP28; intentionally scheduled after WP30 | Ryan | D |
 | WP30 | F25 | Bounded-state/cache integration | BLOCKED until Eddy WP27 plus integrated WP22/WP28 / RED | Eddy | C |
 | WP31 | F26 | Performance instrumentation and budgets | BLOCKED until Wave C integrates WP30 / RED | Eddy | D |
@@ -1313,6 +1315,33 @@ spacing, alignment, invalid-layout handling, and deterministic layout tests.
 
 **Checkpoint:** `feat: add Rocket UI layout`
 
+### Wave B acceptance (WP20-WP24, WP22, WP28)
+
+The six scheduled Wave B packets were integrated without squashing their owner
+commits on `rocket3/integration-wave-b` at `6bb9841e185e948a9135a63bdcceeec4e5a8314a`
+(Ryan merge `e435e9d`, Eddy merge parent `778de291`). The integration resolved
+the shared CMake registrations mechanically and fixed one platform-specific
+asset-store edge case: a missing in-root final path component now reports
+`RLV_ERR_NOT_FOUND`, while traversal and absolute paths remain
+`RLV_ERR_PATH_ESCAPE`.
+
+Fresh Windows evidence on the integrated tree:
+
+- The complete Debug and Release CTest suites each passed `267/267`. This
+  includes the six packet stage0, self-hosted, and target-surface gates, the
+  WP20/WP21/WP22/WP28 native adapter checks, package/docs/search/formatter/LSP,
+  and relocation coverage.
+- Release bootstrap passed stage0 -> stage1 -> stage2 -> stage3 with matching
+  stage2/stage3 LLVM IR SHA-256
+  `1aa7c6d4c15b0ccf4a00b4445827dddb821aea3553d814788d0e4e57ade93edf`.
+- Rocket 2.1 predecessor conformance passed `90` cases; compatibility passed
+  `11` release-line cases; application validation resolved `32` packages and
+  passed all `11` application checks.
+- The integrated native adapter selection passed `4/4` (WP20, WP21, WP22,
+  WP28), and the focused target-surface selection passed `6/6`. Native Linux
+  x64, Linux ARM64, and macOS ARM64 execution remains deferred to WP34/F29
+  target-laboratory acceptance.
+
 ### WP25 - Public themes and styles
 
 **Feature:** F20. Freeze semantic tokens, style objects, state resolution,
@@ -1419,22 +1448,22 @@ file/test/doc/evidence links when executed.
 | F11 Display quality | WP18 | WAVE-GREEN: DPI/framebuffer/monitor APIs, MSAA4x configuration, resizing/fullscreen/borderless transitions, screenshots, deterministic/native coverage, and Wave A barrier evidence recorded above | WP34 |
 | F12 Graphics core types | WP01, WP19 | WAVE-GREEN: the WP01 kernel is promoted into final public `rocket.graphics` value types with frozen constructors/named parameters, stage0/self-host/formatter/LSP/docs/target parity, and Wave A barrier evidence recorded above | WP34 |
 | F13 Color | WP02, WP19 | WAVE-GREEN: the WP02 kernel is promoted into final public `rocket.graphics.Color` with defined parsing/conversion/clamping/interpolation behavior, stage0/self-host parity, and Wave A barrier evidence recorded above | WP34 |
-| F14 Shape API | WP20 | RED | WP34 |
-| F15 Input/hit testing | WP01, WP20 | WP09 retained the WP01 pure hit kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/hit_testing.rocket`; fresh native package and formatter evidence recorded above | WP34 |
-| F16 Typography | WP22 | RED | WP34 |
-| F17 VirtualCanvas | WP03, WP21 | WP09 retained the WP03 mapping math as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/virtual_canvas.rocket`; fresh native package and formatter evidence recorded above | WP34 |
-| F18 UI context/IDs | WP05, WP23 | WP09 retained the corrected WP05 full-identity kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; fresh native package and formatter evidence recorded above | WP34 |
-| F19 Layout | WP03, WP24 | WP09 retained the WP03 layout math as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/layout.rocket`; fresh native package and formatter evidence recorded above | WP34 |
+| F14 Shape API | WP20 | PUBLIC / WAVE-GREEN: public shapes and input helpers passed the combined Wave B Debug/Release, stage0/self-host, target-surface, native, formatter/docs/search, and package gates; final cross-target acceptance remains WP34 | WP34 |
+| F15 Input/hit testing | WP01, WP20 | PUBLIC / WAVE-GREEN: pointer states, hit testing, logical-coordinate behavior, and outside-viewport safety passed the combined Wave B gates; final cross-target acceptance remains WP34 | WP34 |
+| F16 Typography | WP22 | PUBLIC / WAVE-GREEN: bounded measurement/alignment/wrapping/clipping behavior and typography native/target-surface gates passed the combined Wave B evidence; final cross-target acceptance remains WP34 | WP34 |
+| F17 VirtualCanvas | WP03, WP21 | PUBLIC / WAVE-GREEN: integrated logical mapping, render-target, clipping, pointer, resize/fullscreen/DPI, and screenshot behavior passed the combined Wave B gates; final cross-target acceptance remains WP34 | WP34 |
+| F18 UI context/IDs | WP05, WP23 | PUBLIC / WAVE-GREEN: `Context`, `UiFrame`, `Response`, stable IDs, lifecycle, interaction, focus, disabled, modal, duplicate-ID, and misuse checks passed the combined Wave B gates; final cross-target acceptance remains WP34 | WP34 |
+| F19 Layout | WP03, WP24 | PUBLIC / WAVE-GREEN: Row/Column/Grid/Stack/Anchor sizing, Insets/SafeArea, spacing, alignment, invalid-layout, deterministic target-surface, and self-host checks passed the combined Wave B gates; final cross-target acceptance remains WP34 | WP34 |
 | F20 Themes/styles | WP04, WP25 | WP09 retained the WP04 value/resolution data as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/theme.rocket`; fresh native package and formatter evidence recorded above | WP34 |
 | F21 Controls | WP26 | RED | WP34 |
 | F22 Containers/transient UI | WP27 | RED | WP34 |
-| F23 Asset store | WP28 | RED | WP34 |
+| F23 Asset store | WP28 | PUBLIC / WAVE-GREEN: typed texture/font/sound/music/shader lookup, path security, duplicate/missing handling, relocation, cleanup, and native adapter checks passed the combined Wave B gates; final cross-target acceptance remains WP34 | WP34 |
 | F24 Errors/lifetimes | WP29 | RED | WP34 |
 | F25 Bounded state | WP05, WP30 | WP09 retained the corrected WP05 bounded-state kernel as an INTEGRATION-READY internal kernel: `experiments/rocket3_foundation/src/widget_state.rocket`; capacity/retention calibration remains deferred | WP34 |
 | F26 Performance | WP08, WP31 | WP09 retained the WP08 synthetic evidence schema as INTEGRATION-READY internal tooling: `experiments/rocket3_visual_compare/src/evidence_schema.h`; fresh Debug/Release CTest evidence recorded above and final budgets remain deferred | WP34 |
 | F27 Visual regression | WP07, WP08, WP32 | WP09 retained the WP07 raw-RGBA comparator and WP08 evidence schema as INTEGRATION-READY internal tooling: `experiments/rocket3_visual_compare/src/comparator.h` and `src/evidence_schema.h`; fresh Debug/Release CTest evidence recorded above | WP34 |
 | F28 Examples/showcase | WP33 | RED | WP34 |
-| F29 Platform/compatibility | WP09, WP34 | WP09 INTEGRATION-READY baseline: four accepted target identities, observed Phase 19 native/cross evidence, and fresh Windows target/self-host/compatibility/package/raylib checks recorded above; full Rocket 3 acceptance remains RED | WP34 |
+| F29 Platform/compatibility | WP09, WP34 | WAVE-GREEN Windows evidence: Wave B Debug/Release `267/267`, deterministic bootstrap with matching stage2/stage3 IR, Rocket 2.1 conformance `90`, predecessor compatibility `11`, application validation, package/relocation, and native raylib checks all passed; native non-Windows target-lab acceptance remains WP34 | WP34 |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
 
 ## 9. Current parallel handoff
@@ -1443,30 +1472,40 @@ This section replaces the former single mutable next-packet slot. It is updated
 only by Ryan during a successful full wave barrier, after both lane branches have
 been integrated and verified. Ordinary packet chats never rotate this section.
 
-**Current common baseline:** accepted Wave A, containing preserved WP17
-`000b8c86`, WP18 `badf152`, WP19 `b8aff97`, and the reviewed integration fixes
-from `0a946eeae664bdabd9bbe5a4897c005b7812b962`. The Wave B branch point is the
-final Wave A barrier commit on `origin/master` after this update is published.
+**Current common baseline:** Wave B is accepted on the integrated tree at
+`6bb9841e185e948a9135a63bdcceeec4e5a8314a`, preserving Ryan WP20
+`ac01cfb5d63db1ff5b930a82d06c66b9181e6ba7`, WP21
+`f82582e8638f082da6b754e98edfe5a2f4e60ed2`, WP23
+`6e2971a0bf4669089074c772b3c683302977e681`, WP24
+`56f4498bfb4f6909b0f633020710dba10275281b`, and Eddy WP22
+`158bc6fc80923f5b358efd906a40d392723fa7bb` plus WP28
+`778de29110dac6c29c99c4eabdd5a4221931db85`. This verified tree is the source
+for the accepted `master` publication at this barrier.
 
-**Current wave:** Wave B
+**Current wave:** Wave C
 
 **Ryan current lane:**
 
-1. WP20 - Public shapes and input/hit testing - COMPLETE / LANE-GREEN (`ac01cfb`)
-2. WP21 - Integrated `VirtualCanvas` - COMPLETE / LANE-GREEN (`f82582e`)
-3. **NEXT: WP23 - Public UI context/response/IDs - READY / RED**
-4. WP24 - Public layout integration - BLOCKED until WP23
-5. Stop at Wave B barrier.
+1. Review/integration support only; no Ryan implementation packet is assigned.
+2. Do not begin WP29 before the Wave C barrier.
+3. Stop at the Wave C barrier.
 
 **Eddy current lane:**
 
-1. WP22 - Typography
-2. WP28 - Typed asset store
-3. Stop at Wave B barrier.
+1. **NEXT: WP25 - Public themes and styles - READY / RED**
+2. WP26 - Controls - BLOCKED until WP25
+3. WP27 - Containers/dialogs/transient UI - BLOCKED until WP26
+4. WP30 - Bounded-state/cache integration - BLOCKED until WP27
+5. Stop at the Wave C barrier.
 
-**Wave B launch condition:** satisfied by the accepted and pushed Wave A
-barrier. Create the two Wave B lane branches only when their owners begin this
-queue; this barrier update does not create them or implement Wave B.
+**Wave B barrier:** COMPLETE. The integrated Windows Debug/Release, bootstrap,
+predecessor, application, package/relocation, native, and focused packet gates
+are recorded in the acceptance block above. Native non-Windows target-laboratory
+acceptance remains deferred to WP34/F29.
+
+**Wave C launch condition:** satisfied by this accepted Wave B barrier. Create
+`rocket3/eddy-wave-c` from the accepted `master` SHA and implement only the
+serial Eddy queue above. Ryan remains review/integration support only.
 
 When a barrier succeeds, Ryan replaces only the current baseline/wave/lane block
 above with the next wave's exact queues from section 5A and records the new master
