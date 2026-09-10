@@ -61,8 +61,8 @@ def write_json(path: Path, value: object) -> None:
 
 
 def compiler_case(compiler: Path, arguments: list[str], pattern: str,
-                  label: str) -> None:
-    completed = run([str(compiler), *arguments])
+                  label: str, *, cwd: Path | None = None) -> None:
+    completed = run([str(compiler), *arguments], cwd=cwd)
     require_pattern(completed.stdout + completed.stderr, pattern, label)
 
 
@@ -205,8 +205,10 @@ def application(args: argparse.Namespace) -> None:
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             raise WorkflowError(f"parallel package build failed:\n{stdout}{stderr}")
-    compiler_case(compiler, ["test", str(source_dir / "examples" / "raylib_showcase")],
-                  r"9 passed; 0 failed", "raylib headless tests")
+    raylib_showcase = source_dir / "examples" / "raylib_showcase"
+    compiler_case(compiler, ["test", str(raylib_showcase)],
+                  r"11 passed; 0 failed", "raylib headless tests",
+                  cwd=raylib_showcase)
     compiler_case(compiler, ["run", str(source_dir / "examples" / "ownership_concurrency.rocket")],
                   r"41[\r\n]+3[\r\n]+42", "ownership application")
     report = work / "application-validation.json"
@@ -215,7 +217,7 @@ def application(args: argparse.Namespace) -> None:
         "target": args.target, "configuration": args.configuration,
         "package_count": args.package_count + 1,
         "repeated_runs": args.iterations, "parallel_package_builds": 2,
-        "raylib_headless_tests": 9,
+        "raylib_headless_tests": 11,
         "ownership_concurrency_application": "passed",
         "compiler_sha256": sha256_file(compiler),
     })

@@ -14,6 +14,9 @@ typedef uint8_t rocket_bool;
 #define RLV_ERR_STALE_HANDLE -6
 #define RLV_ERR_INVALID_SHADER -7
 #define RLV_ERR_SHADER_TYPE -8
+#define RLV_ERR_DUPLICATE_ASSET -9
+#define RLV_ERR_ASSET_TYPE -10
+#define RLV_ERR_PATH_ESCAPE -11
 
 #define RLV_KEY_SPACE 32
 #define RLV_KEY_ESCAPE 256
@@ -41,6 +44,16 @@ typedef uint8_t rocket_bool;
 #define RLV_SHADER_UNIFORM_INT 1
 #define RLV_SHADER_UNIFORM_VEC2 2
 #define RLV_SHADER_UNIFORM_COLOR 3
+
+#define RLV_TEXT_ALIGN_LEFT 0
+#define RLV_TEXT_ALIGN_CENTER 1
+#define RLV_TEXT_ALIGN_RIGHT 2
+#define RLV_TEXT_ALIGN_TOP 0
+#define RLV_TEXT_ALIGN_MIDDLE 1
+#define RLV_TEXT_ALIGN_BASELINE 2
+#define RLV_TEXT_ALIGN_BOTTOM 3
+#define RLV_TEXT_OVERFLOW_CLIP 0
+#define RLV_TEXT_OVERFLOW_ELLIPSIS 1
 
 #ifndef ROCKET_API
 #define ROCKET_API
@@ -206,7 +219,24 @@ ROCKET_API int64_t rlv_shader_end(int64_t scope_id);
 ROCKET_API int64_t rlv_shader_switch_count(void);
 
 ROCKET_API int64_t rlv_font_load(int64_t window_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_font_default(int64_t window_id);
 ROCKET_API int64_t rlv_font_draw(int64_t frame_id, int64_t font_id, int64_t text_buffer_id, int64_t x, int64_t y, double size, double spacing, int64_t red, int64_t green, int64_t blue, int64_t alpha);
+ROCKET_API int64_t rlv_font_measure(int64_t font_id, int64_t text_buffer_id, double size, double spacing, double line_height, double max_width, double max_height, rocket_bool wrap, int64_t overflow);
+ROCKET_API double rlv_text_layout_width(int64_t layout_id);
+ROCKET_API double rlv_text_layout_height(int64_t layout_id);
+ROCKET_API double rlv_text_layout_baseline(int64_t layout_id);
+ROCKET_API double rlv_text_layout_line_height(int64_t layout_id);
+ROCKET_API int64_t rlv_text_layout_line_count(int64_t layout_id);
+ROCKET_API rocket_bool rlv_text_layout_clipped(int64_t layout_id);
+ROCKET_API rocket_bool rlv_text_layout_ellipsized(int64_t layout_id);
+ROCKET_API int64_t rlv_text_layout_destroy(int64_t layout_id);
+ROCKET_API int64_t rlv_text_layout_live_count(void);
+ROCKET_API int64_t rlv_font_draw_layout(int64_t frame_id, int64_t font_id, int64_t text_buffer_id, double bounds_x, double bounds_y, double bounds_width, double bounds_height, double size, double spacing, double line_height, int64_t horizontal_align, int64_t vertical_align, rocket_bool wrap, rocket_bool clip, int64_t overflow, int64_t red, int64_t green, int64_t blue, int64_t alpha);
+ROCKET_API int64_t rlv_font_invalidate_measurements(int64_t font_id);
+ROCKET_API int64_t rlv_font_measurement_cache_size(void);
+ROCKET_API int64_t rlv_font_measurement_cache_capacity(void);
+ROCKET_API int64_t rlv_font_measurement_cache_hits(void);
+ROCKET_API int64_t rlv_font_measurement_cache_misses(void);
 ROCKET_API int64_t rlv_font_unload(int64_t font_id);
 ROCKET_API int64_t rlv_font_live_count(void);
 
@@ -220,6 +250,29 @@ ROCKET_API int64_t rlv_sound_stop(int64_t sound_id);
 ROCKET_API int64_t rlv_sound_set_volume(int64_t sound_id, double volume);
 ROCKET_API int64_t rlv_sound_unload(int64_t sound_id);
 ROCKET_API int64_t rlv_sound_live_count(void);
+
+ROCKET_API int64_t rlv_music_live_count(void);
+
+ROCKET_API int64_t rlv_asset_store_create(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id);
+ROCKET_API int64_t rlv_asset_store_cleanup(int64_t store_id);
+ROCKET_API int64_t rlv_asset_store_live_count(void);
+ROCKET_API int64_t rlv_asset_store_asset_count(int64_t store_id);
+ROCKET_API int64_t rlv_asset_store_physical_count(int64_t store_id);
+ROCKET_API int64_t rlv_asset_texture_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_font_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_sound_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_music_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_asset_shader_load(int64_t store_id, int64_t name_buffer_id, int64_t vertex_path_buffer_id, int64_t fragment_path_buffer_id);
+ROCKET_API int64_t rlv_asset_texture_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_font_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_sound_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_music_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_shader_lookup(int64_t store_id, int64_t name_buffer_id);
+ROCKET_API int64_t rlv_asset_texture_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_font_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_sound_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_music_borrow(int64_t reference_id);
+ROCKET_API int64_t rlv_asset_shader_borrow(int64_t reference_id);
 
 ROCKET_API int64_t rlv_apply_callback(RlvIntCallback callback, int64_t value);
 
@@ -236,6 +289,8 @@ ROCKET_API int64_t rlv_test_scissor_y(void);
 ROCKET_API int64_t rlv_test_scissor_width(void);
 ROCKET_API int64_t rlv_test_scissor_height(void);
 ROCKET_API int64_t rlv_test_blend_mode(void);
+ROCKET_API double rlv_test_text_draw_x(void);
+ROCKET_API double rlv_test_text_draw_y(void);
 
 #ifdef __cplusplus
 }

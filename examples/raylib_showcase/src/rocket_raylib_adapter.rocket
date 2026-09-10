@@ -8,6 +8,9 @@ pub extern const RLV_ERR_UNAVAILABLE: Int = -5
 pub extern const RLV_ERR_STALE_HANDLE: Int = -6
 pub extern const RLV_ERR_INVALID_SHADER: Int = -7
 pub extern const RLV_ERR_SHADER_TYPE: Int = -8
+pub extern const RLV_ERR_DUPLICATE_ASSET: Int = -9
+pub extern const RLV_ERR_ASSET_TYPE: Int = -10
+pub extern const RLV_ERR_PATH_ESCAPE: Int = -11
 pub extern const RLV_KEY_SPACE: Int = 32
 pub extern const RLV_KEY_ESCAPE: Int = 256
 pub extern const RLV_KEY_RIGHT: Int = 262
@@ -31,6 +34,15 @@ pub extern const RLV_SHADER_UNIFORM_FLOAT: Int = 0
 pub extern const RLV_SHADER_UNIFORM_INT: Int = 1
 pub extern const RLV_SHADER_UNIFORM_VEC2: Int = 2
 pub extern const RLV_SHADER_UNIFORM_COLOR: Int = 3
+pub extern const RLV_TEXT_ALIGN_LEFT: Int = 0
+pub extern const RLV_TEXT_ALIGN_CENTER: Int = 1
+pub extern const RLV_TEXT_ALIGN_RIGHT: Int = 2
+pub extern const RLV_TEXT_ALIGN_TOP: Int = 0
+pub extern const RLV_TEXT_ALIGN_MIDDLE: Int = 1
+pub extern const RLV_TEXT_ALIGN_BASELINE: Int = 2
+pub extern const RLV_TEXT_ALIGN_BOTTOM: Int = 3
+pub extern const RLV_TEXT_OVERFLOW_CLIP: Int = 0
+pub extern const RLV_TEXT_OVERFLOW_ELLIPSIS: Int = 1
 pub extern callback RlvIntCallback(value: Int) -> Int
 pub extern fn rlv_version_major() -> Int
 pub extern fn rlv_version_minor() -> Int
@@ -178,7 +190,24 @@ pub extern fn rlv_shader_begin(frame_id: Int, shader_id: Int) -> Int
 pub extern fn rlv_shader_end(scope_id: Int) -> Int
 pub extern fn rlv_shader_switch_count() -> Int
 pub extern fn rlv_font_load(window_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_font_default(window_id: Int) -> Int
 pub extern fn rlv_font_draw(frame_id: Int, font_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Float, spacing: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_font_measure(font_id: Int, text_buffer_id: Int, size: Float, spacing: Float, line_height: Float, max_width: Float, max_height: Float, wrap: Bool, overflow: Int) -> Int
+pub extern fn rlv_text_layout_width(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_height(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_baseline(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_line_height(layout_id: Int) -> Float
+pub extern fn rlv_text_layout_line_count(layout_id: Int) -> Int
+pub extern fn rlv_text_layout_clipped(layout_id: Int) -> Bool
+pub extern fn rlv_text_layout_ellipsized(layout_id: Int) -> Bool
+pub extern fn rlv_text_layout_destroy(layout_id: Int) -> Int
+pub extern fn rlv_text_layout_live_count() -> Int
+pub extern fn rlv_font_draw_layout(frame_id: Int, font_id: Int, text_buffer_id: Int, bounds_x: Float, bounds_y: Float, bounds_width: Float, bounds_height: Float, size: Float, spacing: Float, line_height: Float, horizontal_align: Int, vertical_align: Int, wrap: Bool, clip: Bool, overflow: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_font_invalidate_measurements(font_id: Int) -> Int
+pub extern fn rlv_font_measurement_cache_size() -> Int
+pub extern fn rlv_font_measurement_cache_capacity() -> Int
+pub extern fn rlv_font_measurement_cache_hits() -> Int
+pub extern fn rlv_font_measurement_cache_misses() -> Int
 pub extern fn rlv_font_unload(font_id: Int) -> Int
 pub extern fn rlv_font_live_count() -> Int
 pub extern fn rlv_audio_open() -> Int
@@ -191,6 +220,27 @@ pub extern fn rlv_sound_stop(sound_id: Int) -> Int
 pub extern fn rlv_sound_set_volume(sound_id: Int, volume: Float) -> Int
 pub extern fn rlv_sound_unload(sound_id: Int) -> Int
 pub extern fn rlv_sound_live_count() -> Int
+pub extern fn rlv_music_live_count() -> Int
+pub extern fn rlv_asset_store_create(window_id: Int, audio_id: Int, package_root_buffer_id: Int) -> Int
+pub extern fn rlv_asset_store_cleanup(store_id: Int) -> Int
+pub extern fn rlv_asset_store_live_count() -> Int
+pub extern fn rlv_asset_store_asset_count(store_id: Int) -> Int
+pub extern fn rlv_asset_store_physical_count(store_id: Int) -> Int
+pub extern fn rlv_asset_texture_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_font_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_sound_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_music_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_shader_load(store_id: Int, name_buffer_id: Int, vertex_path_buffer_id: Int, fragment_path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_texture_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_font_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_sound_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_music_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_shader_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_texture_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_font_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_sound_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_music_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_shader_borrow(reference_id: Int) -> Int
 pub extern fn rlv_apply_callback(callback: RlvIntCallback, value: Int) -> Int
 pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
 pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
@@ -205,3 +255,5 @@ pub extern fn rlv_test_scissor_y() -> Int
 pub extern fn rlv_test_scissor_width() -> Int
 pub extern fn rlv_test_scissor_height() -> Int
 pub extern fn rlv_test_blend_mode() -> Int
+pub extern fn rlv_test_text_draw_x() -> Float
+pub extern fn rlv_test_text_draw_y() -> Float

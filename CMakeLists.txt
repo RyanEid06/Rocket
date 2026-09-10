@@ -558,6 +558,30 @@ set_tests_properties(rocket3_ui_layout_stage0 PROPERTIES
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_typography_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp22/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_typography_test.cmake")
+set_tests_properties(rocket3_typography_stage0 PROPERTIES
+  LABELS "rocket3;wp22;graphics;typography;stage0;raylib;native;docs;formatter"
+  TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_asset_store_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp28/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_test.cmake")
+set_tests_properties(rocket3_asset_store_stage0 PROPERTIES
+  LABELS "rocket3;wp28;assets;stage0;raylib;native;docs;formatter"
+  TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_executable(rocket_phase14_raylib_adapter_tests
   tests/native/phase14_raylib_adapter_tests.cpp)
 target_link_libraries(rocket_phase14_raylib_adapter_tests PRIVATE
@@ -645,6 +669,34 @@ add_test(NAME rocket3_phase21_raylib_adapter
   COMMAND rocket_phase21_raylib_adapter_tests)
 set_tests_properties(rocket3_phase21_raylib_adapter PROPERTIES
   LABELS "rocket3;wp21;raylib;native;virtual-canvas;display;render-target")
+
+add_executable(rocket_phase22_raylib_adapter_tests
+  tests/native/phase22_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase22_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase22_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase22_raylib_adapter
+  COMMAND rocket_phase22_raylib_adapter_tests)
+set_tests_properties(phase22_raylib_adapter PROPERTIES
+  LABELS "phase22;raylib;native;rocket3;wp22;typography")
+add_test(NAME phase22_raylib_adapter_native
+  COMMAND rocket_phase22_raylib_adapter_tests
+    "${CMAKE_BINARY_DIR}/phase22-typography.png")
+set_tests_properties(phase22_raylib_adapter_native PROPERTIES
+  LABELS "phase22;raylib;native;rocket3;wp22;typography;gpu;visual"
+  TIMEOUT 60)
+
+add_executable(rocket_phase28_raylib_adapter_tests
+  tests/native/phase28_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase28_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase28_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase28_raylib_adapter
+  COMMAND rocket_phase28_raylib_adapter_tests)
+set_tests_properties(phase28_raylib_adapter PROPERTIES
+  LABELS "phase28;raylib;native;rocket3;wp28;assets")
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
@@ -744,7 +796,7 @@ set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
 add_test(NAME cli_test_phase14_raylib_reference
   COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
-  PASS_REGULAR_EXPRESSION "9 passed\; 0 failed"
+  PASS_REGULAR_EXPRESSION "11 passed\; 0 failed"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_phase14_unsafe_failure
@@ -960,7 +1012,6 @@ set_tests_properties(rocket3_graphics_core_self_hosted PROPERTIES
   LABELS "rocket3;wp19;graphics;color;selfhost"
   TIMEOUT 360
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
-
 add_test(NAME rocket3_shapes_input_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -1007,6 +1058,31 @@ set_tests_properties(rocket3_ui_layout_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp24;ui;layout;selfhost"
   TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_typography_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp22/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_typography_test.cmake")
+set_tests_properties(rocket3_typography_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp22;graphics;typography;selfhost;raylib;native;docs;formatter"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket3_asset_store_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp28/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_test.cmake")
+set_tests_properties(rocket3_asset_store_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp28;assets;selfhost;raylib;native;docs;formatter"
+  TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME rocket3_std_math_target_surface
   COMMAND ${CMAKE_COMMAND}
@@ -1057,6 +1133,7 @@ set_tests_properties(rocket3_shapes_input_target_surface PROPERTIES
   LABELS "rocket3;wp20;graphics;shapes;input;target;surface;selfhost"
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_virtual_canvas_target_surface
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1069,6 +1146,7 @@ set_tests_properties(rocket3_virtual_canvas_target_surface PROPERTIES
   LABELS "rocket3;wp21;graphics;virtual-canvas;display;target;surface;selfhost"
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_ui_context_target_surface
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1093,6 +1171,32 @@ set_tests_properties(rocket3_ui_layout_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp24;ui;layout;target;surface;selfhost"
   TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_typography_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp22/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_typography_target_surface_test.cmake")
+set_tests_properties(rocket3_typography_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp22;graphics;typography;target;surface;selfhost;raylib"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_asset_store_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp28/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_target_surface_test.cmake")
+set_tests_properties(rocket3_asset_store_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp28;assets;target;surface;selfhost;raylib"
+  TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()
 add_test(NAME cli_run_self_hosted_syntax_check
@@ -1500,7 +1604,7 @@ if(LLVM_FOUND)
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib"
     PASS_REGULAR_EXPRESSION "check succeeded"
-    WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   add_test(NAME cli_self_hosted_build_phase14_raylib_reference
     COMMAND "${ROCKET_SELFHOST_COMPILER}" build
       "${ROCKET_RAYLIB_PACKAGE}")
@@ -1508,15 +1612,15 @@ if(LLVM_FOUND)
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib;native"
     PASS_REGULAR_EXPRESSION "rocket-raylib-showcase${CMAKE_EXECUTABLE_SUFFIX}"
-    WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   add_test(NAME cli_self_hosted_test_phase14_raylib_reference
     COMMAND "${ROCKET_SELFHOST_COMPILER}" test
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
     LABELS "phase14;raylib;native"
-    PASS_REGULAR_EXPRESSION "9 passed\; 0 failed"
-    WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
+    PASS_REGULAR_EXPRESSION "11 passed\; 0 failed"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
   add_test(NAME cli_phase14_raylib_generation_parity
     COMMAND ${CMAKE_COMMAND}
       "-DSTAGE0=$<TARGET_FILE:rocketc>"

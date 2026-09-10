@@ -68,6 +68,9 @@ The generated low-level binding and native build outputs remain ignored.
   loaded through it must be unloaded before `close_audio`.
 - `Sound` owns one raylib sound buffer. Playback borrows it synchronously;
   `unload_sound` releases it exactly once.
+- An `AssetStore` borrows its `Window` and `AudioDevice` until explicit
+  `rocket_assets.cleanup`. Typed asset references borrow cached resources from
+  that store and become stale after cleanup; direct resource unload is rejected.
 - Rocket strings are copied byte-by-byte into short-lived native UTF-8 buffers.
   The adapter borrows each buffer only for the duration of one call. Embedded
   NUL is rejected because the adapter's C-string calls cannot preserve it.
@@ -195,3 +198,44 @@ Mouse input remains in logical coordinates, while `mouse_framebuffer_x` and
 `mouse_framebuffer_y` convert with the current physical-to-logical ratio.
 Exclusive and borderless fullscreen never remain enabled together. Screenshots
 must be requested outside an active frame and capture the physical framebuffer.
+
+## Typography
+
+`default_font(window)` and `load_font(window, path)` return checked font tokens.
+Pair the selected token with `rocket.graphics.TextStyle`; selecting a different
+font asset is the explicit weight strategy. `measure_text` returns actual
+selected-font width, height, baseline, line height, bounds, line count, and
+clipped/ellipsized state. `draw_text_layout` uses those same measurements for
+left/center/right and top/middle/baseline/bottom alignment, optional wrapping,
+multiline layout, clipping, and ellipsis. It never estimates centering from text
+length.
+
+Measurements are cached in a deterministic 256-entry LRU keyed by font token,
+UTF-8 text, and every style/container input. Style changes cannot reuse stale
+metrics. `invalidate_font_measurements` clears one font's entries, and
+`unload_font` performs the same invalidation automatically. Temporary layout
+tokens stay inside the safe wrapper and are destroyed before it returns.
+
+## Typed asset store
+
+`src.rocket_assets` loads textures, fonts, sounds, music streams, and file-backed
+shaders under one namespace of unique logical names. `load_texture`,
+`load_font`, `load_sound`, `load_music`, and `load_shader` return distinct typed
+reference values. The matching typed lookup functions (`texture`, `font`,
+`sound`, `music`, and `shader`) return the stable reference for a logical name;
+the `borrow_*` functions provide the existing safe raylib value while the store
+remains live. Looking up an existing name through the wrong type is an explicit
+error.
+
+Physical resources are cached by type and canonical path within a store. Two
+different names may intentionally share one physical resource, but reusing any
+logical name is rejected. `open(window, audio, package_root)` resolves only
+relative paths contained by the canonical package root, including after the
+package is relocated. Absolute paths, traversal, and symlink escape are
+rejected. Loading is local filesystem-only and never performs network access.
+
+`cleanup(store)` first verifies that no frame/scope or borrowed font-layout
+dependency makes unloading unsafe, then releases music, sound, shaders and
+their uniforms, fonts and measurements, and textures. A failed preflight leaves
+the store unchanged. Successful cleanup is idempotent, invalidates all typed
+references, and must happen before closing the audio device or window.

@@ -1,0 +1,135 @@
+import src.rocket_assets
+import src.rocket_raylib
+import src.rocket_raylib_testing
+import std.file
+
+fn package_root() -> String:
+    if file.exists("assets/orbit.ppm"):
+        return "."
+    return "examples/raylib_showcase"
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            return false
+
+fn main() -> Int:
+    if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
+        return 1
+    match rocket_raylib.open_window(320, 180, "asset store test"):
+        case Err(message):
+            return 2
+        case Ok(window):
+            match rocket_raylib.open_audio():
+                case Err(message):
+                    return 3
+                case Ok(audio):
+                    match rocket_assets.open(window, audio, package_root()):
+                        case Err(message):
+                            return 4
+                        case Ok(store):
+                            match rocket_assets.load_texture(store, "hero", "assets/orbit.ppm"):
+                                case Err(message):
+                                    return 5
+                                case Ok(hero):
+                                    match rocket_assets.load_texture(store, "hero-alias", "assets/orbit.ppm"):
+                                        case Err(message):
+                                            return 6
+                                        case Ok(alias):
+                                            match rocket_assets.borrow_texture(hero):
+                                                case Err(message):
+                                                    return 7
+                                                case Ok(hero_texture):
+                                                    match rocket_assets.borrow_texture(alias):
+                                                        case Err(message):
+                                                            return 8
+                                                        case Ok(alias_texture):
+                                                            if hero_texture.id != alias_texture.id:
+                                                                return 9
+                            match rocket_assets.load_font(store, "body", "assets/about.txt"):
+                                case Err(message):
+                                    return 10
+                                case Ok(font):
+                                    match rocket_assets.borrow_font(font):
+                                        case Err(message):
+                                            return 11
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 12
+                            match rocket_assets.load_sound(store, "click", "assets/about.txt"):
+                                case Err(message):
+                                    return 13
+                                case Ok(sound):
+                                    match rocket_assets.borrow_sound(sound):
+                                        case Err(message):
+                                            return 14
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 15
+                            match rocket_assets.load_music(store, "theme", "assets/about.txt"):
+                                case Err(message):
+                                    return 16
+                                case Ok(music):
+                                    match rocket_assets.borrow_music(music):
+                                        case Err(message):
+                                            return 17
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 18
+                            match rocket_assets.load_shader(store, "glow", "", "assets/about.txt"):
+                                case Err(message):
+                                    return 19
+                                case Ok(shader):
+                                    match rocket_assets.borrow_shader(shader):
+                                        case Err(message):
+                                            return 20
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 21
+                            if rocket_raylib_testing.asset_count(store.id) != 6 or rocket_raylib_testing.physical_asset_count(store.id) != 5:
+                                return 22
+                            match rocket_assets.texture(store, "hero"):
+                                case Err(message):
+                                    return 23
+                                case Ok(reference):
+                                    if reference.id <= 0:
+                                        return 24
+                            match rocket_assets.texture(store, "body"):
+                                case Ok(reference):
+                                    return 25
+                                case Err(message):
+                                    if message != "raylib: asset type mismatch":
+                                        return 26
+                            match rocket_assets.load_texture(store, "hero", "assets/orbit.ppm"):
+                                case Ok(reference):
+                                    return 27
+                                case Err(message):
+                                    if message != "raylib: duplicate asset name":
+                                        return 28
+                            match rocket_assets.load_texture(store, "escape", "../outside.png"):
+                                case Ok(reference):
+                                    return 29
+                                case Err(message):
+                                    if message != "raylib: asset path escapes package root":
+                                        return 30
+                            match rocket_assets.texture(store, "hero"):
+                                case Err(message):
+                                    return 31
+                                case Ok(stale):
+                                    if not succeeded(rocket_assets.cleanup(store)):
+                                        return 32
+                                    match rocket_assets.borrow_texture(stale):
+                                        case Ok(value):
+                                            return 33
+                                        case Err(message):
+                                            if message != "raylib: stale or already released handle":
+                                                return 34
+                            if not succeeded(rocket_assets.cleanup(store)):
+                                return 35
+                    if not succeeded(rocket_raylib.close_audio(audio)):
+                        return 36
+            if not succeeded(rocket_raylib.close_window(window)):
+                return 37
+    return 0

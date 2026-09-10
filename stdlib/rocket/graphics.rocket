@@ -40,6 +40,13 @@ pub struct TextMetrics:
     baseline: Float
     line_height: Float
 
+pub struct TextLayout:
+    metrics: TextMetrics
+    bounds: Rect
+    line_count: Int
+    clipped: Bool
+    ellipsized: Bool
+
 pub struct WindowConfig:
     width: Int
     height: Int
@@ -70,6 +77,42 @@ pub fn text_style(font_name: String, size: Float, letter_spacing: Float = 0.0, l
 
 pub fn text_metrics(width: Float, height: Float, baseline: Float, line_height: Float) -> TextMetrics:
     return TextMetrics(width, height, baseline, line_height)
+
+pub fn text_layout(metrics: TextMetrics, bounds: Rect, line_count: Int, clipped: Bool, ellipsized: Bool) -> TextLayout:
+    return TextLayout(metrics, bounds, line_count, clipped, ellipsized)
+
+pub fn text_align_left() -> Int:
+    return 0
+
+pub fn text_align_center() -> Int:
+    return 1
+
+pub fn text_align_right() -> Int:
+    return 2
+
+pub fn text_align_top() -> Int:
+    return 0
+
+pub fn text_align_middle() -> Int:
+    return 1
+
+pub fn text_align_baseline() -> Int:
+    return 2
+
+pub fn text_align_bottom() -> Int:
+    return 3
+
+pub fn text_overflow_clip() -> Int:
+    return 0
+
+pub fn text_overflow_ellipsis() -> Int:
+    return 1
+
+pub fn text_style_is_valid(value: TextStyle) -> Bool:
+    return value.font_name.byte_length() > 0 and is_finite(value.size) and value.size > 0.0 and is_finite(value.letter_spacing) and value.letter_spacing >= 0.0 and is_finite(value.line_height) and value.line_height > 0.0
+
+pub fn text_layout_is_valid(value: TextLayout) -> Bool:
+    return value.line_count >= 0 and rect_has_nonnegative_size(value.bounds) and is_finite(value.metrics.width) and value.metrics.width >= 0.0 and is_finite(value.metrics.height) and value.metrics.height >= 0.0 and is_finite(value.metrics.baseline) and value.metrics.baseline >= 0.0 and is_finite(value.metrics.line_height) and value.metrics.line_height > 0.0
 
 pub fn window_config(width: Int, height: Int, title: String, high_dpi: Bool = true, msaa4x: Bool = true, resizable: Bool = true) -> WindowConfig:
     return WindowConfig(width, height, title, high_dpi, msaa4x, resizable)

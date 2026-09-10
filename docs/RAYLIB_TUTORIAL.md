@@ -219,3 +219,46 @@ rate getters return `Result` and reject an index outside that range. Call
 `screenshot(window, "capture.png")` only outside an active frame. It captures
 the physical framebuffer, accepts a `.png` path, and reports capture/export or
 platform failures through `Result`.
+
+## Measured typography
+
+Import `rocket.graphics` for `TextStyle`, `TextMetrics`, `TextLayout`, bounds,
+alignment, and overflow values. Select a real font with `load_font`, or use
+`default_font(window)` for raylib's built-in font. Font weight is an asset
+choice: load the regular, medium, or bold font file you intend to measure and
+draw; Rocket does not fake a weight by reusing another font's metrics.
+
+```rocket
+let style = graphics.text_style("ui-medium", 24.0, 1.0, 1.25)
+match rocket_raylib.measure_text(
+        font, label, style,
+        max_width: 360.0,
+        max_height: 90.0,
+        wrap: true,
+        overflow: graphics.text_overflow_ellipsis()):
+    case Err(message):
+        print(message)
+    case Ok(layout):
+        let drawn = rocket_raylib.draw_text_layout(
+            frame, font, label,
+            graphics.rect(40.0, 30.0, 360.0, 90.0),
+            style, rocket_raylib.white(),
+            horizontal_align: graphics.text_align_center(),
+            vertical_align: graphics.text_align_middle(),
+            wrap: true,
+            clip: true,
+            overflow: graphics.text_overflow_ellipsis())
+```
+
+`measure_text` obtains glyph advances and baseline data from the selected font;
+do not center text from character counts or guessed glyph widths. Explicit
+newlines and wrapping produce multiline metrics. Maximum height removes whole
+lines, and ellipsis rewrites the last visible line to fit the measured width.
+The default clipping policy keeps over-wide glyphs inside the draw bounds.
+
+Measurements use a bounded 256-entry deterministic LRU cache keyed by font,
+text, size, letter spacing, line height, and container policy. Immutable style
+changes select a different cache key. Call `invalidate_font_measurements(font)`
+when application-owned font content changes; `unload_font` invalidates that
+font automatically. Layout-result tokens are consumed inside the safe wrapper,
+so applications never manage a native layout pointer or structure.

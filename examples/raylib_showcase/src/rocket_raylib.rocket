@@ -1,5 +1,6 @@
 import src.rocket_raylib_adapter
 import src.rocket_raylib_callbacks
+import rocket.graphics
 import std.collections
 import std.string
 
@@ -66,6 +67,9 @@ pub struct AudioDevice:
     id: Int
 
 pub struct Sound:
+    id: Int
+
+pub struct Music:
     id: Int
 
 pub fn color(red: Int, green: Int, blue: Int, alpha: Int) -> Color:
@@ -176,6 +180,12 @@ fn status_message(status: Int) -> String:
         return "raylib: invalid shader program"
     if status == rocket_raylib_adapter.RLV_ERR_SHADER_TYPE:
         return "raylib: shader uniform type mismatch or unsupported type"
+    if status == rocket_raylib_adapter.RLV_ERR_DUPLICATE_ASSET:
+        return "raylib: duplicate asset name"
+    if status == rocket_raylib_adapter.RLV_ERR_ASSET_TYPE:
+        return "raylib: asset type mismatch"
+    if status == rocket_raylib_adapter.RLV_ERR_PATH_ESCAPE:
+        return "raylib: asset path escapes package root"
     return "raylib: unknown native failure"
 
 fn status_result(status: Int) -> Result[Bool, String]:
@@ -1008,6 +1018,94 @@ pub fn load_font(window: Window, path: String) -> Result[Font, String]:
             return Err(status_message(font_id))
         case Err(error):
             return Err(error)
+
+pub fn default_font(window: Window) -> Result[Font, String]:
+    if window.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        let font_id = rocket_raylib_adapter.rlv_font_default(window.id)
+        if font_id > 0:
+            return Ok(Font(font_id))
+        return Err(status_message(font_id))
+
+fn consume_text_layout(layout_id: Int) -> Result[graphics.TextLayout, String]:
+    if layout_id <= 0:
+        return Err(status_message(layout_id))
+    var width = 0.0
+    var height = 0.0
+    var baseline = 0.0
+    var line_height = 0.0
+    var line_count = 0
+    var clipped = false
+    var ellipsized = false
+    var destroy_status = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+    unsafe:
+        width = rocket_raylib_adapter.rlv_text_layout_width(layout_id)
+        height = rocket_raylib_adapter.rlv_text_layout_height(layout_id)
+        baseline = rocket_raylib_adapter.rlv_text_layout_baseline(layout_id)
+        line_height = rocket_raylib_adapter.rlv_text_layout_line_height(layout_id)
+        line_count = rocket_raylib_adapter.rlv_text_layout_line_count(layout_id)
+        clipped = rocket_raylib_adapter.rlv_text_layout_clipped(layout_id)
+        ellipsized = rocket_raylib_adapter.rlv_text_layout_ellipsized(layout_id)
+        destroy_status = rocket_raylib_adapter.rlv_text_layout_destroy(layout_id)
+    if destroy_status != rocket_raylib_adapter.RLV_OK:
+        return Err(status_message(destroy_status))
+    let metrics = graphics.text_metrics(width, height, baseline, line_height)
+    return Ok(graphics.text_layout(metrics, graphics.rect(0.0, 0.0, width, height), line_count, clipped, ellipsized))
+
+pub fn measure_text(font: Font, text: String, style: graphics.TextStyle, max_width: Float = 0.0, max_height: Float = 0.0, wrap: Bool = false, overflow: Int = 0) -> Result[graphics.TextLayout, String]:
+    if font.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not graphics.text_style_is_valid(style) or not finite(max_width) or not finite(max_height) or max_width < 0.0 or max_height < 0.0:
+        return Err("raylib: invalid argument")
+    if overflow != graphics.text_overflow_clip() and overflow != graphics.text_overflow_ellipsis():
+        return Err("raylib: invalid argument")
+    match encode_text(text):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var layout_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                layout_id = rocket_raylib_adapter.rlv_font_measure(font.id, buffer_id, style.size, style.letter_spacing, style.line_height, max_width, max_height, wrap, overflow)
+            match release_text(buffer_id):
+                case Err(error):
+                    return Err(error)
+                case Ok(released):
+                    if not released:
+                        return Err("raylib: stale or already released handle")
+                    return consume_text_layout(layout_id)
+
+pub fn draw_text_layout(frame: Frame, font: Font, text: String, bounds: graphics.Rect, style: graphics.TextStyle, value: Color, horizontal_align: Int = 0, vertical_align: Int = 0, wrap: Bool = false, clip: Bool = true, overflow: Int = 0) -> Result[Bool, String]:
+    if frame.window_id <= 0 or font.id <= 0:
+        return Err("raylib: stale or already released handle")
+    if not graphics.rect_has_nonnegative_size(bounds) or bounds.width <= 0.0 or bounds.height <= 0.0 or not graphics.text_style_is_valid(style) or not valid_color(value):
+        return Err("raylib: invalid argument")
+    if horizontal_align < graphics.text_align_left() or horizontal_align > graphics.text_align_right():
+        return Err("raylib: invalid argument")
+    if vertical_align < graphics.text_align_top() or vertical_align > graphics.text_align_bottom():
+        return Err("raylib: invalid argument")
+    if overflow != graphics.text_overflow_clip() and overflow != graphics.text_overflow_ellipsis():
+        return Err("raylib: invalid argument")
+    match encode_text(text):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var status = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                status = rocket_raylib_adapter.rlv_font_draw_layout(frame.window_id, font.id, buffer_id, bounds.x, bounds.y, bounds.width, bounds.height, style.size, style.letter_spacing, style.line_height, horizontal_align, vertical_align, wrap, clip, overflow, value.red, value.green, value.blue, value.alpha)
+            match release_text(buffer_id):
+                case Err(error):
+                    return Err(error)
+                case Ok(released):
+                    if not released:
+                        return Err("raylib: stale or already released handle")
+                    return status_result(status)
+
+pub fn invalidate_font_measurements(font: Font) -> Result[Bool, String]:
+    if font.id <= 0:
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return status_result(rocket_raylib_adapter.rlv_font_invalidate_measurements(font.id))
 
 pub fn draw_font_text(frame: Frame, font: Font, text: String, x: Int, y: Int, size: Float, spacing: Float, value: Color) -> Result[Bool, String]:
     match encode_text(text):
