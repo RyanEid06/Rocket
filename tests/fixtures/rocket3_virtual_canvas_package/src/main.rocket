@@ -1,0 +1,15 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.raylib.safe
+
+pub fn sample_fit(logical_size: graphics.Size, framebuffer_size: graphics.Size) -> Result[graphics.VirtualCanvas, String]:
+    return graphics.fit_virtual_canvas(logical_size, framebuffer_size)
+
+pub fn sample_resize(window: safe.Window, mapping: graphics.VirtualCanvas, width: Int, height: Int) -> Result[graphics.VirtualCanvas, String]:
+    return canvas.resize(window, mapping, width, height)
+
+pub fn sample_present(frame: safe.Frame, target: safe.RenderTexture, mapping: graphics.VirtualCanvas) -> Result[Bool, String]:
+    return canvas.present(frame, target, mapping)
+
+fn main() -> Int:
+    return 0

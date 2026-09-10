@@ -1,0 +1,8 @@
+import rocket.graphics
+import rocket.ui.layout
+
+fn main() -> Int:
+    let bounds = graphics.rect(0.0, 0.0, 100.0, 100.0)
+    let item = layout.layout_item(layout.fill(), layout.fill(), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.center())
+    let result = layout.anchor_rect(bounds, item, bounds, layout.no_safe_area())
+    return 0

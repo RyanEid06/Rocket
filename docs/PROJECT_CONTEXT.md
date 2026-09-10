@@ -1165,11 +1165,10 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Rocket 3 Wave A is accepted and WAVE-GREEN; its Wave B branch point is the
-final barrier commit on `origin/master` after publication. Wave B is ready for
-simultaneous work without creating either lane branch in this barrier task.
-Ryan's exact queue is WP20, WP21, WP23, then WP24; Eddy's exact queue is WP22,
-then WP28. Each owner stops at the Wave B barrier. Native non-Windows
+**Rocket 3 Wave B is active. Ryan completed and pushed WP20 (`ac01cfb`) and
+WP21 (`f82582e`) on `rocket3/ryan-wave-b`; both are LANE-GREEN. Ryan's next
+packet is WP23, followed by WP24. Eddy's independent next packet remains WP22,
+followed by WP28. Each owner stops at the Wave B barrier. Native non-Windows
 target-laboratory acceptance remains a WP34/F29 item. The exact packet scopes
 and success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,

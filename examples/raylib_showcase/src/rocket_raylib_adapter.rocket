@@ -56,6 +56,8 @@ pub extern fn rlv_window_logical_width(window_id: Int) -> Int
 pub extern fn rlv_window_logical_height(window_id: Int) -> Int
 pub extern fn rlv_window_framebuffer_width(window_id: Int) -> Int
 pub extern fn rlv_window_framebuffer_height(window_id: Int) -> Int
+pub extern fn rlv_window_framebuffer_width_f64(window_id: Int) -> Float
+pub extern fn rlv_window_framebuffer_height_f64(window_id: Int) -> Float
 pub extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
 pub extern fn rlv_window_dpi_scale_y(window_id: Int) -> Float
 pub extern fn rlv_window_display_revision(window_id: Int) -> Int
@@ -121,6 +123,8 @@ pub extern fn rlv_draw_count() -> Int
 pub extern fn rlv_key_pressed(window_id: Int, key: Int) -> Bool
 pub extern fn rlv_key_down(window_id: Int, key: Int) -> Bool
 pub extern fn rlv_mouse_pressed(window_id: Int, button: Int) -> Bool
+pub extern fn rlv_mouse_down(window_id: Int, button: Int) -> Bool
+pub extern fn rlv_mouse_released(window_id: Int, button: Int) -> Bool
 pub extern fn rlv_mouse_x(window_id: Int) -> Int
 pub extern fn rlv_mouse_y(window_id: Int) -> Int
 pub extern fn rlv_mouse_framebuffer_x(window_id: Int) -> Float
@@ -140,13 +144,17 @@ pub extern fn rlv_texture_live_count() -> Int
 pub extern fn rlv_render_texture_load(window_id: Int, width: Int, height: Int) -> Int
 pub extern fn rlv_render_texture_width(render_texture_id: Int) -> Int
 pub extern fn rlv_render_texture_height(render_texture_id: Int) -> Int
+pub extern fn rlv_render_texture_width_f64(render_texture_id: Int) -> Float
+pub extern fn rlv_render_texture_height_f64(render_texture_id: Int) -> Float
 pub extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
 pub extern fn rlv_render_texture_live_count() -> Int
 pub extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int
 pub extern fn rlv_render_target_end(scope_id: Int) -> Int
 pub extern fn rlv_render_texture_draw(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_render_texture_draw_framebuffer(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_render_texture_save_png(window_id: Int, render_texture_id: Int, path_buffer_id: Int) -> Int
 pub extern fn rlv_scissor_begin(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+pub extern fn rlv_scissor_begin_framebuffer(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
 pub extern fn rlv_scissor_end(scope_id: Int) -> Int
 pub extern fn rlv_blend_begin(frame_id: Int, blend_mode: Int) -> Int
 pub extern fn rlv_blend_end(scope_id: Int) -> Int
@@ -186,6 +194,7 @@ pub extern fn rlv_sound_live_count() -> Int
 pub extern fn rlv_apply_callback(callback: RlvIntCallback, value: Int) -> Int
 pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
 pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
+pub extern fn rlv_test_set_mouse_state(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Int
 pub extern fn rlv_test_request_close(requested: Bool) -> Int
 pub extern fn rlv_test_set_anisotropy(level: Int) -> Int
 pub extern fn rlv_test_set_shader_supported(supported: Bool) -> Int

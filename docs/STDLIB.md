@@ -386,6 +386,20 @@ delta completes at the final state; cancellation returns a completed,
 cancelled sample. `fade`, `move`, `slide`, `scale`, `rotate`, `pulse`, and
 `color_transition` are convenience constructors over those tween types.
 
+## `rocket.raylib.safe`
+
+`rocket.raylib.safe` is the narrow bundled Rocket 3 native boundary over the
+reviewed raylib adapter. Application code should normally use `rocket.graphics`
+instead. The safe module owns the `Window` and `Frame` token wrappers, validates
+primitive geometry and color arguments before an `unsafe` adapter call, and
+translates adapter status values to `Result`. It exposes no native pointer or
+raylib structure. Pointer queries use framebuffer coordinates and provide
+pressed, down, and released states. `key_pressed` and `key_down` expose reviewed
+integer key queries for higher-level UI input snapshots. F17 also uses this boundary
+for checked render-target/scissor scopes, framebuffer/DPI/display-revision queries,
+resize/fullscreen/borderless transitions, and render-target PNG export; those
+primitives remain backend plumbing rather than the preferred application API.
+
 ## `rocket.graphics`
 
 `rocket.graphics` is an ordinary bundled Rocket source module at
@@ -399,8 +413,12 @@ Constructors are ordinary functions with stable parameter names:
 `transform2d(translation, rotation, scale, pivot)`, `text_style(font_name,
 size, letter_spacing = 0.0, line_height = 1.0)`, `text_metrics(width, height,
 baseline, line_height)`, `window_config(width, height, title, high_dpi = true,
-msaa4x = true, resizable = true)`, and `virtual_canvas(logical_size, viewport,
-scale)`.
+msaa4x = true, resizable = true)`, and the raw
+`virtual_canvas(logical_size, viewport, scale)` value constructor. Prefer
+`fit_virtual_canvas(logical_size, framebuffer_size)` when establishing a real
+mapping: it validates positive finite dimensions, preserves aspect ratio,
+centers the viewport, and returns a recoverable `Err` instead of dividing by
+zero for invalid dimensions.
 
 Geometry helpers include `vec2_add`, `vec2_subtract`, `vec2_scale`,
 `vec2_is_finite`, `size_is_valid`, `rect_is_finite`,
@@ -409,7 +427,12 @@ Geometry helpers include `vec2_add`, `vec2_subtract`, `vec2_scale`,
 `transform_point`. Rectangle containment includes the boundary; invalid or
 non-finite rectangles and points return false from predicate helpers.
 `transform_point` scales around the pivot, rotates counterclockwise in radians,
-then translates.
+then translates. `virtual_canvas_is_valid` validates a mapping before native
+integration. `virtual_canvas_logical_to_physical` and
+`virtual_canvas_physical_to_logical` use the same viewport/scale contract;
+physical-to-logical conversion returns `None` outside the viewport and treats
+right/bottom edges as exclusive. `virtual_canvas_rect_to_physical` applies that
+same transform to logical clipping rectangles.
 
 Color helpers include `color_from_rgb`, `color_from_rgba(alpha = 1.0)`,
 `color_from_hex`, `color_from_hsv(alpha = 1.0)`, `color_with_alpha`,
@@ -419,6 +442,123 @@ value, and alpha channels clamp deterministically to `0.0..1.0`; hue wraps;
 malformed hex returns `Result.Err` with a stable message. Hex accepts `RRGGBB`
 and `RRGGBBAA`, each with an optional leading `#`; six-digit input defaults
 alpha to `1.0`.
+
+`rocket.graphics.shapes` owns Rocket-facing drawing. Its functions take typed
+`rocket.graphics.Vec2`, `Rect`, and `Color` values and delegate through
+`rocket.raylib.safe`: `draw_rect`, `draw_rect_outline`,
+`draw_rounded_rect`, `draw_rounded_rect_outline`, `draw_circle`,
+`draw_circle_outline`, `draw_ellipse`, `draw_ring`, `draw_ring_sector`,
+`draw_sector`, `draw_line`, `draw_thick_line`, `draw_triangle`,
+`draw_triangle_outline`, `draw_polygon`, `draw_polygon_outline`, `draw_bezier`,
+`draw_gradient_rect`, and `draw_gradient_circle`. Outline/thick-line/Bezier
+operations default to thickness `1.0`; rounded rectangles default to roundness
+`0.25`; polygons default to rotation `0.0`; rectangle gradients default to
+vertical. Invalid or non-finite public geometry returns `Err` before crossing
+the native boundary.
+
+The pure `rocket.graphics` helpers `point_in_rect(point, bounds)` and
+`point_in_circle(point, center, radius)` provide public hit testing. Rectangle
+bounds are half-open: left/top are included and right/bottom are excluded;
+zero-area rectangles never contain a point. Circle containment includes the
+circumference and rejects negative or non-finite radii.
+
+`rocket.graphics.input` owns native pointer mapping. `pointer_position(window)`
+reports physical framebuffer coordinates, while `pointer_down`,
+`pointer_pressed`, and `pointer_released` default to button `0`.
+`pointer_position_in_canvas` converts
+a physical pointer through a `VirtualCanvas` viewport and scale. It returns
+`None` for invalid canvas data, letterbox/pillarbox space, and the exclusive
+right/bottom viewport edges, so outside input cannot be mistaken for logical UI
+input.
+
+## `rocket.graphics.canvas`
+
+`rocket.graphics.canvas` integrates the pure `VirtualCanvas` mapping with live
+rendering and display state through `rocket.raylib.safe`. `framebuffer_size`,
+`from_window`, and `refresh` fit the logical design size to the current physical
+framebuffer, while `dpi_scale` and `display_revision` expose the values needed
+to detect DPI/monitor/display changes without inventing a second mapping rule.
+
+`create_target`, `begin_target`, `end_target`, and `unload_target` manage the
+logical-size render target. `present(frame, target, mapping)` requires the
+render-target size to match the logical canvas size, vertically corrects the
+raylib render texture, and composites it into exactly the fitted viewport.
+`begin_clip` maps logical clip bounds through the same transform, intersects
+them with the viewport, and returns a checked scissor scope; `end_clip` closes
+that scope. `save_logical_screenshot` exports the render target itself, so the
+PNG contains logical content rather than framebuffer letterbox/pillarbox bars.
+
+`resize`, `set_fullscreen`, and `set_borderless` first request the checked
+window transition and then recompute the mapping from the resulting framebuffer.
+Unsupported transitions return the adapter's stable recoverable error. Callers
+should also use `refresh` whenever `display_revision` changes because of a DPI,
+monitor, or external resize event. Across pointer mapping, clipping,
+presentation, screenshots, resize/fullscreen, and DPI changes, the fitted
+viewport and its half-open outside rule are the single coordinate contract.
+
+## `rocket.ui`
+
+`rocket.ui` is the Rocket 3 immediate-mode context foundation. `new_context`
+creates a bounded, namespaced state store; `begin_frame(context, window, canvas)`
+opens exactly one `UiFrame` and snapshots pointer and common keyboard state once
+through `rocket.graphics.input` and `rocket.raylib.safe`. `end_frame` closes the
+frame, evicts widget IDs not seen in that frame, and clears stale active, focused,
+or modal state. Nested frames, closed-frame use, duplicate IDs, over-capacity
+registration, invalid bounds, and unclosed modal scopes return recoverable
+contract errors. `Context` and `UiFrame` are single-thread-confined UI state;
+their atomic lease rejects stale copied values but is not a cross-thread
+synchronization contract.
+
+`widget_id` and `child_id` use deterministic length-prefixed composition and keep
+both the composed path and hash, so equal hashes do not collapse distinct widget
+identities. `register_widget` records an ID once per frame. `interact` centralizes
+half-open logical-canvas hit testing, pointer press/hold/release activation,
+focused Space/Enter activation, disabled behavior, and modal capture.
+`request_focus`, `activate_modal`, `enter_modal`, `exit_modal`, and `clear_modal`
+make focus and modal ownership explicit. `Response` records hover/active/click/
+focus/disabled/modal and activation facts for the frame that produced it;
+`response_is_current` and `response_is_current_context` reject stale responses.
+Keyboard helpers expose activation, cancel, focus-next, and directional snapshots
+without rereading native input during widget evaluation. Themes and concrete
+controls remain later `rocket.ui` layers; layout is provided by
+`rocket.ui.layout`.
+
+## `rocket.ui.layout`
+
+`rocket.ui.layout` is the pure logical-coordinate layout layer for Rocket 3 UI.
+It consumes `rocket.graphics.Rect`/`Size` values and returns rectangles without
+owning renderer, window, font, or asset state. `row`, `column`, `grid`, `stack`,
+and `anchor_rect` cover the public Row/Column/Grid/Stack/Anchor model. Every
+`LayoutItem` explicitly supplies horizontal and vertical `Sizing`, measured
+content size, margin `Insets`, and an `Anchor`, so an item cannot silently inherit
+an unspecified sizing policy.
+
+Sizing constructors are `fixed(value)`, `fill()`, `content()`, and
+`percent(fraction)`. Percentages are relative to the containing logical extent
+and must lie in `[0, 1]`; content sizing uses the caller-provided measured content
+size. `horizontal_start`/`horizontal_center`/`horizontal_end` and their vertical
+counterparts make alignment explicit. The nine anchor constructors are
+`top_left`, `top_center`, `top_right`, `center_left`, `center`, `center_right`,
+`bottom_left`, `bottom_center`, and `bottom_right`.
+
+`Insets` are used for padding and per-item margins. `SafeArea` is explicit:
+`no_safe_area()` applies no platform inset, while `safe_area(insets)` composes the
+provided safe-area inset before ordinary padding. Row and Column gaps are charged
+between children; Grid has independent column and row gaps. Fill children divide
+the primary-axis remainder deterministically after fixed/content/percentage
+sizes, margins, and gaps have been accounted for. Stack and Anchor place each
+item within its margin-reduced logical region using its anchor.
+
+All public layout entry points return `Result`. Non-finite or negative bounds,
+insets, gaps, fixed/content sizes, invalid percentage or alignment/sizing modes,
+excessive grid dimensions/item counts, cross-axis overflow, grid-capacity
+overflow, and overfull primary axes return stable `Err(String)` diagnostics.
+Padding/safe-area/margin insets that consume more space than their containing
+rectangle are errors rather than silently clamped. Sparse/empty containers are
+well-defined: empty Row/Column/Stack return an empty rectangle array, and Grid
+may contain fewer items than cells. The API therefore makes ordinary
+underspecified child sizing unrepresentable while still diagnosing malformed raw
+policy values deterministically.
 
 ## `std.file` and `std.path`
 

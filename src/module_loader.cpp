@@ -68,6 +68,18 @@ std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) 
        {std::filesystem::path{"rocket"} / "motion.rocket", "std"}},
       {"rocket.graphics",
        {std::filesystem::path{"rocket"} / "graphics.rocket", "rocket"}},
+      {"rocket.graphics.shapes",
+       {std::filesystem::path{"rocket"} / "graphics" / "shapes.rocket", "rocket"}},
+      {"rocket.graphics.input",
+       {std::filesystem::path{"rocket"} / "graphics" / "input.rocket", "rocket"}},
+      {"rocket.graphics.canvas",
+       {std::filesystem::path{"rocket"} / "graphics" / "canvas.rocket", "rocket"}},
+      {"rocket.ui",
+       {std::filesystem::path{"rocket"} / "ui.rocket", "rocket"}},
+      {"rocket.ui.layout",
+       {std::filesystem::path{"rocket"} / "ui" / "layout.rocket", "rocket"}},
+      {"rocket.raylib.safe",
+       {std::filesystem::path{"rocket"} / "raylib" / "safe.rocket", "rocket"}},
   };
   const auto found = modules.find(name);
   if (found == modules.end()) return std::nullopt;

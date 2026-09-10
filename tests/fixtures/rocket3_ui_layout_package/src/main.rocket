@@ -1,0 +1,14 @@
+import rocket.graphics
+import rocket.ui.layout
+
+pub fn sample_row(bounds: graphics.Rect, items: Array[layout.LayoutItem], gap: Float, padding: layout.Insets, safe_area: layout.SafeArea, horizontal: layout.HorizontalAlignment, vertical: layout.VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    return layout.row(bounds, items, gap, padding, safe_area, horizontal, vertical)
+
+pub fn sample_grid(bounds: graphics.Rect, columns: Int, rows: Int, items: Array[layout.LayoutItem], column_gap: Float, row_gap: Float, padding: layout.Insets, safe_area: layout.SafeArea, horizontal: layout.HorizontalAlignment, vertical: layout.VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    return layout.grid(bounds, columns, rows, items, column_gap, row_gap, padding, safe_area, horizontal, vertical)
+
+pub fn sample_anchor(bounds: graphics.Rect, item: layout.LayoutItem, padding: layout.Insets, safe_area: layout.SafeArea) -> Result[graphics.Rect, String]:
+    return layout.anchor_rect(bounds, item, padding, safe_area)
+
+fn main() -> Int:
+    return 0

@@ -1,0 +1,191 @@
+import rocket.graphics
+import rocket.ui.layout
+import std.collections
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn same_rect(left: graphics.Rect, right: graphics.Rect) -> Bool:
+    return close(left.x, right.x) and close(left.y, right.y) and close(left.width, right.width) and close(left.height, right.height)
+
+fn expect_error[T](value: Result[T, String], expected: String) -> Bool:
+    match value:
+        case Ok(actual):
+            let ignored = actual
+            return false
+        case Err(message):
+            return message == expected
+
+fn plain_item(width: layout.Sizing, height: layout.Sizing) -> layout.LayoutItem:
+    return layout.layout_item(width, height, graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.top_left())
+
+fn main() -> Int:
+    match layout.resolve_size(layout.fixed(35.0), 100.0, 15.0):
+        case Err(message):
+            return 1
+        case Ok(value):
+            if not close(value, 35.0):
+                return 2
+    match layout.resolve_size(layout.fill(), 100.0, 15.0):
+        case Err(message):
+            return 3
+        case Ok(value):
+            if not close(value, 100.0):
+                return 4
+    match layout.resolve_size(layout.content(), 100.0, 15.0):
+        case Err(message):
+            return 5
+        case Ok(value):
+            if not close(value, 15.0):
+                return 6
+    match layout.resolve_size(layout.percent(0.25), 100.0, 15.0):
+        case Err(message):
+            return 7
+        case Ok(value):
+            if not close(value, 25.0):
+                return 8
+    if not expect_error(layout.resolve_size(layout.percent(1.25), 100.0, 15.0), "percentage sizing must be between 0 and 1"):
+        return 9
+    if not expect_error(layout.resolve_size(layout.fixed(-1.0), 100.0, 15.0), "fixed size must be finite and nonnegative"):
+        return 10
+    if not expect_error(layout.resolve_size(layout.fill(), -1.0, 15.0), "available size must be finite and nonnegative"):
+        return 11
+    if not expect_error(layout.resolve_size(layout.content(), 100.0, -1.0), "content size must be finite and nonnegative"):
+        return 12
+
+    let bounds = graphics.rect(10.0, 20.0, 120.0, 90.0)
+    match layout.inset_rect(bounds, layout.insets(2.0, 3.0, 5.0, 7.0)):
+        case Err(message):
+            return 13
+        case Ok(value):
+            if not same_rect(value, graphics.rect(12.0, 23.0, 113.0, 80.0)):
+                return 14
+    match layout.content_rect(graphics.rect(0.0, 0.0, 100.0, 100.0), layout.insets_all(5.0), layout.safe_area(layout.insets(0.0, 10.0, 0.0, 0.0))):
+        case Err(message):
+            return 15
+        case Ok(value):
+            if not same_rect(value, graphics.rect(5.0, 15.0, 90.0, 80.0)):
+                return 16
+    if not expect_error(layout.inset_rect(graphics.rect(0.0, 0.0, 10.0, 10.0), layout.insets_all(6.0)), "insets exceed layout bounds"):
+        return 17
+
+    let row_items = [plain_item(layout.fixed(50.0), layout.fill()), plain_item(layout.fill(), layout.fixed(20.0)), layout.layout_item(layout.percent(0.25), layout.content(), graphics.size(0.0, 30.0), layout.insets_all(0.0), layout.top_left())]
+    match layout.row(graphics.rect(0.0, 0.0, 300.0, 100.0), row_items, 10.0, layout.insets_all(10.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_center()):
+        case Err(message):
+            return 18
+        case Ok(rects):
+            if collections.length(rects) != 3:
+                return 19
+            if not same_rect(rects[0], graphics.rect(10.0, 10.0, 50.0, 80.0)):
+                return 20
+            if not same_rect(rects[1], graphics.rect(70.0, 40.0, 140.0, 20.0)):
+                return 21
+            if not same_rect(rects[2], graphics.rect(220.0, 35.0, 70.0, 30.0)):
+                return 22
+
+    let aligned_row_items = [plain_item(layout.fixed(40.0), layout.fixed(20.0)), plain_item(layout.fixed(40.0), layout.fixed(20.0))]
+    match layout.row(graphics.rect(0.0, 0.0, 200.0, 100.0), aligned_row_items, 10.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_center(), layout.vertical_end()):
+        case Err(message):
+            return 23
+        case Ok(rects):
+            if not same_rect(rects[0], graphics.rect(55.0, 80.0, 40.0, 20.0)) or not same_rect(rects[1], graphics.rect(105.0, 80.0, 40.0, 20.0)):
+                return 24
+
+    let column_items = [plain_item(layout.fill(), layout.fixed(20.0)), plain_item(layout.fixed(40.0), layout.fill()), plain_item(layout.content(), layout.percent(0.25))]
+    let column_items_with_content = [column_items[0], column_items[1], layout.layout_item(layout.content(), layout.percent(0.25), graphics.size(30.0, 0.0), layout.insets_all(0.0), layout.top_left())]
+    match layout.column(graphics.rect(0.0, 0.0, 100.0, 300.0), column_items_with_content, 10.0, layout.insets_all(10.0), layout.no_safe_area(), layout.horizontal_center(), layout.vertical_start()):
+        case Err(message):
+            return 25
+        case Ok(rects):
+            if not same_rect(rects[0], graphics.rect(10.0, 10.0, 80.0, 20.0)):
+                return 26
+            if not same_rect(rects[1], graphics.rect(30.0, 40.0, 40.0, 170.0)):
+                return 27
+            if not same_rect(rects[2], graphics.rect(35.0, 220.0, 30.0, 70.0)):
+                return 28
+
+    let grid_item = plain_item(layout.fixed(50.0), layout.fixed(20.0))
+    let grid_items = [grid_item, grid_item, grid_item, grid_item]
+    match layout.grid(graphics.rect(0.0, 0.0, 220.0, 120.0), 2, 2, grid_items, 10.0, 20.0, layout.insets_all(10.0), layout.no_safe_area(), layout.horizontal_center(), layout.vertical_end()):
+        case Err(message):
+            return 29
+        case Ok(rects):
+            if not same_rect(rects[0], graphics.rect(32.5, 30.0, 50.0, 20.0)):
+                return 30
+            if not same_rect(rects[1], graphics.rect(137.5, 30.0, 50.0, 20.0)):
+                return 31
+            if not same_rect(rects[2], graphics.rect(32.5, 90.0, 50.0, 20.0)):
+                return 32
+            if not same_rect(rects[3], graphics.rect(137.5, 90.0, 50.0, 20.0)):
+                return 33
+
+    let anchor_items = [layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.top_left()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.top_center()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.top_right()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.center_left()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.center()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.center_right()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.bottom_left()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.bottom_center()), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.bottom_right())]
+    match layout.stack(bounds, anchor_items, layout.insets_all(0.0), layout.no_safe_area()):
+        case Err(message):
+            return 34
+        case Ok(rects):
+            if collections.length(rects) != 9:
+                return 35
+            if not same_rect(rects[0], graphics.rect(10.0, 20.0, 20.0, 10.0)):
+                return 36
+            if not same_rect(rects[1], graphics.rect(60.0, 20.0, 20.0, 10.0)):
+                return 37
+            if not same_rect(rects[2], graphics.rect(110.0, 20.0, 20.0, 10.0)):
+                return 38
+            if not same_rect(rects[3], graphics.rect(10.0, 60.0, 20.0, 10.0)):
+                return 39
+            if not same_rect(rects[4], graphics.rect(60.0, 60.0, 20.0, 10.0)):
+                return 40
+            if not same_rect(rects[5], graphics.rect(110.0, 60.0, 20.0, 10.0)):
+                return 41
+            if not same_rect(rects[6], graphics.rect(10.0, 100.0, 20.0, 10.0)):
+                return 42
+            if not same_rect(rects[7], graphics.rect(60.0, 100.0, 20.0, 10.0)):
+                return 43
+            if not same_rect(rects[8], graphics.rect(110.0, 100.0, 20.0, 10.0)):
+                return 44
+
+    let margin_anchor = layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets(2.0, 3.0, 4.0, 5.0), layout.bottom_right())
+    match layout.anchor_rect(graphics.rect(0.0, 0.0, 100.0, 100.0), margin_anchor, layout.insets_all(5.0), layout.safe_area(layout.insets(0.0, 10.0, 0.0, 0.0))):
+        case Err(message):
+            return 45
+        case Ok(value):
+            if not same_rect(value, graphics.rect(71.0, 80.0, 20.0, 10.0)):
+                return 46
+
+    if not expect_error(layout.row(graphics.rect(0.0, 0.0, 100.0, 20.0), [plain_item(layout.fixed(80.0), layout.fill()), plain_item(layout.fixed(80.0), layout.fill())], 10.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_start()), "row layout is overfull"):
+        return 47
+    if not expect_error(layout.row(graphics.rect(0.0, 0.0, 100.0, 20.0), [plain_item(layout.fill(), layout.fill())], -1.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_start()), "layout gap must be finite and nonnegative"):
+        return 48
+    if not expect_error(layout.anchor_rect(graphics.rect(0.0, 0.0, 100.0, 100.0), layout.layout_item(layout.fixed(20.0), layout.fixed(10.0), graphics.size(0.0, 0.0), layout.insets(-1.0, 0.0, 0.0, 0.0), layout.top_left()), layout.insets_all(0.0), layout.no_safe_area()), "layout insets must be finite and nonnegative"):
+        return 49
+    if not expect_error(layout.grid(graphics.rect(0.0, 0.0, 100.0, 100.0), 0, 2, [grid_item], 0.0, 0.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_start()), "grid columns must be between 1 and 100000"):
+        return 50
+    if not expect_error(layout.grid(graphics.rect(0.0, 0.0, 100.0, 100.0), 2, 0, [grid_item], 0.0, 0.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_start()), "grid rows must be between 1 and 100000"):
+        return 51
+    if not expect_error(layout.grid(graphics.rect(0.0, 0.0, 100.0, 100.0), 1, 1, [grid_item, grid_item], 0.0, 0.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_start()), "grid layout is overfull"):
+        return 52
+    if not expect_error(layout.row(graphics.rect(0.0, 0.0, 100.0, 20.0), [plain_item(layout.fill(), layout.fixed(30.0))], 0.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_start()), "row item exceeds cross-axis bounds"):
+        return 53
+    if not expect_error(layout.row(graphics.rect(0.0, 0.0, 100.0, 20.0), [plain_item(layout.fill(), layout.fill())], 0.0, layout.insets_all(0.0), layout.no_safe_area(), layout.HorizontalAlignment(9), layout.vertical_start()), "invalid horizontal alignment"):
+        return 54
+    if not expect_error(layout.stack(graphics.rect(0.0, 0.0, 100.0, 100.0), [layout.layout_item(layout.fill(), layout.fill(), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.Anchor(layout.horizontal_start(), layout.VerticalAlignment(9)))], layout.insets_all(0.0), layout.no_safe_area()), "invalid vertical alignment"):
+        return 55
+    let large = large_value()
+    let non_finite = large * large
+    if not expect_error(layout.resolve_size(layout.fixed(non_finite), 100.0, 0.0), "fixed size must be finite and nonnegative"):
+        return 56
+    if not expect_error(layout.row(graphics.rect(non_finite, 0.0, 100.0, 20.0), [plain_item(layout.fill(), layout.fill())], 0.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_start(), layout.vertical_start()), "layout bounds must be finite and nonnegative"):
+        return 57
+    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 308:
+        value = value * 10.0
+        index = index + 1
+    return value

@@ -1,0 +1,132 @@
+import rocket.graphics
+import rocket.graphics.shapes
+import rocket.graphics.input
+import rocket.raylib.safe
+import src.wp20_adapter_testing
+
+fn succeeded(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(ok):
+            return ok
+        case Err(message):
+            return false
+
+fn main() -> Int:
+    if not wp20_adapter_testing.enable() or not wp20_adapter_testing.reset():
+        return 1
+    match safe.open_window(320, 200, "WP20 deterministic"):
+        case Err(message):
+            return 2
+        case Ok(window):
+            match safe.begin_frame(window):
+                case Err(message):
+                    return 3
+                case Ok(frame):
+                    let bounds = graphics.rect(10.5, 20.25, 80.0, 40.0)
+                    let center = graphics.vec2(50.5, 40.25)
+                    let color = graphics.color_from_rgba(0.25, 0.5, 0.75, 1.0)
+                    let other = graphics.color_from_rgb(255.0, 64.0, 0.0)
+                    if not succeeded(shapes.draw_rect(frame, bounds, color)):
+                        return 4
+                    if not succeeded(shapes.draw_rect_outline(frame, bounds, color, 2.0)):
+                        return 5
+                    if not succeeded(shapes.draw_rounded_rect(frame, bounds, color, 0.25)):
+                        return 6
+                    if not succeeded(shapes.draw_rounded_rect_outline(frame, bounds, color, 0.25, 2.0)):
+                        return 7
+                    if not succeeded(shapes.draw_circle(frame, center, 12.0, color)):
+                        return 8
+                    if not succeeded(shapes.draw_circle_outline(frame, center, 12.0, color, 2.0)):
+                        return 9
+                    if not succeeded(shapes.draw_ellipse(frame, center, graphics.vec2(18.0, 10.0), color)):
+                        return 10
+                    if not succeeded(shapes.draw_ring(frame, center, 6.0, 12.0, color)):
+                        return 11
+                    if not succeeded(shapes.draw_ring_sector(frame, center, 6.0, 12.0, 0.0, 90.0, color)):
+                        return 12
+                    if not succeeded(shapes.draw_sector(frame, center, 12.0, 0.0, 90.0, color)):
+                        return 13
+                    if not succeeded(shapes.draw_line(frame, graphics.vec2(0.0, 0.0), center, color)):
+                        return 14
+                    if not succeeded(shapes.draw_thick_line(frame, graphics.vec2(0.0, 0.0), center, color, 3.0)):
+                        return 15
+                    if not succeeded(shapes.draw_triangle(frame, graphics.vec2(0.0, 0.0), graphics.vec2(20.0, 0.0), graphics.vec2(10.0, 20.0), color)):
+                        return 16
+                    if not succeeded(shapes.draw_triangle_outline(frame, graphics.vec2(0.0, 0.0), graphics.vec2(20.0, 0.0), graphics.vec2(10.0, 20.0), color, 2.0)):
+                        return 17
+                    if not succeeded(shapes.draw_polygon(frame, center, 6, 20.0, color, 0.0)):
+                        return 18
+                    if not succeeded(shapes.draw_polygon_outline(frame, center, 6, 20.0, color, 0.0, 2.0)):
+                        return 19
+                    if not succeeded(shapes.draw_bezier(frame, graphics.vec2(0.0, 0.0), center, color, 2.0)):
+                        return 20
+                    if not succeeded(shapes.draw_gradient_rect(frame, bounds, color, other, true)):
+                        return 21
+                    if not succeeded(shapes.draw_gradient_circle(frame, center, 20.0, color, other)):
+                        return 22
+                    if wp20_adapter_testing.geometry_calls() != 19:
+                        return 23
+                    if succeeded(shapes.draw_rect_outline(frame, bounds, color, -1.0)):
+                        return 24
+                    if wp20_adapter_testing.geometry_calls() != 19:
+                        return 25
+                    if not succeeded(safe.end_frame(frame)):
+                        return 26
+
+            if not graphics.point_in_rect(graphics.vec2(0.0, 0.0), graphics.rect(0.0, 0.0, 10.0, 10.0)):
+                return 27
+            if graphics.point_in_rect(graphics.vec2(10.0, 5.0), graphics.rect(0.0, 0.0, 10.0, 10.0)):
+                return 28
+            if graphics.point_in_rect(graphics.vec2(5.0, 10.0), graphics.rect(0.0, 0.0, 10.0, 10.0)):
+                return 29
+            if graphics.point_in_rect(graphics.vec2(0.0, 0.0), graphics.rect(0.0, 0.0, 0.0, 10.0)):
+                return 30
+            if not graphics.point_in_circle(graphics.vec2(3.0, 4.0), graphics.vec2(0.0, 0.0), 5.0):
+                return 31
+            if graphics.point_in_circle(graphics.vec2(3.1, 4.0), graphics.vec2(0.0, 0.0), 5.0):
+                return 32
+            if graphics.point_in_circle(graphics.vec2(0.0, 0.0), graphics.vec2(0.0, 0.0), -1.0):
+                return 33
+
+            if not wp20_adapter_testing.set_mouse(150, 50, true, true, true):
+                return 34
+            let physical = input.pointer_position(window)
+            if physical.x != 150.0 or physical.y != 50.0:
+                return 35
+            if not input.pointer_down(window) or not input.pointer_pressed(window) or not input.pointer_released(window):
+                return 36
+            if input.pointer_pressed(window) or input.pointer_released(window):
+                return 37
+            if not input.pointer_down(window):
+                return 38
+            let canvas = graphics.virtual_canvas(graphics.size(100.0, 100.0), graphics.rect(100.0, 0.0, 200.0, 200.0), 2.0)
+            match input.pointer_position_in_canvas(window, canvas):
+                case None:
+                    return 39
+                case Some(logical):
+                    if logical.x != 25.0 or logical.y != 25.0:
+                        return 40
+            if not wp20_adapter_testing.set_mouse(50, 50, false, false, false):
+                return 41
+            match input.pointer_position_in_canvas(window, canvas):
+                case Some(logical):
+                    return 42
+                case None:
+                    let ignored = 0
+            if not wp20_adapter_testing.set_mouse(300, 50, false, false, false):
+                return 43
+            match input.pointer_position_in_canvas(window, canvas):
+                case Some(logical):
+                    return 44
+                case None:
+                    let ignored = 0
+            if not wp20_adapter_testing.set_mouse(150, 200, false, false, false):
+                return 45
+            match input.pointer_position_in_canvas(window, canvas):
+                case Some(logical):
+                    return 46
+                case None:
+                    let ignored = 0
+            if not succeeded(safe.close_window(window)):
+                return 47
+    return 0

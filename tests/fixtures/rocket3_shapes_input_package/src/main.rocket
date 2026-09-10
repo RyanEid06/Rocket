@@ -1,0 +1,20 @@
+import rocket.graphics
+import rocket.graphics.shapes
+import rocket.graphics.input
+import rocket.raylib.safe
+
+pub fn sample_outline(frame: safe.Frame, bounds: graphics.Rect, color: graphics.Color, thickness: Float = 1.0) -> Result[Bool, String]:
+    return shapes.draw_rect_outline(frame, bounds, color, thickness)
+
+pub fn sample_pointer(window: safe.Window, button: Int = 0) -> Bool:
+    return input.pointer_down(window, button)
+
+fn main() -> Int:
+    let bounds = graphics.rect(0.0, 0.0, 10.0, 10.0)
+    if not graphics.point_in_rect(graphics.vec2(0.0, 0.0), bounds):
+        return 1
+    if graphics.point_in_rect(graphics.vec2(10.0, 5.0), bounds):
+        return 2
+    if not graphics.point_in_circle(graphics.vec2(3.0, 4.0), graphics.vec2(0.0, 0.0), 5.0):
+        return 3
+    return 0

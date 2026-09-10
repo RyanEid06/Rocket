@@ -439,8 +439,11 @@ textures, fonts, audio devices, sounds, and temporary UTF-8 buffers into positiv
 64-bit resource tokens. Coordinates, sizes, colors, input codes, time, status
 values, and callback arguments cross only as frozen primitive values.
 
-The safe Rocket module is the only production module that calls the generated
-low-level bindings. It translates every nonzero adapter status to `Result`,
+The reviewed safe Rocket layer is the only Rocket 3 production layer that
+crosses the native adapter boundary. The bundled `rocket.raylib.safe` module
+uses private primitive `extern` declarations; the legacy raylib showcase keeps
+its generated low-level binding module for generation-parity coverage. Safe
+wrappers translate every nonzero adapter status to `Result`,
 copies a Rocket string into a temporary native byte buffer, calls the native API
 synchronously, and releases that buffer before returning. Embedded NUL is
 rejected by the adapter. No raylib pointer, structure, callback pointer, or
@@ -515,11 +518,31 @@ native artifact; independent binary module artifacts are not part of draft 0.6.
 
 Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files, except for explicitly bundled source modules
-such as `std.testing`. The public `rocket.motion` and `rocket.graphics` modules
-are likewise resolved from bundled ordinary Rocket source at
-`stdlib/rocket/motion.rocket` and `stdlib/rocket/graphics.rocket`; they are not
-compiler intrinsics. Their function signatures are statically checked and lower
-to typed MIR calls. The stable foundational modules are `std.string`,
+such as `std.testing`. The public `rocket.motion`, `rocket.graphics`,
+`rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`,
+`rocket.ui`, `rocket.ui.layout`, and `rocket.raylib.safe` modules are likewise
+resolved from bundled
+ordinary Rocket source under `stdlib/rocket`; they are not compiler intrinsics. Their function
+signatures are statically checked and lower to typed MIR calls.
+`rocket.graphics` keeps pure geometry/color/hit-testing/VirtualCanvas mapping
+values, while the native-backed `rocket.graphics.shapes`, `rocket.graphics.input`,
+and `rocket.graphics.canvas` modules delegate only through
+`rocket.raylib.safe`. The canvas module uses one aspect-preserving mapping
+contract for framebuffer presentation, pointer conversion, clipping, logical
+screenshots, resize/fullscreen transitions, and DPI/display refresh. Physical
+coordinates outside its fitted viewport are outside rather than clamped. The
+safe module is the reviewed native-adapter boundary; applications should prefer
+the typed graphics and UI modules. `rocket.ui` provides a bounded immediate-mode
+context with explicit `begin_frame`/`end_frame` lifecycle, collision-safe stable
+widget IDs, one input snapshot per frame, focus/disabled/modal interaction state,
+duplicate-ID and capacity diagnostics, and frame-scoped `Response` freshness.
+`rocket.ui.layout` is the pure logical-coordinate layout layer: Row, Column,
+Grid, Stack, and Anchor return `rocket.graphics.Rect` values with explicit
+fixed/fill/content/percentage sizing, Insets/SafeArea spacing, horizontal and
+vertical alignment, all nine standard anchors, and recoverable deterministic
+layout diagnostics. It owns no renderer or native state. `rocket.ui` still does
+not own themes or concrete controls. The stable foundational modules are
+`std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,
 `std.unicode`, `std.regex`, `std.crypto`, `std.net`, `std.http`, `std.datetime`,

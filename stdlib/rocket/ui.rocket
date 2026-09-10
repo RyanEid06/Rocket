@@ -1,0 +1,384 @@
+# Rocket 3 immediate-mode UI context foundation. WP23 owns lifecycle, stable
+# identity, input snapshots, focus, disabled behavior, modal capture, and
+# response freshness. Layout, themes, and concrete controls are layered later.
+
+import std.collections
+import std.string
+import std.sync
+import rocket.graphics
+import rocket.graphics.input
+import rocket.raylib.safe
+
+pub struct WidgetId:
+    path: String
+    hash: Int
+
+pub struct Context:
+    namespace: String
+    capacity: Int
+    paths: Array[String]
+    hashes: Array[Int]
+    last_seen: Array[Int]
+    active_present: Bool
+    active_path: String
+    active_hash: Int
+    focused_present: Bool
+    focused_path: String
+    focused_hash: Int
+    modal_present: Bool
+    modal_path: String
+    modal_hash: Int
+    frame_index: Int
+    frame_open: Bool
+    lease: sync.AtomicInt
+    lease_version: Int
+
+pub struct UiFrame:
+    context: Context
+    pointer_present: Bool
+    pointer: graphics.Vec2
+    pointer_pressed: Bool
+    pointer_down: Bool
+    pointer_released: Bool
+    space_pressed: Bool
+    enter_pressed: Bool
+    escape_pressed: Bool
+    tab_pressed: Bool
+    left_pressed: Bool
+    right_pressed: Bool
+    up_pressed: Bool
+    down_pressed: Bool
+    modal_scope_present: Bool
+    modal_scope_path: String
+    modal_scope_hash: Int
+
+pub struct Response:
+    id: WidgetId
+    context_namespace: String
+    frame_index: Int
+    context_lease: sync.AtomicInt
+    hovered: Bool
+    active: Bool
+    clicked: Bool
+    focused: Bool
+    disabled: Bool
+    modal_blocked: Bool
+    pointer_pressed: Bool
+    pointer_released: Bool
+    keyboard_activated: Bool
+
+pub struct Interaction:
+    frame: UiFrame
+    response: Response
+
+struct Records:
+    paths: Array[String]
+    hashes: Array[Int]
+    last_seen: Array[Int]
+
+pub fn widget_id(name: String) -> WidgetId:
+    return compose_id("", name)
+
+pub fn child_id(parent: WidgetId, child: String) -> WidgetId:
+    return compose_id(parent.path, child)
+
+pub fn new_context(namespace: String, capacity: Int = 4096) -> Result[Context, String]:
+    if string.byte_length(namespace) == 0:
+        return Err("UI context namespace must not be empty")
+    if capacity <= 0 or capacity > 100000:
+        return Err("UI context capacity must be between 1 and 100000")
+    var paths: Array[String] = []
+    var hashes: Array[Int] = []
+    var last_seen: Array[Int] = []
+    paths = collections.reserve(paths, capacity)
+    hashes = collections.reserve(hashes, capacity)
+    last_seen = collections.reserve(last_seen, capacity)
+    return Ok(Context(namespace, capacity, paths, hashes, last_seen, false, "", 0, false, "", 0, false, "", 0, 0, false, sync.atomic_int(0), 0))
+
+pub fn begin_frame(context: Context, window: safe.Window, canvas: graphics.VirtualCanvas) -> Result[UiFrame, String]:
+    if context.frame_open:
+        return Err("UI context already has an open frame")
+    if not graphics.virtual_canvas_is_valid(canvas):
+        return Err("UI frame requires a valid virtual canvas")
+    let opened = Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, context.active_present, context.active_path, context.active_hash, context.focused_present, context.focused_path, context.focused_hash, context.modal_present, context.modal_path, context.modal_hash, context.frame_index + 1, true, context.lease, context.lease_version)
+    match commit_context(context, opened):
+        case Err(message):
+            return Err(message)
+        case Ok(committed):
+            let pressed = input.pointer_pressed(window)
+            let down = input.pointer_down(window)
+            let released = input.pointer_released(window)
+            let space = safe.key_pressed(window, 32)
+            let enter = safe.key_pressed(window, 257)
+            let escape = safe.key_pressed(window, 256)
+            let tab = safe.key_pressed(window, 258)
+            let left = safe.key_pressed(window, 263)
+            let right = safe.key_pressed(window, 262)
+            let up = safe.key_pressed(window, 265)
+            let down_key = safe.key_pressed(window, 264)
+            match input.pointer_position_in_canvas(window, canvas):
+                case Some(pointer):
+                    return Ok(UiFrame(committed, true, pointer, pressed, down, released, space, enter, escape, tab, left, right, up, down_key, false, "", 0))
+                case None():
+                    return Ok(UiFrame(committed, false, graphics.vec2(0.0, 0.0), pressed, down, released, space, enter, escape, tab, left, right, up, down_key, false, "", 0))
+
+pub fn register_widget(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
+    match register_widget_uncommitted(frame, id):
+        case Err(message):
+            return Err(message)
+        case Ok(registered):
+            return commit_frame(registered, registered.context)
+
+fn register_widget_uncommitted(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
+    if not frame.context.frame_open:
+        return Err("UI operation requires an open frame")
+    var index = 0
+    while index < collections.length(frame.context.hashes):
+        if frame.context.hashes[index] == id.hash and frame.context.paths[index] == id.path:
+            if frame.context.last_seen[index] == frame.context.frame_index:
+                return Err("duplicate widget ID in UI frame")
+            var last_seen = frame.context.last_seen
+            last_seen = collections.remove(last_seen, index).values
+            last_seen = collections.insert(last_seen, index, frame.context.frame_index)
+            let next = Context(frame.context.namespace, frame.context.capacity, frame.context.paths, frame.context.hashes, last_seen, frame.context.active_present, frame.context.active_path, frame.context.active_hash, frame.context.focused_present, frame.context.focused_path, frame.context.focused_hash, frame.context.modal_present, frame.context.modal_path, frame.context.modal_hash, frame.context.frame_index, true, frame.context.lease, frame.context.lease_version)
+            return Ok(with_context(frame, next))
+        index = index + 1
+    if collections.length(frame.context.hashes) >= frame.context.capacity:
+        return Err("UI context widget capacity exceeded")
+    let paths = collections.append(frame.context.paths, id.path)
+    let hashes = collections.append(frame.context.hashes, id.hash)
+    let last_seen = collections.append(frame.context.last_seen, frame.context.frame_index)
+    let next = Context(frame.context.namespace, frame.context.capacity, paths, hashes, last_seen, frame.context.active_present, frame.context.active_path, frame.context.active_hash, frame.context.focused_present, frame.context.focused_path, frame.context.focused_hash, frame.context.modal_present, frame.context.modal_path, frame.context.modal_hash, frame.context.frame_index, true, frame.context.lease, frame.context.lease_version)
+    return Ok(with_context(frame, next))
+
+pub fn interact(frame: UiFrame, id: WidgetId, bounds: graphics.Rect, disabled: Bool = false) -> Result[Interaction, String]:
+    if not frame.context.frame_open:
+        return Err("UI interaction requires an open frame")
+    if not graphics.rect_has_nonnegative_size(bounds):
+        return Err("UI interaction bounds must be finite with nonnegative size")
+    match register_widget_uncommitted(frame, id):
+        case Err(message):
+            return Err(message)
+        case Ok(registered):
+            let blocked = modal_blocks(registered, id)
+            let eligible = not disabled and not blocked
+            var context = registered.context
+            if disabled:
+                if active_is(context, id):
+                    context = clear_active(context)
+                if focused_is(context, id):
+                    context = clear_focus(context)
+            if blocked and active_is(context, id):
+                context = clear_active(context)
+            var hovered = false
+            if eligible and registered.pointer_present:
+                hovered = graphics.point_in_rect(registered.pointer, bounds)
+            var pressed_here = false
+            if eligible and hovered and registered.pointer_pressed and not context.active_present:
+                context = set_active(set_focus(context, id), id)
+                pressed_here = true
+            let was_active = active_is(context, id)
+            var released_here = false
+            var clicked = false
+            if was_active and registered.pointer_released:
+                released_here = true
+                if eligible and hovered:
+                    clicked = true
+                context = clear_active(context)
+            let keyboard_activated = eligible and focused_is(context, id) and activation_pressed(registered)
+            if keyboard_activated:
+                clicked = true
+            let active = active_is(context, id)
+            let focused = focused_is(context, id)
+            match commit_frame(registered, context):
+                case Err(message):
+                    return Err(message)
+                case Ok(next_frame):
+                    let response = Response(id, next_frame.context.namespace, next_frame.context.frame_index, next_frame.context.lease, hovered, active, clicked, focused, disabled, blocked, pressed_here, released_here, keyboard_activated)
+                    return Ok(Interaction(next_frame, response))
+
+pub fn request_focus(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
+    if not frame.context.frame_open:
+        return Err("UI focus request requires an open frame")
+    if not seen_this_frame(frame.context, id.path, id.hash):
+        return Err("UI focus target must be registered in the current frame")
+    if modal_blocks(frame, id):
+        return Err("UI focus target is blocked by the active modal scope")
+    return commit_frame(frame, set_focus(frame.context, id))
+
+pub fn activate_modal(context: Context, id: WidgetId) -> Result[Context, String]:
+    if context.frame_open:
+        return Err("UI modal state cannot change while a frame is open")
+    let next = Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, false, context.active_path, context.active_hash, false, context.focused_path, context.focused_hash, true, id.path, id.hash, context.frame_index, false, context.lease, context.lease_version)
+    return commit_context(context, next)
+
+pub fn clear_modal(context: Context, id: WidgetId) -> Result[Context, String]:
+    if context.frame_open:
+        return Err("UI modal state cannot change while a frame is open")
+    if not context.modal_present:
+        return Err("UI context has no active modal")
+    if context.modal_hash != id.hash or context.modal_path != id.path:
+        return Err("UI modal ID does not match the active modal")
+    let next = Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, context.active_present, context.active_path, context.active_hash, context.focused_present, context.focused_path, context.focused_hash, false, "", 0, context.frame_index, false, context.lease, context.lease_version)
+    return commit_context(context, next)
+
+pub fn enter_modal(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
+    if not frame.context.frame_open:
+        return Err("UI modal scope requires an open frame")
+    if frame.modal_scope_present:
+        return Err("UI frame already has an active modal scope")
+    if not frame.context.modal_present or frame.context.modal_hash != id.hash or frame.context.modal_path != id.path:
+        return Err("UI modal scope does not match the active modal")
+    match register_widget_uncommitted(frame, id):
+        case Err(message):
+            return Err(message)
+        case Ok(registered):
+            let scoped = with_modal_scope(registered, true, id.path, id.hash)
+            return commit_frame(scoped, scoped.context)
+
+pub fn exit_modal(frame: UiFrame) -> Result[UiFrame, String]:
+    if not frame.context.frame_open:
+        return Err("UI modal scope requires an open frame")
+    if not frame.modal_scope_present:
+        return Err("UI frame has no active modal scope")
+    let scoped = with_modal_scope(frame, false, "", 0)
+    return commit_frame(scoped, scoped.context)
+
+pub fn end_frame(frame: UiFrame) -> Result[Context, String]:
+    if not frame.context.frame_open:
+        return Err("UI frame is already closed")
+    if frame.modal_scope_present:
+        return Err("UI modal scope must be exited before ending the frame")
+    let records = retained_records(frame.context, 0, collections.length(frame.context.paths))
+    var active_present = frame.context.active_present
+    if active_present and not seen_this_frame(frame.context, frame.context.active_path, frame.context.active_hash):
+        active_present = false
+    var focused_present = frame.context.focused_present
+    if focused_present and not seen_this_frame(frame.context, frame.context.focused_path, frame.context.focused_hash):
+        focused_present = false
+    var modal_present = frame.context.modal_present
+    if modal_present and not seen_this_frame(frame.context, frame.context.modal_path, frame.context.modal_hash):
+        modal_present = false
+    let next = Context(frame.context.namespace, frame.context.capacity, records.paths, records.hashes, records.last_seen, active_present, frame.context.active_path, frame.context.active_hash, focused_present, frame.context.focused_path, frame.context.focused_hash, modal_present, frame.context.modal_path, frame.context.modal_hash, frame.context.frame_index, false, frame.context.lease, frame.context.lease_version)
+    return commit_context(frame.context, next)
+
+pub fn activation_pressed(frame: UiFrame) -> Bool:
+    return frame.space_pressed or frame.enter_pressed
+
+pub fn cancel_pressed(frame: UiFrame) -> Bool:
+    return frame.escape_pressed
+
+pub fn focus_next_pressed(frame: UiFrame) -> Bool:
+    return frame.tab_pressed
+
+pub fn navigation_left_pressed(frame: UiFrame) -> Bool:
+    return frame.left_pressed
+
+pub fn navigation_right_pressed(frame: UiFrame) -> Bool:
+    return frame.right_pressed
+
+pub fn navigation_up_pressed(frame: UiFrame) -> Bool:
+    return frame.up_pressed
+
+pub fn navigation_down_pressed(frame: UiFrame) -> Bool:
+    return frame.down_pressed
+
+pub fn active_is(context: Context, id: WidgetId) -> Bool:
+    return context.active_present and context.active_hash == id.hash and context.active_path == id.path
+
+pub fn focused_is(context: Context, id: WidgetId) -> Bool:
+    return context.focused_present and context.focused_hash == id.hash and context.focused_path == id.path
+
+pub fn modal_is(context: Context, id: WidgetId) -> Bool:
+    return context.modal_present and context.modal_hash == id.hash and context.modal_path == id.path
+
+pub fn response_is_current(frame: UiFrame, response: Response) -> Bool:
+    return frame.context.frame_open and lease_is_current(frame.context) and response.context_namespace == frame.context.namespace and response.frame_index == frame.context.frame_index and seen_this_frame(frame.context, response.id.path, response.id.hash) and response_belongs_to(frame.context, response)
+
+pub fn response_is_current_context(context: Context, response: Response) -> Bool:
+    return context.frame_open and lease_is_current(context) and response.context_namespace == context.namespace and response.frame_index == context.frame_index and seen_this_frame(context, response.id.path, response.id.hash) and response_belongs_to(context, response)
+
+fn compose_id(parent: String, child: String) -> WidgetId:
+    let segment = string.concat(string.from_int(string.byte_length(child)), string.concat(":", child))
+    let path = string.concat(string.from_int(string.byte_length(parent)), string.concat(":", string.concat(parent, segment)))
+    return WidgetId(path, collections.hash(path))
+
+fn modal_blocks(frame: UiFrame, id: WidgetId) -> Bool:
+    if not frame.context.modal_present:
+        return false
+    if frame.modal_scope_present and frame.modal_scope_hash == frame.context.modal_hash and frame.modal_scope_path == frame.context.modal_path:
+        return false
+    return true
+
+fn set_active(context: Context, id: WidgetId) -> Context:
+    return Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, true, id.path, id.hash, context.focused_present, context.focused_path, context.focused_hash, context.modal_present, context.modal_path, context.modal_hash, context.frame_index, context.frame_open, context.lease, context.lease_version)
+
+fn clear_active(context: Context) -> Context:
+    return Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, false, context.active_path, context.active_hash, context.focused_present, context.focused_path, context.focused_hash, context.modal_present, context.modal_path, context.modal_hash, context.frame_index, context.frame_open, context.lease, context.lease_version)
+
+fn set_focus(context: Context, id: WidgetId) -> Context:
+    return Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, context.active_present, context.active_path, context.active_hash, true, id.path, id.hash, context.modal_present, context.modal_path, context.modal_hash, context.frame_index, context.frame_open, context.lease, context.lease_version)
+
+fn clear_focus(context: Context) -> Context:
+    return Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, context.active_present, context.active_path, context.active_hash, false, context.focused_path, context.focused_hash, context.modal_present, context.modal_path, context.modal_hash, context.frame_index, context.frame_open, context.lease, context.lease_version)
+
+fn claim_context(context: Context) -> Result[Int, String]:
+    let next = context.lease_version + 1
+    if not sync.atomic_compare_exchange(context.lease, context.lease_version, next):
+        return Err("stale UI context or frame state")
+    return Ok(next)
+
+fn commit_context(source: Context, candidate: Context) -> Result[Context, String]:
+    match claim_context(source):
+        case Err(message):
+            return Err(message)
+        case Ok(version):
+            return Ok(with_lease_version(candidate, version))
+
+fn commit_frame(frame: UiFrame, candidate: Context) -> Result[UiFrame, String]:
+    match commit_context(frame.context, candidate):
+        case Err(message):
+            return Err(message)
+        case Ok(context):
+            return Ok(with_context(frame, context))
+
+fn lease_is_current(context: Context) -> Bool:
+    return sync.atomic_load(context.lease) == context.lease_version
+
+fn response_belongs_to(context: Context, response: Response) -> Bool:
+    let version = context.lease_version
+    let marker = 0 - version - 1
+    if not sync.atomic_compare_exchange(context.lease, version, marker):
+        return false
+    let belongs = sync.atomic_load(response.context_lease) == marker
+    let restored = sync.atomic_compare_exchange(context.lease, marker, version)
+    return belongs and restored
+
+fn with_lease_version(context: Context, version: Int) -> Context:
+    return Context(context.namespace, context.capacity, context.paths, context.hashes, context.last_seen, context.active_present, context.active_path, context.active_hash, context.focused_present, context.focused_path, context.focused_hash, context.modal_present, context.modal_path, context.modal_hash, context.frame_index, context.frame_open, context.lease, version)
+
+fn with_context(frame: UiFrame, context: Context) -> UiFrame:
+    return UiFrame(context, frame.pointer_present, frame.pointer, frame.pointer_pressed, frame.pointer_down, frame.pointer_released, frame.space_pressed, frame.enter_pressed, frame.escape_pressed, frame.tab_pressed, frame.left_pressed, frame.right_pressed, frame.up_pressed, frame.down_pressed, frame.modal_scope_present, frame.modal_scope_path, frame.modal_scope_hash)
+
+fn with_modal_scope(frame: UiFrame, present: Bool, path: String, hash: Int) -> UiFrame:
+    return UiFrame(frame.context, frame.pointer_present, frame.pointer, frame.pointer_pressed, frame.pointer_down, frame.pointer_released, frame.space_pressed, frame.enter_pressed, frame.escape_pressed, frame.tab_pressed, frame.left_pressed, frame.right_pressed, frame.up_pressed, frame.down_pressed, present, path, hash)
+
+fn seen_this_frame(context: Context, path: String, hash: Int) -> Bool:
+    var index = 0
+    while index < collections.length(context.hashes):
+        if context.hashes[index] == hash and context.paths[index] == path and context.last_seen[index] == context.frame_index:
+            return true
+        index = index + 1
+    return false
+
+fn retained_records(context: Context, start: Int, end: Int) -> Records:
+    if start >= end:
+        return Records([], [], [])
+    if end - start == 1:
+        if context.last_seen[start] == context.frame_index:
+            return Records([context.paths[start]], [context.hashes[start]], [context.last_seen[start]])
+        return Records([], [], [])
+    let middle = start +(end - start) / 2
+    let left = retained_records(context, start, middle)
+    let right = retained_records(context, middle, end)
+    return Records(collections.concat(left.paths, right.paths), collections.concat(left.hashes, right.hashes), collections.concat(left.last_seen, right.last_seen))

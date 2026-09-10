@@ -1,0 +1,67 @@
+import rocket.raylib.safe
+
+extern fn rlv_enable_test_mode(enabled: Bool) -> Int
+extern fn rlv_test_reset() -> Int
+extern fn rlv_test_set_display_metrics(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_scale_x: Float, dpi_scale_y: Float, monitor_count: Int, current_monitor: Int) -> Int
+extern fn rlv_test_set_display_capabilities(resize: Bool, fullscreen: Bool, borderless: Bool, monitor_selection: Bool, screenshot: Bool) -> Int
+extern fn rlv_test_set_mouse_state(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Int
+extern fn rlv_test_scissor_x() -> Int
+extern fn rlv_test_scissor_y() -> Int
+extern fn rlv_test_scissor_width() -> Int
+extern fn rlv_test_scissor_height() -> Int
+extern fn rlv_draw_count() -> Int
+extern fn rlv_screenshot_count() -> Int
+extern fn rlv_window_fullscreen(window_id: Int) -> Bool
+extern fn rlv_window_borderless(window_id: Int) -> Bool
+
+pub fn enable() -> Bool:
+    unsafe:
+        return rlv_enable_test_mode(true) == 0
+
+pub fn reset() -> Bool:
+    unsafe:
+        return rlv_test_reset() == 0
+
+pub fn set_display(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_x: Float, dpi_y: Float) -> Bool:
+    unsafe:
+        return rlv_test_set_display_metrics(logical_width, logical_height, framebuffer_width, framebuffer_height, dpi_x, dpi_y, 1, 0) == 0
+
+pub fn set_capabilities(resize: Bool, fullscreen: Bool, borderless: Bool) -> Bool:
+    unsafe:
+        return rlv_test_set_display_capabilities(resize, fullscreen, borderless, true, true) == 0
+
+pub fn set_mouse(x: Int, y: Int) -> Bool:
+    unsafe:
+        return rlv_test_set_mouse_state(x, y, false, false, false) == 0
+
+pub fn scissor_x() -> Int:
+    unsafe:
+        return rlv_test_scissor_x()
+
+pub fn scissor_y() -> Int:
+    unsafe:
+        return rlv_test_scissor_y()
+
+pub fn scissor_width() -> Int:
+    unsafe:
+        return rlv_test_scissor_width()
+
+pub fn scissor_height() -> Int:
+    unsafe:
+        return rlv_test_scissor_height()
+
+pub fn draw_calls() -> Int:
+    unsafe:
+        return rlv_draw_count()
+
+pub fn screenshots() -> Int:
+    unsafe:
+        return rlv_screenshot_count()
+
+pub fn fullscreen(window: safe.Window) -> Bool:
+    unsafe:
+        return rlv_window_fullscreen(window.id)
+
+pub fn borderless(window: safe.Window) -> Bool:
+    unsafe:
+        return rlv_window_borderless(window.id)

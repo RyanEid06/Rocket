@@ -1,0 +1,193 @@
+# Rocket-facing F14 drawing surface. Typed values stay above the reviewed
+# rocket.raylib.safe primitive/token boundary.
+
+import rocket.graphics
+import rocket.raylib.safe
+
+pub fn draw_rect(frame: safe.Frame, bounds: graphics.Rect, color: graphics.Color) -> Result[Bool, String]:
+    if not drawable_rect(bounds) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_rect(frame, bounds.x, bounds.y, bounds.width, bounds.height, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_rect_outline(frame: safe.Frame, bounds: graphics.Rect, color: graphics.Color, thickness: Float = 1.0) -> Result[Bool, String]:
+    if not drawable_rect(bounds) or not valid_thickness(thickness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_rect_outline(frame, bounds.x, bounds.y, bounds.width, bounds.height, thickness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_rounded_rect(frame: safe.Frame, bounds: graphics.Rect, color: graphics.Color, roundness: Float = 0.25) -> Result[Bool, String]:
+    if not drawable_rect(bounds) or not valid_roundness(roundness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_rounded_rect(frame, bounds.x, bounds.y, bounds.width, bounds.height, roundness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_rounded_rect_outline(frame: safe.Frame, bounds: graphics.Rect, color: graphics.Color, roundness: Float = 0.25, thickness: Float = 1.0) -> Result[Bool, String]:
+    if not drawable_rect(bounds) or not valid_roundness(roundness) or not valid_thickness(thickness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_rounded_rect_outline(frame, bounds.x, bounds.y, bounds.width, bounds.height, roundness, thickness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_circle(frame: safe.Frame, center: graphics.Vec2, radius: Float, color: graphics.Color) -> Result[Bool, String]:
+    if not drawable_circle(center, radius) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_circle(frame, center.x, center.y, radius, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_circle_outline(frame: safe.Frame, center: graphics.Vec2, radius: Float, color: graphics.Color, thickness: Float = 1.0) -> Result[Bool, String]:
+    if not drawable_circle(center, radius) or not valid_thickness(thickness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_circle_outline(frame, center.x, center.y, radius, thickness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_ellipse(frame: safe.Frame, center: graphics.Vec2, radii: graphics.Vec2, color: graphics.Color) -> Result[Bool, String]:
+    if not graphics.vec2_is_finite(center) or not graphics.vec2_is_finite(radii) or radii.x < 0.0 or radii.y < 0.0 or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_ellipse(frame, center.x, center.y, radii.x, radii.y, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_ring(frame: safe.Frame, center: graphics.Vec2, inner_radius: Float, outer_radius: Float, color: graphics.Color) -> Result[Bool, String]:
+    if not valid_ring(center, inner_radius, outer_radius) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_ring(frame, center.x, center.y, inner_radius, outer_radius, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_ring_sector(frame: safe.Frame, center: graphics.Vec2, inner_radius: Float, outer_radius: Float, start_angle: Float, end_angle: Float, color: graphics.Color) -> Result[Bool, String]:
+    if not valid_ring(center, inner_radius, outer_radius) or not finite(start_angle) or not finite(end_angle) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_ring_sector(frame, center.x, center.y, inner_radius, outer_radius, start_angle, end_angle, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_sector(frame: safe.Frame, center: graphics.Vec2, radius: Float, start_angle: Float, end_angle: Float, color: graphics.Color) -> Result[Bool, String]:
+    if not drawable_circle(center, radius) or not finite(start_angle) or not finite(end_angle) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_sector(frame, center.x, center.y, radius, start_angle, end_angle, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_line(frame: safe.Frame, start: graphics.Vec2, end: graphics.Vec2, color: graphics.Color) -> Result[Bool, String]:
+    if not graphics.vec2_is_finite(start) or not graphics.vec2_is_finite(end) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_line(frame, start.x, start.y, end.x, end.y, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_thick_line(frame: safe.Frame, start: graphics.Vec2, end: graphics.Vec2, color: graphics.Color, thickness: Float = 1.0) -> Result[Bool, String]:
+    if not graphics.vec2_is_finite(start) or not graphics.vec2_is_finite(end) or not valid_thickness(thickness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_thick_line(frame, start.x, start.y, end.x, end.y, thickness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_triangle(frame: safe.Frame, first: graphics.Vec2, second: graphics.Vec2, third: graphics.Vec2, color: graphics.Color) -> Result[Bool, String]:
+    if not graphics.vec2_is_finite(first) or not graphics.vec2_is_finite(second) or not graphics.vec2_is_finite(third) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_triangle(frame, first.x, first.y, second.x, second.y, third.x, third.y, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_triangle_outline(frame: safe.Frame, first: graphics.Vec2, second: graphics.Vec2, third: graphics.Vec2, color: graphics.Color, thickness: Float = 1.0) -> Result[Bool, String]:
+    if not graphics.vec2_is_finite(first) or not graphics.vec2_is_finite(second) or not graphics.vec2_is_finite(third) or not valid_thickness(thickness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_triangle_outline(frame, first.x, first.y, second.x, second.y, third.x, third.y, thickness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_polygon(frame: safe.Frame, center: graphics.Vec2, sides: Int, radius: Float, color: graphics.Color, rotation: Float = 0.0) -> Result[Bool, String]:
+    if not drawable_circle(center, radius) or sides < 3 or not finite(rotation) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_polygon(frame, center.x, center.y, sides, radius, rotation, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_polygon_outline(frame: safe.Frame, center: graphics.Vec2, sides: Int, radius: Float, color: graphics.Color, rotation: Float = 0.0, thickness: Float = 1.0) -> Result[Bool, String]:
+    if not drawable_circle(center, radius) or sides < 3 or not finite(rotation) or not valid_thickness(thickness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_polygon_outline(frame, center.x, center.y, sides, radius, rotation, thickness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_bezier(frame: safe.Frame, start: graphics.Vec2, end: graphics.Vec2, color: graphics.Color, thickness: Float = 1.0) -> Result[Bool, String]:
+    if not graphics.vec2_is_finite(start) or not graphics.vec2_is_finite(end) or not valid_thickness(thickness) or not color_is_finite(color):
+        return invalid_graphics_geometry()
+    let native = native_color(color)
+    return safe.draw_bezier(frame, start.x, start.y, end.x, end.y, thickness, native.red, native.green, native.blue, native.alpha)
+
+pub fn draw_gradient_rect(frame: safe.Frame, bounds: graphics.Rect, start_color: graphics.Color, end_color: graphics.Color, vertical: Bool = true) -> Result[Bool, String]:
+    if not drawable_rect(bounds) or not color_is_finite(start_color) or not color_is_finite(end_color):
+        return invalid_graphics_geometry()
+    let start_native = native_color(start_color)
+    let end_native = native_color(end_color)
+    return safe.draw_gradient_rect(frame, bounds.x, bounds.y, bounds.width, bounds.height, start_native.red, start_native.green, start_native.blue, start_native.alpha, end_native.red, end_native.green, end_native.blue, end_native.alpha, vertical)
+
+pub fn draw_gradient_circle(frame: safe.Frame, center: graphics.Vec2, radius: Float, inner_color: graphics.Color, outer_color: graphics.Color) -> Result[Bool, String]:
+    if not drawable_circle(center, radius) or not color_is_finite(inner_color) or not color_is_finite(outer_color):
+        return invalid_graphics_geometry()
+    let inner_native = native_color(inner_color)
+    let outer_native = native_color(outer_color)
+    return safe.draw_gradient_circle(frame, center.x, center.y, radius, inner_native.red, inner_native.green, inner_native.blue, inner_native.alpha, outer_native.red, outer_native.green, outer_native.blue, outer_native.alpha)
+
+struct NativeColor:
+    red: Int
+    green: Int
+    blue: Int
+    alpha: Int
+
+fn native_color(value: graphics.Color) -> NativeColor:
+    return NativeColor(byte_from_unit(value.red), byte_from_unit(value.green), byte_from_unit(value.blue), byte_from_unit(value.alpha))
+
+fn byte_from_unit(value: Float) -> Int:
+    var remaining = clamp_unit(value) * 255.0 + 0.5
+    var result = 0
+    if remaining >= 128.0:
+        result = result + 128
+        remaining = remaining - 128.0
+    if remaining >= 64.0:
+        result = result + 64
+        remaining = remaining - 64.0
+    if remaining >= 32.0:
+        result = result + 32
+        remaining = remaining - 32.0
+    if remaining >= 16.0:
+        result = result + 16
+        remaining = remaining - 16.0
+    if remaining >= 8.0:
+        result = result + 8
+        remaining = remaining - 8.0
+    if remaining >= 4.0:
+        result = result + 4
+        remaining = remaining - 4.0
+    if remaining >= 2.0:
+        result = result + 2
+        remaining = remaining - 2.0
+    if remaining >= 1.0:
+        result = result + 1
+    return result
+
+fn color_is_finite(value: graphics.Color) -> Bool:
+    return finite(value.red) and finite(value.green) and finite(value.blue) and finite(value.alpha)
+
+fn drawable_rect(value: graphics.Rect) -> Bool:
+    return graphics.rect_has_nonnegative_size(value)
+
+fn drawable_circle(center: graphics.Vec2, radius: Float) -> Bool:
+    return graphics.vec2_is_finite(center) and finite(radius) and radius >= 0.0
+
+fn valid_ring(center: graphics.Vec2, inner_radius: Float, outer_radius: Float) -> Bool:
+    return graphics.vec2_is_finite(center) and finite(inner_radius) and finite(outer_radius) and inner_radius >= 0.0 and outer_radius >= inner_radius
+
+fn valid_roundness(value: Float) -> Bool:
+    return finite(value) and value >= 0.0 and value <= 1.0
+
+fn valid_thickness(value: Float) -> Bool:
+    return finite(value) and value >= 0.0
+
+fn invalid_graphics_geometry() -> Result[Bool, String]:
+    return Err("graphics: invalid geometry")
+
+fn clamp_unit(value: Float) -> Float:
+    if not finite(value):
+        if value > 0.0:
+            return 1.0
+        return 0.0
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+fn finite(value: Float) -> Bool:
+    return value == value and value - value == 0.0

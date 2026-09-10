@@ -1,0 +1,15 @@
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+
+pub fn sample_context(namespace: String, capacity: Int = 4096) -> Result[ui.Context, String]:
+    return ui.new_context(namespace, capacity)
+
+pub fn sample_id(parent: ui.WidgetId, child: String) -> ui.WidgetId:
+    return ui.child_id(parent, child)
+
+pub fn sample_interact(frame: ui.UiFrame, id: ui.WidgetId, bounds: graphics.Rect, disabled: Bool = false) -> Result[ui.Interaction, String]:
+    return ui.interact(frame, id, bounds, disabled)
+
+fn main() -> Int:
+    return 0

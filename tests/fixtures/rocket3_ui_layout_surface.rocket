@@ -1,0 +1,16 @@
+import rocket.graphics
+import rocket.ui.layout
+
+fn main() -> Int:
+    let bounds = graphics.rect(0.0, 0.0, 320.0, 180.0)
+    let padding = layout.insets_all(8.0)
+    let safe = layout.safe_area(layout.insets(0.0, 12.0, 0.0, 0.0))
+    let item = layout.layout_item(layout.fixed(80.0), layout.fill(), graphics.size(40.0, 20.0), layout.insets_all(2.0), layout.center())
+    let items = [item, item]
+    let row = layout.row(bounds, items, 8.0, padding, safe, layout.horizontal_center(), layout.vertical_center())
+    let column = layout.column(bounds, items, 8.0, padding, safe, layout.horizontal_center(), layout.vertical_center())
+    let grid = layout.grid(bounds, 2, 1, items, 8.0, 0.0, padding, safe, layout.horizontal_center(), layout.vertical_center())
+    let stack = layout.stack(bounds, items, padding, safe)
+    let anchored = layout.anchor_rect(bounds, item, padding, safe)
+    let resolved = layout.resolve_size(layout.percent(0.5), 100.0, 20.0)
+    return 0

@@ -1,0 +1,494 @@
+# Public deterministic UI layout primitives. All coordinates are logical
+# rocket.graphics units; this module owns no renderer or native resources.
+
+import rocket.graphics
+import std.collections
+
+pub struct Sizing:
+    mode: Int
+    amount: Float
+
+pub struct Insets:
+    left: Float
+    top: Float
+    right: Float
+    bottom: Float
+
+pub struct HorizontalAlignment:
+    mode: Int
+
+pub struct VerticalAlignment:
+    mode: Int
+
+pub struct Anchor:
+    horizontal: HorizontalAlignment
+    vertical: VerticalAlignment
+
+pub struct SafeArea:
+    available: Bool
+    insets: Insets
+
+pub struct LayoutItem:
+    width: Sizing
+    height: Sizing
+    content: graphics.Size
+    margin: Insets
+    anchor: Anchor
+
+pub fn fixed(value: Float) -> Sizing:
+    return Sizing(0, value)
+
+pub fn fill() -> Sizing:
+    return Sizing(1, 0.0)
+
+pub fn content() -> Sizing:
+    return Sizing(2, 0.0)
+
+pub fn percent(fraction: Float) -> Sizing:
+    return Sizing(3, fraction)
+
+pub fn insets(left: Float, top: Float, right: Float, bottom: Float) -> Insets:
+    return Insets(left, top, right, bottom)
+
+pub fn insets_all(value: Float) -> Insets:
+    return Insets(value, value, value, value)
+
+pub fn no_safe_area() -> SafeArea:
+    return SafeArea(false, Insets(0.0, 0.0, 0.0, 0.0))
+
+pub fn safe_area(value: Insets) -> SafeArea:
+    return SafeArea(true, value)
+
+pub fn horizontal_start() -> HorizontalAlignment:
+    return HorizontalAlignment(0)
+
+pub fn horizontal_center() -> HorizontalAlignment:
+    return HorizontalAlignment(1)
+
+pub fn horizontal_end() -> HorizontalAlignment:
+    return HorizontalAlignment(2)
+
+pub fn vertical_start() -> VerticalAlignment:
+    return VerticalAlignment(0)
+
+pub fn vertical_center() -> VerticalAlignment:
+    return VerticalAlignment(1)
+
+pub fn vertical_end() -> VerticalAlignment:
+    return VerticalAlignment(2)
+
+pub fn top_left() -> Anchor:
+    return Anchor(horizontal_start(), vertical_start())
+
+pub fn top_center() -> Anchor:
+    return Anchor(horizontal_center(), vertical_start())
+
+pub fn top_right() -> Anchor:
+    return Anchor(horizontal_end(), vertical_start())
+
+pub fn center_left() -> Anchor:
+    return Anchor(horizontal_start(), vertical_center())
+
+pub fn center() -> Anchor:
+    return Anchor(horizontal_center(), vertical_center())
+
+pub fn center_right() -> Anchor:
+    return Anchor(horizontal_end(), vertical_center())
+
+pub fn bottom_left() -> Anchor:
+    return Anchor(horizontal_start(), vertical_end())
+
+pub fn bottom_center() -> Anchor:
+    return Anchor(horizontal_center(), vertical_end())
+
+pub fn bottom_right() -> Anchor:
+    return Anchor(horizontal_end(), vertical_end())
+
+pub fn layout_item(width: Sizing, height: Sizing, measured_content: graphics.Size, margin: Insets, anchor: Anchor) -> LayoutItem:
+    return LayoutItem(width, height, measured_content, margin, anchor)
+
+pub fn resolve_size(policy: Sizing, available: Float, content_size: Float) -> Result[Float, String]:
+    if not finite_nonnegative(available):
+        return Err("available size must be finite and nonnegative")
+    if not finite_nonnegative(content_size):
+        return Err("content size must be finite and nonnegative")
+    if policy.mode == 0:
+        if not finite_nonnegative(policy.amount):
+            return Err("fixed size must be finite and nonnegative")
+        return Ok(policy.amount)
+    if policy.mode == 1:
+        return Ok(available)
+    if policy.mode == 2:
+        return Ok(content_size)
+    if policy.mode == 3:
+        if not finite(policy.amount) or policy.amount < 0.0 or policy.amount > 1.0:
+            return Err("percentage sizing must be between 0 and 1")
+        return Ok(available * policy.amount)
+    return Err("invalid sizing mode")
+
+pub fn inset_rect(bounds: graphics.Rect, value: Insets) -> Result[graphics.Rect, String]:
+    if not valid_bounds(bounds):
+        return Err("layout bounds must be finite and nonnegative")
+    if not valid_insets(value):
+        return Err("layout insets must be finite and nonnegative")
+    let width = bounds.width - value.left - value.right
+    let height = bounds.height - value.top - value.bottom
+    if width < 0.0 or height < 0.0:
+        return Err("insets exceed layout bounds")
+    return Ok(graphics.rect(bounds.x + value.left, bounds.y + value.top, width, height))
+
+pub fn content_rect(bounds: graphics.Rect, padding: Insets, safe: SafeArea) -> Result[graphics.Rect, String]:
+    if not valid_safe_area(safe):
+        return Err("layout insets must be finite and nonnegative")
+    var current = bounds
+    if safe.available:
+        match inset_rect(current, safe.insets):
+            case Err(message):
+                return Err(message)
+            case Ok(value):
+                current = value
+    return inset_rect(current, padding)
+
+pub fn row(bounds: graphics.Rect, items: Array[LayoutItem], gap: Float, padding: Insets, safe: SafeArea, horizontal: HorizontalAlignment, vertical: VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    if not valid_bounds(bounds):
+        return Err("layout bounds must be finite and nonnegative")
+    if not finite_nonnegative(gap):
+        return Err("layout gap must be finite and nonnegative")
+    if not valid_horizontal(horizontal):
+        return Err("invalid horizontal alignment")
+    if not valid_vertical(vertical):
+        return Err("invalid vertical alignment")
+    let count = collections.length(items)
+    if count > 100000:
+        return Err("layout item count exceeds 100000")
+    match content_rect(bounds, padding, safe):
+        case Err(message):
+            return Err(message)
+        case Ok(inner):
+            return row_inside(inner, items, gap, horizontal, vertical)
+
+pub fn column(bounds: graphics.Rect, items: Array[LayoutItem], gap: Float, padding: Insets, safe: SafeArea, horizontal: HorizontalAlignment, vertical: VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    if not valid_bounds(bounds):
+        return Err("layout bounds must be finite and nonnegative")
+    if not finite_nonnegative(gap):
+        return Err("layout gap must be finite and nonnegative")
+    if not valid_horizontal(horizontal):
+        return Err("invalid horizontal alignment")
+    if not valid_vertical(vertical):
+        return Err("invalid vertical alignment")
+    let count = collections.length(items)
+    if count > 100000:
+        return Err("layout item count exceeds 100000")
+    match content_rect(bounds, padding, safe):
+        case Err(message):
+            return Err(message)
+        case Ok(inner):
+            return column_inside(inner, items, gap, horizontal, vertical)
+
+pub fn grid(bounds: graphics.Rect, columns: Int, rows: Int, items: Array[LayoutItem], column_gap: Float, row_gap: Float, padding: Insets, safe: SafeArea, horizontal: HorizontalAlignment, vertical: VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    if not valid_bounds(bounds):
+        return Err("layout bounds must be finite and nonnegative")
+    if columns < 1 or columns > 100000:
+        return Err("grid columns must be between 1 and 100000")
+    if rows < 1 or rows > 100000:
+        return Err("grid rows must be between 1 and 100000")
+    if not finite_nonnegative(column_gap) or not finite_nonnegative(row_gap):
+        return Err("layout gap must be finite and nonnegative")
+    if not valid_horizontal(horizontal):
+        return Err("invalid horizontal alignment")
+    if not valid_vertical(vertical):
+        return Err("invalid vertical alignment")
+    let count = collections.length(items)
+    if count > 100000:
+        return Err("layout item count exceeds 100000")
+    if count > columns * rows:
+        return Err("grid layout is overfull")
+    match content_rect(bounds, padding, safe):
+        case Err(message):
+            return Err(message)
+        case Ok(inner):
+            return grid_inside(inner, columns, rows, items, column_gap, row_gap, horizontal, vertical)
+
+pub fn stack(bounds: graphics.Rect, items: Array[LayoutItem], padding: Insets, safe: SafeArea) -> Result[Array[graphics.Rect], String]:
+    if not valid_bounds(bounds):
+        return Err("layout bounds must be finite and nonnegative")
+    let count = collections.length(items)
+    if count > 100000:
+        return Err("layout item count exceeds 100000")
+    match content_rect(bounds, padding, safe):
+        case Err(message):
+            return Err(message)
+        case Ok(inner):
+            var result: Array[graphics.Rect] = []
+            var index = 0
+            while index < count:
+                match place_item(inner, items[index], items[index].anchor, "stack item exceeds layout bounds"):
+                    case Err(message):
+                        return Err(message)
+                    case Ok(value):
+                        result = collections.append(result, value)
+                index = index + 1
+            return Ok(result)
+
+pub fn anchor_rect(bounds: graphics.Rect, item: LayoutItem, padding: Insets, safe: SafeArea) -> Result[graphics.Rect, String]:
+    if not valid_bounds(bounds):
+        return Err("layout bounds must be finite and nonnegative")
+    match content_rect(bounds, padding, safe):
+        case Err(message):
+            return Err(message)
+        case Ok(inner):
+            return place_item(inner, item, item.anchor, "anchored item exceeds layout bounds")
+
+fn row_inside(inner: graphics.Rect, items: Array[LayoutItem], gap: Float, horizontal: HorizontalAlignment, vertical: VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    let count = collections.length(items)
+    var result: Array[graphics.Rect] = []
+    if count == 0:
+        return Ok(result)
+    let gap_total = gap * int_to_float(count - 1)
+    var occupied = gap_total
+    var fill_count = 0
+    var index = 0
+    while index < count:
+        let item = items[index]
+        if not valid_item(item):
+            return Err(item_error_message(item))
+        occupied = occupied + item.margin.left + item.margin.right
+        if item.width.mode == 1:
+            fill_count = fill_count + 1
+        else:
+            match resolve_size(item.width, inner.width, item.content.width):
+                case Err(message):
+                    return Err(message)
+                case Ok(value):
+                    occupied = occupied + value
+        index = index + 1
+    if occupied > inner.width:
+        return Err("row layout is overfull")
+    let remaining = inner.width - occupied
+    var fill_width = 0.0
+    if fill_count > 0:
+        fill_width = remaining / int_to_float(fill_count)
+    var cursor = inner.x
+    if fill_count == 0:
+        cursor = aligned_horizontal(inner.x, inner.width, occupied, horizontal)
+    index = 0
+    while index < count:
+        let item = items[index]
+        var width = fill_width
+        if item.width.mode != 1:
+            match resolve_size(item.width, inner.width, item.content.width):
+                case Err(message):
+                    return Err(message)
+                case Ok(value):
+                    width = value
+        let cross_available = inner.height - item.margin.top - item.margin.bottom
+        if cross_available < 0.0:
+            return Err("row item exceeds cross-axis bounds")
+        var height = 0.0
+        match resolve_size(item.height, cross_available, item.content.height):
+            case Err(message):
+                return Err(message)
+            case Ok(value):
+                height = value
+        if height > cross_available:
+            return Err("row item exceeds cross-axis bounds")
+        let x = cursor + item.margin.left
+        let cross_y = inner.y + item.margin.top
+        let y = aligned_vertical(cross_y, cross_available, height, vertical)
+        result = collections.append(result, graphics.rect(x, y, width, height))
+        cursor = cursor + item.margin.left + width + item.margin.right
+        if index + 1 < count:
+            cursor = cursor + gap
+        index = index + 1
+    return Ok(result)
+
+fn column_inside(inner: graphics.Rect, items: Array[LayoutItem], gap: Float, horizontal: HorizontalAlignment, vertical: VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    let count = collections.length(items)
+    var result: Array[graphics.Rect] = []
+    if count == 0:
+        return Ok(result)
+    let gap_total = gap * int_to_float(count - 1)
+    var occupied = gap_total
+    var fill_count = 0
+    var index = 0
+    while index < count:
+        let item = items[index]
+        if not valid_item(item):
+            return Err(item_error_message(item))
+        occupied = occupied + item.margin.top + item.margin.bottom
+        if item.height.mode == 1:
+            fill_count = fill_count + 1
+        else:
+            match resolve_size(item.height, inner.height, item.content.height):
+                case Err(message):
+                    return Err(message)
+                case Ok(value):
+                    occupied = occupied + value
+        index = index + 1
+    if occupied > inner.height:
+        return Err("column layout is overfull")
+    let remaining = inner.height - occupied
+    var fill_height = 0.0
+    if fill_count > 0:
+        fill_height = remaining / int_to_float(fill_count)
+    var cursor = inner.y
+    if fill_count == 0:
+        cursor = aligned_vertical(inner.y, inner.height, occupied, vertical)
+    index = 0
+    while index < count:
+        let item = items[index]
+        var height = fill_height
+        if item.height.mode != 1:
+            match resolve_size(item.height, inner.height, item.content.height):
+                case Err(message):
+                    return Err(message)
+                case Ok(value):
+                    height = value
+        let cross_available = inner.width - item.margin.left - item.margin.right
+        if cross_available < 0.0:
+            return Err("column item exceeds cross-axis bounds")
+        var width = 0.0
+        match resolve_size(item.width, cross_available, item.content.width):
+            case Err(message):
+                return Err(message)
+            case Ok(value):
+                width = value
+        if width > cross_available:
+            return Err("column item exceeds cross-axis bounds")
+        let y = cursor + item.margin.top
+        let cross_x = inner.x + item.margin.left
+        let x = aligned_horizontal(cross_x, cross_available, width, horizontal)
+        result = collections.append(result, graphics.rect(x, y, width, height))
+        cursor = cursor + item.margin.top + height + item.margin.bottom
+        if index + 1 < count:
+            cursor = cursor + gap
+        index = index + 1
+    return Ok(result)
+
+fn grid_inside(inner: graphics.Rect, columns: Int, rows: Int, items: Array[LayoutItem], column_gap: Float, row_gap: Float, horizontal: HorizontalAlignment, vertical: VerticalAlignment) -> Result[Array[graphics.Rect], String]:
+    let width_for_cells = inner.width - column_gap * int_to_float(columns - 1)
+    let height_for_cells = inner.height - row_gap * int_to_float(rows - 1)
+    if width_for_cells < 0.0 or height_for_cells < 0.0:
+        return Err("grid layout is overfull")
+    let cell_width = width_for_cells / int_to_float(columns)
+    let cell_height = height_for_cells / int_to_float(rows)
+    var result: Array[graphics.Rect] = []
+    let count = collections.length(items)
+    var index = 0
+    while index < count:
+        let item = items[index]
+        if not valid_item(item):
+            return Err(item_error_message(item))
+        let row_index = index / columns
+        let column_index = index - row_index * columns
+        let cell_x = inner.x + int_to_float(column_index) *(cell_width + column_gap)
+        let cell_y = inner.y + int_to_float(row_index) *(cell_height + row_gap)
+        let cell = graphics.rect(cell_x, cell_y, cell_width, cell_height)
+        match place_item_with_alignment(cell, item, horizontal, vertical, "grid item exceeds cell bounds"):
+            case Err(message):
+                return Err(message)
+            case Ok(value):
+                result = collections.append(result, value)
+        index = index + 1
+    return Ok(result)
+
+fn place_item(bounds: graphics.Rect, item: LayoutItem, anchor: Anchor, overflow_message: String) -> Result[graphics.Rect, String]:
+    if not valid_horizontal(anchor.horizontal):
+        return Err("invalid horizontal alignment")
+    if not valid_vertical(anchor.vertical):
+        return Err("invalid vertical alignment")
+    return place_item_with_alignment(bounds, item, anchor.horizontal, anchor.vertical, overflow_message)
+
+fn place_item_with_alignment(bounds: graphics.Rect, item: LayoutItem, horizontal: HorizontalAlignment, vertical: VerticalAlignment, overflow_message: String) -> Result[graphics.Rect, String]:
+    if not valid_item(item):
+        return Err(item_error_message(item))
+    if not valid_horizontal(horizontal):
+        return Err("invalid horizontal alignment")
+    if not valid_vertical(vertical):
+        return Err("invalid vertical alignment")
+    let width_available = bounds.width - item.margin.left - item.margin.right
+    let height_available = bounds.height - item.margin.top - item.margin.bottom
+    if width_available < 0.0 or height_available < 0.0:
+        return Err(overflow_message)
+    var width = 0.0
+    var height = 0.0
+    match resolve_size(item.width, width_available, item.content.width):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            width = value
+    match resolve_size(item.height, height_available, item.content.height):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            height = value
+    if width > width_available or height > height_available:
+        return Err(overflow_message)
+    let area_x = bounds.x + item.margin.left
+    let area_y = bounds.y + item.margin.top
+    let x = aligned_horizontal(area_x, width_available, width, horizontal)
+    let y = aligned_vertical(area_y, height_available, height, vertical)
+    return Ok(graphics.rect(x, y, width, height))
+
+fn item_error_message(item: LayoutItem) -> String:
+    if not valid_insets(item.margin):
+        return "layout insets must be finite and nonnegative"
+    if not graphics.size_is_valid(item.content):
+        return "content size must be finite and nonnegative"
+    if not valid_sizing(item.width) or not valid_sizing(item.height):
+        return "invalid sizing mode"
+    return "invalid layout item"
+
+fn valid_item(item: LayoutItem) -> Bool:
+    return valid_insets(item.margin) and graphics.size_is_valid(item.content) and valid_sizing(item.width) and valid_sizing(item.height)
+
+fn valid_sizing(value: Sizing) -> Bool:
+    return value.mode >= 0 and value.mode <= 3
+
+fn valid_safe_area(value: SafeArea) -> Bool:
+    return valid_insets(value.insets)
+
+fn valid_insets(value: Insets) -> Bool:
+    return finite_nonnegative(value.left) and finite_nonnegative(value.top) and finite_nonnegative(value.right) and finite_nonnegative(value.bottom)
+
+fn valid_bounds(value: graphics.Rect) -> Bool:
+    return graphics.rect_has_nonnegative_size(value)
+
+fn valid_horizontal(value: HorizontalAlignment) -> Bool:
+    return value.mode >= 0 and value.mode <= 2
+
+fn valid_vertical(value: VerticalAlignment) -> Bool:
+    return value.mode >= 0 and value.mode <= 2
+
+fn aligned_horizontal(origin: Float, available: Float, size: Float, alignment: HorizontalAlignment) -> Float:
+    if alignment.mode == 1:
+        return origin +(available - size) / 2.0
+    if alignment.mode == 2:
+        return origin + available - size
+    return origin
+
+fn aligned_vertical(origin: Float, available: Float, size: Float, alignment: VerticalAlignment) -> Float:
+    if alignment.mode == 1:
+        return origin +(available - size) / 2.0
+    if alignment.mode == 2:
+        return origin + available - size
+    return origin
+
+fn int_to_float(value: Int) -> Float:
+    var result = 0.0
+    var unit = 1.0
+    var remaining = value
+    while remaining > 0:
+        let half = remaining / 2
+        let bit = remaining - half * 2
+        if bit == 1:
+            result = result + unit
+        unit = unit * 2.0
+        remaining = half
+    return result
+
+fn finite_nonnegative(value: Float) -> Bool:
+    return finite(value) and value >= 0.0
+
+fn finite(value: Float) -> Bool:
+    return value == value and value - value == 0.0

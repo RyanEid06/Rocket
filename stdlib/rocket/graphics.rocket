@@ -1,3 +1,4 @@
+
 # Public Rocket 3 graphics value types. The module is pure Rocket source and
 # intentionally exposes values, not renderer-owned native handles.
 
@@ -75,6 +76,46 @@ pub fn window_config(width: Int, height: Int, title: String, high_dpi: Bool = tr
 
 pub fn virtual_canvas(logical_size: Size, viewport: Rect, scale: Float) -> VirtualCanvas:
     return VirtualCanvas(logical_size, viewport, scale)
+
+# F17 aspect-preserving VirtualCanvas construction and transforms. The fitted
+# viewport uses half-open physical bounds so the same outside rule can be reused
+# by pointer mapping and UI hit testing.
+pub fn fit_virtual_canvas(logical_size: Size, framebuffer_size: Size) -> Result[VirtualCanvas, String]:
+    if not positive_size(logical_size) or not positive_size(framebuffer_size):
+        return Err("virtual canvas sizes must be finite and positive")
+    let width_scale = framebuffer_size.width / logical_size.width
+    let height_scale = framebuffer_size.height / logical_size.height
+    let scale = minimum(width_scale, height_scale)
+    let viewport_width = logical_size.width * scale
+    let viewport_height = logical_size.height * scale
+    if not is_finite(scale) or scale <= 0.0 or not is_finite(viewport_width) or not is_finite(viewport_height):
+        return Err("virtual canvas mapping is not finite")
+    let x =(framebuffer_size.width - viewport_width) / 2.0
+    let y =(framebuffer_size.height - viewport_height) / 2.0
+    if not is_finite(x) or not is_finite(y):
+        return Err("virtual canvas mapping is not finite")
+    return Ok(VirtualCanvas(logical_size, Rect(x, y, viewport_width, viewport_height), scale))
+
+pub fn virtual_canvas_is_valid(mapping: VirtualCanvas) -> Bool:
+    return positive_size(mapping.logical_size) and rect_has_positive_size(mapping.viewport) and is_finite(mapping.scale) and mapping.scale > 0.0 and mapping.viewport.width == mapping.logical_size.width * mapping.scale and mapping.viewport.height == mapping.logical_size.height * mapping.scale
+
+pub fn virtual_canvas_logical_to_physical(mapping: VirtualCanvas, logical: Vec2) -> Vec2:
+    return Vec2(mapping.viewport.x + logical.x * mapping.scale, mapping.viewport.y + logical.y * mapping.scale)
+
+pub fn virtual_canvas_physical_to_logical(mapping: VirtualCanvas, physical: Vec2) -> Option[Vec2]:
+    if not virtual_canvas_is_valid(mapping) or not vec2_is_finite(physical):
+        return None()
+    let right = mapping.viewport.x + mapping.viewport.width
+    let bottom = mapping.viewport.y + mapping.viewport.height
+    if physical.x < mapping.viewport.x or physical.x >= right or physical.y < mapping.viewport.y or physical.y >= bottom:
+        return None()
+    let logical = Vec2((physical.x - mapping.viewport.x) / mapping.scale,(physical.y - mapping.viewport.y) / mapping.scale)
+    if not vec2_is_finite(logical):
+        return None()
+    return Some(logical)
+
+pub fn virtual_canvas_rect_to_physical(mapping: VirtualCanvas, logical: Rect) -> Rect:
+    return Rect(mapping.viewport.x + logical.x * mapping.scale, mapping.viewport.y + logical.y * mapping.scale, logical.width * mapping.scale, logical.height * mapping.scale)
 
 pub fn vec2_add(left: Vec2, right: Vec2) -> Vec2:
     return Vec2(left.x + right.x, left.y + right.y)
@@ -230,6 +271,39 @@ pub fn color_saturate(value: Color, amount: Float) -> Color:
 pub fn color_desaturate(value: Color, amount: Float) -> Color:
     return with_saturation(value, saturation_of(value) - amount)
 
+# F15 public hit testing uses half-open rectangle bounds: left/top are included,
+# right/bottom are excluded. Circle containment includes the circumference.
+pub fn point_in_rect(point: Vec2, bounds: Rect) -> Bool:
+    if not vec2_is_finite(point) or not rect_has_nonnegative_size(bounds):
+        return false
+    if bounds.width == 0.0 or bounds.height == 0.0:
+        return false
+    return point.x >= bounds.x and point.x < bounds.x + bounds.width and point.y >= bounds.y and point.y < bounds.y + bounds.height
+
+pub fn point_in_circle(point: Vec2, center: Vec2, radius: Float) -> Bool:
+    if not vec2_is_finite(point) or not vec2_is_finite(center) or not is_finite(radius) or radius < 0.0:
+        return false
+    let dx = point.x - center.x
+    let dy = point.y - center.y
+    if not is_finite(dx) or not is_finite(dy):
+        return false
+    let dx_magnitude = absolute(dx)
+    let dy_magnitude = absolute(dy)
+    if dx_magnitude > radius or dy_magnitude > radius:
+        return false
+    let scale = maximum(dx_magnitude, dy_magnitude)
+    if scale == 0.0:
+        return true
+    let scaled_radius = radius / scale
+    let scaled_dx = dx / scale
+    let scaled_dy = dy / scale
+    return scaled_dx * scaled_dx + scaled_dy * scaled_dy <= scaled_radius * scaled_radius
+
+fn absolute(value: Float) -> Float:
+    if value < 0.0:
+        return -value
+    return value
+
 fn with_saturation(value: Color, saturation: Float) -> Color:
     return color_from_hsv(hue_of(value), saturation, maximum_channel(value), value.alpha)
 
@@ -377,6 +451,13 @@ fn cos_radians(value: Float) -> Float:
         sign = -1.0
     let x2 = x * x
     return sign *(1.0 - x2 / 2.0 + x2 * x2 / 24.0 - x2 * x2 * x2 / 720.0 + x2 * x2 * x2 * x2 / 40320.0 - x2 * x2 * x2 * x2 * x2 / 3628800.0 + x2 * x2 * x2 * x2 * x2 * x2 / 479001600.0)
+
+
+fn positive_size(value: Size) -> Bool:
+    return size_is_valid(value) and value.width > 0.0 and value.height > 0.0
+
+fn rect_has_positive_size(value: Rect) -> Bool:
+    return rect_has_nonnegative_size(value) and value.width > 0.0 and value.height > 0.0
 
 fn is_finite(value: Float) -> Bool:
     return value - value == 0.0

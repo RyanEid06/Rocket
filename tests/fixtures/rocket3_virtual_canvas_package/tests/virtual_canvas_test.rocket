@@ -1,0 +1,228 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.graphics.input
+import rocket.raylib.safe
+import src.wp21_adapter_testing
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    return delta >= -0.0001 and delta <= 0.0001
+
+fn succeeded(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(message):
+            return false
+
+fn main() -> Int:
+    let logical = graphics.size(1920.0, 1080.0)
+    match graphics.fit_virtual_canvas(logical, graphics.size(1600.0, 1200.0)):
+        case Err(message):
+            return 1
+        case Ok(letterboxed):
+            if not close(letterboxed.scale, 1600.0 / 1920.0):
+                return 2
+            if not close(letterboxed.viewport.x, 0.0) or not close(letterboxed.viewport.y, 150.0):
+                return 3
+            if not close(letterboxed.viewport.width, 1600.0) or not close(letterboxed.viewport.height, 900.0):
+                return 4
+            let center = graphics.virtual_canvas_logical_to_physical(letterboxed, graphics.vec2(960.0, 540.0))
+            if not close(center.x, 800.0) or not close(center.y, 600.0):
+                return 5
+            match graphics.virtual_canvas_physical_to_logical(letterboxed, center):
+                case None:
+                    return 6
+                case Some(point):
+                    if not close(point.x, 960.0) or not close(point.y, 540.0):
+                        return 7
+            match graphics.virtual_canvas_physical_to_logical(letterboxed, graphics.vec2(10.0, 149.999)):
+                case Some(point):
+                    return 8
+                case None:
+                    let ignored = 0
+            match graphics.virtual_canvas_physical_to_logical(letterboxed, graphics.vec2(1600.0, 600.0)):
+                case Some(point):
+                    return 9
+                case None:
+                    let ignored = 0
+            match graphics.virtual_canvas_physical_to_logical(letterboxed, graphics.vec2(800.0, 1050.0)):
+                case Some(point):
+                    return 10
+                case None:
+                    let ignored = 0
+
+    match graphics.fit_virtual_canvas(logical, graphics.size(2560.0, 1080.0)):
+        case Err(message):
+            return 11
+        case Ok(pillarboxed):
+            if not close(pillarboxed.scale, 1.0) or not close(pillarboxed.viewport.x, 320.0) or not close(pillarboxed.viewport.y, 0.0):
+                return 12
+
+    match graphics.fit_virtual_canvas(graphics.size(0.0, 1080.0), graphics.size(1920.0, 1080.0)):
+        case Ok(mapping):
+            return 13
+        case Err(message):
+            let ignored = message
+    match graphics.fit_virtual_canvas(graphics.size(1920.0, -1.0), graphics.size(1920.0, 1080.0)):
+        case Ok(mapping):
+            return 14
+        case Err(message):
+            let ignored = message
+
+    match graphics.fit_virtual_canvas(logical, graphics.size(0.0, 1080.0)):
+        case Ok(mapping):
+            return 60
+        case Err(message):
+            let ignored = message
+    match graphics.fit_virtual_canvas(logical, graphics.size(1920.0, -1.0)):
+        case Ok(mapping):
+            return 61
+        case Err(message):
+            let ignored = message
+
+    let inconsistent = graphics.virtual_canvas(graphics.size(100.0, 100.0), graphics.rect(0.0, 0.0, 200.0, 200.0), 1.0)
+    if graphics.virtual_canvas_is_valid(inconsistent):
+        return 62
+    match graphics.virtual_canvas_physical_to_logical(inconsistent, graphics.vec2(150.0, 50.0)):
+        case Some(point):
+            return 63
+        case None:
+            let ignored = 0
+
+    if not wp21_adapter_testing.enable() or not wp21_adapter_testing.reset():
+        return 15
+    match safe.open_window(800, 450, "WP21 deterministic"):
+        case Err(message):
+            return 16
+        case Ok(window):
+            if not wp21_adapter_testing.set_display(800, 600, 1600, 900, 2.0, 1.5):
+                return 17
+            match canvas.from_window(window, logical):
+                case Err(message):
+                    return 18
+                case Ok(mapping):
+                    if not close(mapping.viewport.width, 1600.0) or not close(mapping.viewport.height, 900.0) or not close(mapping.scale, 1600.0 / 1920.0):
+                        return 19
+                    let dpi = canvas.dpi_scale(window)
+                    if not close(dpi.x, 2.0) or not close(dpi.y, 1.5):
+                        return 20
+                    let revision_before = canvas.display_revision(window)
+                    if revision_before <= 0:
+                        return 21
+                    if not wp21_adapter_testing.set_mouse(400, 300):
+                        return 22
+                    match input.pointer_position_in_canvas(window, mapping):
+                        case None:
+                            return 23
+                        case Some(point):
+                            if not close(point.x, 960.0) or not close(point.y, 540.0):
+                                return 24
+                    if not wp21_adapter_testing.set_mouse(800, 300):
+                        return 25
+                    match input.pointer_position_in_canvas(window, mapping):
+                        case Some(point):
+                            return 26
+                        case None:
+                            let ignored = 0
+
+                    match canvas.create_target(window, 1920, 1080):
+                        case Err(message):
+                            return 27
+                        case Ok(target):
+                            match safe.begin_frame(window):
+                                case Err(message):
+                                    return 28
+                                case Ok(frame):
+                                    match canvas.begin_target(frame, target):
+                                        case Err(message):
+                                            return 29
+                                        case Ok(target_scope):
+                                            if not succeeded(canvas.end_target(target_scope)):
+                                                return 30
+                                    let draws_before = wp21_adapter_testing.draw_calls()
+                                    if not succeeded(canvas.present(frame, target, mapping)):
+                                        return 31
+                                    if wp21_adapter_testing.draw_calls() != draws_before + 1:
+                                        return 32
+                                    match canvas.begin_clip(frame, mapping, graphics.rect(0.0, 0.0, 960.0, 540.0)):
+                                        case Err(message):
+                                            return 33
+                                        case Ok(clip):
+                                            if wp21_adapter_testing.scissor_x() != 0 or wp21_adapter_testing.scissor_y() != 0 or wp21_adapter_testing.scissor_width() != 400 or wp21_adapter_testing.scissor_height() != 300:
+                                                return 34
+                                            if not succeeded(canvas.end_clip(clip)):
+                                                return 35
+                                    if not succeeded(safe.end_frame(frame)):
+                                        return 36
+                            let screenshots_before = wp21_adapter_testing.screenshots()
+                            if not succeeded(canvas.save_logical_screenshot(window, target, "wp21-logical.png")):
+                                return 37
+                            if wp21_adapter_testing.screenshots() != screenshots_before + 1:
+                                return 38
+                            if not succeeded(canvas.unload_target(target)):
+                                return 39
+
+                    match canvas.create_target(window, 100, 100):
+                        case Err(message):
+                            return 40
+                        case Ok(wrong_target):
+                            match safe.begin_frame(window):
+                                case Err(message):
+                                    return 41
+                                case Ok(frame):
+                                    if succeeded(canvas.present(frame, wrong_target, mapping)):
+                                        return 42
+                                    if not succeeded(safe.end_frame(frame)):
+                                        return 43
+                            if not succeeded(canvas.unload_target(wrong_target)):
+                                return 44
+
+                    match canvas.resize(window, mapping, 1000, 500):
+                        case Err(message):
+                            return 45
+                        case Ok(resized):
+                            if not close(resized.viewport.height, 750.0) or resized.viewport.x <= 0.0:
+                                return 46
+                            if canvas.display_revision(window) <= revision_before:
+                                return 47
+                            match canvas.set_fullscreen(window, resized, true):
+                                case Err(message):
+                                    return 48
+                                case Ok(fullscreen_mapping):
+                                    if not wp21_adapter_testing.fullscreen(window):
+                                        return 49
+                                    match canvas.set_borderless(window, fullscreen_mapping, true):
+                                        case Err(message):
+                                            return 50
+                                        case Ok(borderless_mapping):
+                                            if not wp21_adapter_testing.borderless(window) or wp21_adapter_testing.fullscreen(window):
+                                                return 51
+                                            if borderless_mapping.logical_size.width != logical.width:
+                                                return 52
+
+                    if not wp21_adapter_testing.set_display(900, 500, 1800, 1000, 2.0, 2.0):
+                        return 53
+                    match canvas.refresh(window, mapping):
+                        case Err(message):
+                            return 54
+                        case Ok(refreshed):
+                            if not close(refreshed.viewport.height, 1000.0) or refreshed.viewport.x <= 0.0:
+                                return 55
+
+                    if not wp21_adapter_testing.set_capabilities(false, false, false):
+                        return 56
+                    match canvas.resize(window, mapping, 640, 360):
+                        case Ok(value):
+                            return 57
+                        case Err(message):
+                            let ignored = message
+                    match canvas.set_fullscreen(window, mapping, true):
+                        case Ok(value):
+                            return 58
+                        case Err(message):
+                            let ignored = message
+
+            if not succeeded(safe.close_window(window)):
+                return 59
+    return 0

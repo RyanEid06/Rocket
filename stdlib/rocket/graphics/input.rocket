@@ -1,0 +1,19 @@
+# Rocket-facing F15 native pointer mapping over the safe adapter boundary.
+
+import rocket.graphics
+import rocket.raylib.safe
+
+pub fn pointer_position(window: safe.Window) -> graphics.Vec2:
+    return graphics.Vec2(safe.pointer_framebuffer_x(window), safe.pointer_framebuffer_y(window))
+
+pub fn pointer_down(window: safe.Window, button: Int = 0) -> Bool:
+    return safe.pointer_down(window, button)
+
+pub fn pointer_pressed(window: safe.Window, button: Int = 0) -> Bool:
+    return safe.pointer_pressed(window, button)
+
+pub fn pointer_released(window: safe.Window, button: Int = 0) -> Bool:
+    return safe.pointer_released(window, button)
+
+pub fn pointer_position_in_canvas(window: safe.Window, canvas: graphics.VirtualCanvas) -> Option[graphics.Vec2]:
+    return graphics.virtual_canvas_physical_to_logical(canvas, pointer_position(window))
