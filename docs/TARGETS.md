@@ -1,9 +1,14 @@
 # Rocket Target and Portability Contract 2.1
 
-Phase 19 adds explicit target selection and the first portable Rocket release.
+Phase 19 completed as Rocket 2.1's first portable release on 2026-08-29. It
+adds explicit target selection and the four accepted production target rows.
 This contract is additive to the frozen Rocket 2.0 language and runtime ABI v1:
 valid Rocket 2.0 source remains valid, the C++20 compiler remains permanent
 `stage0`, and the Rocket-written compiler must make the same target decisions.
+
+Rocket 3 Wave B consumes this completed target contract. Its final non-Windows
+target-laboratory acceptance remains a Rocket 3 WP34/F29 gate, not a reason to
+reopen the completed Phase 19 contract.
 
 The word **host** means the machine on which `rocketc` is executing. The word
 **target** means the platform for which it emits an artifact. A compiler must

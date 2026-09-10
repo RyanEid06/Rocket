@@ -12,16 +12,26 @@ paths have passed. Exact evidence and the remaining optional limitations are
 recorded in [`PHASE_19_AUDIT.md`](docs/PHASE_19_AUDIT.md),
 [`TARGETS.md`](docs/TARGETS.md), and [`PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md).
 
+This page is the current public summary. The complete documentation inventory
+and historical/current boundary are in
+[`DOCUMENTATION_STATUS.md`](docs/DOCUMENTATION_STATUS.md).
+
 ## Rocket 3.0 Wave B status
 
-Wave B is accepted on the integrated Windows baseline at
-`6bb9841e185e948a9135a63bdcceeec4e5a8314a`. It delivers the public shapes and
+Wave B is accepted and published on `master` at
+`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa` (the underlying integration merge is
+`6bb9841e185e948a9135a63bdcceeec4e5a8314a`). It delivers the public shapes and
 input helpers, `VirtualCanvas`, typography, UI context/interaction, layout, and
 typed asset-store surfaces. Debug and Release each pass `267/267`; deterministic
 stage0 -> stage3 bootstrap, predecessor conformance (`90` cases), release-line
 compatibility (`11` cases), package/relocation, and application validation
 (`32` packages, `11` checks) also pass. Native Linux x64, Linux ARM64, and macOS
 ARM64 Rocket 3 target-laboratory acceptance remains deferred to WP34/F29.
+
+The accepted asset-store implementation is the reference-package module
+`examples/raylib_showcase/src/rocket_assets.rocket`, imported as
+`src.rocket_assets`. The planned `rocket.assets` namespace is not a module in
+this checkout yet.
 
 Wave C is ready: Eddy proceeds in order through WP25, WP26, WP27, and WP30;
 Ryan provides review and integration support. WP29 remains deferred until the
@@ -54,6 +64,11 @@ available only as the reproducible stage0 fallback when LLVM is explicitly disab
   events, atomics, seeded/exactly-once publication, and bounded Windows-event
   asynchronous I/O work
 - Package-relative `import` modules with explicit `pub` visibility
+- Named and default arguments for the accepted Rocket 3 callable surface, plus
+  labeled enum payload construction
+- Bundled `std.math`, `rocket.motion`, `rocket.graphics`, `rocket.ui`, and
+  `rocket.raylib.safe` modules, with typed shapes, input, canvas, layout, and
+  typography helpers
 - Editor-neutral `rocket-lsp` Protocol 1.0 semantic tooling with incremental
   multi-package analysis, unsaved overlays, navigation, refactoring, semantic
   tokens, a full Visual Studio Community 2026 client, and dependency-free VS
@@ -124,7 +139,9 @@ separate build with:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-stage0.ps1 -Configuration Debug
 ```
 
-See [the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
+See [the current Rocket 3.0 syntax dictionary](docs/ROCKET_3_0_SYNTAX_DICTIONARY.md),
+[the documentation status ledger](docs/DOCUMENTATION_STATUS.md),
+[the Rocket 1.0 syntax dictionary](docs/ROCKET_1_0_SYNTAX_DICTIONARY.md),
 [language specification](docs/SPEC.md), [tooling/package guide](docs/TOOLING.md),
 [package and registry contract](docs/PACKAGES.md),
 [language-server protocol](docs/LANGUAGE_SERVER.md),

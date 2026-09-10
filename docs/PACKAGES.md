@@ -8,6 +8,13 @@ bounded input processing and the local artifact cache described below.
 Rocket 2.1 adds deterministic target-conditioned source and native-input
 sections under the unchanged security and reproducibility boundary.
 
+Rocket 3 Wave B does not change package identity, lockfile, registry, or native
+input rules. Its accepted graphics/UI source modules are bundled or package
+sources under the existing graph rules; the typed asset store currently lives
+in the reference package as `src.rocket_assets`. Wave C remains additive work
+on this contract. See `ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current API
+index and `DOCUMENTATION_STATUS.md` for document ownership.
+
 `rocket.toml` is limited to 1 MiB, 64 KiB per line, 4,096 entries, and 1,024
 dependencies. Rocket source discovery is limited to 4,096 files and 64 MiB.
 Package `build`/`run` may reuse `rocket-build-cache-1` only after hashing the

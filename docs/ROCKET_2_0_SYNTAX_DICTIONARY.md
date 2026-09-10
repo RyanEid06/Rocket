@@ -1,5 +1,11 @@
 # Rocket 2.0 Syntax Dictionary
 
+> Historical compatibility reference: this document records the frozen 2.0
+> syntax. The current accepted Rocket 3 Wave B surface is in
+> [ROCKET_3_0_SYNTAX_DICTIONARY.md](ROCKET_3_0_SYNTAX_DICTIONARY.md), and the
+> live/historical boundary is indexed by
+> [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md).
+
 Rocket 2.0 freezes the cumulative syntax documented by the Rocket 1.0, 1.1,
 1.2, 1.3, and 1.8 syntax dictionaries. It introduces no new token, keyword,
 declaration, statement, expression, type spelling, ownership construct, or

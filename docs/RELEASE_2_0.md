@@ -1,5 +1,11 @@
 # Rocket 2.0 Release Contract
 
+> Historical contract: this file records the Rocket 2.0 release state. Its
+> statement that Phase 19 was not performed is historical; current status is in
+> [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md), [ROADMAP.md](ROADMAP.md),
+> [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 2.0 is the trust and stability release for the completed Windows x64
 language. It adds no source-language feature and did not perform the Phase 19
 platform expansion. Valid Rocket 1.0-1.8 source remains

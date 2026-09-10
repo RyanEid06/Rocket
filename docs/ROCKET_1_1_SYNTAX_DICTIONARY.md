@@ -1,5 +1,9 @@
 # Rocket 1.1 Syntax Dictionary
 
+> Historical compatibility reference: current status and the accepted Rocket 3
+> surface are in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md) and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.1 is an additive release. All syntax in the
 [Rocket 1.0 syntax dictionary](ROCKET_1_0_SYNTAX_DICTIONARY.md) remains valid.
 This dictionary records the additive Phase 11 features implemented by Rocket 1.1.

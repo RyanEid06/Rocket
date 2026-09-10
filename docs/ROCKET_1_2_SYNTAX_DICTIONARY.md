@@ -1,5 +1,9 @@
 # Rocket 1.2 Syntax Dictionary
 
+> Historical compatibility reference: current status and the accepted Rocket 3
+> surface are in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md) and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 This dictionary records the additive syntax implemented in Rocket 1.2. Rocket
 1.0 and 1.1 programs keep their existing meaning.
 

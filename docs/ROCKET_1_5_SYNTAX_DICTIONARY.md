@@ -1,5 +1,9 @@
 # Rocket 1.5 Standard-Library Usage Dictionary
 
+> Historical compatibility reference: current status and the accepted Rocket 3
+> surface are in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md) and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.5 introduces no new grammar. Programs use the existing import,
 `Option`, `Result`, postfix `?`, struct-field, collection, and pattern-matching
 syntax with the expanded standard library.

@@ -1,4 +1,4 @@
-# Rocket 2.0 Package Author Guide
+# Rocket 2.1 Package Author Guide and Rocket 3 Wave B Notes
 
 Create a package with `rocketc new`, keep public source under `src/`, tests under
 `tests/`, and declare an exact semantic version and license in `rocket.toml`.
@@ -10,6 +10,14 @@ and semantic constraints, Git dependencies require an immutable commit, and
 path dependencies are local development inputs that cannot be published.
 Packages have no executable build scripts. Native inputs require an explicit
 allow-list and Windows x64 manifest section.
+
+Rocket 2.1 portability is complete on the four documented target rows. The
+accepted Rocket 3 Wave B modules use the same package graph and native-input
+rules; themes, controls, containers, and cache calibration remain Wave C work.
+For current callable syntax and graphics/UI APIs, use
+`ROCKET_3_0_SYNTAX_DICTIONARY.md`. The typed asset-store reference module is
+`src.rocket_assets` in the raylib showcase package, not a `rocket.assets`
+standard-library module.
 
 Public packages should document exported modules, failure values, ownership,
 thread-safety, resource bounds, unsafe/native requirements, and supported

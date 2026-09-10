@@ -7,6 +7,12 @@ hardening without changing existing
 code identities.
 Rocket 2.1 adds the `R6000` target/configuration category.
 
+Rocket 3 Wave B reuses the stable `R4002` name-resolution and `R4005` arity
+categories for named/default arguments, labeled enum payloads, and the bundled
+graphics/UI API. Wave C has not introduced a new diagnostic category. Current
+status and the copyable syntax/API reference are in `DOCUMENTATION_STATUS.md`
+and `ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+
 Compiler diagnostics use the stable shape:
 
 ```text

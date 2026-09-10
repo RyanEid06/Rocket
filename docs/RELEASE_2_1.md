@@ -1,5 +1,11 @@
 # Rocket 2.1 portability release contract
 
+> Versioned contract: this file records the completed Rocket 2.1/Phase 19
+> portability release. Current Rocket 3 status is maintained in
+> [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md), [ROADMAP.md](ROADMAP.md),
+> [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 2.1 is the additive Phase 19 portability release. It preserves valid
 Rocket 2.0 source, the permanent C++20 `stage0`, runtime ABI v1, and the frozen
 Windows x64 SDK used by Scroll2Roll. Phase 19 outputs must be isolated under

@@ -1,5 +1,10 @@
 # Migrating to Rocket 1.8
 
+> Historical migration guide: current status and the accepted Rocket 3 surface
+> are indexed by [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.8 is source-compatible with valid Rocket 1.0-1.7 programs. Existing
 synchronous file, socket, process, collection, `Array`, `Slice`, and
 `ByteBuffer` APIs keep their previous behavior. Migration is opt-in unless code

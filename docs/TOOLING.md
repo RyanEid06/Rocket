@@ -1,4 +1,4 @@
-# Rocket Tooling and Packages 2.1
+# Rocket Tooling and Packages 2.1 + Rocket 3.0 Wave B
 
 Rocket 2.0 retains the Rocket 1.6 package ecosystem and Rocket 1.7
 language-server and developer-tooling contracts. Its ownership, concurrency,
@@ -12,6 +12,12 @@ host/target information. Package artifacts default to
 `.rocketc/targets/<alias>/`; `run` and native test execution reject a different
 host/target with `R6004`. `TARGETS.md` defines supported cross paths and SDK
 discovery.
+
+The accepted Rocket 3 Wave B callable surface is editor-neutral: named/default
+arguments and labeled enum payloads use the same formatter, LSP metadata,
+signature help, and coded diagnostics. Wave C is ready but not yet a released
+tooling contract. Use `ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current syntax
+index and `DOCUMENTATION_STATUS.md` for the live/historical document boundary.
 
 For package targets, `build` and `run` reuse a `rocket-build-cache-1` artifact
 only when compiler, runtime, target, options, dependency/native configuration,

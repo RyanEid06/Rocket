@@ -1,5 +1,11 @@
 # Rocket Phase 20 Audit
 
+> Historical contract: this file records the Rocket 2.0 audit snapshot. Its
+> statement that Phase 19 was deferred is scoped to that audit date; current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Phase 20 is complete for Rocket 2.0 on its supported Windows x64 target. At
 the time of this audit, Phase 19 portability was deferred; its later completion
 is recorded in `PHASE_19_AUDIT.md`. This historical audit does not claim

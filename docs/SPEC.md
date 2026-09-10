@@ -1,6 +1,10 @@
-# Rocket Language Specification 2.1
+# Rocket Language Specification 2.1 + Rocket 3.0 Wave B
 
-This document freezes Rocket 1.0 syntax and semantics. Compatible 1.x releases
+This document is normative for the completed Rocket 2.1 baseline plus the
+accepted Rocket 3 Wave B additions. Rocket 3.0 is still in development; the
+current copyable surface is indexed by `ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+
+Rocket 1.0 syntax and semantics remain frozen. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
 incompatible language changes require a recorded decision and a new major
 version. Rocket 2.0 freezes the additive language contracts through Rocket 1.8, including
@@ -8,6 +12,11 @@ the Rocket 1.6 package metadata and source-selection contract. Rocket 1.4 and
 1.5 add validated native/library surfaces without introducing new grammar.
 Rocket 2.1 adds the target and portability contract in `TARGETS.md` without
 changing the frozen grammar or runtime ABI v1.
+
+Wave B adds named/default callable ergonomics, labeled enum payloads, and the
+bundled graphics/UI source modules described below without changing runtime ABI
+v1. Wave C themes, controls, containers, and cache calibration are not yet part
+of the accepted public surface.
 
 ## Layout and comments
 
@@ -546,7 +555,10 @@ Grid, Stack, and Anchor return `rocket.graphics.Rect` values with explicit
 fixed/fill/content/percentage sizing, Insets/SafeArea spacing, horizontal and
 vertical alignment, all nine standard anchors, and recoverable deterministic
 layout diagnostics. It owns no renderer or native state. `rocket.ui` still does
-not own themes or concrete controls. The stable foundational modules are
+not own themes or concrete controls. The accepted typed asset-store reference
+implementation is the ordinary package module `src.rocket_assets` under
+`examples/raylib_showcase/src/`; the planned `rocket.assets` namespace is not a
+standard-library module in this checkout. The stable foundational modules are
 `std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,

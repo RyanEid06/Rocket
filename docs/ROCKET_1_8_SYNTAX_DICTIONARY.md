@@ -1,5 +1,9 @@
 # Rocket 1.8 Ownership and Async Syntax Dictionary
 
+> Historical compatibility reference: current status and the accepted Rocket 3
+> surface are in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md) and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.8 adds two contextual keywords and additive generic types. Existing
 identifiers named `async` or `await` remain valid outside the positions below.
 

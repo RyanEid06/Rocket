@@ -1,4 +1,4 @@
-# Rocket Standard Library 2.1
+# Rocket Standard Library 2.1 + Rocket 3.0 Wave B
 
 The stable library combines typed host-backed modules with bundled ordinary
 Rocket source modules, including the Rocket 1.2 dot-call additions, the
@@ -7,6 +7,12 @@ library, and Rocket 1.8 concurrency and asynchronous I/O. Rocket 2.0 freezes
 these signatures and their runtime ABI v1 mappings. Import a module by
 its stable name; no downloaded dependency is
 required:
+
+Rocket 3 Wave B adds the callable ergonomics and the bundled graphics/UI
+modules described below without changing runtime ABI v1. Wave C themes,
+controls, containers, and cache calibration are not yet accepted. The current
+copyable index is `ROCKET_3_0_SYNTAX_DICTIONARY.md`; the complete file
+disposition is in `DOCUMENTATION_STATUS.md`.
 
 ```rocket
 import std.file
@@ -29,6 +35,19 @@ listed parameter before any written named operands. Stage0, the self-hosted
 compiler, signature help, and generated documentation use one matching metadata
 inventory. Changing a public standard-library parameter name is therefore a
 source-versioning event even though runtime ABI v1 remains unchanged.
+
+## `std.math` (Rocket 3 Wave B)
+
+`std.math` is a compiler-owned module with no graphics policy. The accepted
+surface includes `pi()`, `tau()`, `e()`; Float `abs`, `min`, `max`, `clamp`, and
+`sign`; Int `abs_int`, `min_int`, `max_int`, `clamp_int`, and `sign_int`;
+`floor`, `ceil`, `round`, `trunc`, `fract`, `sqrt`, `pow`, `exp`, `log`,
+`log10`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, and `atan2`; conversion
+and interpolation helpers `radians`, `degrees`, `lerp`, `inverse_lerp`,
+`remap`, `smoothstep`, and `smootherstep`; and scalar movement helpers
+`approach` and `move_towards`. Float operations follow the documented
+IEEE-754 NaN, infinity, and signed-zero behavior; interpolation does not
+implicitly clamp intermediate progress.
 
 ## `std.string`
 
@@ -580,6 +599,18 @@ well-defined: empty Row/Column/Stack return an empty rectangle array, and Grid
 may contain fewer items than cells. The API therefore makes ordinary
 underspecified child sizing unrepresentable while still diagnosing malformed raw
 policy values deterministically.
+
+## Typed asset-store reference package
+
+The accepted Wave B typed asset store is currently an ordinary package module
+at `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
+`src.rocket_assets`. It exposes `AssetStore`, `TextureRef`, `FontRef`,
+`SoundRef`, `MusicRef`, and `ShaderRef`, with typed load, lookup, borrow, and
+idempotent `cleanup` operations. Paths are rooted to the package, traversal and
+symlink escapes are rejected, duplicate names and wrong-type lookups return
+recoverable errors, and cleanup invalidates borrowed references. The planned
+`rocket.assets` / `stdlib/rocket/assets` namespace in the Rocket 3 design is not
+an available standard-library module in this checkout.
 
 ## `std.file` and `std.path`
 

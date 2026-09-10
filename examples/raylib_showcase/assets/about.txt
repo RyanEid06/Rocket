@@ -1,1 +1,2 @@
-Rocket 1.4 safe graphics, input, resources, callbacks, timing, and audio
+Rocket 1.4 compatibility showcase: safe graphics, input, resources, callbacks,
+timing, audio, and the Wave B typed asset-store reference package.

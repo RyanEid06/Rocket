@@ -29,17 +29,26 @@ concurrency, macros, a package manager, JIT compilation, and semantic IDE
 features. That surface remains the compatibility baseline, not a claim that
 later compatible releases cannot add libraries or tooling. Rocket 2.0 freezes
 the cumulative Rocket 1.0-1.8 language, ownership, package, tooling, runtime ABI
-v1, and Windows x64 FFI contracts. Phase 19 is the additive Rocket 2.1
-portability effort. It may add the explicit target and platform contracts in
-`TARGETS.md`, but it cannot weaken the frozen Windows compatibility boundary or
-call a platform supported before native-host acceptance evidence exists.
+v1, and Windows x64 FFI contracts. Phase 19 completed as the additive Rocket
+2.1 portability release on 2026-08-29, adding the explicit target and platform
+contracts in `TARGETS.md` without weakening the frozen Windows boundary.
+
+Rocket 3.0 is the next additive development line. Its accepted Wave B adds
+named/default callable ergonomics and the public graphics/UI foundation on the
+Rocket 2.1 baseline; Wave C continues themes, controls, containers, and bounded
+state. Wave B is not a final Rocket 3.0 release, and native non-Windows
+target-laboratory acceptance remains a later gate.
 
 The C++20 compiler remains the permanent reproducible `stage0`, runtime ABI v1
-remains the frozen Rocket 2.x ABI, and incompatible language changes require a
+remains the frozen Rocket 2.x ABI and the default Rocket 3 compatibility
+boundary, and incompatible language changes require a
 new major-version decision and migration plan. The owner accepted Phase 20's
 technical Windows x64 release without claiming unobserved external adoption.
 Compatible editor and tooling integrations may consume the frozen CLI, LSP,
 diagnostic, CodeView, and source-map contracts without reopening the language
 roadmap; the completed Visual Studio Community 2026 VSIX follows this rule.
 
-The confirmed public names are **Rocket** for the language, `rocketc` for the compiler, and `.rocket` for source files.
+The production compiler is `compiler/src/main.rocket`; C++ remains stage0,
+runtime/native-adapter, language-server, and test infrastructure. The confirmed
+public names are **Rocket** for the language, `rocketc` for the compiler, and
+`.rocket` for source files.

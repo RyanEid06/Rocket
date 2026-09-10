@@ -1,5 +1,10 @@
 # Rocket 1.5 Release Contract
 
+> Historical contract: this file records the Rocket 1.5 release state. Current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.5 completes the production standard-library milestone on the
 self-hosted Rocket 1.4 foundation. Rocket 1.0-1.4 source keeps its meaning, no
 grammar or C ABI change is introduced, runtime ABI v1 remains stable, and the

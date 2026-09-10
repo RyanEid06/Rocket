@@ -1,5 +1,13 @@
 # Build a Rocket raylib application
 
+> **Compatibility note:** The scaffold and `src.rocket_raylib` examples in this
+> tutorial preserve the Rocket 1.4 raylib package contract. For current Rocket 3
+> Wave B code, use the bundled `rocket.graphics`, `rocket.graphics.shapes`,
+> `rocket.graphics.input`, `rocket.graphics.canvas`, `rocket.ui`, and
+> `rocket.raylib.safe` modules described in
+> `ROCKET_3_0_SYNTAX_DICTIONARY.md`. The complete current/historical split is in
+> `DOCUMENTATION_STATUS.md`.
+
 This tutorial uses the complete Phase 14 scaffold. Start from a pinned Rocket
 developer checkout rather than downloading raylib manually:
 

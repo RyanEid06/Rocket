@@ -1,5 +1,10 @@
 # Rocket 1.8 Release Contract
 
+> Historical contract: this file records the Rocket 1.8 release state. Current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.8 completes robust ownership, safe concurrency, and asynchronous I/O
 on the self-hosted Rocket 1.7 foundation. It is additive for Rocket 1.0-1.7
 source, retains the C++20 compiler permanently as stage0, targets the pinned

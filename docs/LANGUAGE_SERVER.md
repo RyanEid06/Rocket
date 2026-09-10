@@ -1,8 +1,16 @@
 # Rocket Language Server Protocol 1.0
 
-`rocket-lsp` is Rocket 1.7's standalone, editor-neutral LSP 3.17 server. It
+`rocket-lsp` began as Rocket 1.7's standalone, editor-neutral LSP 3.17 server
+and remains the shared client-neutral protocol for the completed Rocket 2.1
+baseline and accepted Rocket 3 Wave B. It
 uses `Content-Length` framing over standard input/output; logs go only to
 standard error. `rocket-lsp --version` prints `rocket-lsp 1.0.0`.
+
+Wave B named/default arguments, labeled enum payloads, and bundled graphics/UI
+signatures are exposed through the same signature-help, completion, formatter,
+hover, and documentation metadata. Wave C is not a new editor protocol. The
+current surface index is `ROCKET_3_0_SYNTAX_DICTIONARY.md` and the document
+disposition is in `DOCUMENTATION_STATUS.md`.
 
 ## Safety and bounds
 

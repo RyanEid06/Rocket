@@ -1,5 +1,10 @@
 # Phase 18 Requirement-to-Evidence Audit
 
+> Historical contract: this file records the Rocket 1.8 audit state. Current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 This audit records the final Rocket 1.8 ownership, concurrency, and asynchronous
 I/O vertical slice. It supplements the normative contracts in `CONCURRENCY.md`,
 `SPEC.md`, and `STDLIB.md`; it is evidence, not a second specification.

@@ -5,6 +5,12 @@ parsed AST represents source syntax only. Name resolution and type checking
 produce HIR, and control-flow lowering produces MIR. Backends consume MIR and
 must not inspect the AST or HIR.
 
+This architecture remains current for Rocket 2.1 and the accepted Rocket 3
+Wave B surface. Rocket 3 callable normalization and bundled graphics/UI modules
+still lower through the same typed HIR/MIR boundaries. The production compiler
+is `compiler/src/main.rocket`; the C++ implementation remains the permanent
+reproducible stage0 and native/tooling support path.
+
 ## Resolved HIR invariants
 
 - Every declaration receives a deterministic `SymbolId` in source traversal

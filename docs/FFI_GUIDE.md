@@ -6,6 +6,12 @@ section, generate low-level Rocket declarations with `rocketc bind`, and
 generate a C consumer header with `rocketc emit-header`. The target aliases,
 native-input selection, and host/target policy are normative in `TARGETS.md`.
 
+Phase 19/Rocket 2.1 is complete on the four documented production targets.
+Rocket 3 Wave B adds the reviewed `rocket.raylib.safe` wrapper and typed
+graphics/UI modules above this boundary; ordinary application code should use
+those wrappers rather than raw generated bindings. Wave C remains development
+work, and the current syntax/API index is `ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+
 Supported boundaries include fixed-width scalar values, `rocket_bool`, `void`,
 pointers, primitive native structs, opaque handles, synchronous non-storing
 callbacks, integer constants, and C-compatible exported functions. Variadics,

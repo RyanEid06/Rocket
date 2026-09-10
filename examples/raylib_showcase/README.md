@@ -1,4 +1,10 @@
-# Rocket raylib showcase
+# Rocket raylib compatibility showcase
+
+> **Historical compatibility example:** This package remains version 1.4 and
+> validates the legacy `src.rocket_raylib` boundary against pinned raylib 6.0.
+> The current Rocket 3 Wave B modules are documented in
+> `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`; the repository-wide status split is in
+> `docs/DOCUMENTATION_STATUS.md`.
 
 This non-casino reference application validates Rocket 1.4 against the pinned
 raylib 6.0 native library. All event loop, state, collections, input handling,
@@ -84,8 +90,8 @@ The generated low-level binding and native build outputs remain ignored.
   it.
 
 The API is memory-safe at the Rocket boundary, but it is deliberately explicit
-about logical lifetime errors because Rocket 1.4 does not add linear types or
-destructors.
+about logical lifetime errors because this compatibility package keeps the
+Rocket 1.4 contract; it is not the canonical Rocket 3 UI API.
 
 ## Safe geometry surface
 

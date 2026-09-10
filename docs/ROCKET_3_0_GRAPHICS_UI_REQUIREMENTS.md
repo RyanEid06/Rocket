@@ -9,10 +9,15 @@ is the accepted Rocket 2.1 portability baseline at
 
 **Companion plan:** `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`
 
+**Documentation status:** Current and historical repository documents are
+indexed by `docs/DOCUMENTATION_STATUS.md`; the accepted Wave B syntax/API
+surface is summarized in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+
 **Wave B status (2026-09-10):** The public F14/F15 shape and input surface,
 F16 typography, F17 `VirtualCanvas`, F18 UI context/interaction, F19 layout,
 and F23 typed asset-store requirements have reached `PUBLIC / WAVE-GREEN` on
-the integrated Wave B tree. The Windows Debug/Release, stage0/self-host,
+the integrated Wave B tree, published to `master` at
+`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. The Windows Debug/Release, stage0/self-host,
 bootstrap, predecessor, package/relocation, native, and application evidence
 passes; final `ACCEPTED` maturity and native non-Windows target-laboratory
 coverage remain governed by WP34/F29.
@@ -44,8 +49,11 @@ rocket.raylib.safe
    raylib 6.0
 ```
 
-Supporting modules are `std.math`, `rocket.motion`, `rocket.assets`, and the
-visual-regression toolchain.
+Supporting modules are `std.math`, `rocket.motion`, and the visual-regression
+toolchain. F23's accepted reference implementation currently lives in the
+package module `examples/raylib_showcase/src/rocket_assets.rocket` (imported as
+`src.rocket_assets`); `rocket.assets` remains the intended future namespace
+until a standard-library source module is promoted there.
 
 ## 2. Normative language and interpretation
 
@@ -94,9 +102,11 @@ documentation, supported targets, and acceptance evidence.
 
 ### Integrated development and delivery discipline
 
-- `R3-ISO-001`: Rocket 3.0 work occurs on `master` in the main Rocket checkout,
-  which contains the accepted Rocket 2.1 baseline. Each successful packet
-  commits and pushes its code, evidence, and rotated handoff prompt.
+- `R3-ISO-001`: `master` in the main Rocket checkout is the accepted Rocket 2.1
+  and Wave B integration baseline. Packet implementation may use an owner's
+  isolated wave branch/worktree created from that exact baseline; each
+  successful packet commits and pushes its code, evidence, and rotated handoff
+  prompt, and only the defined wave barrier updates `master`.
 - `R3-ISO-002`: Phase 19 is complete and no longer restricts Rocket 3.0 file
   eligibility. Compiler, runtime, standard-library, native adapter, SDK, build,
   package, and release files may be changed when they are within the named
@@ -133,8 +143,10 @@ documentation, supported targets, and acceptance evidence.
 - `rocket.ui` owns immediate-mode frame lifecycle, stable IDs, interaction,
   layout, themes, style resolution, controls, containers, and bounded retained
   state.
-- `rocket.assets` owns cached typed resource loading, lookup, borrowing, and
-  deterministic cleanup.
+- The intended `rocket.assets` boundary owns cached typed resource loading,
+  lookup, borrowing, and deterministic cleanup. The accepted Wave B reference
+  implementation is currently package-local at `src.rocket_assets`; the
+  namespace is not yet available as a standard-library import.
 - Visual-comparison tooling owns golden-image comparison and failure artifacts;
   it is not linked into production applications.
 

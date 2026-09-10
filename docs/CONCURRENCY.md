@@ -6,6 +6,12 @@ threads, tasks, synchronization, cancellation, and the portable Phase 19
 asynchronous surface. Recoverable failures remain `Result`; absence remains `Option`; safe
 Rocket still has no null value and no exception path.
 
+The 1.8 concurrency contract remains active under Rocket 2.1 and the accepted
+Rocket 3 Wave B. Wave B does not change ownership, task, or cancellation rules;
+Wave C works above this contract. Current status and the combined syntax/API
+index are in `DOCUMENTATION_STATUS.md` and
+`ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+
 ## Design and compatibility rules
 
 Rocket uses three explicit mechanisms instead of hidden universal locking:

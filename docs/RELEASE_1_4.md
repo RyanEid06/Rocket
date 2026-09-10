@@ -1,5 +1,10 @@
 # Rocket 1.4 Release Contract
 
+> Historical contract: this file records the Rocket 1.4 release state. Current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.4 validates the Rocket 1.3 native interoperability surface through a
 substantial raylib application. Existing Rocket 1.0-1.3 source keeps its
 meaning, runtime ABI v1 and the C ABI remain unchanged, and C++20 remains the

@@ -2,6 +2,11 @@
 
 This directory describes the tools needed to build the compiler. Large archives and extracted programs are deliberately ignored by Git.
 
+The current product status is documented in `../README.md` and
+`../docs/DOCUMENTATION_STATUS.md`. Rocket 2.1 portability is complete and the
+Rocket 3 Wave B work uses the same pinned toolchain; this file remains focused
+on reproducible dependency setup rather than milestone history.
+
 ## One-time setup
 
 On every supported host, Python 3.11 or newer installs the exact native row

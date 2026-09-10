@@ -1,5 +1,10 @@
 # Rocket 3 provisional visual comparator and evidence schemas
 
+This experiment is still provisional after the accepted Wave B publication.
+It is not part of the current Rocket 3 runtime or release surface; current
+status and the public syntax/API index are in
+`docs/DOCUMENTATION_STATUS.md` and `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+
 This standalone C++20 experiment compares equal-sized raw RGBA buffers and
 defines versioned, value-only evidence schemas for synthetic performance and
 golden records. It is explicitly provisional and is not part of Rocket's

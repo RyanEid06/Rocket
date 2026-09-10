@@ -1,5 +1,12 @@
 # Design Decision Journal
 
+This file is a chronological record of accepted and rejected design decisions;
+sentences scoped to an earlier release remain historical facts. Current project
+status is maintained in `DOCUMENTATION_STATUS.md`, `ROADMAP.md`, and
+`PROJECT_CONTEXT.md`. The production compiler/source-language boundary is
+unchanged: Rocket source owns the self-hosted compiler and C++ remains permanent
+stage0 and support infrastructure.
+
 ## D001 - LLVM ahead-of-time backend
 
 **Accepted.** LLVM provides optimized native code while keeping the project

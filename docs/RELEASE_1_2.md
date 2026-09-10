@@ -1,5 +1,10 @@
 # Rocket 1.2 Release Contract
 
+> Historical contract: this file records the Rocket 1.2 release state. Current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.2 is an additive release over Rocket 1.1. Rocket 1.0 and 1.1 source
 keeps its existing meaning, runtime ABI v1 remains stable, and the C++ compiler
 remains the reproducible stage0 bootstrap.

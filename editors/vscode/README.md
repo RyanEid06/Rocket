@@ -15,3 +15,9 @@ stable coded diagnostics, completion and automatic imports, hover and signature
 help, cross-file definition/references/rename, semantic tokens, and safe code
 actions. The extension is only a client: the same server works with any LSP
 3.17 editor, and opening source never runs builds or package code.
+
+The shared server also describes the accepted Rocket 3 Wave B named/default
+argument and labeled-enum metadata, including the bundled graphics/UI
+signatures. Wave C does not fork the editor protocol. Use the current dictionary
+and status ledger in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md` and
+`docs/DOCUMENTATION_STATUS.md` rather than the historical 1.7 label above.

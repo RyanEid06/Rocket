@@ -1,5 +1,10 @@
 # Migrating to Rocket 2.0
 
+> Historical migration guide: current status and the accepted Rocket 3 surface
+> are indexed by [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 2.0 is source-compatible with valid Rocket 1.0-1.8 programs. It adds no
 new grammar, ownership rule, standard-library signature, manifest field, lock
 format, runtime ABI entry, or FFI type. Rebuild applications and dependencies

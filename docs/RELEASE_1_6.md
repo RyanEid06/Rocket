@@ -1,5 +1,10 @@
 # Rocket 1.6 Release Contract
 
+> Historical contract: this file records the Rocket 1.6 release state. Current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.6 completes the dependency-management and package-ecosystem phase for
 Windows x64. Reusable Rocket packages can be resolved, imported, audited,
 documented, published through the signed file reference registry, or exchanged

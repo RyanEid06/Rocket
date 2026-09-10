@@ -26,6 +26,11 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 
 **Spec:** `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md`
 
+**Documentation status:** The published Wave B baseline and the disposition of
+current, historical, example, and provisional documents are indexed by
+`docs/DOCUMENTATION_STATUS.md`; the copyable accepted syntax/API surface is in
+`docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+
 ## Global constraints
 
 - Rocket 3.0 is the target release. Its accepted predecessor is Rocket 2.1 at
@@ -58,15 +63,16 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 | Integration branch | `master` |
 | Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
 | Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
-| Rocket 3 shared baseline | verified Wave B integration `6bb9841e185e948a9135a63bdcceeec4e5a8314a`; publish this barrier's status commit to `master` |
+| Rocket 3 shared baseline | Wave B integration `6bb9841e185e948a9135a63bdcceeec4e5a8314a` published to `master` in status commit `fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa` |
 | WP16 implementation owner | Eddy |
 | Packet generated output | packet-local paths below `out/rocket3-provisional/`; never share generated state between developer checkouts |
 | Parallel delivery policy | Ryan and Eddy push isolated wave branches; Ryan integrates only at a defined barrier after required verification |
 
 The accepted Rocket 2.1 baseline remains compatibility provenance. The Wave B
-barrier has now verified the integrated tree at `6bb9841e185e948a9135a63bdcceeec4e5a8314a`;
-publish the status commit from this tree to `master` before creating the Wave C
-branch. At the start of each wave, record the exact accepted `origin/master`
+barrier verified the integrated tree at `6bb9841e185e948a9135a63bdcceeec4e5a8314a`,
+and the status commit was published to `master` at
+`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. At the start of each wave, record
+the exact accepted `origin/master`
 SHA with `git rev-parse origin/master`; both developer branches for that wave
 must be created from that same SHA.
 
@@ -164,12 +170,15 @@ stdlib/rocket/motion
 stdlib/rocket/raylib/safe
 stdlib/rocket/graphics/{geometry,color,shapes,textures,typography,input,virtual_canvas}
 stdlib/rocket/ui/{context,layout,theme,styles,controls,containers}
-stdlib/rocket/assets
+# Planned namespace; current accepted reference package:
+examples/raylib_showcase/src/rocket_assets.rocket
 tools/rocket-visual-compare
 ```
 
 WP09 confirms the accepted Rocket 2.1 SDK layout before public promotion and
-updates these locations only when the current repository requires it.
+updates these locations only when the current repository requires it. The
+Wave B asset-store implementation is intentionally package-local today; a
+future packet may promote it to `rocket.assets` after the source path exists.
 
 ## 4. Parallel packet execution protocol
 
@@ -1473,14 +1482,15 @@ only by Ryan during a successful full wave barrier, after both lane branches hav
 been integrated and verified. Ordinary packet chats never rotate this section.
 
 **Current common baseline:** Wave B is accepted on the integrated tree at
-`6bb9841e185e948a9135a63bdcceeec4e5a8314a`, preserving Ryan WP20
+`6bb9841e185e948a9135a63bdcceeec4e5a8314a` and published to `master` in
+status commit `fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`, preserving Ryan WP20
 `ac01cfb5d63db1ff5b930a82d06c66b9181e6ba7`, WP21
 `f82582e8638f082da6b754e98edfe5a2f4e60ed2`, WP23
 `6e2971a0bf4669089074c772b3c683302977e681`, WP24
 `56f4498bfb4f6909b0f633020710dba10275281b`, and Eddy WP22
 `158bc6fc80923f5b358efd906a40d392723fa7bb` plus WP28
-`778de29110dac6c29c99c4eabdd5a4221931db85`. This verified tree is the source
-for the accepted `master` publication at this barrier.
+`778de29110dac6c29c99c4eabdd5a4221931db85`. The published `master` SHA above
+is the source for the Wave C branch.
 
 **Current wave:** Wave C
 

@@ -20,6 +20,12 @@ Community 2026 on Windows x64 and provides:
 The tracked CMake targets and scripts remain supported fallback automation.
 No generated state or machine-specific path is stored in the VSIX sources.
 
+The client consumes the same `rocket-lsp` metadata for the accepted Rocket 3
+Wave B named/default argument and labeled-enum surface, so signature help,
+formatting, and diagnostics remain consistent with VS Code. Wave C is not a
+separate editor contract; current documentation is indexed by
+`docs/ROCKET_3_0_SYNTAX_DICTIONARY.md` and `docs/DOCUMENTATION_STATUS.md`.
+
 ## Install or upgrade
 
 These steps are repository-relative. Do not replace them with a checked-in

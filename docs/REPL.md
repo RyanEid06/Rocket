@@ -6,6 +6,8 @@ is accumulated in a generated `main`, compiled with the normal Rocket frontend
 and AOT backend, then run as a fresh process. Generated source and native
 artifacts stay under `out/repl-prototype`.
 
+This remains an explicitly non-guaranteed experiment under the completed Rocket
+2.1 baseline and accepted Rocket 3 Wave B; it is not a second language runtime.
 This model gives ordinary Rocket diagnostics, dependency/toolchain behavior,
 and deterministic native execution. Expression state lasts for the interactive
 session because prior expressions are replayed. `:reset` clears it and `:quit`

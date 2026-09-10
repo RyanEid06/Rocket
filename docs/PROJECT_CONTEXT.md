@@ -1,16 +1,19 @@
 # Rocket Project Context and Chat Handoff
 
-Read this file at the start of every new Rocket chat. Update it after completing a milestone or making a permanent design decision.
+Read this file at the start of every new Rocket chat. Update it after completing
+a milestone or making a permanent design decision. For the disposition of all
+other repository documentation, see `DOCUMENTATION_STATUS.md`.
 
 ## Project identity
 
 - **Language:** Rocket
 - **Compiler:** `rocketc`
 - **Source extension:** `.rocket`
-- **Primary target:** Windows x64
+- **Primary target:** Windows x64 integration baseline; Rocket 2.1 also accepts
+  Linux x64, Linux ARM64, and macOS ARM64 target rows.
 - **Goal:** Maintain the completed, beginner-friendly, statically typed,
-  LLVM-native Rocket 2.1 language across Windows x64, Linux x64, Linux ARM64,
-  and macOS ARM64 without changing ABI v1.
+  LLVM-native Rocket 2.1 language and the additive Rocket 3.0 Wave B surface
+  across the accepted target contract without changing ABI v1.
 - **Possible casino goal:** A separate local, single-player, play-money desktop
   application may be planned independently of Rocket language work.
 
@@ -39,6 +42,13 @@ production `rocketc` is written in Rocket,
 bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
+
+Rocket 3 Wave B is accepted and published on `master` at
+`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. It adds named/default callable
+ergonomics, public graphics/UI modules, and the typed asset-store reference
+package. Wave C is ready with Eddy's WP25 -> WP26 -> WP27 -> WP30 queue; the
+final Rocket 3.0 release and non-Windows target-laboratory gate are not yet
+complete.
 
 Implemented:
 
@@ -1188,9 +1198,9 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Rocket 3 Wave C is ready. Wave B is accepted on integration commit
-`6bb9841e185e948a9135a63bdcceeec4e5a8314a`; publish that verified tree to
-`master` before creating `rocket3/eddy-wave-c`. Ryan is review/integration
+**Rocket 3 Wave C is ready. Wave B was integrated at
+`6bb9841e185e948a9135a63bdcceeec4e5a8314a` and published to `master` in status
+commit `fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. Ryan is review/integration
 support only. Eddy's serial queue is WP25 (public themes/styles), WP26
 (controls), WP27 (containers/transient UI), then WP30 (bounded state/caches).
 Do not begin WP29 in Wave C. Native non-Windows target-laboratory acceptance

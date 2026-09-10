@@ -1,7 +1,11 @@
 # The Rocket Book
 
-This compact book is the supported learning path for Rocket 2.0. The linked
-specifications remain normative when a tutorial explanation is abbreviated.
+This compact book is the supported learning path for the completed Rocket 2.1
+baseline and the accepted Rocket 3 Wave B surface. Wave C is ready but Rocket
+3.0 is not a final release; the linked specifications remain normative when a
+tutorial explanation is abbreviated. The current-surface index is
+`ROCKET_3_0_SYNTAX_DICTIONARY.md` and the complete disposition of repository
+documentation is in `DOCUMENTATION_STATUS.md`.
 
 ## 1. Build and run
 
@@ -52,11 +56,31 @@ small `unsafe:` regions, and expose safe `Result`-returning wrappers. Resource
 tokens need exactly-one cleanup. Start with `FFI_GUIDE.md`; the raylib adapter
 and Orbital Workshop example demonstrate a substantial wrapper and application.
 
-## 7. Tools and reference
+## 7. Graphics and UI (Rocket 3 Wave B)
+
+Use `rocket.graphics` for value-owned `Vec2`, `Rect`, `Color`, typography, and
+`VirtualCanvas` data. `rocket.graphics.shapes`, `rocket.graphics.input`, and
+`rocket.graphics.canvas` provide typed drawing, pointer mapping, clipping,
+render-target, resize, and screenshot helpers through the safe
+`rocket.raylib.safe` boundary. `rocket.ui` provides bounded immediate-mode
+frames, stable widget IDs, focus, modal, disabled, and response state;
+`rocket.ui.layout` provides pure Row, Column, Grid, Stack, and Anchor placement.
+`rocket.motion` supplies value-owned easing, tweens, timelines, and reduced
+motion. These modules are ordinary bundled Rocket source and keep native handles
+out of the normal application surface.
+
+The accepted typed asset store is currently the reference-package module
+`examples/raylib_showcase/src/rocket_assets.rocket`, imported as
+`src.rocket_assets`. It owns typed texture, font, sound, music, and shader
+references with package-rooted paths and explicit cleanup. The planned
+`rocket.assets` namespace is not available in this checkout.
+
+## 8. Tools and reference
 
 Use `TOOLING.md` for the LSP, formatter, debugger, coverage, profiles, and
-benchmarks; `STDLIB.md` for APIs; `DIAGNOSTICS.md` for stable codes; `SPEC.md`
-for the language; `RELEASE_2_0.md` for the frozen Windows release; and
-`TARGETS.md`, `MIGRATION_2_1.md`, and `RELEASE_2_1.md` for portability.
-Rocket 2.1 target acceptance is recorded in `PHASE_19_AUDIT.md`; a target is
-not supported until that audit has direct native-host evidence.
+benchmarks; `STDLIB.md` for stable APIs; `DIAGNOSTICS.md` for stable codes;
+`SPEC.md` for the language; and
+`ROCKET_3_0_SYNTAX_DICTIONARY.md` for the accepted Wave B additions. The
+completed Rocket 2.1 target contract is in `TARGETS.md`, with its evidence in
+`PHASE_19_AUDIT.md`; versioned release and migration files are historical
+contracts and are indexed by `DOCUMENTATION_STATUS.md`.

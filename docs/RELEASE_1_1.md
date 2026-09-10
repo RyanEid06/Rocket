@@ -1,5 +1,10 @@
 # Rocket 1.1 Release Contract
 
+> Historical contract: this file records the Rocket 1.1 release state. Current
+> status is maintained in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.1 is an additive release over the frozen Rocket 1.0 contract. Every
 valid Rocket 1.0 program remains valid with the same observable behavior. The
 complete base contract remains in [RELEASE_1_0.md](RELEASE_1_0.md); this document

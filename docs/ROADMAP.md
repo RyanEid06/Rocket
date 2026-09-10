@@ -5,7 +5,8 @@ Rocket 3 Wave B is accepted on the integrated Windows baseline. Wave C is ready
 to begin with Eddy's WP25 -> WP26 -> WP27 -> WP30 queue; Ryan is review and
 integration support only. Native non-Windows Rocket 3 target-laboratory
 acceptance remains deferred to WP34/F29. The Rocket 2.0 Windows x64 SDK remains
-available as the stable compatibility archive.
+available as the stable compatibility archive. The complete documentation
+disposition is indexed in `DOCUMENTATION_STATUS.md`.
 
 ## Long-term objective
 
@@ -585,7 +586,10 @@ ABI v1, and FFI contracts without adding grammar.
 the public shapes/input, `VirtualCanvas`, typography, UI context/interaction,
 layout, and typed asset-store surfaces through Ryan's WP20 -> WP21 -> WP23 ->
 WP24 chain and Eddy's WP22 -> WP28 chain. The owner commits were preserved in
-non-squash integration commit `6bb9841e185e948a9135a63bdcceeec4e5a8314a`.
+non-squash integration commit `6bb9841e185e948a9135a63bdcceeec4e5a8314a` and
+published to `master` in status commit
+`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. The typed asset-store reference
+implementation is `examples/raylib_showcase/src/rocket_assets.rocket`.
 
 - Full Debug and Release CTest suites passed `267/267` each, including native,
   deterministic stage0/self-host, target-surface, package/docs/search/

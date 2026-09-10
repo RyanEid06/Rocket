@@ -1,5 +1,10 @@
 # Migrating to Rocket 2.1 portability
 
+> Versioned migration guide: Rocket 2.1 portability is complete. Current Rocket
+> 3 status is indexed by [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md),
+> [ROADMAP.md](ROADMAP.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 2.1 is additive to the frozen Rocket 2.0 language and runtime ABI v1.
 Valid Rocket 1.0-2.0 source continues to compile without a source rewrite.
 The new portability surface is explicit target selection, not a new language

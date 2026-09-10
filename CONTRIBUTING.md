@@ -1,8 +1,10 @@
 # Contributing to Rocket
 
 Rocket accepts focused compiler, runtime, standard-library, package, tooling,
-test, and documentation changes. Read `docs/PROJECT_CONTEXT.md`, the relevant
-specification, and `docs/CHARTER.md` before editing.
+test, and documentation changes. Read `docs/DOCUMENTATION_STATUS.md`,
+`docs/PROJECT_CONTEXT.md`, the relevant specification, and `docs/CHARTER.md`
+before editing. Current Rocket 3.0 work is additive Wave C work on the accepted
+Wave B `master` baseline.
 
 ## Change contract
 
@@ -17,11 +19,13 @@ specification, and `docs/CHARTER.md` before editing.
 6. Update reference documentation, migration notes, the decision journal when
    policy changes, and `PROJECT_CONTEXT.md` when a milestone completes.
 
-Use the pinned Windows x64 toolchain and keep `out/`, `.rocketc/`, downloads,
+Use the pinned toolchain for the selected target and keep `out/`, `.rocketc/`, downloads,
 keys, certificates, and generated artifacts out of Git. Do not weaken resource
 bounds, signature checks, safe ownership, locked dependencies, or diagnostic
 stability merely to accept malformed input. New syntax must earn its cost; the
-Rocket 2.0 grammar and public contracts are frozen for compatible 2.x releases.
+Rocket 2.0 grammar and public contracts remain frozen for compatible 2.x
+releases, while Rocket 3 additions must preserve predecessor source and runtime
+ABI v1 unless a separately accepted decision says otherwise.
 
 Run:
 
@@ -34,4 +38,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\hardening.ps1
 
 Report vulnerabilities through the private process in `SECURITY.md`, not a
 public issue. Contributions must be reviewable, deterministic, and covered by
-the repository's existing license terms.
+the repository's existing license terms. Keep current status, historical
+evidence, and provisional experiments clearly separated as described in
+`docs/DOCUMENTATION_STATUS.md`.

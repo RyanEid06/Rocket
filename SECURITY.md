@@ -2,10 +2,16 @@
 
 ## Supported release
 
-The latest Rocket 2.0 patch release is the supported line. Rocket 1.x remains a
-source-compatibility input to the 2.0 gate, but security fixes are released on
-the current 2.0 line. Windows x64 is the only supported target while Phase 19
-is deferred.
+The latest completed Rocket 2.1 portability release is the supported line.
+Rocket 1.x and 2.0 remain source-compatibility inputs, and the frozen Rocket
+2.0 Windows x64 SDK remains available to consumers such as Scroll2Roll. The
+accepted Rocket 2.1 target rows are Windows x64, Linux x64, Linux ARM64, and
+macOS ARM64; security fixes are released against the current 2.1 line.
+
+Rocket 3.0 is still in development. Wave B is accepted on the Windows
+integration baseline, while Wave C and the final non-Windows Rocket 3 target
+laboratory work remain in progress. Do not treat Wave B documentation or
+provisional graphics/UI experiments as a released security-support promise.
 
 ## Reporting a vulnerability
 

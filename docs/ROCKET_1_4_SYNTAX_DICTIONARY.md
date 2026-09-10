@@ -1,5 +1,9 @@
 # Rocket 1.4 Graphics and Audio Usage Dictionary
 
+> Historical compatibility reference: current status and the accepted Rocket 3
+> surface are in [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md) and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Rocket 1.4 introduces no new grammar. It uses the Rocket 1.3 `unsafe`, native
 declaration, callback, manifest, and generation spellings only inside the
 reviewed raylib adapter package. Ordinary applications import the safe module:

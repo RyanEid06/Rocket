@@ -1,5 +1,11 @@
 # Rocket Phase 19 Requirement-to-Evidence Audit
 
+> Historical contract: this file records the completed Rocket 2.1/Phase 19
+> portability evidence. Current status is maintained in
+> [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md), [ROADMAP.md](ROADMAP.md),
+> [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+
 Phase 19 was completed by owner direction on 2026-08-29. This document is the
 authoritative portability requirement map and completion record. It starts from
 Rocket commit `cbf7b1a`, the accepted Rocket 2.0 Windows x64 release plus the
