@@ -519,8 +519,46 @@ make focus and modal ownership explicit. `Response` records hover/active/click/
 focus/disabled/modal and activation facts for the frame that produced it;
 `response_is_current` and `response_is_current_context` reject stale responses.
 Keyboard helpers expose activation, cancel, focus-next, and directional snapshots
-without rereading native input during widget evaluation. Layout, themes, and
-concrete controls remain later `rocket.ui` layers.
+without rereading native input during widget evaluation. Themes and concrete
+controls remain later `rocket.ui` layers; layout is provided by
+`rocket.ui.layout`.
+
+## `rocket.ui.layout`
+
+`rocket.ui.layout` is the pure logical-coordinate layout layer for Rocket 3 UI.
+It consumes `rocket.graphics.Rect`/`Size` values and returns rectangles without
+owning renderer, window, font, or asset state. `row`, `column`, `grid`, `stack`,
+and `anchor_rect` cover the public Row/Column/Grid/Stack/Anchor model. Every
+`LayoutItem` explicitly supplies horizontal and vertical `Sizing`, measured
+content size, margin `Insets`, and an `Anchor`, so an item cannot silently inherit
+an unspecified sizing policy.
+
+Sizing constructors are `fixed(value)`, `fill()`, `content()`, and
+`percent(fraction)`. Percentages are relative to the containing logical extent
+and must lie in `[0, 1]`; content sizing uses the caller-provided measured content
+size. `horizontal_start`/`horizontal_center`/`horizontal_end` and their vertical
+counterparts make alignment explicit. The nine anchor constructors are
+`top_left`, `top_center`, `top_right`, `center_left`, `center`, `center_right`,
+`bottom_left`, `bottom_center`, and `bottom_right`.
+
+`Insets` are used for padding and per-item margins. `SafeArea` is explicit:
+`no_safe_area()` applies no platform inset, while `safe_area(insets)` composes the
+provided safe-area inset before ordinary padding. Row and Column gaps are charged
+between children; Grid has independent column and row gaps. Fill children divide
+the primary-axis remainder deterministically after fixed/content/percentage
+sizes, margins, and gaps have been accounted for. Stack and Anchor place each
+item within its margin-reduced logical region using its anchor.
+
+All public layout entry points return `Result`. Non-finite or negative bounds,
+insets, gaps, fixed/content sizes, invalid percentage or alignment/sizing modes,
+excessive grid dimensions/item counts, cross-axis overflow, grid-capacity
+overflow, and overfull primary axes return stable `Err(String)` diagnostics.
+Padding/safe-area/margin insets that consume more space than their containing
+rectangle are errors rather than silently clamped. Sparse/empty containers are
+well-defined: empty Row/Column/Stack return an empty rectangle array, and Grid
+may contain fewer items than cells. The API therefore makes ordinary
+underspecified child sizing unrepresentable while still diagnosing malformed raw
+policy values deterministically.
 
 ## `std.file` and `std.path`
 

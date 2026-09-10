@@ -520,7 +520,8 @@ Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files, except for explicitly bundled source modules
 such as `std.testing`. The public `rocket.motion`, `rocket.graphics`,
 `rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`,
-`rocket.ui`, and `rocket.raylib.safe` modules are likewise resolved from bundled
+`rocket.ui`, `rocket.ui.layout`, and `rocket.raylib.safe` modules are likewise
+resolved from bundled
 ordinary Rocket source under `stdlib/rocket`; they are not compiler intrinsics. Their function
 signatures are statically checked and lower to typed MIR calls.
 `rocket.graphics` keeps pure geometry/color/hit-testing/VirtualCanvas mapping
@@ -534,9 +535,14 @@ safe module is the reviewed native-adapter boundary; applications should prefer
 the typed graphics and UI modules. `rocket.ui` provides a bounded immediate-mode
 context with explicit `begin_frame`/`end_frame` lifecycle, collision-safe stable
 widget IDs, one input snapshot per frame, focus/disabled/modal interaction state,
-duplicate-ID and capacity diagnostics, and frame-scoped `Response` freshness. It
-does not own layout, themes, or concrete controls. The
-stable foundational modules are `std.string`,
+duplicate-ID and capacity diagnostics, and frame-scoped `Response` freshness.
+`rocket.ui.layout` is the pure logical-coordinate layout layer: Row, Column,
+Grid, Stack, and Anchor return `rocket.graphics.Rect` values with explicit
+fixed/fill/content/percentage sizing, Insets/SafeArea spacing, horizontal and
+vertical alignment, all nine standard anchors, and recoverable deterministic
+layout diagnostics. It owns no renderer or native state. `rocket.ui` still does
+not own themes or concrete controls. The stable foundational modules are
+`std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,
 `std.unicode`, `std.regex`, `std.crypto`, `std.net`, `std.http`, `std.datetime`,

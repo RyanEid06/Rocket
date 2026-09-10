@@ -1,0 +1,5 @@
+[package]
+name = "rocket3_ui_layout_package"
+version = "0.1.0"
+namespace = "tests"
+entry = "src/main.rocket"
