@@ -402,7 +402,7 @@ baseline, line_height)`, `window_config(width, height, title, high_dpi = true,
 msaa4x = true, resizable = true)`, and `virtual_canvas(logical_size, viewport,
 scale)`.
 
-Typography uses immutable `TextStyle` values and actual selected-font metrics
+Typography uses immutable `TextStyle` values and selected-font measurements
 from the safe raylib boundary. `TextLayout` combines `TextMetrics`, measured
 bounds, line count, and explicit clipped/ellipsized flags. Horizontal alignment
 is left, center, or right; vertical alignment is top, middle, baseline, or
@@ -412,13 +412,17 @@ container policy. Font selection is explicit: applications load or select a
 synthesizes guessed bold metrics. `TextStyle.font_name` is the stable
 application/asset identity paired with that token.
 
-The safe raylib package provides `default_font`, `measure_text`,
+The bundled `rocket.raylib.safe` module provides `default_font`, `measure_text`,
 `draw_text_layout`, and `invalidate_font_measurements`. Measurement includes
 requested size, letter spacing, line-height multiplier, explicit newlines,
 optional word wrapping, maximum width/height, clipping, and last-visible-line
 ellipsis. Zero maximum width or height means unbounded measurement; draw bounds
 must be positive. Baseline alignment treats the bounds' `y` coordinate as the
-baseline anchor. A 256-entry deterministic LRU measurement cache keys the font
+baseline anchor. Raylib 6.0 does not retain a selected font's ascent/baseline
+metric, so `TextMetrics.baseline` is an explicitly approximate, deterministic
+draw-origin offset: the scaled bottom of the selected font's `H` glyph when
+available, or `size * 0.8` otherwise. It must not be treated as an exact font
+metric. A 256-entry deterministic LRU measurement cache keys the font
 token, complete UTF-8 text, and every style/layout input. Style changes cannot
 return stale metrics; explicit invalidation and font unload remove only that
 font's cached entries.

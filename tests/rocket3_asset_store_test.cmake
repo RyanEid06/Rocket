@@ -53,9 +53,11 @@ string(FIND "${documentation_index}" "\"name\": \"borrow_shader\", \"kind\": \"f
 string(FIND "${documentation_index}" "\"parameters\": [\"window\", \"audio\", \"package_root\"]" open_parameters_found)
 string(FIND "${documentation_index}"
   [=["defaults": [null, null, "\".\""]]=] open_defaults_found)
+string(FIND "${documentation_index}" "\"name\": \"open_graphics\", \"kind\": \"fn\"" open_graphics_found)
 if(store_found EQUAL -1 OR load_texture_found EQUAL -1 OR
    load_music_found EQUAL -1 OR borrow_shader_found EQUAL -1 OR
-   open_parameters_found EQUAL -1 OR open_defaults_found EQUAL -1)
+   open_parameters_found EQUAL -1 OR open_defaults_found EQUAL -1 OR
+   open_graphics_found EQUAL -1)
   message(FATAL_ERROR "WP28 asset-store docs/search omitted public metadata:\n${documentation_index}")
 endif()
 

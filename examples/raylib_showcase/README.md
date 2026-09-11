@@ -201,14 +201,23 @@ must be requested outside an active frame and capture the physical framebuffer.
 
 ## Typography
 
+The production API is bundled as `rocket.raylib.safe`; this showcase's
+`src.rocket_raylib` module remains as a compatibility/example surface.
 `default_font(window)` and `load_font(window, path)` return checked font tokens.
 Pair the selected token with `rocket.graphics.TextStyle`; selecting a different
 font asset is the explicit weight strategy. `measure_text` returns actual
-selected-font width, height, baseline, line height, bounds, line count, and
+selected-font width and layout measurements plus an approximate baseline,
+line height, bounds, line count, and
 clipped/ellipsized state. `draw_text_layout` uses those same measurements for
 left/center/right and top/middle/baseline/bottom alignment, optional wrapping,
 multiline layout, clipping, and ellipsis. It never estimates centering from text
 length.
+
+Raylib 6.0 does not retain an exact selected-font ascent/baseline metric. The
+reported baseline is therefore the scaled bottom of the selected font's `H`
+glyph when available, with a deterministic `size * 0.8` fallback (also used by
+the deterministic backend). It is a draw-origin offset, not an exact font
+metric.
 
 Measurements are cached in a deterministic 256-entry LRU keyed by font token,
 UTF-8 text, and every style/container input. Style changes cannot reuse stale
@@ -229,10 +238,14 @@ error.
 
 Physical resources are cached by type and canonical path within a store. Two
 different names may intentionally share one physical resource, but reusing any
-logical name is rejected. `open(window, audio, package_root)` resolves only
-relative paths contained by the canonical package root, including after the
-package is relocated. Absolute paths, traversal, and symlink escape are
-rejected. Loading is local filesystem-only and never performs network access.
+logical name is rejected. `open(window, audio, package_root)` creates a store
+with graphics and audio resources. `open_graphics(window, package_root)` avoids
+opening or borrowing an audio device when only textures, fonts, and shaders are
+needed; sound and music loads then return the existing unavailable error. Both
+forms resolve only relative paths contained by the canonical package root,
+including after the package is relocated. Absolute paths, traversal, and
+symlink escape are rejected. Loading is local filesystem-only and never
+performs network access.
 
 `cleanup(store)` first verifies that no frame/scope or borrowed font-layout
 dependency makes unloading unsafe, then releases music, sound, shaders and

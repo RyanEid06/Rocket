@@ -1,0 +1,2 @@
+pub extern fn rlv_enable_test_mode(enabled: Bool) -> Int
+pub extern fn rlv_test_reset() -> Int

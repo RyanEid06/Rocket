@@ -209,12 +209,54 @@ void deterministicAssetStoreCycle() {
   }
 }
 
+void graphicsOnlyAssetStoreCycle() {
+  Fixture fixture;
+  const int64_t title = textBuffer("WP28 graphics-only assets");
+  const int64_t window = rlv_window_open(320, 180, title);
+  const int64_t root = textBuffer(fixture.root.generic_string());
+  const int64_t store = rlv_asset_store_create(window, 0, root);
+  const int64_t textureName = textBuffer("hero");
+  const int64_t soundName = textBuffer("click");
+  const int64_t musicName = textBuffer("theme");
+  const int64_t texturePath = textBuffer("assets/sprite.png");
+  const int64_t soundPath = textBuffer("assets/sound.wav");
+  const int64_t musicPath = textBuffer("assets/music.ogg");
+
+  expect(window > 0 && store > 0,
+         "open a graphics-only store without an audio device");
+  const int64_t texture =
+      rlv_asset_texture_load(store, textureName, texturePath);
+  expect(texture > 0 && rlv_asset_texture_borrow(texture) > 0,
+         "load graphics resources without audio");
+  expect(rlv_asset_sound_load(store, soundName, soundPath) ==
+             RLV_ERR_UNAVAILABLE &&
+             rlv_asset_music_load(store, musicName, musicPath) ==
+                 RLV_ERR_UNAVAILABLE,
+         "report unavailable audio loads from a graphics-only store");
+  expect(rlv_window_close(window) == RLV_ERR_RESOURCE_LIVE,
+         "graphics-only store still owns its window dependency");
+  expect(rlv_asset_store_cleanup(store) == RLV_OK &&
+             rlv_asset_store_cleanup(store) == RLV_OK,
+         "clean a graphics-only store idempotently");
+  expect(rlv_asset_texture_borrow(texture) == RLV_ERR_STALE_HANDLE,
+         "invalidate graphics-only references after cleanup");
+  expect(rlv_window_close(window) == RLV_OK,
+         "close the window after graphics-only cleanup");
+
+  for (int64_t id : {title, root, textureName, soundName, musicName,
+                     texturePath, soundPath, musicPath}) {
+    expect(rlv_buffer_destroy(id) == RLV_OK,
+           "destroy graphics-only test buffer");
+  }
+}
+
 }  // namespace
 
 int main() {
   expect(rlv_enable_test_mode(1) == RLV_OK, "enable test mode");
   expect(rlv_test_reset() == RLV_OK, "reset deterministic backend");
   deterministicAssetStoreCycle();
+  graphicsOnlyAssetStoreCycle();
   expect(rlv_buffer_live_count() == 0, "leave no path/name buffers live");
   if (failures == 0) {
     std::cout << "phase28 adapter tests passed successfully\n";

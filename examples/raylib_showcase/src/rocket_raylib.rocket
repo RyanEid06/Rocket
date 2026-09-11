@@ -339,43 +339,43 @@ fn valid_monitor(window: Window, monitor: Int) -> Bool:
 
 pub fn monitor_x(window: Window, monitor: Int) -> Result[Int, String]:
     if not valid_monitor(window, monitor):
-        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+        return Err("raylib: monitor not found")
     unsafe:
         return Ok(rocket_raylib_adapter.rlv_monitor_x(window.id, monitor))
 
 pub fn monitor_y(window: Window, monitor: Int) -> Result[Int, String]:
     if not valid_monitor(window, monitor):
-        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+        return Err("raylib: monitor not found")
     unsafe:
         return Ok(rocket_raylib_adapter.rlv_monitor_y(window.id, monitor))
 
 pub fn monitor_width(window: Window, monitor: Int) -> Result[Int, String]:
     if not valid_monitor(window, monitor):
-        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+        return Err("raylib: monitor not found")
     unsafe:
         return Ok(rocket_raylib_adapter.rlv_monitor_width(window.id, monitor))
 
 pub fn monitor_height(window: Window, monitor: Int) -> Result[Int, String]:
     if not valid_monitor(window, monitor):
-        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+        return Err("raylib: monitor not found")
     unsafe:
         return Ok(rocket_raylib_adapter.rlv_monitor_height(window.id, monitor))
 
 pub fn monitor_physical_width(window: Window, monitor: Int) -> Result[Int, String]:
     if not valid_monitor(window, monitor):
-        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+        return Err("raylib: monitor not found")
     unsafe:
         return Ok(rocket_raylib_adapter.rlv_monitor_physical_width(window.id, monitor))
 
 pub fn monitor_physical_height(window: Window, monitor: Int) -> Result[Int, String]:
     if not valid_monitor(window, monitor):
-        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+        return Err("raylib: monitor not found")
     unsafe:
         return Ok(rocket_raylib_adapter.rlv_monitor_physical_height(window.id, monitor))
 
 pub fn monitor_refresh_rate(window: Window, monitor: Int) -> Result[Int, String]:
     if not valid_monitor(window, monitor):
-        return Err(status_message(rocket_raylib_adapter.RLV_ERR_NOT_FOUND))
+        return Err("raylib: monitor not found")
     unsafe:
         return Ok(rocket_raylib_adapter.rlv_monitor_refresh_rate(window.id, monitor))
 
@@ -413,7 +413,10 @@ pub fn set_window_size(window: Window, width: Int, height: Int) -> Result[Bool, 
 
 pub fn set_window_monitor(window: Window, monitor: Int) -> Result[Bool, String]:
     unsafe:
-        return status_result(rocket_raylib_adapter.rlv_window_set_monitor(window.id, monitor))
+        let status = rocket_raylib_adapter.rlv_window_set_monitor(window.id, monitor)
+        if status == rocket_raylib_adapter.RLV_ERR_NOT_FOUND:
+            return Err("raylib: monitor not found")
+        return status_result(status)
 
 pub fn set_window_fullscreen(window: Window, enabled: Bool) -> Result[Bool, String]:
     unsafe:

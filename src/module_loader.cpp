@@ -68,6 +68,10 @@ std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) 
        {std::filesystem::path{"rocket"} / "motion.rocket", "std"}},
       {"rocket.graphics",
        {std::filesystem::path{"rocket"} / "graphics.rocket", "rocket"}},
+      {"rocket.raylib.native",
+       {std::filesystem::path{"rocket"} / "raylib" / "native.rocket", "rocket"}},
+      {"rocket.raylib.safe",
+       {std::filesystem::path{"rocket"} / "raylib" / "safe.rocket", "rocket"}},
   };
   const auto found = modules.find(name);
   if (found == modules.end()) return std::nullopt;

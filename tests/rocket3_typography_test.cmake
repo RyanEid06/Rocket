@@ -4,6 +4,7 @@ if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
 endif()
 
 set(package "${SOURCE_DIR}/examples/raylib_showcase")
+set(public_package "${SOURCE_DIR}/tests/fixtures/rocket3_typography_public_package")
 file(REMOVE_RECURSE "${WORK}")
 file(MAKE_DIRECTORY "${WORK}/artifacts")
 
@@ -26,12 +27,36 @@ if(NOT test_result EQUAL 0 OR
   message(FATAL_ERROR "WP22 typography Rocket test failed:\n${test_output}${test_error}")
 endif()
 
+execute_process(COMMAND "${ROCKETC}" check "${public_package}"
+  WORKING_DIRECTORY "${SOURCE_DIR}"
+  RESULT_VARIABLE public_check_result OUTPUT_VARIABLE public_check_output ERROR_VARIABLE public_check_error)
+if(NOT public_check_result EQUAL 0)
+  message(FATAL_ERROR "WP22 canonical typography package check failed:\n${public_check_output}${public_check_error}")
+endif()
+
+execute_process(
+  COMMAND "${CMAKE_COMMAND}" -E env
+    "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_ROOT}"
+    "ROCKET_ARTIFACT_ROOT=${WORK}/public-artifacts"
+    "${ROCKETC}" test "${public_package}"
+  WORKING_DIRECTORY "${SOURCE_DIR}"
+  RESULT_VARIABLE public_test_result OUTPUT_VARIABLE public_test_output ERROR_VARIABLE public_test_error)
+if(NOT public_test_result EQUAL 0 OR
+   NOT "${public_test_output}${public_test_error}" MATCHES "1 passed; 0 failed")
+  message(FATAL_ERROR "WP22 canonical typography test failed:\n${public_test_output}${public_test_error}")
+endif()
+
 foreach(source IN ITEMS
     "${SOURCE_DIR}/stdlib/rocket/graphics.rocket"
+    "${SOURCE_DIR}/stdlib/rocket/raylib/native.rocket"
+    "${SOURCE_DIR}/stdlib/rocket/raylib/safe.rocket"
     "${package}/src/rocket_raylib.rocket"
     "${package}/src/rocket_raylib_adapter.rocket"
     "${package}/src/rocket_raylib_testing.rocket"
-    "${package}/tests/typography_test.rocket")
+    "${package}/tests/typography_test.rocket"
+    "${public_package}/src/main.rocket"
+    "${public_package}/testing.rocket"
+    "${public_package}/tests/public_api_test.rocket")
   execute_process(COMMAND "${ROCKETC}" fmt "${source}" --check
     RESULT_VARIABLE format_result OUTPUT_VARIABLE format_output ERROR_VARIABLE format_error)
   if(NOT format_result EQUAL 0)

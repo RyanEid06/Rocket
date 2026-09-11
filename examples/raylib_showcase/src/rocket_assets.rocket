@@ -91,6 +91,22 @@ pub fn open(window: rocket_raylib.Window, audio: rocket_raylib.AudioDevice, pack
                         return Err(status_message(store_id))
                     return Ok(AssetStore(store_id))
 
+pub fn open_graphics(window: rocket_raylib.Window, package_root: String = ".") -> Result[AssetStore, String]:
+    match encode_text(package_root):
+        case Err(message):
+            return Err(message)
+        case Ok(root_buffer):
+            var store_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
+            unsafe:
+                store_id = rocket_raylib_adapter.rlv_asset_store_create(window.id, 0, root_buffer)
+            match release_text(root_buffer):
+                case Err(message):
+                    return Err(message)
+                case Ok(released):
+                    if store_id <= 0:
+                        return Err(status_message(store_id))
+                    return Ok(AssetStore(store_id))
+
 pub fn cleanup(store: AssetStore) -> Result[Bool, String]:
     unsafe:
         let status = rocket_raylib_adapter.rlv_asset_store_cleanup(store.id)

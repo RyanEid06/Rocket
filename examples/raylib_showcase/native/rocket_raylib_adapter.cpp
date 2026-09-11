@@ -518,6 +518,9 @@ double measureTextLine(const FontRecord& font, const std::string& text,
 }
 
 double selectedFontBaseline(const FontRecord& font, double size) {
+  // raylib retains glyph draw offsets but not the source font's exact
+  // ascent/baseline metric. Prefer a selected-font cap-height proxy, then
+  // fall back to the deterministic 0.8em draw-origin offset.
   if (state.testMode) return size * 0.8;
   if (font.value.baseSize <= 0 || !font.value.recs || !font.value.glyphs) {
     return size * 0.8;
@@ -2805,7 +2808,7 @@ extern "C" int64_t rlv_music_live_count(void) {
 
 extern "C" int64_t rlv_asset_store_create(
     int64_t windowId, int64_t audioId, int64_t packageRootBufferId) {
-  if (!validWindow(windowId) || !validAudio(audioId)) {
+  if (!validWindow(windowId) || (audioId != 0 && !validAudio(audioId))) {
     return RLV_ERR_STALE_HANDLE;
   }
   const std::string* rootText = buffer(packageRootBufferId);
@@ -2924,6 +2927,7 @@ extern "C" int64_t rlv_asset_sound_load(
   if (!nameValue || nameValue->empty() || !pathValue) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
+  if (store->second.audioId == 0) return RLV_ERR_UNAVAILABLE;
   const std::string name = *nameValue;
   const std::string relativePath = *pathValue;
   if (store->second.assets.find(name) != store->second.assets.end()) {
@@ -2959,6 +2963,7 @@ extern "C" int64_t rlv_asset_music_load(
   if (!nameValue || nameValue->empty() || !pathValue) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
+  if (store->second.audioId == 0) return RLV_ERR_UNAVAILABLE;
   const std::string name = *nameValue;
   const std::string relativePath = *pathValue;
   if (store->second.assets.find(name) != store->second.assets.end()) {

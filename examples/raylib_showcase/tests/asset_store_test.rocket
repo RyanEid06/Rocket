@@ -15,6 +15,33 @@ fn succeeded(result: Result[Bool, String]) -> Bool:
         case Err(message):
             return false
 
+fn graphics_only_cycle() -> Int:
+    match rocket_raylib.open_window(320, 180, "graphics-only asset store"):
+        case Err(message):
+            return 40
+        case Ok(window):
+            match rocket_assets.open_graphics(window, package_root()):
+                case Err(message):
+                    return 41
+                case Ok(store):
+                    match rocket_assets.load_texture(store, "hero", "assets/orbit.ppm"):
+                        case Err(message):
+                            return 42
+                        case Ok(reference):
+                            if reference.id <= 0:
+                                return 43
+                    match rocket_assets.load_sound(store, "click", "assets/about.txt"):
+                        case Ok(reference):
+                            return 44
+                        case Err(message):
+                            if message != "raylib: device or backend unavailable":
+                                return 45
+                    if not succeeded(rocket_assets.cleanup(store)) or not succeeded(rocket_assets.cleanup(store)):
+                        return 46
+            if not succeeded(rocket_raylib.close_window(window)):
+                return 47
+    return 0
+
 fn main() -> Int:
     if not rocket_raylib_testing.enable() or not rocket_raylib_testing.reset():
         return 1
@@ -132,4 +159,4 @@ fn main() -> Int:
                         return 36
             if not succeeded(rocket_raylib.close_window(window)):
                 return 37
-    return 0
+    return graphics_only_cycle()
