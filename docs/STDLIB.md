@@ -559,9 +559,9 @@ make focus and modal ownership explicit. `Response` records hover/active/click/
 focus/disabled/modal and activation facts for the frame that produced it;
 `response_is_current` and `response_is_current_context` reject stale responses.
 Keyboard helpers expose activation, cancel, focus-next, and directional snapshots
-without rereading native input during widget evaluation. Themes and concrete
-controls remain later `rocket.ui` layers; layout is provided by
-`rocket.ui.layout`.
+without rereading native input during widget evaluation. Themes and styles are
+provided by `rocket.ui.theme` and `rocket.ui.styles`; concrete controls remain a
+later `rocket.ui` layer. Layout is provided by `rocket.ui.layout`.
 
 ## `rocket.ui.layout`
 
@@ -599,6 +599,40 @@ well-defined: empty Row/Column/Stack return an empty rectangle array, and Grid
 may contain fewer items than cells. The API therefore makes ordinary
 underspecified child sizing unrepresentable while still diagnosing malformed raw
 policy values deterministically.
+
+## `rocket.ui.theme`
+
+`rocket.ui.theme` centralizes immutable semantic tokens without owning renderer,
+widget, or native state. `ColorTokens` covers background, surface, raised
+surface, table treatment, action states, primary/muted text, success, warning,
+error, border, and focus colors. `SpacingTokens`, `RadiusTokens`,
+`TypographyTokens`, and `MotionTokens` provide the corresponding numeric scales;
+`Theme` groups all five token families.
+
+`color_tokens` creates an explicit semantic palette. `spacing_tokens`,
+`radius_tokens`, `typography_tokens`, and `motion_tokens` expose source-stable
+named parameters with practical defaults. `theme` groups explicit token sets and
+`dark_theme` supplies the bundled neutral dark/table palette. `theme_is_valid`
+rejects non-finite, negative, out-of-range color, and non-positive typography
+values even when callers construct public structs directly.
+
+## `rocket.ui.styles`
+
+`rocket.ui.styles` provides value-owned `TextStyle`, `BorderStyle`,
+`ShadowStyle`, `ImageStyle`, `PanelStyle`, and `ButtonStyle` data. `StyleSet`
+groups those objects for a single visual state and `StyleStates` stores normal,
+hovered, pressed, disabled, and focused sets. The constructors expose explicit
+data plus defaults for optional width, radius, blur, opacity, and padding; the
+validation predicates reject invalid colors, non-finite or negative dimensions,
+non-positive text sizes, and opacity outside `[0, 1]`.
+
+`default_styles(theme)` maps the selected semantic tokens into a complete state
+set. `control_state` describes current interaction flags and `resolve` selects a
+style deterministically with priority `disabled > pressed > hovered > focused >
+normal`. This priority prevents a disabled control from inheriting hover or
+press visuals and keeps drawing behavior out of the style layer. Controls,
+containers, renderer conversion, retained caches, and application inheritance
+remain outside these modules.
 
 ## Typed asset-store reference package
 

@@ -78,6 +78,10 @@ std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) 
        {std::filesystem::path{"rocket"} / "ui.rocket", "rocket"}},
       {"rocket.ui.layout",
        {std::filesystem::path{"rocket"} / "ui" / "layout.rocket", "rocket"}},
+      {"rocket.ui.theme",
+       {std::filesystem::path{"rocket"} / "ui" / "theme.rocket", "rocket"}},
+      {"rocket.ui.styles",
+       {std::filesystem::path{"rocket"} / "ui" / "styles.rocket", "rocket"}},
       {"rocket.raylib.safe",
        {std::filesystem::path{"rocket"} / "raylib" / "safe.rocket", "rocket"}},
   };

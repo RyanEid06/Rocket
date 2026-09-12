@@ -223,8 +223,8 @@ response_is_current and response_is_current_context reject stale responses.
 The activation_pressed, cancel_pressed, focus_next_pressed, and
 navigation_left_pressed/navigation_right_pressed/navigation_up_pressed/
 navigation_down_pressed helpers expose the frame's keyboard snapshot; active_is,
-focused_is, and modal_is query committed context state.
-Themes and concrete controls remain Wave C work.
+focused_is, and modal_is query committed context state. Concrete controls remain
+later Wave C work.
 
 ### rocket.ui.layout
 
@@ -242,6 +242,31 @@ The alignment constructors are horizontal_start, horizontal_center,
 horizontal_end, vertical_start, vertical_center, and vertical_end. The anchor
 constructors are top_left, top_center, top_right, center_left, center,
 center_right, bottom_left, bottom_center, and bottom_right.
+
+### rocket.ui.theme
+
+ColorTokens, SpacingTokens, RadiusTokens, TypographyTokens, MotionTokens, and
+Theme are public value types. color_tokens builds an explicit semantic palette;
+spacing_tokens, radius_tokens, typography_tokens, and motion_tokens provide
+named/default token scales; theme groups them; dark_theme provides the bundled
+dark/table palette; and theme_is_valid checks public values constructed directly.
+
+Semantic colors cover background, surface, raised surface, table treatment,
+action/hover/press, primary/muted text, success/warning/error, border, and focus.
+Numeric validation rejects non-finite or negative values, typography sizes must
+be positive, and color channels remain in [0, 1].
+
+### rocket.ui.styles
+
+ControlState, TextStyle, BorderStyle, ShadowStyle, ImageStyle, PanelStyle,
+ButtonStyle, StyleSet, and StyleStates are public value types. Constructor
+functions expose source-stable names and defaults; default_styles maps a Theme to
+all five control states. The validation predicates cover colors, dimensions,
+text sizes, offsets, and opacity.
+
+resolve(states, state) uses the fixed priority disabled, pressed, hovered,
+focused, then normal. These modules contain no controls, drawing, native
+resources, inheritance, containers, or retained caches.
 
 ### rocket.raylib.safe
 

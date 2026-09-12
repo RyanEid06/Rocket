@@ -534,7 +534,8 @@ Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files, except for explicitly bundled source modules
 such as `std.testing`. The public `rocket.motion`, `rocket.graphics`,
 `rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`,
-`rocket.ui`, `rocket.ui.layout`, and `rocket.raylib.safe` modules are likewise
+`rocket.ui`, `rocket.ui.layout`, `rocket.ui.theme`, `rocket.ui.styles`, and
+`rocket.raylib.safe` modules are likewise
 resolved from bundled
 ordinary Rocket source under `stdlib/rocket`; they are not compiler intrinsics. Their function
 signatures are statically checked and lower to typed MIR calls.
@@ -555,7 +556,14 @@ Grid, Stack, and Anchor return `rocket.graphics.Rect` values with explicit
 fixed/fill/content/percentage sizing, Insets/SafeArea spacing, horizontal and
 vertical alignment, all nine standard anchors, and recoverable deterministic
 layout diagnostics. It owns no renderer or native state. `rocket.ui` still does
-not own themes or concrete controls. The accepted typed asset-store reference
+not own concrete controls. `rocket.ui.theme` defines value-owned semantic color,
+spacing, radius, typography-size, and motion-duration tokens. Its public theme
+constructors and validation keep renderer and application policy outside the
+module. `rocket.ui.styles` defines value-owned text, border, shadow, image,
+panel, and button styles. Its deterministic state resolver selects disabled,
+pressed, hovered, focused, then normal style data in that priority order. The
+style layer performs no drawing and owns no native resources or retained widget
+state. The accepted typed asset-store reference
 implementation is the ordinary package module `src.rocket_assets` under
 `examples/raylib_showcase/src/`; the planned `rocket.assets` namespace is not a
 standard-library module in this checkout. The stable foundational modules are

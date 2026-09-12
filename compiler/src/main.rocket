@@ -3047,6 +3047,8 @@ fn source_parent(path_value: String) -> String:
 fn is_bundled_source_module(name: String) -> Bool:
     if name == "rocket.ui.layout":
         return true
+    if name == "rocket.ui.theme" or name == "rocket.ui.styles":
+        return true
     return name == "std.testing" or name == "rocket.motion" or name == "rocket.graphics" or name == "rocket.graphics.shapes" or name == "rocket.graphics.input" or name == "rocket.graphics.canvas" or name == "rocket.ui" or name == "rocket.raylib.safe"
 
 fn standard_module_path(name: String) -> String:
@@ -3067,6 +3069,10 @@ fn standard_module_path(name: String) -> String:
         relative = "stdlib/rocket/ui.rocket"
     if name == "rocket.ui.layout":
         relative = "stdlib/rocket/ui/layout.rocket"
+    if name == "rocket.ui.theme":
+        relative = "stdlib/rocket/ui/theme.rocket"
+    if name == "rocket.ui.styles":
+        relative = "stdlib/rocket/ui/styles.rocket"
     if name == "rocket.raylib.safe":
         relative = "stdlib/rocket/raylib/safe.rocket"
     let working = process.working_directory()

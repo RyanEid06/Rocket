@@ -1,0 +1,106 @@
+# Public Rocket 3 semantic theme tokens. Themes are immutable value data and
+# own no renderer, native resource, widget state, or application policy.
+
+import rocket.graphics
+
+pub struct ColorTokens:
+    background: graphics.Color
+    surface: graphics.Color
+    raised_surface: graphics.Color
+    table: graphics.Color
+    action: graphics.Color
+    action_hovered: graphics.Color
+    action_pressed: graphics.Color
+    text: graphics.Color
+    muted_text: graphics.Color
+    success: graphics.Color
+    warning: graphics.Color
+    error: graphics.Color
+    border: graphics.Color
+    focus: graphics.Color
+
+pub struct SpacingTokens:
+    extra_small: Float
+    small: Float
+    medium: Float
+    large: Float
+    extra_large: Float
+
+pub struct RadiusTokens:
+    small: Float
+    medium: Float
+    large: Float
+    pill: Float
+
+pub struct TypographyTokens:
+    caption: Float
+    body: Float
+    heading: Float
+    title: Float
+
+pub struct MotionTokens:
+    fast: Float
+    normal: Float
+    slow: Float
+
+pub struct Theme:
+    colors: ColorTokens
+    spacing: SpacingTokens
+    radius: RadiusTokens
+    typography: TypographyTokens
+    motion: MotionTokens
+
+pub fn color_tokens(background: graphics.Color, surface: graphics.Color, raised_surface: graphics.Color, table: graphics.Color, action: graphics.Color, action_hovered: graphics.Color, action_pressed: graphics.Color, text: graphics.Color, muted_text: graphics.Color, success: graphics.Color, warning: graphics.Color, error: graphics.Color, border: graphics.Color, focus: graphics.Color) -> ColorTokens:
+    return ColorTokens(background, surface, raised_surface, table, action, action_hovered, action_pressed, text, muted_text, success, warning, error, border, focus)
+
+pub fn spacing_tokens(extra_small: Float = 4.0, small: Float = 8.0, medium: Float = 16.0, large: Float = 24.0, extra_large: Float = 32.0) -> SpacingTokens:
+    return SpacingTokens(extra_small, small, medium, large, extra_large)
+
+pub fn radius_tokens(small: Float = 4.0, medium: Float = 8.0, large: Float = 12.0, pill: Float = 999.0) -> RadiusTokens:
+    return RadiusTokens(small, medium, large, pill)
+
+pub fn typography_tokens(caption: Float = 12.0, body: Float = 16.0, heading: Float = 24.0, title: Float = 32.0) -> TypographyTokens:
+    return TypographyTokens(caption, body, heading, title)
+
+pub fn motion_tokens(fast: Float = 0.08, normal: Float = 0.16, slow: Float = 0.28) -> MotionTokens:
+    return MotionTokens(fast, normal, slow)
+
+pub fn theme(colors: ColorTokens, spacing: SpacingTokens, radius: RadiusTokens, typography: TypographyTokens, motion: MotionTokens) -> Theme:
+    return Theme(colors, spacing, radius, typography, motion)
+
+pub fn dark_theme() -> Theme:
+    let colors = color_tokens(graphics.color_from_rgba(0.035, 0.045, 0.060), graphics.color_from_rgba(0.070, 0.085, 0.110), graphics.color_from_rgba(0.100, 0.120, 0.150), graphics.color_from_rgba(0.035, 0.240, 0.145), graphics.color_from_rgba(0.190, 0.470, 0.960), graphics.color_from_rgba(0.260, 0.550, 1.000), graphics.color_from_rgba(0.130, 0.380, 0.850), graphics.color_from_rgba(0.950, 0.965, 0.985), graphics.color_from_rgba(0.650, 0.690, 0.750), graphics.color_from_rgba(0.180, 0.760, 0.430), graphics.color_from_rgba(0.960, 0.680, 0.160), graphics.color_from_rgba(0.920, 0.260, 0.300), graphics.color_from_rgba(0.180, 0.210, 0.260), graphics.color_from_rgba(0.390, 0.650, 1.000))
+    return theme(colors, spacing_tokens(), radius_tokens(), typography_tokens(), motion_tokens())
+
+pub fn theme_is_valid(value: Theme) -> Bool:
+    return color_tokens_are_valid(value.colors) and spacing_tokens_are_valid(value.spacing) and radius_tokens_are_valid(value.radius) and typography_tokens_are_valid(value.typography) and motion_tokens_are_valid(value.motion)
+
+fn color_tokens_are_valid(value: ColorTokens) -> Bool:
+    return color_is_valid(value.background) and color_is_valid(value.surface) and color_is_valid(value.raised_surface) and color_is_valid(value.table) and color_is_valid(value.action) and color_is_valid(value.action_hovered) and color_is_valid(value.action_pressed) and color_is_valid(value.text) and color_is_valid(value.muted_text) and color_is_valid(value.success) and color_is_valid(value.warning) and color_is_valid(value.error) and color_is_valid(value.border) and color_is_valid(value.focus)
+
+fn spacing_tokens_are_valid(value: SpacingTokens) -> Bool:
+    return nonnegative(value.extra_small) and nonnegative(value.small) and nonnegative(value.medium) and nonnegative(value.large) and nonnegative(value.extra_large)
+
+fn radius_tokens_are_valid(value: RadiusTokens) -> Bool:
+    return nonnegative(value.small) and nonnegative(value.medium) and nonnegative(value.large) and nonnegative(value.pill)
+
+fn typography_tokens_are_valid(value: TypographyTokens) -> Bool:
+    return positive(value.caption) and positive(value.body) and positive(value.heading) and positive(value.title)
+
+fn motion_tokens_are_valid(value: MotionTokens) -> Bool:
+    return nonnegative(value.fast) and nonnegative(value.normal) and nonnegative(value.slow)
+
+fn color_is_valid(value: graphics.Color) -> Bool:
+    return unit(value.red) and unit(value.green) and unit(value.blue) and unit(value.alpha)
+
+fn unit(value: Float) -> Bool:
+    return finite(value) and value >= 0.0 and value <= 1.0
+
+fn positive(value: Float) -> Bool:
+    return finite(value) and value > 0.0
+
+fn nonnegative(value: Float) -> Bool:
+    return finite(value) and value >= 0.0
+
+fn finite(value: Float) -> Bool:
+    return value - value == 0.0

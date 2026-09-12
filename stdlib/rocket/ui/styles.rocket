@@ -1,0 +1,151 @@
+# Public Rocket 3 style objects and deterministic control-state resolution.
+# Controls consume these values but are implemented by the following packet.
+
+import rocket.graphics
+import rocket.ui.theme
+
+pub struct ControlState:
+    hovered: Bool
+    pressed: Bool
+    disabled: Bool
+    focused: Bool
+
+pub struct TextStyle:
+    color: graphics.Color
+    size: Float
+
+pub struct BorderStyle:
+    color: graphics.Color
+    width: Float
+    radius: Float
+
+pub struct ShadowStyle:
+    color: graphics.Color
+    offset: graphics.Vec2
+    blur: Float
+
+pub struct ImageStyle:
+    tint: graphics.Color
+    opacity: Float
+
+pub struct PanelStyle:
+    background: graphics.Color
+    border: BorderStyle
+    shadow: ShadowStyle
+    padding: Float
+
+pub struct ButtonStyle:
+    background: graphics.Color
+    text: TextStyle
+    border: BorderStyle
+    shadow: ShadowStyle
+    padding: Float
+
+pub struct StyleSet:
+    text: TextStyle
+    panel: PanelStyle
+    button: ButtonStyle
+    image: ImageStyle
+
+pub struct StyleStates:
+    normal: StyleSet
+    hovered: StyleSet
+    pressed: StyleSet
+    disabled: StyleSet
+    focused: StyleSet
+
+pub fn control_state(hovered: Bool = false, pressed: Bool = false, disabled: Bool = false, focused: Bool = false) -> ControlState:
+    return ControlState(hovered, pressed, disabled, focused)
+
+pub fn text_style(color: graphics.Color, size: Float) -> TextStyle:
+    return TextStyle(color, size)
+
+pub fn border_style(color: graphics.Color, width: Float = 0.0, radius: Float = 0.0) -> BorderStyle:
+    return BorderStyle(color, width, radius)
+
+pub fn shadow_style(color: graphics.Color, offset: graphics.Vec2, blur: Float = 0.0) -> ShadowStyle:
+    return ShadowStyle(color, offset, blur)
+
+pub fn image_style(tint: graphics.Color, opacity: Float = 1.0) -> ImageStyle:
+    return ImageStyle(tint, opacity)
+
+pub fn panel_style(background: graphics.Color, border: BorderStyle, shadow: ShadowStyle, padding: Float = 0.0) -> PanelStyle:
+    return PanelStyle(background, border, shadow, padding)
+
+pub fn button_style(background: graphics.Color, text: TextStyle, border: BorderStyle, shadow: ShadowStyle, padding: Float = 0.0) -> ButtonStyle:
+    return ButtonStyle(background, text, border, shadow, padding)
+
+pub fn style_set(text: TextStyle, panel: PanelStyle, button: ButtonStyle, image: ImageStyle) -> StyleSet:
+    return StyleSet(text, panel, button, image)
+
+pub fn style_states(normal: StyleSet, hovered: StyleSet, pressed: StyleSet, disabled: StyleSet, focused: StyleSet) -> StyleStates:
+    return StyleStates(normal, hovered, pressed, disabled, focused)
+
+pub fn default_styles(value: theme.Theme) -> StyleStates:
+    let no_shadow = shadow_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.0), graphics.vec2(0.0, 0.0))
+    let panel_border = border_style(value.colors.border, 1.0, value.radius.medium)
+    let normal_text = text_style(value.colors.text, value.typography.body)
+    let muted_text = text_style(value.colors.muted_text, value.typography.body)
+    let normal_panel = panel_style(value.colors.surface, panel_border, no_shadow, value.spacing.medium)
+    let raised_panel = panel_style(value.colors.raised_surface, panel_border, no_shadow, value.spacing.medium)
+    let normal_button = button_style(value.colors.action, normal_text, border_style(value.colors.border, 1.0, value.radius.small), no_shadow, value.spacing.small)
+    let hovered_button = button_style(value.colors.action_hovered, normal_text, normal_button.border, no_shadow, normal_button.padding)
+    let pressed_button = button_style(value.colors.action_pressed, normal_text, normal_button.border, no_shadow, normal_button.padding)
+    let disabled_button = button_style(value.colors.surface, muted_text, normal_button.border, no_shadow, normal_button.padding)
+    let focused_button = button_style(value.colors.action, normal_text, border_style(value.colors.focus, 2.0, value.radius.small), no_shadow, normal_button.padding)
+    let normal = style_set(normal_text, normal_panel, normal_button, image_style(graphics.color_from_rgba(1.0, 1.0, 1.0), 1.0))
+    let hovered = style_set(normal_text, raised_panel, hovered_button, normal.image)
+    let pressed = style_set(normal_text, raised_panel, pressed_button, normal.image)
+    let disabled = style_set(muted_text, normal_panel, disabled_button, image_style(graphics.color_from_rgba(1.0, 1.0, 1.0), 0.5))
+    let focused = style_set(normal_text, raised_panel, focused_button, normal.image)
+    return style_states(normal, hovered, pressed, disabled, focused)
+
+pub fn resolve(states: StyleStates, state: ControlState) -> StyleSet:
+    if state.disabled:
+        return states.disabled
+    if state.pressed:
+        return states.pressed
+    if state.hovered:
+        return states.hovered
+    if state.focused:
+        return states.focused
+    return states.normal
+
+pub fn text_style_is_valid(value: TextStyle) -> Bool:
+    return color_is_valid(value.color) and positive(value.size)
+
+pub fn border_style_is_valid(value: BorderStyle) -> Bool:
+    return color_is_valid(value.color) and nonnegative(value.width) and nonnegative(value.radius)
+
+pub fn shadow_style_is_valid(value: ShadowStyle) -> Bool:
+    return color_is_valid(value.color) and graphics.vec2_is_finite(value.offset) and nonnegative(value.blur)
+
+pub fn image_style_is_valid(value: ImageStyle) -> Bool:
+    return color_is_valid(value.tint) and unit(value.opacity)
+
+pub fn panel_style_is_valid(value: PanelStyle) -> Bool:
+    return color_is_valid(value.background) and border_style_is_valid(value.border) and shadow_style_is_valid(value.shadow) and nonnegative(value.padding)
+
+pub fn button_style_is_valid(value: ButtonStyle) -> Bool:
+    return color_is_valid(value.background) and text_style_is_valid(value.text) and border_style_is_valid(value.border) and shadow_style_is_valid(value.shadow) and nonnegative(value.padding)
+
+pub fn style_set_is_valid(value: StyleSet) -> Bool:
+    return text_style_is_valid(value.text) and panel_style_is_valid(value.panel) and button_style_is_valid(value.button) and image_style_is_valid(value.image)
+
+pub fn style_states_are_valid(value: StyleStates) -> Bool:
+    return style_set_is_valid(value.normal) and style_set_is_valid(value.hovered) and style_set_is_valid(value.pressed) and style_set_is_valid(value.disabled) and style_set_is_valid(value.focused)
+
+fn color_is_valid(value: graphics.Color) -> Bool:
+    return unit(value.red) and unit(value.green) and unit(value.blue) and unit(value.alpha)
+
+fn unit(value: Float) -> Bool:
+    return finite(value) and value >= 0.0 and value <= 1.0
+
+fn positive(value: Float) -> Bool:
+    return finite(value) and value > 0.0
+
+fn nonnegative(value: Float) -> Bool:
+    return finite(value) and value >= 0.0
+
+fn finite(value: Float) -> Bool:
+    return value - value == 0.0

@@ -1,0 +1,14 @@
+import rocket.ui.styles
+import rocket.ui.theme
+
+pub fn sample_theme() -> theme.Theme:
+    return theme.dark_theme()
+
+pub fn sample_styles(value: theme.Theme) -> styles.StyleStates:
+    return styles.default_styles(value)
+
+pub fn sample_resolve(values: styles.StyleStates, state: styles.ControlState) -> styles.StyleSet:
+    return styles.resolve(values, state)
+
+fn main() -> Int:
+    return 0

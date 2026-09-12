@@ -1,0 +1,82 @@
+import rocket.graphics
+import rocket.ui.styles
+import rocket.ui.theme
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn same_color(left: graphics.Color, right: graphics.Color) -> Bool:
+    return close(left.red, right.red) and close(left.green, right.green) and close(left.blue, right.blue) and close(left.alpha, right.alpha)
+
+fn main() -> Int:
+    let palette = theme.dark_theme()
+    if not theme.theme_is_valid(palette):
+        return 1
+    if not close(palette.spacing.extra_small, 4.0) or not close(palette.radius.medium, 8.0):
+        return 2
+    if not close(palette.typography.body, 16.0) or not close(palette.motion.normal, 0.16):
+        return 3
+    let invalid_spacing = theme.spacing_tokens(extra_small: -1.0)
+    let invalid_theme = theme.theme(palette.colors, invalid_spacing, palette.radius, palette.typography, palette.motion)
+    if theme.theme_is_valid(invalid_theme):
+        return 4
+    let invalid_colors = theme.color_tokens(graphics.Color(2.0, 0.0, 0.0, 1.0), palette.colors.surface, palette.colors.raised_surface, palette.colors.table, palette.colors.action, palette.colors.action_hovered, palette.colors.action_pressed, palette.colors.text, palette.colors.muted_text, palette.colors.success, palette.colors.warning, palette.colors.error, palette.colors.border, palette.colors.focus)
+    if theme.theme_is_valid(theme.theme(invalid_colors, palette.spacing, palette.radius, palette.typography, palette.motion)):
+        return 5
+
+    let states = styles.default_styles(palette)
+    if not styles.style_states_are_valid(states):
+        return 6
+    let normal = styles.resolve(states, styles.control_state())
+    if not same_color(normal.button.background, palette.colors.action):
+        return 7
+    let focused = styles.resolve(states, styles.control_state(focused: true))
+    if not same_color(focused.button.border.color, palette.colors.focus):
+        return 8
+    let hovered = styles.resolve(states, styles.control_state(hovered: true, focused: true))
+    if not same_color(hovered.button.background, palette.colors.action_hovered):
+        return 9
+    let pressed = styles.resolve(states, styles.control_state(hovered: true, pressed: true, focused: true))
+    if not same_color(pressed.button.background, palette.colors.action_pressed):
+        return 10
+    let disabled = styles.resolve(states, styles.control_state(hovered: true, pressed: true, disabled: true, focused: true))
+    if not same_color(disabled.button.background, palette.colors.surface):
+        return 11
+
+    let text = styles.text_style(palette.colors.text, palette.typography.body)
+    let border = styles.border_style(palette.colors.border, 1.0, palette.radius.small)
+    let shadow = styles.shadow_style(palette.colors.background, graphics.vec2(0.0, 2.0), 4.0)
+    let image = styles.image_style(palette.colors.text)
+    let panel = styles.panel_style(palette.colors.surface, border, shadow, palette.spacing.medium)
+    let button = styles.button_style(palette.colors.action, text, border, shadow, palette.spacing.small)
+    let set = styles.style_set(text, panel, button, image)
+    if not styles.style_set_is_valid(set):
+        return 12
+    if styles.text_style_is_valid(styles.text_style(palette.colors.text, 0.0)):
+        return 13
+    if styles.border_style_is_valid(styles.border_style(palette.colors.border, -1.0)):
+        return 14
+    if styles.shadow_style_is_valid(styles.shadow_style(palette.colors.background, graphics.vec2(0.0, 0.0), -1.0)):
+        return 15
+    if styles.image_style_is_valid(styles.image_style(palette.colors.text, 2.0)):
+        return 16
+    if styles.panel_style_is_valid(styles.panel_style(palette.colors.surface, border, shadow, -1.0)):
+        return 17
+    if styles.button_style_is_valid(styles.button_style(palette.colors.action, text, border, shadow, -1.0)):
+        return 18
+    let large = large_value()
+    let non_finite = large * large
+    if styles.text_style_is_valid(styles.text_style(palette.colors.text, non_finite)):
+        return 19
+    return 0
+
+fn large_value() -> Float:
+    var value = 1.0
+    var index = 0
+    while index < 308:
+        value = value * 10.0
+        index = index + 1
+    return value

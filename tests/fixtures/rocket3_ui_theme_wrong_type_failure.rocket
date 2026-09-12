@@ -1,0 +1,6 @@
+import rocket.graphics
+import rocket.ui.styles
+
+fn main() -> Int:
+    let invalid = styles.text_style(graphics.color_from_rgb(255.0, 255.0, 255.0), graphics.vec2(16.0, 16.0))
+    return 0

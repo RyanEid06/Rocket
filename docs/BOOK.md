@@ -65,6 +65,8 @@ render-target, resize, and screenshot helpers through the safe
 `rocket.raylib.safe` boundary. `rocket.ui` provides bounded immediate-mode
 frames, stable widget IDs, focus, modal, disabled, and response state;
 `rocket.ui.layout` provides pure Row, Column, Grid, Stack, and Anchor placement.
+`rocket.ui.theme` centralizes semantic color, spacing, radius, typography, and
+motion tokens; `rocket.ui.styles` resolves validated style objects by state.
 `rocket.motion` supplies value-owned easing, tweens, timelines, and reduced
 motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.
