@@ -535,7 +535,7 @@ modules rather than package files, except for explicitly bundled source modules
 such as `std.testing`. The public `rocket.motion`, `rocket.graphics`,
 `rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`,
 `rocket.ui`, `rocket.ui.layout`, `rocket.ui.theme`, `rocket.ui.styles`,
-`rocket.ui.controls`, and `rocket.raylib.safe` modules are likewise
+`rocket.ui.controls`, `rocket.ui.containers`, and `rocket.raylib.safe` modules are likewise
 resolved from bundled
 ordinary Rocket source under `stdlib/rocket`; they are not compiler intrinsics. Their function
 signatures are statically checked and lower to typed MIR calls.
@@ -569,6 +569,14 @@ registration, half-open hit testing, focus, disabled state, modal capture,
 physical-to-logical pointer mapping, and pointer/keyboard activation to
 `rocket.ui.interact`; they select the WP25 button style from the returned
 response state. An activation is reported only by the response from that frame.
+`rocket.ui.containers` defines validated, value-owned Panel, Overlay, Dialog,
+Tooltip, and Toast descriptions. A panel derives its content rectangle from
+border width plus padding and can opt into logical child clipping. Overlay stack
+orders are nonnegative and unique; the largest order is visually topmost, while
+the modal overlay with the largest order owns input and focus capture. Modal
+entry/exit delegates to `rocket.ui`, and panel clipping delegates to
+`rocket.graphics.canvas`, preserving nested safe-scissor intersection and LIFO
+scope restoration without exposing native state.
 The accepted typed asset-store reference
 implementation is the ordinary package module `src.rocket_assets` under
 `examples/raylib_showcase/src/`; the planned `rocket.assets` namespace is not a

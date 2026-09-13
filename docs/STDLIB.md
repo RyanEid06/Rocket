@@ -654,6 +654,29 @@ hovered, focused, then normal. Icon buttons require a nonempty icon name and
 accessibility label. The module owns no retained state, renderer, native
 resource, container, dialog, overlay, tooltip, or toast behavior.
 
+## `rocket.ui.containers`
+
+`rocket.ui.containers` provides validated, value-owned `Panel`, `Overlay`,
+`Dialog`, `Tooltip`, and `Toast` descriptions. `panel(bounds, style,
+clip_children = false)` retains the complete `PanelStyle`—background, border
+color/thickness/radius, shadow, and padding—and derives `content_bounds` by
+insetting the panel by border thickness plus padding. Dialog panels are clipped
+by default and must be contained by their modal overlay.
+
+Every overlay has a nonnegative, caller-owned `stack_order`; overlay IDs and
+orders in a stack must be unique. `top_overlay` selects the largest order for rendering and
+`capturing_modal` selects the modal overlay with the largest order for input and
+focus capture. `activate_modal`, `enter_modal`, `exit_modal`, and `clear_modal`
+delegate lifecycle and blocking behavior to `rocket.ui`, so controls outside the
+active scope remain blocked and focus can be assigned only inside it. The stack
+is immutable input data and introduces no retained container cache.
+
+`begin_panel_clip(frame, mapping, panel)` clips to logical `content_bounds`
+through `rocket.graphics.canvas`; `end_panel_clip` closes the returned safe
+scissor token. Nested panels therefore use the backend's deterministic
+intersection, strict LIFO restoration, and frame-end leak detection without
+exposing native handles or scope state.
+
 ## Typed asset-store reference package
 
 The accepted Wave B typed asset store is currently an ordinary package module

@@ -69,6 +69,8 @@ frames, stable widget IDs, focus, modal, disabled, and response state;
 motion tokens; `rocket.ui.styles` resolves validated style objects by state;
 and `rocket.ui.controls` supplies styled text, image, separator, badge, pill,
 button, and icon-button values over the centralized UI interaction contract.
+`rocket.ui.containers` adds panels, dialogs, overlays, tooltips, and toasts with
+explicit stack order, modal capture, and nested child clipping.
 `rocket.motion` supplies value-owned easing, tweens, timelines, and reduced
 motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.

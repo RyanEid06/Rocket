@@ -1,0 +1,26 @@
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+import rocket.ui.containers
+import rocket.ui.styles
+import rocket.ui.theme
+
+fn sample_panel(bounds: graphics.Rect, style: styles.PanelStyle) -> Result[containers.Panel, String]:
+    return containers.panel(bounds, style, clip_children: true)
+
+fn sample_overlay(id: ui.WidgetId, bounds: graphics.Rect, style: styles.PanelStyle) -> Result[containers.Overlay, String]:
+    return containers.overlay(id, bounds, style, 10, modal: false)
+
+fn sample_clip(frame: safe.Frame, mapping: graphics.VirtualCanvas, panel: containers.Panel) -> Result[safe.ScissorScope, String]:
+    return containers.begin_panel_clip(frame, mapping, panel)
+
+fn main() -> Int:
+    let palette = theme.dark_theme()
+    let panel_style = styles.default_styles(palette).normal.panel
+    let bounds = graphics.rect(10.0, 20.0, 320.0, 180.0)
+    let panel_value = containers.panel(bounds, panel_style, clip_children: true)
+    let overlay_value = containers.overlay(ui.widget_id("pause"), bounds, panel_style, 10, modal: false)
+    let dialog_value = containers.dialog(ui.widget_id("confirm"), bounds, graphics.rect(40.0, 40.0, 240.0, 120.0), panel_style, panel_style, 20)
+    let tooltip_value = containers.tooltip(ui.widget_id("hint"), "Open settings", bounds, panel_style, 30)
+    let toast_value = containers.toast(ui.widget_id("saved"), "Saved", bounds, panel_style, 40)
+    return 0

@@ -285,6 +285,27 @@ focus, Space/Enter activation, disabled behavior, modal capture, and outside-
 viewport rejection to rocket.ui.interact. Style resolution follows the WP25
 disabled, pressed, hovered, focused, normal priority.
 
+### rocket.ui.containers
+
+Panel, Overlay, Dialog, Tooltip, and Toast are public value types. panel(bounds,
+style, clip_children = false) validates the PanelStyle and exposes bounds,
+content_bounds, style, and the clipping choice. content_bounds is inset by the
+style's border width plus padding. dialog creates a modal overlay with a clipped
+panel; overlay, tooltip, and toast create explicit transient surface values.
+
+Overlay IDs are unique within a stack, and stack_order values are nonnegative
+and unique within a stack.
+top_overlay selects the greatest visual order; capturing_modal independently
+selects the modal with the greatest order. activate_modal/clear_modal and
+enter_modal/exit_modal delegate capture and focus rules to rocket.ui. A selected
+overlay that is not the capturing modal cannot enter the modal scope.
+
+begin_panel_clip(frame, mapping, panel) returns a rocket.raylib.safe
+ScissorScope for the panel's logical content bounds. end_panel_clip closes that
+scope through rocket.graphics.canvas. Nested calls intersect and restore the
+parent scope in strict LIFO order; the container module exposes no native scope
+state and owns no retained cache.
+
 ### rocket.raylib.safe
 
 This is the narrow reviewed native boundary over the raylib adapter. It owns
