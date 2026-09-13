@@ -559,9 +559,9 @@ make focus and modal ownership explicit. `Response` records hover/active/click/
 focus/disabled/modal and activation facts for the frame that produced it;
 `response_is_current` and `response_is_current_context` reject stale responses.
 Keyboard helpers expose activation, cancel, focus-next, and directional snapshots
-without rereading native input during widget evaluation. Themes and styles are
-provided by `rocket.ui.theme` and `rocket.ui.styles`; concrete controls remain a
-later `rocket.ui` layer. Layout is provided by `rocket.ui.layout`.
+without rereading native input during widget evaluation. Themes, styles, and
+controls are provided by `rocket.ui.theme`, `rocket.ui.styles`, and
+`rocket.ui.controls`. Layout is provided by `rocket.ui.layout`.
 
 ## `rocket.ui.layout`
 
@@ -630,9 +630,29 @@ non-positive text sizes, and opacity outside `[0, 1]`.
 set. `control_state` describes current interaction flags and `resolve` selects a
 style deterministically with priority `disabled > pressed > hovered > focused >
 normal`. This priority prevents a disabled control from inheriting hover or
-press visuals and keeps drawing behavior out of the style layer. Controls,
-containers, renderer conversion, retained caches, and application inheritance
-remain outside these modules.
+press visuals and keeps drawing behavior out of the style layer. Containers,
+renderer conversion, retained caches, and application inheritance remain
+outside these modules.
+
+## `rocket.ui.controls`
+
+`rocket.ui.controls` provides the focused game-UI control set. `text`, `image`,
+`separator`, `badge`, and `pill` return validated, value-owned descriptions
+using WP25 `TextStyle`, `ImageStyle`, `BorderStyle`, and `PanelStyle` objects.
+Image controls retain an application-facing asset name rather than a native
+handle; asset loading and borrowing remain outside this module.
+
+`button(frame, id, label, bounds, states, disabled = false)` and
+`icon_button(frame, id, icon, accessibility_label, bounds, states,
+disabled = false)` return the advanced `UiFrame`, the current `Response`, and
+the control value with its selected `ButtonStyle`. Both functions use the same
+`rocket.ui.interact` path for stable-ID registration, half-open hit testing,
+focus, pointer press/hold/release transitions, Space/Enter activation, disabled
+behavior, modal blocking, response freshness, and virtual-canvas outside-
+viewport rejection. Style selection uses WP25 priority: disabled, pressed,
+hovered, focused, then normal. Icon buttons require a nonempty icon name and
+accessibility label. The module owns no retained state, renderer, native
+resource, container, dialog, overlay, tooltip, or toast behavior.
 
 ## Typed asset-store reference package
 

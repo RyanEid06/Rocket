@@ -265,8 +265,25 @@ all five control states. The validation predicates cover colors, dimensions,
 text sizes, offsets, and opacity.
 
 resolve(states, state) uses the fixed priority disabled, pressed, hovered,
-focused, then normal. These modules contain no controls, drawing, native
-resources, inheritance, containers, or retained caches.
+focused, then normal. These modules contain no drawing, native resources,
+inheritance, containers, or retained caches.
+
+### rocket.ui.controls
+
+Text, Image, Separator, Badge, Pill, Button, and IconButton are public value
+types. text(value, bounds, style), image(asset_name, bounds, style),
+separator(bounds, style), badge(value, bounds, panel_style, text_style), and
+pill(value, bounds, panel_style, text_style) validate bounds and consume WP25
+style objects without owning renderer or native state.
+
+button(frame, id, label, bounds, states, disabled = false) and
+icon_button(frame, id, icon, accessibility_label, bounds, states,
+disabled = false) return ButtonResult or IconButtonResult containing the next
+UiFrame, the current rocket.ui Response, and the selected control style. Both
+delegate pointer mapping and half-open hit testing, press/hold/release state,
+focus, Space/Enter activation, disabled behavior, modal capture, and outside-
+viewport rejection to rocket.ui.interact. Style resolution follows the WP25
+disabled, pressed, hovered, focused, normal priority.
 
 ### rocket.raylib.safe
 

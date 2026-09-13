@@ -569,6 +569,18 @@ set_tests_properties(rocket3_ui_theme_stage0 PROPERTIES
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_ui_controls_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp26/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_controls_test.cmake")
+set_tests_properties(rocket3_ui_controls_stage0 PROPERTIES
+  LABELS "rocket3;wp26;ui;controls;stage0"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_typography_stage0
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1083,6 +1095,19 @@ set_tests_properties(rocket3_ui_theme_self_hosted PROPERTIES
   TIMEOUT 540
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_ui_controls_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp26/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_controls_test.cmake")
+set_tests_properties(rocket3_ui_controls_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp26;ui;controls;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_typography_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -1206,6 +1231,19 @@ add_test(NAME rocket3_ui_theme_target_surface
 set_tests_properties(rocket3_ui_theme_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp25;ui;theme;styles;target;surface;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_ui_controls_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp26/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_controls_target_surface_test.cmake")
+set_tests_properties(rocket3_ui_controls_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp26;ui;controls;target;surface;selfhost"
   TIMEOUT 540
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 

@@ -1,0 +1,16 @@
+import rocket.graphics
+import rocket.ui
+import rocket.ui.controls
+import rocket.ui.styles
+
+pub fn sample_text(value: String, bounds: graphics.Rect, style: styles.TextStyle) -> Result[controls.Text, String]:
+    return controls.text(value, bounds, style)
+
+pub fn sample_button(frame: ui.UiFrame, id: ui.WidgetId, label: String, bounds: graphics.Rect, states: styles.StyleStates, disabled: Bool = false) -> Result[controls.ButtonResult, String]:
+    return controls.button(frame, id, label, bounds, states, disabled)
+
+pub fn sample_icon_button(frame: ui.UiFrame, id: ui.WidgetId, icon: String, accessibility_label: String, bounds: graphics.Rect, states: styles.StyleStates, disabled: Bool = false) -> Result[controls.IconButtonResult, String]:
+    return controls.icon_button(frame, id, icon, accessibility_label, bounds, states, disabled)
+
+fn main() -> Int:
+    return 0

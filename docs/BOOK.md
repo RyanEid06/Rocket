@@ -66,7 +66,9 @@ render-target, resize, and screenshot helpers through the safe
 frames, stable widget IDs, focus, modal, disabled, and response state;
 `rocket.ui.layout` provides pure Row, Column, Grid, Stack, and Anchor placement.
 `rocket.ui.theme` centralizes semantic color, spacing, radius, typography, and
-motion tokens; `rocket.ui.styles` resolves validated style objects by state.
+motion tokens; `rocket.ui.styles` resolves validated style objects by state;
+and `rocket.ui.controls` supplies styled text, image, separator, badge, pill,
+button, and icon-button values over the centralized UI interaction contract.
 `rocket.motion` supplies value-owned easing, tweens, timelines, and reduced
 motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.

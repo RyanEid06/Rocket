@@ -1,0 +1,285 @@
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+import rocket.ui.controls
+import rocket.ui.styles
+import rocket.ui.theme
+import src.wp26_adapter_testing
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn same_color(left: graphics.Color, right: graphics.Color) -> Bool:
+    return close(left.red, right.red) and close(left.green, right.green) and close(left.blue, right.blue) and close(left.alpha, right.alpha)
+
+fn main() -> Int:
+    let palette = theme.dark_theme()
+    let states = styles.default_styles(palette)
+    let bounds = graphics.rect(900.0, 500.0, 200.0, 100.0)
+
+    match controls.text("Status", bounds, states.normal.text):
+        case Err(message):
+            return 1
+        case Ok(value):
+            if value.value != "Status" or not same_color(value.style.color, palette.colors.text):
+                return 2
+    match controls.image("table", bounds, states.normal.image):
+        case Err(message):
+            return 3
+        case Ok(value):
+            if value.asset_name != "table" or not close(value.style.opacity, 1.0):
+                return 4
+    match controls.separator(bounds, states.normal.button.border):
+        case Err(message):
+            return 5
+        case Ok(value):
+            if not close(value.style.width, 1.0):
+                return 6
+    match controls.badge("New", bounds, states.normal.panel, states.normal.text):
+        case Err(message):
+            return 7
+        case Ok(value):
+            if value.value != "New" or not same_color(value.panel_style.background, palette.colors.surface):
+                return 8
+    match controls.pill("Ready", bounds, states.normal.panel, states.normal.text):
+        case Err(message):
+            return 9
+        case Ok(value):
+            if value.value != "Ready":
+                return 10
+    match controls.text("bad", graphics.rect(0.0, 0.0, -1.0, 2.0), states.normal.text):
+        case Ok(value):
+            return 11
+        case Err(message):
+            let ignored = message
+    match controls.text("bad", bounds, styles.TextStyle(palette.colors.text, 0.0)):
+        case Ok(value):
+            return 12
+        case Err(message):
+            let ignored = message
+
+    if not wp26_adapter_testing.enable() or not wp26_adapter_testing.reset():
+        return 13
+    match safe.open_window(800, 450, "WP26 UI controls"):
+        case Err(message):
+            return 14
+        case Ok(window):
+            if not wp26_adapter_testing.set_display(800, 450, 1600, 900, 2.0, 2.0):
+                return 15
+            match graphics.fit_virtual_canvas(graphics.size(1920.0, 1080.0), graphics.size(1600.0, 900.0)):
+                case Err(message):
+                    return 16
+                case Ok(mapping):
+                    match ui.new_context("controls", 32):
+                        case Err(message):
+                            return 17
+                        case Ok(initial):
+                            var context = initial
+                            let play = ui.widget_id("play")
+
+                            if not wp26_adapter_testing.set_mouse(400, 225, true, true, false):
+                                return 18
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 19
+                                case Ok(frame0):
+                                    match controls.button(frame0, play, "Play", bounds, states):
+                                        case Err(message):
+                                            return 20
+                                        case Ok(pressed):
+                                            if not pressed.response.hovered or not pressed.response.active or not pressed.response.focused or not pressed.response.pointer_pressed or pressed.response.clicked:
+                                                return 21
+                                            if not same_color(pressed.control.style.background, palette.colors.action_pressed):
+                                                return 22
+                                            match ui.end_frame(pressed.frame):
+                                                case Err(message):
+                                                    return 23
+                                                case Ok(next):
+                                                    context = next
+
+                            if not wp26_adapter_testing.set_mouse(400, 225, false, true, false):
+                                return 24
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 25
+                                case Ok(frame1):
+                                    match controls.button(frame1, play, "Play", bounds, states):
+                                        case Err(message):
+                                            return 26
+                                        case Ok(held):
+                                            if not held.response.active or held.response.clicked or not same_color(held.control.style.background, palette.colors.action_pressed):
+                                                return 27
+                                            match ui.end_frame(held.frame):
+                                                case Err(message):
+                                                    return 28
+                                                case Ok(next):
+                                                    context = next
+
+                            if not wp26_adapter_testing.set_mouse(400, 225, false, false, true):
+                                return 29
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 30
+                                case Ok(frame2):
+                                    match controls.button(frame2, play, "Play", bounds, states):
+                                        case Err(message):
+                                            return 31
+                                        case Ok(clicked):
+                                            if not clicked.response.clicked or not clicked.response.pointer_released or clicked.response.active or not clicked.response.focused:
+                                                return 32
+                                            if not same_color(clicked.control.style.background, palette.colors.action_hovered):
+                                                return 33
+                                            match ui.end_frame(clicked.frame):
+                                                case Err(message):
+                                                    return 34
+                                                case Ok(next):
+                                                    context = next
+
+                            if not wp26_adapter_testing.set_mouse(400, 225, true, true, false):
+                                return 101
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 102
+                                case Ok(frame_drag_start):
+                                    match controls.button(frame_drag_start, play, "Play", bounds, states):
+                                        case Err(message):
+                                            return 103
+                                        case Ok(drag_start):
+                                            if not drag_start.response.active or drag_start.response.clicked:
+                                                return 104
+                                            match ui.end_frame(drag_start.frame):
+                                                case Err(message):
+                                                    return 105
+                                                case Ok(next):
+                                                    context = next
+                            if not wp26_adapter_testing.set_mouse(0, 0, false, false, true):
+                                return 106
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 107
+                                case Ok(frame_drag_end):
+                                    match controls.button(frame_drag_end, play, "Play", bounds, states):
+                                        case Err(message):
+                                            return 108
+                                        case Ok(drag_end):
+                                            if drag_end.response.hovered or drag_end.response.active or drag_end.response.clicked or not drag_end.response.pointer_released:
+                                                return 109
+                                            match ui.end_frame(drag_end.frame):
+                                                case Err(message):
+                                                    return 110
+                                                case Ok(next):
+                                                    context = next
+
+                            if not wp26_adapter_testing.set_mouse(0, 0, false, false, false) or not wp26_adapter_testing.set_key(32, true, false):
+                                return 35
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 36
+                                case Ok(frame3):
+                                    match controls.button(frame3, play, "Play", bounds, states):
+                                        case Err(message):
+                                            return 37
+                                        case Ok(keyed):
+                                            if not keyed.response.clicked or not keyed.response.keyboard_activated or not keyed.response.focused:
+                                                return 38
+                                            if not same_color(keyed.control.style.border.color, palette.colors.focus):
+                                                return 39
+                                            match ui.end_frame(keyed.frame):
+                                                case Err(message):
+                                                    return 40
+                                                case Ok(next):
+                                                    context = next
+
+                            if not wp26_adapter_testing.set_key(32, false, false) or not wp26_adapter_testing.set_mouse(400, 225, true, true, false):
+                                return 41
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 42
+                                case Ok(frame4):
+                                    let disabled_id = ui.widget_id("disabled")
+                                    match controls.button(frame4, disabled_id, "Disabled", bounds, states, true):
+                                        case Err(message):
+                                            return 43
+                                        case Ok(disabled):
+                                            if disabled.response.hovered or disabled.response.active or disabled.response.clicked or disabled.response.focused or not disabled.response.disabled:
+                                                return 44
+                                            if not same_color(disabled.control.style.background, palette.colors.surface):
+                                                return 45
+                                            match ui.end_frame(disabled.frame):
+                                                case Err(message):
+                                                    return 46
+                                                case Ok(next):
+                                                    context = next
+
+                            let modal = ui.widget_id("dialog")
+                            match ui.activate_modal(context, modal):
+                                case Err(message):
+                                    return 47
+                                case Ok(next):
+                                    context = next
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 48
+                                case Ok(frame5):
+                                    match controls.icon_button(frame5, ui.widget_id("outside"), "close", "Close", bounds, states):
+                                        case Err(message):
+                                            return 49
+                                        case Ok(blocked):
+                                            if not blocked.response.modal_blocked or blocked.response.hovered or blocked.response.clicked:
+                                                return 50
+                                            match ui.enter_modal(blocked.frame, modal):
+                                                case Err(message):
+                                                    return 51
+                                                case Ok(modal_frame):
+                                                    match controls.icon_button(modal_frame, ui.child_id(modal, "inside"), "accept", "Accept", bounds, states):
+                                                        case Err(message):
+                                                            return 52
+                                                        case Ok(allowed):
+                                                            if allowed.response.modal_blocked or not allowed.response.hovered or allowed.control.icon != "accept" or allowed.control.accessibility_label != "Accept":
+                                                                return 53
+                                                            match ui.exit_modal(allowed.frame):
+                                                                case Err(message):
+                                                                    return 54
+                                                                case Ok(exited):
+                                                                    match ui.end_frame(exited):
+                                                                        case Err(message):
+                                                                            return 55
+                                                                        case Ok(next):
+                                                                            context = next
+                            match ui.clear_modal(context, modal):
+                                case Err(message):
+                                    return 56
+                                case Ok(next):
+                                    context = next
+
+                            if not wp26_adapter_testing.set_display(800, 600, 1600, 1200, 2.0, 2.0) or not wp26_adapter_testing.set_mouse(400, 0, true, true, true):
+                                return 57
+                            match graphics.fit_virtual_canvas(graphics.size(1920.0, 1080.0), graphics.size(1600.0, 1200.0)):
+                                case Err(message):
+                                    return 58
+                                case Ok(letterboxed):
+                                    match ui.begin_frame(context, window, letterboxed):
+                                        case Err(message):
+                                            return 59
+                                        case Ok(frame6):
+                                            match controls.button(frame6, ui.widget_id("outside-canvas"), "No", graphics.rect(0.0, 0.0, 1920.0, 1080.0), states):
+                                                case Err(message):
+                                                    return 60
+                                                case Ok(outside):
+                                                    if outside.response.hovered or outside.response.active or outside.response.clicked or outside.response.pointer_pressed or outside.response.pointer_released:
+                                                        return 61
+                                                    match ui.end_frame(outside.frame):
+                                                        case Err(message):
+                                                            return 62
+                                                        case Ok(next):
+                                                            context = next
+            match safe.close_window(window):
+                case Err(message):
+                    return 63
+                case Ok(closed):
+                    if not closed:
+                        return 64
+    return 0
