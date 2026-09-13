@@ -4,6 +4,22 @@ import rocket.raylib.safe
 import rocket.ui
 import src.wp30_adapter_testing
 
+fn advance_empty(context: ui.Context, window: safe.Window, canvas: graphics.VirtualCanvas, count: Int) -> Result[ui.Context, String]:
+    var current = context
+    var index = 0
+    while index < count:
+        match ui.begin_frame(current, window, canvas):
+            case Err(message):
+                return Err(message)
+            case Ok(frame):
+                match ui.end_frame(frame):
+                    case Err(message):
+                        return Err(message)
+                    case Ok(next):
+                        current = next
+        index = index + 1
+    return Ok(current)
+
 fn main() -> Int:
     if ui.default_context_capacity() != 2048 or ui.default_unseen_retention_frames() != 8:
         return 1
@@ -19,6 +35,49 @@ fn main() -> Int:
                 case Err(message):
                     return 5
                 case Ok(canvas):
+                    match ui.new_context("default-calibration"):
+                        case Err(message):
+                            return 42
+                        case Ok(initial):
+                            match ui.begin_frame(initial, window, canvas):
+                                case Err(message):
+                                    return 43
+                                case Ok(frame):
+                                    var full = frame
+                                    var default_index = 0
+                                    while default_index < ui.default_context_capacity():
+                                        let id = ui.widget_id(string.concat("default-", string.from_int(default_index)))
+                                        match ui.register_widget(full, id):
+                                            case Err(message):
+                                                return 44
+                                            case Ok(next):
+                                                full = next
+                                        default_index = default_index + 1
+                                    if ui.context_retained_count(full.context) != ui.default_context_capacity():
+                                        return 45
+                                    match ui.register_widget(full, ui.widget_id("default-overflow")):
+                                        case Ok(unexpected):
+                                            return 46
+                                        case Err(message):
+                                            if message != "UI context widget capacity exceeded" or ui.context_retained_count(full.context) != ui.default_context_capacity():
+                                                return 47
+                                    match ui.end_frame(full):
+                                        case Err(message):
+                                            return 48
+                                        case Ok(filled):
+                                            match advance_empty(filled, window, canvas, ui.default_unseen_retention_frames()):
+                                                case Err(message):
+                                                    return 49
+                                                case Ok(retained):
+                                                    if ui.context_retained_count(retained) != ui.default_context_capacity():
+                                                        return 50
+                                                    match advance_empty(retained, window, canvas, 1):
+                                                        case Err(message):
+                                                            return 51
+                                                        case Ok(evicted):
+                                                            if ui.context_retained_count(evicted) != 0:
+                                                                return 52
+
                     match ui.new_context("stress", 16, 3):
                         case Err(message):
                             return 6

@@ -222,7 +222,8 @@ pub extern fn rlv_sound_set_volume(sound_id: Int, volume: Float) -> Int
 pub extern fn rlv_sound_unload(sound_id: Int) -> Int
 pub extern fn rlv_sound_live_count() -> Int
 pub extern fn rlv_music_live_count() -> Int
-pub extern fn rlv_asset_store_create(window_id: Int, audio_id: Int, package_root_buffer_id: Int, capacity: Int) -> Int
+pub extern fn rlv_asset_store_create(window_id: Int, audio_id: Int, package_root_buffer_id: Int) -> Int
+pub extern fn rlv_asset_store_create_bounded(window_id: Int, audio_id: Int, package_root_buffer_id: Int, capacity: Int) -> Int
 pub extern fn rlv_asset_store_cleanup(store_id: Int) -> Int
 pub extern fn rlv_asset_store_live_count() -> Int
 pub extern fn rlv_asset_store_capacity(store_id: Int) -> Int

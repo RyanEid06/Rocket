@@ -49,13 +49,21 @@ void boundedCachesCycle() {
   const int64_t audio = rlv_audio_open();
   const int64_t rootBuffer = textBuffer(root.generic_string());
   expect(window > 0 && audio > 0, "open deterministic dependencies");
-  expect(rlv_asset_store_create(window, audio, rootBuffer, 0) ==
+  const int64_t legacyStore =
+      rlv_asset_store_create(window, audio, rootBuffer);
+  expect(legacyStore > 0 &&
+             rlv_asset_store_capacity(legacyStore) == 256 &&
+             rlv_asset_store_cleanup(legacyStore) == RLV_OK &&
+             rlv_asset_store_cleanup(legacyStore) == RLV_OK,
+         "preserve the Wave B default-capacity asset-store ABI");
+  expect(rlv_asset_store_create_bounded(window, audio, rootBuffer, 0) ==
              RLV_ERR_INVALID_ARGUMENT &&
-             rlv_asset_store_create(window, audio, rootBuffer, 100001) ==
+             rlv_asset_store_create_bounded(
+                 window, audio, rootBuffer, 100001) ==
                  RLV_ERR_INVALID_ARGUMENT,
          "reject unbounded or excessive resource capacities");
   const int64_t store =
-      rlv_asset_store_create(window, audio, rootBuffer, 2);
+      rlv_asset_store_create_bounded(window, audio, rootBuffer, 2);
   expect(store > 0 && rlv_asset_store_capacity(store) == 2,
          "freeze and expose the explicit resource bound");
 
@@ -118,6 +126,17 @@ void boundedCachesCycle() {
   expect(rlv_font_unload(unrelatedFont) == RLV_OK &&
              rlv_font_measurement_cache_size() == 0,
          "font unload removes its remaining cached measurements");
+  for (int index = 0; index < 1024; ++index) {
+    const int64_t churnStore =
+        rlv_asset_store_create_bounded(window, audio, rootBuffer, 1);
+    expect(churnStore > 0 && rlv_asset_store_cleanup(churnStore) == RLV_OK &&
+               rlv_asset_store_cleanup(churnStore) == RLV_OK,
+           "keep repeated asset-store cleanup idempotent");
+  }
+  expect(rlv_asset_store_live_count() == 0 &&
+             rlv_test_asset_store_retired_count() == 0 &&
+             rlv_asset_store_cleanup(legacyStore) == RLV_OK,
+         "bound retired asset-store tracking without losing idempotence");
   expect(rlv_audio_close(audio) == RLV_OK &&
              rlv_window_close(window) == RLV_OK,
          "close dependencies after bounded cache cleanup");

@@ -6,6 +6,7 @@ import rocket.ui.layout
 import rocket.ui.styles
 import rocket.ui.theme
 import src.wp27_adapter_testing
+import std.math
 
 fn close(left: Float, right: Float) -> Bool:
     let delta = left - right
@@ -49,6 +50,12 @@ fn main() -> Int:
         return 5
     if not expect_error(containers.panel(graphics.rect(0.0, 0.0, 10.0, 10.0), panel_style), "UI panel border and padding exceed its bounds"):
         return 6
+    let overflow_unit = math.pow(10.0, 307.0)
+    let overflowing_inset = overflow_unit * 2.0
+    let overflowing_extent = overflow_unit * 5.0
+    let overflowing_style = styles.panel_style(palette.colors.surface, styles.border_style(palette.colors.border, overflowing_inset), styles.shadow_style(palette.colors.background, graphics.vec2(0.0, 0.0)), 0.0)
+    if not expect_error(containers.panel(graphics.rect(overflow_unit * 16.5, 0.0, overflowing_extent, overflowing_extent), overflowing_style), "UI panel content bounds must remain finite"):
+        return 69
 
     let overlay_style = styles.panel_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.5), styles.border_style(palette.colors.border), styles.shadow_style(palette.colors.background, graphics.vec2(0.0, 0.0)), 0.0)
     let low_id = ui.widget_id("low-dialog")

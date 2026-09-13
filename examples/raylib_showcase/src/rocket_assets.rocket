@@ -84,7 +84,7 @@ pub fn open(window: rocket_raylib.Window, audio: rocket_raylib.AudioDevice, pack
         case Ok(root_buffer):
             var store_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
             unsafe:
-                store_id = rocket_raylib_adapter.rlv_asset_store_create(window.id, audio.id, root_buffer, capacity)
+                store_id = rocket_raylib_adapter.rlv_asset_store_create_bounded(window.id, audio.id, root_buffer, capacity)
             match release_text(root_buffer):
                 case Err(message):
                     return Err(message)

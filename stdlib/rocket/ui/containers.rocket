@@ -47,6 +47,8 @@ pub fn panel(bounds: graphics.Rect, style: styles.PanelStyle, clip_children: Boo
             let ignored = message
             return Err("UI panel border and padding exceed its bounds")
         case Ok(content_bounds):
+            if not graphics.rect_has_nonnegative_size(content_bounds):
+                return Err("UI panel content bounds must remain finite")
             return Ok(Panel(bounds, content_bounds, style, clip_children))
 
 pub fn overlay(id: ui.WidgetId, bounds: graphics.Rect, style: styles.PanelStyle, stack_order: Int, modal: Bool = false) -> Result[Overlay, String]:
@@ -200,4 +202,13 @@ fn same_overlay(left: Overlay, right: Overlay) -> Bool:
 fn rect_contains(outer: graphics.Rect, inner: graphics.Rect) -> Bool:
     if not graphics.rect_has_nonnegative_size(outer) or not graphics.rect_has_nonnegative_size(inner):
         return false
-    return inner.x >= outer.x and inner.y >= outer.y and inner.x + inner.width <= outer.x + outer.width and inner.y + inner.height <= outer.y + outer.height
+    let outer_right = outer.x + outer.width
+    let outer_bottom = outer.y + outer.height
+    let inner_right = inner.x + inner.width
+    let inner_bottom = inner.y + inner.height
+    if not finite(outer_right) or not finite(outer_bottom) or not finite(inner_right) or not finite(inner_bottom):
+        return false
+    return inner.x >= outer.x and inner.y >= outer.y and inner_right <= outer_right and inner_bottom <= outer_bottom
+
+fn finite(value: Float) -> Bool:
+    return value - value == 0.0

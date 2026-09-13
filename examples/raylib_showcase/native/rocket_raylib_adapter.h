@@ -254,7 +254,8 @@ ROCKET_API int64_t rlv_sound_live_count(void);
 
 ROCKET_API int64_t rlv_music_live_count(void);
 
-ROCKET_API int64_t rlv_asset_store_create(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id, int64_t capacity);
+ROCKET_API int64_t rlv_asset_store_create(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id);
+ROCKET_API int64_t rlv_asset_store_create_bounded(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id, int64_t capacity);
 ROCKET_API int64_t rlv_asset_store_cleanup(int64_t store_id);
 ROCKET_API int64_t rlv_asset_store_live_count(void);
 ROCKET_API int64_t rlv_asset_store_capacity(int64_t store_id);
@@ -293,6 +294,7 @@ ROCKET_API int64_t rlv_test_scissor_height(void);
 ROCKET_API int64_t rlv_test_blend_mode(void);
 ROCKET_API double rlv_test_text_draw_x(void);
 ROCKET_API double rlv_test_text_draw_y(void);
+ROCKET_API int64_t rlv_test_asset_store_retired_count(void);
 
 #ifdef __cplusplus
 }

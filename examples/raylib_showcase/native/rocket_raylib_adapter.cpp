@@ -145,6 +145,9 @@ struct MonitorRecord {
   int64_t refreshRate = 60;
 };
 
+constexpr int64_t kAssetStoreHandleBase =
+    std::numeric_limits<int64_t>::max() / 2 + 1;
+
 struct AdapterState {
   bool testMode = false;
   bool windowOpen = false;
@@ -155,6 +158,7 @@ struct AdapterState {
   int64_t frameId = 0;
   int64_t audioId = 0;
   int64_t nextId = 1;
+  int64_t nextAssetStoreId = kAssetStoreHandleBase;
   int64_t drawCount = 0;
   int64_t geometryCallCount = 0;
   int64_t renderTargetSwitchCount = 0;
@@ -206,7 +210,6 @@ struct AdapterState {
   std::unordered_map<int64_t, MusicRecord> musics;
   std::unordered_map<int64_t, AssetStoreRecord> assetStores;
   std::unordered_map<int64_t, AssetReferenceRecord> assetReferences;
-  std::unordered_set<int64_t> cleanedAssetStores;
   std::vector<ScopeRecord> scopes;
   std::vector<MonitorRecord> monitors{MonitorRecord{}};
   std::unordered_set<int64_t> pressedKeys;
@@ -259,8 +262,15 @@ Color color(int64_t red, int64_t green, int64_t blue, int64_t alpha) {
 }
 
 int64_t nextId() {
-  if (state.nextId == std::numeric_limits<int64_t>::max()) state.nextId = 1;
+  if (state.nextId >= kAssetStoreHandleBase) state.nextId = 1;
   return state.nextId++;
+}
+
+int64_t nextAssetStoreHandle() {
+  if (state.nextAssetStoreId == std::numeric_limits<int64_t>::max()) {
+    return RLV_ERR_CAPACITY;
+  }
+  return state.nextAssetStoreId++;
 }
 
 bool validWindow(int64_t id) { return state.windowOpen && id == state.windowId; }
@@ -492,6 +502,7 @@ int raylibBlendMode(int64_t blendMode) {
 }
 
 constexpr std::size_t kTextMeasurementCacheCapacity = 256;
+constexpr int64_t kAssetStoreDefaultCapacity = 256;
 constexpr int64_t kAssetStoreMaximumCapacity = 100000;
 
 std::size_t nextUtf8Boundary(const std::string& text, std::size_t index) {
@@ -2903,7 +2914,7 @@ extern "C" int64_t rlv_music_live_count(void) {
   return static_cast<int64_t>(state.musics.size());
 }
 
-extern "C" int64_t rlv_asset_store_create(
+extern "C" int64_t rlv_asset_store_create_bounded(
     int64_t windowId, int64_t audioId, int64_t packageRootBufferId,
     int64_t capacity) {
   if (!validWindow(windowId) || !validAudio(audioId)) {
@@ -2921,15 +2932,21 @@ extern "C" int64_t rlv_asset_store_create(
   if (error || !std::filesystem::is_directory(root, error) || error) {
     return RLV_ERR_NOT_FOUND;
   }
-  const int64_t id = nextId();
+  const int64_t id = nextAssetStoreHandle();
+  if (id <= 0) return id;
   AssetStoreRecord store;
   store.windowId = windowId;
   store.audioId = audioId;
   store.capacity = capacity;
   store.packageRoot = std::move(root);
   state.assetStores.emplace(id, std::move(store));
-  state.cleanedAssetStores.erase(id);
   return id;
+}
+
+extern "C" int64_t rlv_asset_store_create(
+    int64_t windowId, int64_t audioId, int64_t packageRootBufferId) {
+  return rlv_asset_store_create_bounded(
+      windowId, audioId, packageRootBufferId, kAssetStoreDefaultCapacity);
 }
 
 extern "C" int64_t rlv_asset_store_live_count(void) {
@@ -3216,8 +3233,8 @@ extern "C" int64_t rlv_asset_shader_borrow(int64_t referenceId) {
 extern "C" int64_t rlv_asset_store_cleanup(int64_t storeId) {
   auto store = state.assetStores.find(storeId);
   if (store == state.assetStores.end()) {
-    return state.cleanedAssetStores.find(storeId) !=
-                   state.cleanedAssetStores.end()
+    return storeId >= kAssetStoreHandleBase &&
+                   storeId < state.nextAssetStoreId
                ? RLV_OK
                : RLV_ERR_STALE_HANDLE;
   }
@@ -3296,9 +3313,10 @@ extern "C" int64_t rlv_asset_store_cleanup(int64_t storeId) {
     state.assetReferences.erase(asset.referenceId);
   }
   state.assetStores.erase(store);
-  state.cleanedAssetStores.insert(storeId);
   return RLV_OK;
 }
+
+extern "C" int64_t rlv_test_asset_store_retired_count(void) { return 0; }
 
 extern "C" int64_t rlv_apply_callback(RlvIntCallback callback, int64_t value) {
   return callback ? callback(value) : RLV_ERR_INVALID_ARGUMENT;

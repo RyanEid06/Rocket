@@ -65,7 +65,7 @@ void deterministicAssetStoreCycle() {
   const int64_t window = rlv_window_open(320, 180, title);
   const int64_t audio = rlv_audio_open();
   const int64_t root = textBuffer(fixture.root.generic_string());
-  const int64_t store = rlv_asset_store_create(window, audio, root, 256);
+  const int64_t store = rlv_asset_store_create(window, audio, root);
   expect(window > 0 && audio > 0 && store > 0,
          "open window, audio, and relocated asset store");
   expect(rlv_buffer_destroy(title) == RLV_OK &&
