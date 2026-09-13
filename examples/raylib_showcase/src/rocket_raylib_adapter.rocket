@@ -260,3 +260,4 @@ pub extern fn rlv_test_scissor_height() -> Int
 pub extern fn rlv_test_blend_mode() -> Int
 pub extern fn rlv_test_text_draw_x() -> Float
 pub extern fn rlv_test_text_draw_y() -> Float
+pub extern fn rlv_test_asset_store_retired_count() -> Int
