@@ -2,7 +2,7 @@
 
 > **Historical compatibility example:** This package remains version 1.4 and
 > validates the legacy `src.rocket_raylib` boundary against pinned raylib 6.0.
-> The current Rocket 3 Wave B modules are documented in
+> The current Rocket 3 Wave C modules are documented in
 > `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`; the repository-wide status split is in
 > `docs/DOCUMENTATION_STATUS.md`.
 

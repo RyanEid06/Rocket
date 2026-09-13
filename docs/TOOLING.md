@@ -1,4 +1,4 @@
-# Rocket Tooling and Packages 2.1 + Rocket 3.0 Wave B
+# Rocket Tooling and Packages 2.1 + Rocket 3.0 Wave C
 
 Rocket 2.0 retains the Rocket 1.6 package ecosystem and Rocket 1.7
 language-server and developer-tooling contracts. Its ownership, concurrency,

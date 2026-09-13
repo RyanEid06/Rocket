@@ -1,2 +1,2 @@
 Rocket 1.4 compatibility showcase: safe graphics, input, resources, callbacks,
-timing, audio, and the Wave B typed asset-store reference package.
+timing, audio, and the Wave C typed asset-store reference package.

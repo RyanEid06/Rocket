@@ -46,7 +46,7 @@ reproducible `stage0` implementation.
 Rocket 3 Wave C is accepted on implementation tree
 `39259b6704c517b123d5d1a8d153bc4ea4d32e0d`. It adds public themes/styles,
 controls, containers/transient UI, and bounded UI, measurement, and asset-cache
-state to the accepted Wave B surface. Wave D is ready with Ryan WP29 and Eddy's
+state to the accepted public Wave C surface. Wave D is ready with Ryan WP29 and Eddy's
 WP31 -> WP32 -> WP33 queue; the final Rocket 3.0 release and non-Windows
 target-laboratory gate are not yet complete.
 

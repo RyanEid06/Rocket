@@ -1,4 +1,4 @@
-# Rocket 2.1 Package Author Guide and Rocket 3 Wave B Notes
+# Rocket 2.1 Package Author Guide and Rocket 3 Wave C Notes
 
 Create a package with `rocketc new`, keep public source under `src/`, tests under
 `tests/`, and declare an exact semantic version and license in `rocket.toml`.
@@ -12,8 +12,9 @@ Packages have no executable build scripts. Native inputs require an explicit
 allow-list and Windows x64 manifest section.
 
 Rocket 2.1 portability is complete on the four documented target rows. The
-accepted Rocket 3 Wave B modules use the same package graph and native-input
-rules; themes, controls, containers, and cache calibration remain Wave C work.
+accepted Rocket 3 Wave C modules use the same package graph and native-input
+rules; themes, controls, containers, and bounded-cache calibration are accepted
+on the Windows integration baseline.
 For current callable syntax and graphics/UI APIs, use
 `ROCKET_3_0_SYNTAX_DICTIONARY.md`. The typed asset-store reference module is
 `src.rocket_assets` in the raylib showcase package, not a `rocket.assets`

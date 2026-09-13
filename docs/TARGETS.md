@@ -6,7 +6,7 @@ This contract is additive to the frozen Rocket 2.0 language and runtime ABI v1:
 valid Rocket 2.0 source remains valid, the C++20 compiler remains permanent
 `stage0`, and the Rocket-written compiler must make the same target decisions.
 
-Rocket 3 Wave B consumes this completed target contract. Its final non-Windows
+Rocket 3 Wave C consumes this completed target contract. Its final non-Windows
 target-laboratory acceptance remains a Rocket 3 WP34/F29 gate, not a reason to
 reopen the completed Phase 19 contract.
 
