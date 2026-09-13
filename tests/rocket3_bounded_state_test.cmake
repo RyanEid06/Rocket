@@ -88,4 +88,46 @@ foreach(document IN ITEMS docs/BOOK.md docs/SPEC.md docs/STDLIB.md docs/ROCKET_3
   endif()
 endforeach()
 
+set(calibration_record
+  "${SOURCE_DIR}/docs/ROCKET_3_0_WAVE_C_CALIBRATION.json")
+if(NOT EXISTS "${calibration_record}")
+  message(FATAL_ERROR
+    "WP30 calibration evidence is missing: ${calibration_record}")
+endif()
+file(READ "${calibration_record}" calibration_json)
+string(JSON calibration_schema ERROR_VARIABLE calibration_error
+  GET "${calibration_json}" schema)
+if(calibration_error OR
+   NOT calibration_schema STREQUAL "rocket3-wave-c-capacity-calibration-v1")
+  message(FATAL_ERROR "WP30 calibration evidence has an invalid schema")
+endif()
+function(check_calibration_value field expected)
+  string(JSON observed ERROR_VARIABLE calibration_error
+    GET "${calibration_json}" frozen_values "${field}")
+  if(calibration_error OR NOT observed EQUAL expected)
+    message(FATAL_ERROR
+      "WP30 calibration evidence has ${field}=${observed}; expected ${expected}")
+  endif()
+endfunction()
+check_calibration_value(ui_context_capacity 2048)
+check_calibration_value(unseen_retention_frames 8)
+check_calibration_value(measurement_cache_capacity 256)
+check_calibration_value(asset_store_default_capacity 256)
+string(JSON sample_count ERROR_VARIABLE calibration_error
+  GET "${calibration_json}" method samples_per_workload)
+if(calibration_error OR sample_count LESS 7)
+  message(FATAL_ERROR "WP30 calibration evidence requires at least 7 samples")
+endif()
+foreach(workload IN ITEMS ui_default_and_100k_churn native_cache_and_cleanup)
+  string(JSON outcome ERROR_VARIABLE calibration_error
+    GET "${calibration_json}" workloads "${workload}" outcome)
+  string(JSON sample_length ERROR_VARIABLE sample_error
+    LENGTH "${calibration_json}" workloads "${workload}" elapsed_ms)
+  if(calibration_error OR sample_error OR
+     NOT outcome STREQUAL "passed" OR sample_length LESS 7)
+    message(FATAL_ERROR
+      "WP30 calibration evidence is incomplete for ${workload}")
+  endif()
+endforeach()
+
 message(STATUS "WP30 bounded UI/resource/measurement-cache matrix passed")

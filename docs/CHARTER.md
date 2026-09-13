@@ -33,11 +33,11 @@ v1, and Windows x64 FFI contracts. Phase 19 completed as the additive Rocket
 2.1 portability release on 2026-08-29, adding the explicit target and platform
 contracts in `TARGETS.md` without weakening the frozen Windows boundary.
 
-Rocket 3.0 is the next additive development line. Its accepted Wave B adds
-named/default callable ergonomics and the public graphics/UI foundation on the
-Rocket 2.1 baseline; Wave C continues themes, controls, containers, and bounded
-state. Wave B is not a final Rocket 3.0 release, and native non-Windows
-target-laboratory acceptance remains a later gate.
+Rocket 3.0 is the next additive development line. Its accepted Wave C adds
+named/default callable ergonomics, the public graphics/UI foundation, themes,
+controls, containers, and bounded state on the Rocket 2.1 baseline. Wave C is
+not a final Rocket 3.0 release, and native non-Windows target-laboratory
+acceptance remains a later gate.
 
 The C++20 compiler remains the permanent reproducible `stage0`, runtime ABI v1
 remains the frozen Rocket 2.x ABI and the default Rocket 3 compatibility

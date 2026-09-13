@@ -1,5 +1,5 @@
 # Public Rocket 3 style objects and deterministic control-state resolution.
-# Controls consume these values but are implemented by the following packet.
+# Wave C controls consume these values through the centralized UI contract.
 
 import rocket.graphics
 import rocket.ui.theme

@@ -12,7 +12,7 @@ other repository documentation, see `DOCUMENTATION_STATUS.md`.
 - **Primary target:** Windows x64 integration baseline; Rocket 2.1 also accepts
   Linux x64, Linux ARM64, and macOS ARM64 target rows.
 - **Goal:** Maintain the completed, beginner-friendly, statically typed,
-  LLVM-native Rocket 2.1 language and the additive Rocket 3.0 Wave B surface
+  LLVM-native Rocket 2.1 language and the additive Rocket 3.0 Wave C surface
   across the accepted target contract without changing ABI v1.
 - **Possible casino goal:** A separate local, single-player, play-money desktop
   application may be planned independently of Rocket language work.
@@ -43,12 +43,12 @@ bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
 
-Rocket 3 Wave B is accepted and published on `master` at
-`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. It adds named/default callable
-ergonomics, public graphics/UI modules, and the typed asset-store reference
-package. Wave C is ready with Eddy's WP25 -> WP26 -> WP27 -> WP30 queue; the
-final Rocket 3.0 release and non-Windows target-laboratory gate are not yet
-complete.
+Rocket 3 Wave C is accepted on implementation tree
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`. It adds public themes/styles,
+controls, containers/transient UI, and bounded UI, measurement, and asset-cache
+state to the accepted Wave B surface. Wave D is ready with Ryan WP29 and Eddy's
+WP31 -> WP32 -> WP33 queue; the final Rocket 3.0 release and non-Windows
+target-laboratory gate are not yet complete.
 
 Implemented:
 
@@ -1196,15 +1196,43 @@ Known limitations remain those in the implementation-state list above; no langua
   remain `RLV_ERR_PATH_ESCAPE`. Native non-Windows target-laboratory execution
   remains deferred to WP34/F29.
 
+**Rocket 3 Wave C - accepted public UI and bounded state**
+
+- Preserved Eddy WP25 `8ac45f41f062ff790956c44d9b33905f1e0fb35a`, WP26
+  `c79c34453896510591a6243a4806f2fc888c90f6`, WP27
+  `2f290d95835c1227a49977d89c3899cc89959028`, and WP30
+  `fadda377fe93ef791e13aa76bc9649cfdc98dc10` behind non-squash integration
+  merge `6ad6e56`, then applied integration hardening in `96f0494` and binding
+  synchronization in `39259b6`.
+- The integrated Windows Debug and Release suites each passed `280/280`; the
+  LLVM-disabled Release predecessor matrix passed `203/203`; the focused Wave C
+  selection passed `18/18`.
+- Release bootstrap passed stage0 -> stage1 -> stage2 -> stage3 with matching
+  stage2/stage3 IR SHA-256
+  `0fb57ad9dc49d387ff578458bc7922a4f81fb5cb9cd5aec4230028bd1d3b1f95`.
+  Rocket 2.1 conformance passed `90` cases, compatibility passed `11` cases,
+  and application validation resolved `32` packages and passed `11` headless
+  raylib checks.
+- The integration restored the three-argument Wave B asset-store ABI, added a
+  separate bounded constructor, removed unbounded retired-store tombstones,
+  rejected overflowing/nonfinite container geometry, and strengthened default
+  capacity, retention, cleanup, and LRU tests.
+- Seven-sample Release measurements and the rationale for the 2,048-ID,
+  eight-frame, 256-measurement, and 256-asset defaults are recorded and
+  machine-checked in `ROCKET_3_0_WAVE_C_CALIBRATION.json`. Independent final
+  review and security review found no reportable vulnerability.
+- Native Linux x64, Linux ARM64, and macOS ARM64 execution remains deferred to
+  WP34/F29 target-laboratory acceptance.
+
 ## Current next task
 
-**Rocket 3 Wave C is ready. Wave B was integrated at
-`6bb9841e185e948a9135a63bdcceeec4e5a8314a` and published to `master` in status
-commit `fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. Ryan is review/integration
-support only. Eddy's serial queue is WP25 (public themes/styles), WP26
-(controls), WP27 (containers/transient UI), then WP30 (bounded state/caches).
-Do not begin WP29 in Wave C. Native non-Windows target-laboratory acceptance
-remains a WP34/F29 item. The exact packet scopes and success-only handoff are in
+**Rocket 3 Wave D is ready after the accepted Wave C barrier is published to
+`master`. Create `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from that exact
+pushed SHA. Ryan's only packet is WP29 (unified error and lifetime hardening).
+Eddy's serial queue is WP31 (performance budgets), WP32 (visual regression),
+then WP33 (examples/showcase). Do not begin Wave D work in this barrier chat.
+Native non-Windows target-laboratory acceptance remains a WP34/F29 item. The
+exact packet scopes and success-only handoff are in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
 remain baseline state.**

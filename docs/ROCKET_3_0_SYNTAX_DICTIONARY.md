@@ -1,7 +1,7 @@
 # Rocket 3.0 Syntax and API Dictionary
 
 > **Current development reference:** This dictionary describes the accepted Rocket
-> 3 Wave B surface on the completed Rocket 2.1 baseline. Wave C is ready but
+> 3 Wave C surface on the completed Rocket 2.1 baseline. Wave D is ready but
 > Rocket 3.0 is not a final release contract. Current repository status is in
 > DOCUMENTATION_STATUS.md, and packet scope is in the Rocket 3 requirements and
 > implementation plan.
@@ -228,8 +228,8 @@ response_is_current and response_is_current_context reject stale responses.
 The activation_pressed, cancel_pressed, focus_next_pressed, and
 navigation_left_pressed/navigation_right_pressed/navigation_up_pressed/
 navigation_down_pressed helpers expose the frame's keyboard snapshot; active_is,
-focused_is, and modal_is query committed context state. Concrete controls remain
-later Wave C work.
+focused_is, and modal_is query committed context state. Concrete controls are
+provided by `rocket.ui.controls` and consume this centralized contract.
 
 ### rocket.ui.layout
 
@@ -335,7 +335,7 @@ Normal application code should prefer the typed graphics modules above.
 
 ## 4. Typed asset-store reference package
 
-The accepted Wave B typed asset store is currently package-local, not a
+The accepted Wave C typed asset store is currently package-local, not a
 standard-library import:
 
 ~~~text
@@ -361,17 +361,15 @@ The Rocket 3 design's rocket.assets / stdlib/rocket/assets names are an
 intended future namespace, not an import that exists in this checkout. Use the
 reference package path above until a later packet promotes a standard module.
 
-## 5. Wave C boundary
+## 5. Wave D boundary
 
-Wave C starts from the published master status commit and continues Eddy's
-WP25 -> WP26 -> WP27 -> WP30 queue:
+Wave C is accepted on the integrated Windows baseline. Wave D starts from the
+published master status commit and continues the next dependency-safe queues:
 
-- WP25: public themes and styles;
-- WP26: controls;
-- WP27: containers and transient UI; and
-- WP30: bounded state and cache integration.
+- Ryan WP29: unified errors and lifetime hardening; and
+- Eddy WP31 -> WP32 -> WP33: performance budgets, visual regression, and
+  examples/showcase.
 
-WP29 unified error/lifetime hardening, WP31 performance budgets, WP32 visual
-regression, and WP34/F29 final cross-target acceptance remain later gates. This
-dictionary therefore documents the accepted Wave B surface, not a claim that
+WP34/F29 final cross-target acceptance remains a later gate. This dictionary
+therefore documents the accepted Wave C surface, not a claim that
 Rocket 3.0 is complete.

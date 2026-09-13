@@ -1,4 +1,4 @@
-# Rocket Standard Library 2.1 + Rocket 3.0 Wave B
+# Rocket Standard Library 2.1 + Rocket 3.0 Wave C
 
 The stable library combines typed host-backed modules with bundled ordinary
 Rocket source modules, including the Rocket 1.2 dot-call additions, the
@@ -8,11 +8,10 @@ these signatures and their runtime ABI v1 mappings. Import a module by
 its stable name; no downloaded dependency is
 required:
 
-Rocket 3 Wave B adds the callable ergonomics and the bundled graphics/UI
-modules described below without changing runtime ABI v1. Wave C themes,
-controls, containers, and cache calibration are not yet accepted. The current
-copyable index is `ROCKET_3_0_SYNTAX_DICTIONARY.md`; the complete file
-disposition is in `DOCUMENTATION_STATUS.md`.
+Rocket 3 Wave C includes the callable ergonomics and bundled graphics/UI modules
+described below without changing runtime ABI v1. The current copyable index is
+`ROCKET_3_0_SYNTAX_DICTIONARY.md`; the complete file disposition is in
+`DOCUMENTATION_STATUS.md`.
 
 ```rocket
 import std.file
@@ -36,7 +35,7 @@ compiler, signature help, and generated documentation use one matching metadata
 inventory. Changing a public standard-library parameter name is therefore a
 source-versioning event even though runtime ABI v1 remains unchanged.
 
-## `std.math` (Rocket 3 Wave B)
+## `std.math` (Rocket 3 Wave C)
 
 `std.math` is a compiler-owned module with no graphics policy. The accepted
 surface includes `pi()`, `tau()`, `e()`; Float `abs`, `min`, `max`, `clamp`, and
@@ -686,7 +685,7 @@ exposing native handles or scope state.
 
 ## Typed asset-store reference package
 
-The accepted Wave B typed asset store is currently an ordinary package module
+The accepted Wave C typed asset store is currently an ordinary package module
 at `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. It exposes `AssetStore`, `TextureRef`, `FontRef`,
 `SoundRef`, `MusicRef`, and `ShaderRef`, with typed load, lookup, borrow, and
@@ -699,7 +698,9 @@ recoverable errors, and cleanup invalidates borrowed references. The planned
 `rocket.assets` / `stdlib/rocket/assets` namespace in the Rocket 3 design is not
 an available standard-library module in this checkout.
 
-WP30 calibrated the integrated defaults in the Windows x64 Release build. The UI
+WP30 calibrated the integrated defaults in the Windows x64 Release build; the
+reproducible measurements and environment are recorded in
+`ROCKET_3_0_WAVE_C_CALIBRATION.json`. The UI
 stress cycles 100,000 distinct IDs with a 16-entry test capacity and three-frame
 window, observing at most four retained IDs; separate cases fill a frame to prove
 exhaustion, oldest/insertion-order eviction, and immediate active/focus cleanup.

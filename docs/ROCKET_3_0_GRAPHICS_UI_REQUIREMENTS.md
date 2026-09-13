@@ -10,17 +10,18 @@ is the accepted Rocket 2.1 portability baseline at
 **Companion plan:** `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`
 
 **Documentation status:** Current and historical repository documents are
-indexed by `docs/DOCUMENTATION_STATUS.md`; the accepted Wave B syntax/API
+indexed by `docs/DOCUMENTATION_STATUS.md`; the accepted Wave C syntax/API
 surface is summarized in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
 
-**Wave B status (2026-09-10):** The public F14/F15 shape and input surface,
-F16 typography, F17 `VirtualCanvas`, F18 UI context/interaction, F19 layout,
-and F23 typed asset-store requirements have reached `PUBLIC / WAVE-GREEN` on
-the integrated Wave B tree, published to `master` at
-`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. The Windows Debug/Release, stage0/self-host,
-bootstrap, predecessor, package/relocation, native, and application evidence
-passes; final `ACCEPTED` maturity and native non-Windows target-laboratory
-coverage remain governed by WP34/F29.
+**Wave C status (2026-09-14):** F20 themes/styles, F21 controls, F22
+containers/transient UI, and F25 bounded UI/cache state have reached `PUBLIC /
+WAVE-GREEN` on implementation tree
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`. The capacity choices are recorded
+in `ROCKET_3_0_WAVE_C_CALIBRATION.json`. Full Windows Debug/Release,
+LLVM-disabled predecessor, bootstrap, package/relocation, target-surface,
+native, application, review, and security evidence passes. Final `ACCEPTED`
+maturity and native non-Windows target-laboratory coverage remain governed by
+WP34/F29.
 
 ## 1. Purpose
 
@@ -103,7 +104,7 @@ documentation, supported targets, and acceptance evidence.
 ### Integrated development and delivery discipline
 
 - `R3-ISO-001`: `master` in the main Rocket checkout is the accepted Rocket 2.1
-  and Wave B integration baseline. Packet implementation may use an owner's
+  and Wave C integration baseline. Packet implementation may use an owner's
   isolated wave branch/worktree created from that exact baseline; each
   successful packet commits and pushes its code, evidence, and rotated handoff
   prompt, and only the defined wave barrier updates `master`.
@@ -144,8 +145,8 @@ documentation, supported targets, and acceptance evidence.
   layout, themes, style resolution, controls, containers, and bounded retained
   state.
 - The intended `rocket.assets` boundary owns cached typed resource loading,
-  lookup, borrowing, and deterministic cleanup. The accepted Wave B reference
-  implementation is currently package-local at `src.rocket_assets`; the
+  lookup, borrowing, and deterministic cleanup. The accepted Wave C reference
+  implementation remains package-local at `src.rocket_assets`; the
   namespace is not yet available as a standard-library import.
 - Visual-comparison tooling owns golden-image comparison and failure artifacts;
   it is not linked into production applications.

@@ -2,7 +2,7 @@
 
 Phase 9 established the permanent self-hosting gate: the compiler implementation
 under `compiler/` is Rocket source and the following chain succeeds on Windows
-x64. Rocket 2.1 and the accepted Rocket 3 Wave B continue to pass the same gate:
+x64. Rocket 2.1 and the accepted Rocket 3 Wave C continue to pass the same gate:
 
 ```text
 C++ stage0 -> Rocket stage1 -> Rocket stage2 -> Rocket stage3
@@ -134,7 +134,7 @@ same `R6001`-`R6005` categories. Native bootstrap uses only the packaged target
 SDK after installation. Cross-emitted IR or objects cannot substitute for a
 native bootstrap result; exact evidence belongs in `PHASE_19_AUDIT.md`.
 
-The current Wave B publication at `master` is
+The current Wave C publication at `master` is
 `fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. Its Windows Debug and Release
 matrices each passed `267/267`, and the deterministic stage0 -> stage3 run
 recorded matching stage2/stage3 IR. Wave C remains additive work on this

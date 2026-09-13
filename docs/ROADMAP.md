@@ -1,12 +1,11 @@
 # Rocket Master Roadmap
 
-**Current status (updated 2026-09-10):** Rocket 2.1 portability is complete and
-Rocket 3 Wave B is accepted on the integrated Windows baseline. Wave C is ready
-to begin with Eddy's WP25 -> WP26 -> WP27 -> WP30 queue; Ryan is review and
-integration support only. Native non-Windows Rocket 3 target-laboratory
-acceptance remains deferred to WP34/F29. The Rocket 2.0 Windows x64 SDK remains
-available as the stable compatibility archive. The complete documentation
-disposition is indexed in `DOCUMENTATION_STATUS.md`.
+**Current status (updated 2026-09-14):** Rocket 2.1 portability is complete and
+Rocket 3 Wave C is accepted on the integrated Windows baseline. Wave D is ready
+with Ryan WP29 and Eddy's WP31 -> WP32 -> WP33 queue. Native non-Windows Rocket
+3 target-laboratory acceptance remains deferred to WP34/F29. The Rocket 2.0
+Windows x64 SDK remains available as the stable compatibility archive. The
+complete documentation disposition is indexed in `DOCUMENTATION_STATUS.md`.
 
 ## Long-term objective
 
@@ -603,9 +602,39 @@ implementation is `examples/raylib_showcase/src/rocket_assets.rocket`.
 - Final Rocket 3.0 `ACCEPTED` maturity and native Linux x64, Linux ARM64, and
   macOS ARM64 target-laboratory evidence remain WP34/F29 responsibilities.
 
-**Next:** Create `rocket3/eddy-wave-c` from the accepted `master` commit. Eddy
+**Historical next (completed):** Create `rocket3/eddy-wave-c` from the accepted `master` commit. Eddy
 implements WP25, WP26, WP27, and WP30 in order; Ryan reviews and later performs
 the Wave C barrier integration. WP29 remains deferred until Wave C is accepted.
+
+### Phase 22 - Rocket 3.0 public UI and bounded state: Wave C - Accepted
+
+**Completed 2026-09-14 on implementation tree
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`.** Wave C promoted public themes
+and styles, controls, containers/transient UI, and bounded UI/cache integration
+through Eddy's WP25 -> WP26 -> WP27 -> WP30 chain. The owner commits remain
+visible behind non-squash integration merge `6ad6e56`; integration hardening
+restored the Wave B asset-store ABI, bounded idempotent cleanup state, rejected
+overflowing container geometry, and synchronized the generated binding.
+
+- Full Debug and Release CTest suites passed `280/280` each; the LLVM-disabled
+  Release predecessor matrix passed `203/203`; focused Wave C passed `18/18`.
+- Deterministic Release bootstrap passed stage0 -> stage1 -> stage2 -> stage3
+  with matching stage2/stage3 IR SHA-256
+  `0fb57ad9dc49d387ff578458bc7922a4f81fb5cb9cd5aec4230028bd1d3b1f95`.
+- Rocket 2.1 predecessor conformance passed `90` cases, release-line
+  compatibility passed `11` cases, and application validation resolved `32`
+  packages and passed `11` headless raylib checks.
+- The capacity and retention decisions are recorded in
+  `ROCKET_3_0_WAVE_C_CALIBRATION.json` with seven Release samples per workload
+  and a machine-enforced schema. Independent final review and security review
+  found no reportable vulnerability.
+- Final Rocket 3.0 `ACCEPTED` maturity and native Linux x64, Linux ARM64, and
+  macOS ARM64 target-laboratory evidence remain WP34/F29 responsibilities.
+
+**Next:** Publish the accepted barrier to `master`, then create
+`rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the same pushed SHA. Ryan
+implements WP29; Eddy implements WP31, WP32, and WP33 in order. No Wave D
+implementation is included in this barrier.
 
 ## Post-roadmap tooling maintenance
 

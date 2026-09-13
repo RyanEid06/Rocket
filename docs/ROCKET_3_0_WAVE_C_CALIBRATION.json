@@ -1,0 +1,73 @@
+{
+  "schema": "rocket3-wave-c-capacity-calibration-v1",
+  "implementation_tree": "39259b6704c517b123d5d1a8d153bc4ea4d32e0d",
+  "measured_at": "2026-09-14",
+  "environment": {
+    "os": "Microsoft Windows 10.0.26200",
+    "architecture": "x64",
+    "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+    "logical_processors": 16,
+    "powershell": "7.6.5",
+    "rocketc": "2.1.0",
+    "llvm": "22.1.6",
+    "configuration": "Release"
+  },
+  "method": {
+    "samples_per_workload": 7,
+    "execution": "Each already-built Release executable was launched as a fresh child process from the repository root with redirected output and no visible window.",
+    "elapsed_time": "System.Diagnostics.Stopwatch wall-clock milliseconds around process start through exit.",
+    "working_set": "Process.WorkingSet64 sampled every 2 ms while the child was alive; values are observed peaks, not an allocation budget.",
+    "warmup": "No samples were discarded. All seven cold-process observations are reported.",
+    "scope": "Capacity and retention calibration only. Final per-frame performance budgets remain owned by WP31."
+  },
+  "frozen_values": {
+    "ui_context_capacity": 2048,
+    "unseen_retention_frames": 8,
+    "measurement_cache_capacity": 256,
+    "asset_store_default_capacity": 256,
+    "maximum_user_configured_capacity": 100000
+  },
+  "workloads": {
+    "ui_default_and_100k_churn": {
+      "outcome": "passed",
+      "executable": "out/rocket3-provisional/wp30/Release/stage0/ui-artifacts/rocket3_bounded_state_package/.rocketc/targets/windows-x64/bounded_state_test.exe",
+      "coverage": [
+        "fills the default 2048-entry UI context",
+        "verifies deterministic exhaustion without mutation",
+        "retains all entries for eight unseen frames and evicts them on the ninth",
+        "cycles 100000 dynamic widget IDs through a 16-entry context",
+        "verifies deterministic eviction plus active and focused cleanup"
+      ],
+      "elapsed_ms": [1353.39, 1325.03, 1327.29, 1339.21, 1296.14, 1291.29, 1299.60],
+      "observed_peak_working_set_mib": [6.75, 6.92, 6.66, 6.80, 6.71, 6.67, 6.69],
+      "median_elapsed_ms": 1325.03,
+      "maximum_elapsed_ms": 1353.39,
+      "median_observed_peak_working_set_mib": 6.71,
+      "maximum_observed_peak_working_set_mib": 6.92
+    },
+    "native_cache_and_cleanup": {
+      "outcome": "passed",
+      "executable": "out/build/windows-release/rocket_phase30_raylib_adapter_tests.exe",
+      "coverage": [
+        "checks the legacy asset-store default of 256 and explicit bounded construction",
+        "verifies deterministic asset-store exhaustion without partial mutation",
+        "fills the 256-entry measurement cache and verifies LRU order",
+        "verifies selective font invalidation",
+        "creates and idempotently cleans 1024 bounded asset stores without retired-handle tracking growth"
+      ],
+      "elapsed_ms": [78.50, 63.00, 62.91, 63.31, 62.74, 63.27, 61.49],
+      "observed_peak_working_set_mib": [5.75, 5.78, 5.75, 5.75, 5.77, 5.75, 5.75],
+      "median_elapsed_ms": 63.00,
+      "maximum_elapsed_ms": 78.50,
+      "median_observed_peak_working_set_mib": 5.75,
+      "maximum_observed_peak_working_set_mib": 5.78
+    }
+  },
+  "decision": {
+    "ui_context_capacity": "Freeze 2048 instead of the provisional 4096. The designated workload fills the entire bound, rejects entry 2049 without mutation, and completes the full 100000-ID churn with an observed process working set below 7 MiB. The public constructor still allows an explicit bound up to 100000 when an application proves it needs more.",
+    "unseen_retention_frames": "Freeze eight frames instead of the provisional 120. Eight frames preserve ordinary retained state across brief conditional omissions (about 133 ms at 60 Hz), while the ninth frame deterministically reclaims it. Active, focus, and modal ownership are cleaned after the first unseen frame so interaction state does not linger for the retention window.",
+    "measurement_cache_capacity": "Freeze 256 entries. The designated workload fills every entry, refreshes one entry, inserts a new tuple, and observes the expected oldest miss and refreshed hit while the cache stays at 256. Font unload and selective invalidation return the cache to the expected bounded state.",
+    "asset_store_default_capacity": "Freeze the legacy-compatible default at 256 logical assets while preserving explicit smaller bounds and a maximum of 100000. The designated workloads verify the default ABI, physical-resource deduplication, capacity-before-load ordering, deterministic exhaustion, selective cleanup, and bounded idempotent store retirement.",
+    "acceptance": "These measurements support the bounded defaults and lifetime behavior; they are not final rendering or frame-time budgets. WP31 remains responsible for calibrated performance instrumentation and regression thresholds."
+  }
+}

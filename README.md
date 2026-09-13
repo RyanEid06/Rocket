@@ -16,26 +16,28 @@ This page is the current public summary. The complete documentation inventory
 and historical/current boundary are in
 [`DOCUMENTATION_STATUS.md`](docs/DOCUMENTATION_STATUS.md).
 
-## Rocket 3.0 Wave B status
+## Rocket 3.0 Wave C status
 
-Wave B is accepted and published on `master` at
-`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa` (the underlying integration merge is
-`6bb9841e185e948a9135a63bdcceeec4e5a8314a`). It delivers the public shapes and
-input helpers, `VirtualCanvas`, typography, UI context/interaction, layout, and
-typed asset-store surfaces. Debug and Release each pass `267/267`; deterministic
-stage0 -> stage3 bootstrap, predecessor conformance (`90` cases), release-line
-compatibility (`11` cases), package/relocation, and application validation
-(`32` packages, `11` checks) also pass. Native Linux x64, Linux ARM64, and macOS
-ARM64 Rocket 3 target-laboratory acceptance remains deferred to WP34/F29.
+Wave C is accepted on implementation tree
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`, preserving Eddy's WP25, WP26,
+WP27, and WP30 commits behind non-squash integration merge `6ad6e56`. It adds
+public themes/styles, controls, containers/transient UI, and bounded UI,
+measurement, and resource caches. Debug and Release each pass `280/280`; the
+LLVM-disabled predecessor matrix passes `203/203`; deterministic stage0 ->
+stage3 bootstrap, predecessor conformance (`90` cases), release-line
+compatibility (`11` cases), and application validation (`32` packages, `11`
+checks) also pass. The independent final review and security review found no
+reportable vulnerability. Native Linux x64, Linux ARM64, and macOS ARM64 Rocket
+3 target-laboratory acceptance remains deferred to WP34/F29.
 
 The accepted asset-store implementation is the reference-package module
 `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. The planned `rocket.assets` namespace is not a module in
 this checkout yet.
 
-Wave C is ready: Eddy proceeds in order through WP25, WP26, WP27, and WP30;
-Ryan provides review and integration support. WP29 remains deferred until the
-Wave C barrier.
+Wave D is ready after this barrier is published to `master`: Ryan owns WP29;
+Eddy proceeds through WP31, WP32, and WP33. No Wave D implementation is part of
+this barrier.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for

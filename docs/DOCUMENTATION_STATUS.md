@@ -1,7 +1,9 @@
 # Rocket Documentation Status
 
-**Audit date:** 2026-09-10
-**Baseline:** `master` at `fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`
+**Audit date:** 2026-09-14
+**Baseline:** Rocket 3 Wave C implementation tree
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`; publish the barrier status commit
+to `master` before creating Wave D branches.
 **Baseline inventory:** 61 Markdown, text, RST, ADOC, or configuration-like explanatory files before this ledger and the implementation plan were added.
 
 This ledger is the index for the documentation consistency pass. It separates live
@@ -31,10 +33,11 @@ below retain their recorded facts; a historical banner points readers here.
 - Rocket 2.1 portability (Phase 19) is complete on the four documented
   production target rows. The frozen Rocket 2.0 Windows SDK remains available
   for Scroll2Roll compatibility.
-- Rocket 3 Wave B is accepted on the integrated Windows baseline and published
-  to `master` at the baseline SHA above. Wave C is ready with Eddy's
-  WP25 -> WP26 -> WP27 -> WP30 queue; WP29 remains deferred until the Wave C
-  barrier.
+- Rocket 3 Wave C is accepted on the integrated Windows baseline at the
+  implementation SHA above. It promotes themes/styles, controls,
+  containers/transient UI, and bounded UI/cache state; Wave D is ready with
+  Ryan WP29 and Eddy WP31 -> WP32 -> WP33. WP34/F29 remains the final
+  non-Windows target-laboratory gate.
 - The production compiler is `compiler/src/main.rocket`. C++ is the permanent
   reproducible stage0 plus runtime, native-adapter, language-server, and test
   infrastructure.
@@ -90,13 +93,14 @@ below retain their recorded facts; a historical banner points readers here.
 | `docs/ROCKET_1_5_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner added | Frozen 1.5 compatibility reference |
 | `docs/ROCKET_1_8_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner added | Frozen 1.8 compatibility reference |
 | `docs/ROCKET_2_0_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner/link updated | Frozen 2.0 syntax reference |
-| `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md` | CURRENT | Updated | Published Wave B baseline and asset path |
-| `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md` | CURRENT | Updated | Wave B status and intended namespace |
+| `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md` | CURRENT | Updated | Accepted Wave C barrier, calibration, and Wave D handoff |
+| `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md` | CURRENT | Updated | Wave C status and intended namespace |
+| `docs/ROCKET_3_0_WAVE_C_CALIBRATION.json` | EVIDENCE | Added | Machine-checked Wave C capacity/retention measurements and rationale |
 | `docs/SELF_HOSTING.md` | CURRENT | Updated | Production Rocket compiler and stage0 boundary |
 | `docs/SPEC.md` | VERSIONED/CURRENT | Updated | Normative grammar plus accepted Rocket 3 additions |
 | `docs/STDLIB.md` | VERSIONED/CURRENT | Updated | Stable modules plus accepted Rocket 3 modules |
 | `docs/TARGETS.md` | VERSIONED/CURRENT | Updated | Completed Phase 19 target contract |
-| `docs/TOOLING.md` | VERSIONED/CURRENT | Updated | 2.1 tooling plus Wave B syntax metadata |
+| `docs/TOOLING.md` | VERSIONED/CURRENT | Updated | 2.1 tooling plus Wave C syntax metadata |
 | `editors/visualstudio/README.md` | CURRENT | Updated | Current client and LSP surface |
 | `editors/vscode/README.md` | CURRENT | Updated | Current client and LSP surface |
 | `examples/raylib_showcase/assets/about.txt` | EXAMPLE | Updated | Legacy compatibility label |

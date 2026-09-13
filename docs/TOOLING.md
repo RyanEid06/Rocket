@@ -13,11 +13,12 @@ host/target information. Package artifacts default to
 host/target with `R6004`. `TARGETS.md` defines supported cross paths and SDK
 discovery.
 
-The accepted Rocket 3 Wave B callable surface is editor-neutral: named/default
-arguments and labeled enum payloads use the same formatter, LSP metadata,
-signature help, and coded diagnostics. Wave C is ready but not yet a released
-tooling contract. Use `ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current syntax
-index and `DOCUMENTATION_STATUS.md` for the live/historical document boundary.
+The accepted Rocket 3 Wave C callable and UI surface is editor-neutral:
+named/default arguments, labeled enum payloads, and the bundled graphics/UI
+modules use the same formatter, LSP metadata, signature help, and coded
+diagnostics. Wave C is not yet a released Rocket 3.0 tooling contract. Use
+`ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current syntax index and
+`DOCUMENTATION_STATUS.md` for the live/historical document boundary.
 
 For package targets, `build` and `run` reuse a `rocket-build-cache-1` artifact
 only when compiler, runtime, target, options, dependency/native configuration,

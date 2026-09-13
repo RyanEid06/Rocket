@@ -2,7 +2,7 @@
 
 > **Compatibility note:** The scaffold and `src.rocket_raylib` examples in this
 > tutorial preserve the Rocket 1.4 raylib package contract. For current Rocket 3
-> Wave B code, use the bundled `rocket.graphics`, `rocket.graphics.shapes`,
+> Wave C code, use the bundled `rocket.graphics`, `rocket.graphics.shapes`,
 > `rocket.graphics.input`, `rocket.graphics.canvas`, `rocket.ui`, and
 > `rocket.raylib.safe` modules described in
 > `ROCKET_3_0_SYNTAX_DICTIONARY.md`. The complete current/historical split is in
