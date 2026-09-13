@@ -112,6 +112,7 @@ struct PhysicalAsset {
 struct AssetStoreRecord {
   int64_t windowId = 0;
   int64_t audioId = 0;
+  int64_t capacity = 0;
   std::filesystem::path packageRoot;
   std::unordered_map<std::string, AssetEntry> assets;
   std::unordered_map<std::string, PhysicalAsset> physicalAssets;
@@ -491,6 +492,7 @@ int raylibBlendMode(int64_t blendMode) {
 }
 
 constexpr std::size_t kTextMeasurementCacheCapacity = 256;
+constexpr int64_t kAssetStoreMaximumCapacity = 100000;
 
 std::size_t nextUtf8Boundary(const std::string& text, std::size_t index) {
   if (index >= text.size()) return text.size();
@@ -2902,9 +2904,13 @@ extern "C" int64_t rlv_music_live_count(void) {
 }
 
 extern "C" int64_t rlv_asset_store_create(
-    int64_t windowId, int64_t audioId, int64_t packageRootBufferId) {
+    int64_t windowId, int64_t audioId, int64_t packageRootBufferId,
+    int64_t capacity) {
   if (!validWindow(windowId) || !validAudio(audioId)) {
     return RLV_ERR_STALE_HANDLE;
+  }
+  if (capacity <= 0 || capacity > kAssetStoreMaximumCapacity) {
+    return RLV_ERR_INVALID_ARGUMENT;
   }
   const std::string* rootText = buffer(packageRootBufferId);
   if (!rootText || rootText->empty()) return RLV_ERR_INVALID_ARGUMENT;
@@ -2919,6 +2925,7 @@ extern "C" int64_t rlv_asset_store_create(
   AssetStoreRecord store;
   store.windowId = windowId;
   store.audioId = audioId;
+  store.capacity = capacity;
   store.packageRoot = std::move(root);
   state.assetStores.emplace(id, std::move(store));
   state.cleanedAssetStores.erase(id);
@@ -2927,6 +2934,12 @@ extern "C" int64_t rlv_asset_store_create(
 
 extern "C" int64_t rlv_asset_store_live_count(void) {
   return static_cast<int64_t>(state.assetStores.size());
+}
+
+extern "C" int64_t rlv_asset_store_capacity(int64_t storeId) {
+  const auto store = state.assetStores.find(storeId);
+  return store == state.assetStores.end() ? RLV_ERR_STALE_HANDLE
+                                          : store->second.capacity;
 }
 
 extern "C" int64_t rlv_asset_store_asset_count(int64_t storeId) {
@@ -2956,6 +2969,10 @@ extern "C" int64_t rlv_asset_texture_load(
   const std::string relativePath = *pathValue;
   if (store->second.assets.find(name) != store->second.assets.end()) {
     return RLV_ERR_DUPLICATE_ASSET;
+  }
+  if (static_cast<int64_t>(store->second.assets.size()) >=
+      store->second.capacity) {
+    return RLV_ERR_CAPACITY;
   }
   std::string path;
   const int64_t pathStatus =
@@ -2992,6 +3009,10 @@ extern "C" int64_t rlv_asset_font_load(
   if (store->second.assets.find(name) != store->second.assets.end()) {
     return RLV_ERR_DUPLICATE_ASSET;
   }
+  if (static_cast<int64_t>(store->second.assets.size()) >=
+      store->second.capacity) {
+    return RLV_ERR_CAPACITY;
+  }
   std::string path;
   const int64_t pathStatus =
       resolveAssetPath(store->second, relativePath, false, path);
@@ -3027,6 +3048,10 @@ extern "C" int64_t rlv_asset_sound_load(
   if (store->second.assets.find(name) != store->second.assets.end()) {
     return RLV_ERR_DUPLICATE_ASSET;
   }
+  if (static_cast<int64_t>(store->second.assets.size()) >=
+      store->second.capacity) {
+    return RLV_ERR_CAPACITY;
+  }
   std::string path;
   const int64_t pathStatus =
       resolveAssetPath(store->second, relativePath, false, path);
@@ -3061,6 +3086,10 @@ extern "C" int64_t rlv_asset_music_load(
   const std::string relativePath = *pathValue;
   if (store->second.assets.find(name) != store->second.assets.end()) {
     return RLV_ERR_DUPLICATE_ASSET;
+  }
+  if (static_cast<int64_t>(store->second.assets.size()) >=
+      store->second.capacity) {
+    return RLV_ERR_CAPACITY;
   }
   std::string path;
   const int64_t pathStatus =
@@ -3105,6 +3134,10 @@ extern "C" int64_t rlv_asset_shader_load(
   const std::string fragmentRelative = *fragmentValue;
   if (store->second.assets.find(name) != store->second.assets.end()) {
     return RLV_ERR_DUPLICATE_ASSET;
+  }
+  if (static_cast<int64_t>(store->second.assets.size()) >=
+      store->second.capacity) {
+    return RLV_ERR_CAPACITY;
   }
   std::string vertexPath;
   std::string fragmentPath;

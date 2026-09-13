@@ -558,6 +558,41 @@ set_tests_properties(rocket3_ui_layout_stage0 PROPERTIES
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_ui_theme_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp25/${CMAKE_BUILD_TYPE}/stage0"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_theme_test.cmake")
+set_tests_properties(rocket3_ui_theme_stage0 PROPERTIES
+  LABELS "rocket3;wp25;ui;theme;styles;stage0"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_ui_controls_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp26/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_controls_test.cmake")
+set_tests_properties(rocket3_ui_controls_stage0 PROPERTIES
+  LABELS "rocket3;wp26;ui;controls;stage0"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_ui_containers_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp27/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_containers_test.cmake")
+set_tests_properties(rocket3_ui_containers_stage0 PROPERTIES
+  LABELS "rocket3;wp27;ui;containers;stage0"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_typography_stage0
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -580,6 +615,18 @@ add_test(NAME rocket3_asset_store_stage0
 set_tests_properties(rocket3_asset_store_stage0 PROPERTIES
   LABELS "rocket3;wp28;assets;stage0;raylib;native;docs;formatter"
   TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_bounded_state_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp30/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_bounded_state_test.cmake")
+set_tests_properties(rocket3_bounded_state_stage0 PROPERTIES
+  LABELS "rocket3;wp30;bounded-state;caches;stage0;raylib;native;docs;formatter"
+  TIMEOUT 600
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_executable(rocket_phase14_raylib_adapter_tests
@@ -697,6 +744,17 @@ add_test(NAME phase28_raylib_adapter
   COMMAND rocket_phase28_raylib_adapter_tests)
 set_tests_properties(phase28_raylib_adapter PROPERTIES
   LABELS "phase28;raylib;native;rocket3;wp28;assets")
+
+add_executable(rocket_phase30_raylib_adapter_tests
+  tests/native/phase30_raylib_adapter_tests.cpp)
+target_link_libraries(rocket_phase30_raylib_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket_phase30_raylib_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME phase30_raylib_adapter
+  COMMAND rocket_phase30_raylib_adapter_tests)
+set_tests_properties(phase30_raylib_adapter PROPERTIES
+  LABELS "phase30;raylib;native;rocket3;wp30;bounded-state;caches")
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
@@ -1060,6 +1118,44 @@ set_tests_properties(rocket3_ui_layout_self_hosted PROPERTIES
   TIMEOUT 540
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_ui_theme_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp25/${CMAKE_BUILD_TYPE}/self-hosted"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_theme_test.cmake")
+set_tests_properties(rocket3_ui_theme_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp25;ui;theme;styles;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_ui_controls_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp26/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_controls_test.cmake")
+set_tests_properties(rocket3_ui_controls_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp26;ui;controls;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_ui_containers_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp27/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_containers_test.cmake")
+set_tests_properties(rocket3_ui_containers_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp27;ui;containers;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_typography_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -1083,6 +1179,19 @@ set_tests_properties(rocket3_asset_store_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp28;assets;selfhost;raylib;native;docs;formatter"
   TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_bounded_state_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp30/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_bounded_state_test.cmake")
+set_tests_properties(rocket3_bounded_state_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp30;bounded-state;caches;selfhost;raylib;native;docs;formatter"
+  TIMEOUT 660
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME rocket3_std_math_target_surface
   COMMAND ${CMAKE_COMMAND}
@@ -1173,6 +1282,45 @@ set_tests_properties(rocket3_ui_layout_target_surface PROPERTIES
   TIMEOUT 540
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_ui_theme_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp25/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_theme_target_surface_test.cmake")
+set_tests_properties(rocket3_ui_theme_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp25;ui;theme;styles;target;surface;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_ui_controls_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp26/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_controls_target_surface_test.cmake")
+set_tests_properties(rocket3_ui_controls_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp26;ui;controls;target;surface;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_ui_containers_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp27/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_ui_containers_target_surface_test.cmake")
+set_tests_properties(rocket3_ui_containers_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp27;ui;containers;target;surface;selfhost"
+  TIMEOUT 540
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_typography_target_surface
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1197,6 +1345,19 @@ set_tests_properties(rocket3_asset_store_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp28;assets;target;surface;selfhost;raylib"
   TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_bounded_state_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp30/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_bounded_state_target_surface_test.cmake")
+set_tests_properties(rocket3_bounded_state_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp30;bounded-state;caches;target;surface;selfhost;raylib"
+  TIMEOUT 600
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()
 add_test(NAME cli_run_self_hosted_syntax_check

@@ -1,0 +1,23 @@
+import rocket.graphics
+import rocket.ui.styles
+import rocket.ui.theme
+
+fn main() -> Int:
+    let palette = theme.dark_theme()
+    let spacing = theme.spacing_tokens()
+    let radius = theme.radius_tokens()
+    let typography = theme.typography_tokens()
+    let motion = theme.motion_tokens()
+    let colors = theme.color_tokens(palette.colors.background, palette.colors.surface, palette.colors.raised_surface, palette.colors.table, palette.colors.action, palette.colors.action_hovered, palette.colors.action_pressed, palette.colors.text, palette.colors.muted_text, palette.colors.success, palette.colors.warning, palette.colors.error, palette.colors.border, palette.colors.focus)
+    let custom_theme = theme.theme(colors, spacing, radius, typography, motion)
+    let text = styles.text_style(custom_theme.colors.text, custom_theme.typography.body)
+    let border = styles.border_style(custom_theme.colors.border, 1.0, custom_theme.radius.small)
+    let shadow = styles.shadow_style(custom_theme.colors.background, graphics.vec2(0.0, 2.0), 4.0)
+    let image = styles.image_style(custom_theme.colors.text)
+    let panel = styles.panel_style(custom_theme.colors.surface, border, shadow, custom_theme.spacing.medium)
+    let button = styles.button_style(custom_theme.colors.action, text, border, shadow, custom_theme.spacing.small)
+    let set = styles.style_set(text, panel, button, image)
+    let states = styles.style_states(set, set, set, set, set)
+    let resolved = styles.resolve(states, styles.control_state(hovered: true, focused: true))
+    let defaults = styles.default_styles(custom_theme)
+    return 0

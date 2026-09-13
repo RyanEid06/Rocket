@@ -1,0 +1,203 @@
+# Public Rocket 3 game-UI containers and transient surfaces. Values remain
+# caller-owned; modal capture delegates to rocket.ui and child clipping delegates
+# to the reviewed VirtualCanvas/scissor boundary.
+
+import std.collections
+import std.string
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.raylib.safe
+import rocket.ui
+import rocket.ui.layout
+import rocket.ui.styles
+
+pub struct Panel:
+    bounds: graphics.Rect
+    content_bounds: graphics.Rect
+    style: styles.PanelStyle
+    clip_children: Bool
+
+pub struct Overlay:
+    id: ui.WidgetId
+    bounds: graphics.Rect
+    style: styles.PanelStyle
+    stack_order: Int
+    modal: Bool
+
+pub struct Dialog:
+    overlay: Overlay
+    panel: Panel
+
+pub struct Tooltip:
+    overlay: Overlay
+    text: String
+
+pub struct Toast:
+    overlay: Overlay
+    text: String
+
+pub fn panel(bounds: graphics.Rect, style: styles.PanelStyle, clip_children: Bool = false) -> Result[Panel, String]:
+    if not graphics.rect_has_nonnegative_size(bounds):
+        return Err("UI panel bounds must be finite with nonnegative size")
+    if not styles.panel_style_is_valid(style):
+        return Err("UI panel requires a valid panel style")
+    let inset = style.border.width + style.padding
+    match layout.inset_rect(bounds, layout.insets_all(inset)):
+        case Err(message):
+            let ignored = message
+            return Err("UI panel border and padding exceed its bounds")
+        case Ok(content_bounds):
+            return Ok(Panel(bounds, content_bounds, style, clip_children))
+
+pub fn overlay(id: ui.WidgetId, bounds: graphics.Rect, style: styles.PanelStyle, stack_order: Int, modal: Bool = false) -> Result[Overlay, String]:
+    if not graphics.rect_has_nonnegative_size(bounds):
+        return Err("UI overlay bounds must be finite with nonnegative size")
+    if not styles.panel_style_is_valid(style):
+        return Err("UI overlay requires a valid panel style")
+    if stack_order < 0:
+        return Err("UI overlay stack order must be nonnegative")
+    return Ok(Overlay(id, bounds, style, stack_order, modal))
+
+pub fn dialog(id: ui.WidgetId, overlay_bounds: graphics.Rect, panel_bounds: graphics.Rect, overlay_style: styles.PanelStyle, panel_style: styles.PanelStyle, stack_order: Int) -> Result[Dialog, String]:
+    match overlay(id, overlay_bounds, overlay_style, stack_order, modal: true):
+        case Err(message):
+            return Err(message)
+        case Ok(overlay_value):
+            if not rect_contains(overlay_bounds, panel_bounds):
+                return Err("UI dialog panel must be contained by its overlay")
+            match panel(panel_bounds, panel_style, clip_children: true):
+                case Err(message):
+                    return Err(message)
+                case Ok(panel_value):
+                    return Ok(Dialog(overlay_value, panel_value))
+
+pub fn tooltip(id: ui.WidgetId, text: String, bounds: graphics.Rect, style: styles.PanelStyle, stack_order: Int) -> Result[Tooltip, String]:
+    if string.byte_length(text) == 0:
+        return Err("UI tooltip text must not be empty")
+    match overlay(id, bounds, style, stack_order, modal: false):
+        case Err(message):
+            return Err(message)
+        case Ok(overlay_value):
+            return Ok(Tooltip(overlay_value, text))
+
+pub fn toast(id: ui.WidgetId, text: String, bounds: graphics.Rect, style: styles.PanelStyle, stack_order: Int) -> Result[Toast, String]:
+    if string.byte_length(text) == 0:
+        return Err("UI toast text must not be empty")
+    match overlay(id, bounds, style, stack_order, modal: false):
+        case Err(message):
+            return Err(message)
+        case Ok(overlay_value):
+            return Ok(Toast(overlay_value, text))
+
+pub fn top_overlay(overlays: Array[Overlay]) -> Result[Overlay, String]:
+    match validated_stack(overlays):
+        case Err(message):
+            return Err(message)
+        case Ok(valid):
+            let ignored = valid
+    var selected = overlays[0]
+    var index = 1
+    while index < collections.length(overlays):
+        if overlays[index].stack_order > selected.stack_order:
+            selected = overlays[index]
+        index = index + 1
+    return Ok(selected)
+
+pub fn capturing_modal(overlays: Array[Overlay]) -> Result[Overlay, String]:
+    match validated_stack(overlays):
+        case Err(message):
+            return Err(message)
+        case Ok(valid):
+            let ignored = valid
+    var found = false
+    var selected = overlays[0]
+    var index = 0
+    while index < collections.length(overlays):
+        let candidate = overlays[index]
+        if candidate.modal and(not found or candidate.stack_order > selected.stack_order):
+            found = true
+            selected = candidate
+        index = index + 1
+    if not found:
+        return Err("UI overlay stack has no modal overlay")
+    return Ok(selected)
+
+pub fn activate_modal(context: ui.Context, overlays: Array[Overlay]) -> Result[ui.Context, String]:
+    match capturing_modal(overlays):
+        case Err(message):
+            return Err(message)
+        case Ok(selected):
+            return ui.activate_modal(context, selected.id)
+
+pub fn clear_modal(context: ui.Context, overlays: Array[Overlay]) -> Result[ui.Context, String]:
+    match capturing_modal(overlays):
+        case Err(message):
+            return Err(message)
+        case Ok(selected):
+            return ui.clear_modal(context, selected.id)
+
+pub fn enter_modal(frame: ui.UiFrame, selected: Overlay, overlays: Array[Overlay]) -> Result[ui.UiFrame, String]:
+    match capturing_modal(overlays):
+        case Err(message):
+            return Err(message)
+        case Ok(capturing):
+            if not same_overlay(selected, capturing):
+                return Err("UI overlay is not the capturing modal")
+            return ui.enter_modal(frame, capturing.id)
+
+pub fn exit_modal(frame: ui.UiFrame) -> Result[ui.UiFrame, String]:
+    return ui.exit_modal(frame)
+
+pub fn begin_panel_clip(frame: safe.Frame, mapping: graphics.VirtualCanvas, value: Panel) -> Result[safe.ScissorScope, String]:
+    if not panel_is_valid(value):
+        return Err("UI panel clip requires a valid panel")
+    if not value.clip_children:
+        return Err("UI panel child clipping is disabled")
+    return canvas.begin_clip(frame, mapping, value.content_bounds)
+
+pub fn end_panel_clip(scope: safe.ScissorScope) -> Result[Bool, String]:
+    return canvas.end_clip(scope)
+
+pub fn panel_is_valid(value: Panel) -> Bool:
+    if not graphics.rect_has_nonnegative_size(value.bounds) or not graphics.rect_has_nonnegative_size(value.content_bounds):
+        return false
+    if not styles.panel_style_is_valid(value.style):
+        return false
+    return rect_contains(value.bounds, value.content_bounds)
+
+pub fn overlay_stack_is_valid(overlays: Array[Overlay]) -> Bool:
+    match validated_stack(overlays):
+        case Err(message):
+            let ignored = message
+            return false
+        case Ok(valid):
+            return valid
+
+fn validated_stack(overlays: Array[Overlay]) -> Result[Bool, String]:
+    let count = collections.length(overlays)
+    if count == 0:
+        return Err("UI overlay stack must not be empty")
+    var index = 0
+    while index < count:
+        if not overlay_is_valid(overlays[index]):
+            return Err("UI overlay stack contains an invalid overlay")
+        var other = index + 1
+        while other < count:
+            if overlays[index].id.hash == overlays[other].id.hash and overlays[index].id.path == overlays[other].id.path:
+                return Err("UI overlay IDs must be unique")
+            if overlays[index].stack_order == overlays[other].stack_order:
+                return Err("UI overlay stack orders must be unique")
+            other = other + 1
+        index = index + 1
+    return Ok(true)
+
+fn overlay_is_valid(value: Overlay) -> Bool:
+    return graphics.rect_has_nonnegative_size(value.bounds) and styles.panel_style_is_valid(value.style) and value.stack_order >= 0
+
+fn same_overlay(left: Overlay, right: Overlay) -> Bool:
+    return left.id.hash == right.id.hash and left.id.path == right.id.path and left.stack_order == right.stack_order
+
+fn rect_contains(outer: graphics.Rect, inner: graphics.Rect) -> Bool:
+    if not graphics.rect_has_nonnegative_size(outer) or not graphics.rect_has_nonnegative_size(inner):
+        return false
+    return inner.x >= outer.x and inner.y >= outer.y and inner.x + inner.width <= outer.x + outer.width and inner.y + inner.height <= outer.y + outer.height

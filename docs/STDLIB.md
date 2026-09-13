@@ -539,11 +539,18 @@ viewport and its half-open outside rule are the single coordinate contract.
 ## `rocket.ui`
 
 `rocket.ui` is the Rocket 3 immediate-mode context foundation. `new_context`
-creates a bounded, namespaced state store; `begin_frame(context, window, canvas)`
-opens exactly one `UiFrame` and snapshots pointer and common keyboard state once
-through `rocket.graphics.input` and `rocket.raylib.safe`. `end_frame` closes the
-frame, evicts widget IDs not seen in that frame, and clears stale active, focused,
-or modal state. Nested frames, closed-frame use, duplicate IDs, over-capacity
+creates a bounded, namespaced state store with a calibrated 2,048-ID default
+capacity and an eight-frame unseen-retention window;
+`begin_frame(context, window, canvas)` opens exactly one `UiFrame` and snapshots
+pointer and common keyboard state once through `rocket.graphics.input` and
+`rocket.raylib.safe`. `end_frame` closes the frame, evicts IDs outside that
+window, and clears active, focused, or modal state as soon as its widget is
+absent from a frame. When capacity is reached, the oldest unseen ID is evicted;
+equal-age IDs use insertion order. If every retained ID was seen in the current
+frame, registration returns the explicit capacity error. `context_capacity`,
+`context_unseen_retention_frames`, `context_retained_count`, and
+`context_contains` expose the policy for diagnostics and deterministic tests.
+Nested frames, closed-frame use, duplicate IDs, over-capacity
 registration, invalid bounds, and unclosed modal scopes return recoverable
 contract errors. `Context` and `UiFrame` are single-thread-confined UI state;
 their atomic lease rejects stale copied values but is not a cross-thread
@@ -559,9 +566,9 @@ make focus and modal ownership explicit. `Response` records hover/active/click/
 focus/disabled/modal and activation facts for the frame that produced it;
 `response_is_current` and `response_is_current_context` reject stale responses.
 Keyboard helpers expose activation, cancel, focus-next, and directional snapshots
-without rereading native input during widget evaluation. Themes and concrete
-controls remain later `rocket.ui` layers; layout is provided by
-`rocket.ui.layout`.
+without rereading native input during widget evaluation. Themes, styles, and
+controls are provided by `rocket.ui.theme`, `rocket.ui.styles`, and
+`rocket.ui.controls`. Layout is provided by `rocket.ui.layout`.
 
 ## `rocket.ui.layout`
 
@@ -600,17 +607,107 @@ may contain fewer items than cells. The API therefore makes ordinary
 underspecified child sizing unrepresentable while still diagnosing malformed raw
 policy values deterministically.
 
+## `rocket.ui.theme`
+
+`rocket.ui.theme` centralizes immutable semantic tokens without owning renderer,
+widget, or native state. `ColorTokens` covers background, surface, raised
+surface, table treatment, action states, primary/muted text, success, warning,
+error, border, and focus colors. `SpacingTokens`, `RadiusTokens`,
+`TypographyTokens`, and `MotionTokens` provide the corresponding numeric scales;
+`Theme` groups all five token families.
+
+`color_tokens` creates an explicit semantic palette. `spacing_tokens`,
+`radius_tokens`, `typography_tokens`, and `motion_tokens` expose source-stable
+named parameters with practical defaults. `theme` groups explicit token sets and
+`dark_theme` supplies the bundled neutral dark/table palette. `theme_is_valid`
+rejects non-finite, negative, out-of-range color, and non-positive typography
+values even when callers construct public structs directly.
+
+## `rocket.ui.styles`
+
+`rocket.ui.styles` provides value-owned `TextStyle`, `BorderStyle`,
+`ShadowStyle`, `ImageStyle`, `PanelStyle`, and `ButtonStyle` data. `StyleSet`
+groups those objects for a single visual state and `StyleStates` stores normal,
+hovered, pressed, disabled, and focused sets. The constructors expose explicit
+data plus defaults for optional width, radius, blur, opacity, and padding; the
+validation predicates reject invalid colors, non-finite or negative dimensions,
+non-positive text sizes, and opacity outside `[0, 1]`.
+
+`default_styles(theme)` maps the selected semantic tokens into a complete state
+set. `control_state` describes current interaction flags and `resolve` selects a
+style deterministically with priority `disabled > pressed > hovered > focused >
+normal`. This priority prevents a disabled control from inheriting hover or
+press visuals and keeps drawing behavior out of the style layer. Containers,
+renderer conversion, retained caches, and application inheritance remain
+outside these modules.
+
+## `rocket.ui.controls`
+
+`rocket.ui.controls` provides the focused game-UI control set. `text`, `image`,
+`separator`, `badge`, and `pill` return validated, value-owned descriptions
+using WP25 `TextStyle`, `ImageStyle`, `BorderStyle`, and `PanelStyle` objects.
+Image controls retain an application-facing asset name rather than a native
+handle; asset loading and borrowing remain outside this module.
+
+`button(frame, id, label, bounds, states, disabled = false)` and
+`icon_button(frame, id, icon, accessibility_label, bounds, states,
+disabled = false)` return the advanced `UiFrame`, the current `Response`, and
+the control value with its selected `ButtonStyle`. Both functions use the same
+`rocket.ui.interact` path for stable-ID registration, half-open hit testing,
+focus, pointer press/hold/release transitions, Space/Enter activation, disabled
+behavior, modal blocking, response freshness, and virtual-canvas outside-
+viewport rejection. Style selection uses WP25 priority: disabled, pressed,
+hovered, focused, then normal. Icon buttons require a nonempty icon name and
+accessibility label. The module owns no retained state, renderer, native
+resource, container, dialog, overlay, tooltip, or toast behavior.
+
+## `rocket.ui.containers`
+
+`rocket.ui.containers` provides validated, value-owned `Panel`, `Overlay`,
+`Dialog`, `Tooltip`, and `Toast` descriptions. `panel(bounds, style,
+clip_children = false)` retains the complete `PanelStyle`—background, border
+color/thickness/radius, shadow, and padding—and derives `content_bounds` by
+insetting the panel by border thickness plus padding. Dialog panels are clipped
+by default and must be contained by their modal overlay.
+
+Every overlay has a nonnegative, caller-owned `stack_order`; overlay IDs and
+orders in a stack must be unique. `top_overlay` selects the largest order for rendering and
+`capturing_modal` selects the modal overlay with the largest order for input and
+focus capture. `activate_modal`, `enter_modal`, `exit_modal`, and `clear_modal`
+delegate lifecycle and blocking behavior to `rocket.ui`, so controls outside the
+active scope remain blocked and focus can be assigned only inside it. The stack
+is immutable input data and introduces no retained container cache.
+
+`begin_panel_clip(frame, mapping, panel)` clips to logical `content_bounds`
+through `rocket.graphics.canvas`; `end_panel_clip` closes the returned safe
+scissor token. Nested panels therefore use the backend's deterministic
+intersection, strict LIFO restoration, and frame-end leak detection without
+exposing native handles or scope state.
+
 ## Typed asset-store reference package
 
 The accepted Wave B typed asset store is currently an ordinary package module
 at `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. It exposes `AssetStore`, `TextureRef`, `FontRef`,
 `SoundRef`, `MusicRef`, and `ShaderRef`, with typed load, lookup, borrow, and
-idempotent `cleanup` operations. Paths are rooted to the package, traversal and
+idempotent `cleanup` operations. `open` accepts a bounded logical-resource
+capacity from 1 through 100,000 (256 by default), and `capacity` reports the
+frozen value. Exhaustion occurs before physical loading, so the logical and
+physical caches remain unchanged. Paths are rooted to the package, traversal and
 symlink escapes are rejected, duplicate names and wrong-type lookups return
 recoverable errors, and cleanup invalidates borrowed references. The planned
 `rocket.assets` / `stdlib/rocket/assets` namespace in the Rocket 3 design is not
 an available standard-library module in this checkout.
+
+WP30 calibrated the integrated defaults in the Windows x64 Release build. The UI
+stress cycles 100,000 distinct IDs with a 16-entry test capacity and three-frame
+window, observing at most four retained IDs; separate cases fill a frame to prove
+exhaustion, oldest/insertion-order eviction, and immediate active/focus cleanup.
+The 2,048/eight production defaults replace the provisional 4,096/120 inputs.
+The resource test fills a two-entry store and proves a rejected third load does
+not change either cache. The 256-entry text-measurement LRU is filled exactly,
+its oldest entry is checked after a recency update, and asset cleanup proves
+font-specific invalidation leaves an unrelated font's cached measurement live.
 
 ## `std.file` and `std.path`
 

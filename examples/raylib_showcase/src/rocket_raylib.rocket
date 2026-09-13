@@ -186,6 +186,8 @@ fn status_message(status: Int) -> String:
         return "raylib: asset type mismatch"
     if status == rocket_raylib_adapter.RLV_ERR_PATH_ESCAPE:
         return "raylib: asset path escapes package root"
+    if status == rocket_raylib_adapter.RLV_ERR_CAPACITY:
+        return "raylib: asset store capacity exceeded"
     return "raylib: unknown native failure"
 
 fn status_result(status: Int) -> Result[Bool, String]:

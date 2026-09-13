@@ -1,0 +1,8 @@
+import rocket.graphics
+import rocket.ui.controls
+import rocket.ui.styles
+import rocket.ui.theme
+
+fn main() -> Int:
+    let result = controls.text("wrong", graphics.vec2(1.0, 2.0), styles.default_styles(theme.dark_theme()).normal.text)
+    return 0

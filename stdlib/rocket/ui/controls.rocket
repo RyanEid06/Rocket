@@ -1,0 +1,126 @@
+# Public Rocket 3 game-UI controls. Interactive controls delegate identity,
+# pointer mapping, hit testing, focus, disabled state, modal capture, and
+# activation to rocket.ui; this module owns control values and style selection.
+
+import std.string
+import rocket.graphics
+import rocket.ui
+import rocket.ui.styles
+
+pub struct Text:
+    value: String
+    bounds: graphics.Rect
+    style: styles.TextStyle
+
+pub struct Image:
+    asset_name: String
+    bounds: graphics.Rect
+    style: styles.ImageStyle
+
+pub struct Separator:
+    bounds: graphics.Rect
+    style: styles.BorderStyle
+
+pub struct Badge:
+    value: String
+    bounds: graphics.Rect
+    panel_style: styles.PanelStyle
+    text_style: styles.TextStyle
+
+pub struct Pill:
+    value: String
+    bounds: graphics.Rect
+    panel_style: styles.PanelStyle
+    text_style: styles.TextStyle
+
+pub struct Button:
+    label: String
+    bounds: graphics.Rect
+    style: styles.ButtonStyle
+
+pub struct IconButton:
+    icon: String
+    accessibility_label: String
+    bounds: graphics.Rect
+    style: styles.ButtonStyle
+
+pub struct ButtonResult:
+    frame: ui.UiFrame
+    response: ui.Response
+    control: Button
+
+pub struct IconButtonResult:
+    frame: ui.UiFrame
+    response: ui.Response
+    control: IconButton
+
+pub fn text(value: String, bounds: graphics.Rect, style: styles.TextStyle) -> Result[Text, String]:
+    if not valid_bounds(bounds):
+        return Err("UI text control bounds must be finite with nonnegative size")
+    if not styles.text_style_is_valid(style):
+        return Err("UI text control requires a valid text style")
+    return Ok(Text(value, bounds, style))
+
+pub fn image(asset_name: String, bounds: graphics.Rect, style: styles.ImageStyle) -> Result[Image, String]:
+    if string.byte_length(asset_name) == 0:
+        return Err("UI image control asset name must not be empty")
+    if not valid_bounds(bounds):
+        return Err("UI image control bounds must be finite with nonnegative size")
+    if not styles.image_style_is_valid(style):
+        return Err("UI image control requires a valid image style")
+    return Ok(Image(asset_name, bounds, style))
+
+pub fn separator(bounds: graphics.Rect, style: styles.BorderStyle) -> Result[Separator, String]:
+    if not valid_bounds(bounds):
+        return Err("UI separator control bounds must be finite with nonnegative size")
+    if not styles.border_style_is_valid(style) or style.width <= 0.0:
+        return Err("UI separator control requires a valid positive-width border style")
+    return Ok(Separator(bounds, style))
+
+pub fn badge(value: String, bounds: graphics.Rect, panel_style: styles.PanelStyle, text_style: styles.TextStyle) -> Result[Badge, String]:
+    if not valid_bounds(bounds):
+        return Err("UI badge control bounds must be finite with nonnegative size")
+    if not styles.panel_style_is_valid(panel_style) or not styles.text_style_is_valid(text_style):
+        return Err("UI badge control requires valid panel and text styles")
+    return Ok(Badge(value, bounds, panel_style, text_style))
+
+pub fn pill(value: String, bounds: graphics.Rect, panel_style: styles.PanelStyle, text_style: styles.TextStyle) -> Result[Pill, String]:
+    if not valid_bounds(bounds):
+        return Err("UI pill control bounds must be finite with nonnegative size")
+    if not styles.panel_style_is_valid(panel_style) or not styles.text_style_is_valid(text_style):
+        return Err("UI pill control requires valid panel and text styles")
+    return Ok(Pill(value, bounds, panel_style, text_style))
+
+pub fn button(frame: ui.UiFrame, id: ui.WidgetId, label: String, bounds: graphics.Rect, states: styles.StyleStates, disabled: Bool = false) -> Result[ButtonResult, String]:
+    if not styles.style_states_are_valid(states):
+        return Err("UI button requires valid style states")
+    match interact_button(frame, id, bounds, disabled):
+        case Err(message):
+            return Err(message)
+        case Ok(interaction):
+            let selected = selected_style(states, interaction.response)
+            return Ok(ButtonResult(interaction.frame, interaction.response, Button(label, bounds, selected.button)))
+
+pub fn icon_button(frame: ui.UiFrame, id: ui.WidgetId, icon: String, accessibility_label: String, bounds: graphics.Rect, states: styles.StyleStates, disabled: Bool = false) -> Result[IconButtonResult, String]:
+    if string.byte_length(icon) == 0:
+        return Err("UI icon button icon must not be empty")
+    if string.byte_length(accessibility_label) == 0:
+        return Err("UI icon button accessibility label must not be empty")
+    if not styles.style_states_are_valid(states):
+        return Err("UI icon button requires valid style states")
+    match interact_button(frame, id, bounds, disabled):
+        case Err(message):
+            return Err(message)
+        case Ok(interaction):
+            let selected = selected_style(states, interaction.response)
+            return Ok(IconButtonResult(interaction.frame, interaction.response, IconButton(icon, accessibility_label, bounds, selected.button)))
+
+fn interact_button(frame: ui.UiFrame, id: ui.WidgetId, bounds: graphics.Rect, disabled: Bool) -> Result[ui.Interaction, String]:
+    return ui.interact(frame, id, bounds, disabled)
+
+fn selected_style(states: styles.StyleStates, response: ui.Response) -> styles.StyleSet:
+    let state = styles.control_state(response.hovered, response.active, response.disabled, response.focused)
+    return styles.resolve(states, state)
+
+fn valid_bounds(value: graphics.Rect) -> Bool:
+    return graphics.rect_has_nonnegative_size(value)

@@ -534,7 +534,8 @@ Imports whose complete path starts with `std.` resolve to compiler-provided
 modules rather than package files, except for explicitly bundled source modules
 such as `std.testing`. The public `rocket.motion`, `rocket.graphics`,
 `rocket.graphics.shapes`, `rocket.graphics.input`, `rocket.graphics.canvas`,
-`rocket.ui`, `rocket.ui.layout`, and `rocket.raylib.safe` modules are likewise
+`rocket.ui`, `rocket.ui.layout`, `rocket.ui.theme`, `rocket.ui.styles`,
+`rocket.ui.controls`, `rocket.ui.containers`, and `rocket.raylib.safe` modules are likewise
 resolved from bundled
 ordinary Rocket source under `stdlib/rocket`; they are not compiler intrinsics. Their function
 signatures are statically checked and lower to typed MIR calls.
@@ -554,11 +555,37 @@ duplicate-ID and capacity diagnostics, and frame-scoped `Response` freshness.
 Grid, Stack, and Anchor return `rocket.graphics.Rect` values with explicit
 fixed/fill/content/percentage sizing, Insets/SafeArea spacing, horizontal and
 vertical alignment, all nine standard anchors, and recoverable deterministic
-layout diagnostics. It owns no renderer or native state. `rocket.ui` still does
-not own themes or concrete controls. The accepted typed asset-store reference
+layout diagnostics. It owns no renderer or native state. `rocket.ui.theme`
+defines value-owned semantic color,
+spacing, radius, typography-size, and motion-duration tokens. Its public theme
+constructors and validation keep renderer and application policy outside the
+module. `rocket.ui.styles` defines value-owned text, border, shadow, image,
+panel, and button styles. Its deterministic state resolver selects disabled,
+pressed, hovered, focused, then normal style data in that priority order. The
+style layer performs no drawing and owns no native resources or retained widget
+state. `rocket.ui.controls` defines value-owned text, image, separator, badge,
+pill, button, and icon-button descriptions. Button controls delegate stable ID
+registration, half-open hit testing, focus, disabled state, modal capture,
+physical-to-logical pointer mapping, and pointer/keyboard activation to
+`rocket.ui.interact`; they select the WP25 button style from the returned
+response state. An activation is reported only by the response from that frame.
+`rocket.ui.containers` defines validated, value-owned Panel, Overlay, Dialog,
+Tooltip, and Toast descriptions. A panel derives its content rectangle from
+border width plus padding and can opt into logical child clipping. Overlay stack
+orders are nonnegative and unique; the largest order is visually topmost, while
+the modal overlay with the largest order owns input and focus capture. Modal
+entry/exit delegates to `rocket.ui`, and panel clipping delegates to
+`rocket.graphics.canvas`, preserving nested safe-scissor intersection and LIFO
+scope restoration without exposing native state.
+The accepted typed asset-store reference
 implementation is the ordinary package module `src.rocket_assets` under
 `examples/raylib_showcase/src/`; the planned `rocket.assets` namespace is not a
-standard-library module in this checkout. The stable foundational modules are
+standard-library module in this checkout. Its logical and physical resource
+caches are bounded by the `open` capacity (256 by default), reject exhaustion
+before loading, and invalidate only measurements associated with fonts released
+by cleanup. UI contexts default to 2,048 retained IDs and an eight-frame unseen
+window; they evict the oldest unseen ID deterministically and clear absent
+active/focus/modal state immediately. The stable foundational modules are
 `std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,

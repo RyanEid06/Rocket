@@ -17,6 +17,7 @@ typedef uint8_t rocket_bool;
 #define RLV_ERR_DUPLICATE_ASSET -9
 #define RLV_ERR_ASSET_TYPE -10
 #define RLV_ERR_PATH_ESCAPE -11
+#define RLV_ERR_CAPACITY -12
 
 #define RLV_KEY_SPACE 32
 #define RLV_KEY_ESCAPE 256
@@ -253,9 +254,10 @@ ROCKET_API int64_t rlv_sound_live_count(void);
 
 ROCKET_API int64_t rlv_music_live_count(void);
 
-ROCKET_API int64_t rlv_asset_store_create(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id);
+ROCKET_API int64_t rlv_asset_store_create(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id, int64_t capacity);
 ROCKET_API int64_t rlv_asset_store_cleanup(int64_t store_id);
 ROCKET_API int64_t rlv_asset_store_live_count(void);
+ROCKET_API int64_t rlv_asset_store_capacity(int64_t store_id);
 ROCKET_API int64_t rlv_asset_store_asset_count(int64_t store_id);
 ROCKET_API int64_t rlv_asset_store_physical_count(int64_t store_id);
 ROCKET_API int64_t rlv_asset_texture_load(int64_t store_id, int64_t name_buffer_id, int64_t path_buffer_id);

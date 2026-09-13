@@ -1,0 +1,270 @@
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+import rocket.ui.containers
+import rocket.ui.layout
+import rocket.ui.styles
+import rocket.ui.theme
+import src.wp27_adapter_testing
+
+fn close(left: Float, right: Float) -> Bool:
+    let delta = left - right
+    if delta < 0.0:
+        return -delta < 0.0001
+    return delta < 0.0001
+
+fn same_rect(left: graphics.Rect, right: graphics.Rect) -> Bool:
+    return close(left.x, right.x) and close(left.y, right.y) and close(left.width, right.width) and close(left.height, right.height)
+
+fn same_id(left: ui.WidgetId, right: ui.WidgetId) -> Bool:
+    return left.hash == right.hash and left.path == right.path
+
+fn expect_error[T](value: Result[T, String], expected: String) -> Bool:
+    match value:
+        case Ok(actual):
+            let ignored = actual
+            return false
+        case Err(message):
+            return message == expected
+
+fn main() -> Int:
+    let palette = theme.dark_theme()
+    let border = styles.border_style(palette.colors.border, 2.0, 6.0)
+    let shadow = styles.shadow_style(palette.colors.background, graphics.vec2(3.0, 4.0), 5.0)
+    let panel_style = styles.panel_style(palette.colors.surface, border, shadow, 8.0)
+    let bounds = graphics.rect(10.0, 20.0, 100.0, 80.0)
+    var outer = containers.Panel(bounds, bounds, panel_style, true)
+    match containers.panel(bounds, panel_style, clip_children: true):
+        case Err(message):
+            return 1
+        case Ok(value):
+            outer = value
+            if not same_rect(value.content_bounds, graphics.rect(20.0, 30.0, 80.0, 60.0)) or not value.clip_children:
+                return 2
+            if not close(value.style.border.width, 2.0) or not close(value.style.border.radius, 6.0) or not close(value.style.padding, 8.0):
+                return 3
+            if not close(value.style.shadow.offset.x, 3.0) or not close(value.style.shadow.blur, 5.0) or value.style.background.alpha <= 0.0:
+                return 4
+    if not expect_error(containers.panel(graphics.rect(0.0, 0.0, -1.0, 10.0), panel_style), "UI panel bounds must be finite with nonnegative size"):
+        return 5
+    if not expect_error(containers.panel(graphics.rect(0.0, 0.0, 10.0, 10.0), panel_style), "UI panel border and padding exceed its bounds"):
+        return 6
+
+    let overlay_style = styles.panel_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.5), styles.border_style(palette.colors.border), styles.shadow_style(palette.colors.background, graphics.vec2(0.0, 0.0)), 0.0)
+    let low_id = ui.widget_id("low-dialog")
+    let high_id = ui.widget_id("high-dialog")
+    let toast_id = ui.widget_id("toast")
+    var low_modal = containers.Overlay(low_id, bounds, overlay_style, 10, true)
+    var high_modal = containers.Overlay(high_id, bounds, overlay_style, 30, true)
+    var toast_overlay = containers.Overlay(toast_id, bounds, panel_style, 40, false)
+    match containers.dialog(low_id, graphics.rect(0.0, 0.0, 200.0, 200.0), graphics.rect(30.0, 40.0, 100.0, 80.0), overlay_style, panel_style, 10):
+        case Err(message):
+            return 7
+        case Ok(value):
+            low_modal = value.overlay
+            if not value.overlay.modal or not value.panel.clip_children:
+                return 8
+    match containers.dialog(high_id, graphics.rect(0.0, 0.0, 200.0, 200.0), graphics.rect(40.0, 50.0, 120.0, 100.0), overlay_style, panel_style, 30):
+        case Err(message):
+            return 9
+        case Ok(value):
+            high_modal = value.overlay
+    match containers.toast(toast_id, "Saved", graphics.rect(120.0, 10.0, 70.0, 30.0), panel_style, 40):
+        case Err(message):
+            return 10
+        case Ok(value):
+            toast_overlay = value.overlay
+            if value.text != "Saved" or value.overlay.modal:
+                return 11
+    match containers.tooltip(ui.widget_id("tooltip"), "Open settings", graphics.rect(10.0, 10.0, 90.0, 30.0), panel_style, 20):
+        case Err(message):
+            return 12
+        case Ok(value):
+            if value.text != "Open settings" or value.overlay.modal:
+                return 13
+    let overlays = [low_modal, high_modal, toast_overlay]
+    if not containers.overlay_stack_is_valid(overlays):
+        return 14
+    match containers.top_overlay(overlays):
+        case Err(message):
+            return 15
+        case Ok(value):
+            if not same_id(value.id, toast_id):
+                return 16
+    match containers.capturing_modal(overlays):
+        case Err(message):
+            return 17
+        case Ok(value):
+            if not same_id(value.id, high_id):
+                return 18
+    let duplicate = containers.Overlay(ui.widget_id("duplicate"), bounds, panel_style, 30, false)
+    if containers.overlay_stack_is_valid([low_modal, high_modal, duplicate]):
+        return 19
+    let duplicate_id = containers.Overlay(high_id, bounds, panel_style, 50, false)
+    if containers.overlay_stack_is_valid([high_modal, duplicate_id]):
+        return 66
+    if not expect_error(containers.capturing_modal([toast_overlay]), "UI overlay stack has no modal overlay"):
+        return 67
+    if not expect_error(containers.overlay(ui.widget_id("negative-order"), bounds, panel_style, -1), "UI overlay stack order must be nonnegative"):
+        return 68
+    if not expect_error(containers.tooltip(ui.widget_id("empty-tooltip"), "", bounds, panel_style, 50), "UI tooltip text must not be empty"):
+        return 20
+    if not expect_error(containers.dialog(ui.widget_id("outside-dialog"), bounds, graphics.rect(0.0, 0.0, 200.0, 200.0), overlay_style, panel_style, 50), "UI dialog panel must be contained by its overlay"):
+        return 21
+
+    if not wp27_adapter_testing.enable() or not wp27_adapter_testing.reset():
+        return 22
+    match safe.open_window(200, 200, "WP27 UI containers"):
+        case Err(message):
+            return 23
+        case Ok(window):
+            if not wp27_adapter_testing.set_display(200, 200) or not wp27_adapter_testing.set_mouse(50, 60, false, false, false):
+                return 65
+            match graphics.fit_virtual_canvas(graphics.size(200.0, 200.0), graphics.size(200.0, 200.0)):
+                case Err(message):
+                    return 24
+                case Ok(mapping):
+                    match ui.new_context("containers", 32):
+                        case Err(message):
+                            return 25
+                        case Ok(initial):
+                            var context = initial
+                            let outside_id = ui.widget_id("outside")
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 26
+                                case Ok(focus_frame):
+                                    match ui.interact(focus_frame, outside_id, graphics.rect(40.0, 50.0, 50.0, 30.0)):
+                                        case Err(message):
+                                            return 27
+                                        case Ok(outside):
+                                            match ui.request_focus(outside.frame, outside_id):
+                                                case Err(message):
+                                                    return 28
+                                                case Ok(focused_frame):
+                                                    match ui.end_frame(focused_frame):
+                                                        case Err(message):
+                                                            return 29
+                                                        case Ok(next):
+                                                            context = next
+                            if not ui.focused_is(context, outside_id):
+                                return 30
+                            match containers.activate_modal(context, overlays):
+                                case Err(message):
+                                    return 31
+                                case Ok(next):
+                                    context = next
+                            if ui.focused_is(context, outside_id) or not ui.modal_is(context, high_id):
+                                return 32
+                            match ui.begin_frame(context, window, mapping):
+                                case Err(message):
+                                    return 33
+                                case Ok(modal_frame):
+                                    match ui.interact(modal_frame, outside_id, graphics.rect(40.0, 50.0, 50.0, 30.0)):
+                                        case Err(message):
+                                            return 34
+                                        case Ok(blocked):
+                                            if not blocked.response.modal_blocked or blocked.response.hovered:
+                                                return 35
+                                            if not expect_error(ui.request_focus(blocked.frame, outside_id), "UI focus target is blocked by the active modal scope"):
+                                                return 36
+                                            if not expect_error(containers.enter_modal(blocked.frame, low_modal, overlays), "UI overlay is not the capturing modal"):
+                                                return 37
+                                            match containers.enter_modal(blocked.frame, high_modal, overlays):
+                                                case Err(message):
+                                                    return 38
+                                                case Ok(inside_frame):
+                                                    let inside_id = ui.child_id(high_id, "accept")
+                                                    match ui.interact(inside_frame, inside_id, graphics.rect(40.0, 50.0, 50.0, 30.0)):
+                                                        case Err(message):
+                                                            return 39
+                                                        case Ok(allowed):
+                                                            if allowed.response.modal_blocked or not allowed.response.hovered:
+                                                                return 40
+                                                            match ui.request_focus(allowed.frame, inside_id):
+                                                                case Err(message):
+                                                                    return 41
+                                                                case Ok(focused_inside):
+                                                                    if not ui.focused_is(focused_inside.context, inside_id):
+                                                                        return 42
+                                                                    match containers.exit_modal(focused_inside):
+                                                                        case Err(message):
+                                                                            return 43
+                                                                        case Ok(exited):
+                                                                            match ui.end_frame(exited):
+                                                                                case Err(message):
+                                                                                    return 44
+                                                                                case Ok(next):
+                                                                                    context = next
+                            match containers.clear_modal(context, overlays):
+                                case Err(message):
+                                    return 45
+                                case Ok(next):
+                                    context = next
+
+                    let flat_style = styles.panel_style(palette.colors.surface, styles.border_style(palette.colors.border), styles.shadow_style(palette.colors.background, graphics.vec2(0.0, 0.0)), 0.0)
+                    var inner = containers.Panel(bounds, bounds, flat_style, true)
+                    let nested_item = layout.layout_item(layout.fixed(100.0), layout.fixed(50.0), graphics.size(0.0, 0.0), layout.insets_all(0.0), layout.top_left())
+                    match layout.anchor_rect(graphics.rect(50.0, 0.0, 100.0, 50.0), nested_item, layout.insets_all(0.0), layout.no_safe_area()):
+                        case Err(message):
+                            return 46
+                        case Ok(inner_bounds):
+                            match containers.panel(inner_bounds, flat_style, clip_children: true):
+                                case Err(message):
+                                    return 47
+                                case Ok(value):
+                                    inner = value
+                    match safe.begin_frame(window):
+                        case Err(message):
+                            return 48
+                        case Ok(render_frame):
+                            match containers.begin_panel_clip(render_frame, mapping, outer):
+                                case Err(message):
+                                    return 49
+                                case Ok(outer_scope):
+                                    if wp27_adapter_testing.scope_depth() != 1 or wp27_adapter_testing.scissor_x() != 20 or wp27_adapter_testing.scissor_y() != 30 or wp27_adapter_testing.scissor_width() != 80 or wp27_adapter_testing.scissor_height() != 60:
+                                        return 50
+                                    match containers.begin_panel_clip(render_frame, mapping, inner):
+                                        case Err(message):
+                                            return 51
+                                        case Ok(inner_scope):
+                                            if wp27_adapter_testing.scope_depth() != 2 or wp27_adapter_testing.scissor_x() != 50 or wp27_adapter_testing.scissor_y() != 30 or wp27_adapter_testing.scissor_width() != 50 or wp27_adapter_testing.scissor_height() != 20:
+                                                return 52
+                                            match containers.end_panel_clip(inner_scope):
+                                                case Err(message):
+                                                    return 53
+                                                case Ok(ended):
+                                                    if not ended or wp27_adapter_testing.scope_depth() != 1 or wp27_adapter_testing.scissor_x() != 20 or wp27_adapter_testing.scissor_y() != 30 or wp27_adapter_testing.scissor_width() != 80 or wp27_adapter_testing.scissor_height() != 60:
+                                                        return 54
+                                    match containers.end_panel_clip(outer_scope):
+                                        case Err(message):
+                                            return 55
+                                        case Ok(ended):
+                                            if not ended or wp27_adapter_testing.scope_depth() != 0:
+                                                return 56
+                                    match safe.end_frame(render_frame):
+                                        case Err(message):
+                                            return 57
+                                        case Ok(ended):
+                                            if not ended or wp27_adapter_testing.scope_depth() != 0:
+                                                return 58
+                    let unclipped = containers.Panel(outer.bounds, outer.content_bounds, outer.style, false)
+                    match safe.begin_frame(window):
+                        case Err(message):
+                            return 59
+                        case Ok(render_frame):
+                            if not expect_error(containers.begin_panel_clip(render_frame, mapping, unclipped), "UI panel child clipping is disabled"):
+                                return 60
+                            match safe.end_frame(render_frame):
+                                case Err(message):
+                                    return 61
+                                case Ok(ended):
+                                    if not ended:
+                                        return 62
+            match safe.close_window(window):
+                case Err(message):
+                    return 63
+                case Ok(closed):
+                    if not closed:
+                        return 64
+    return 0

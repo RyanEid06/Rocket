@@ -1,0 +1,16 @@
+import rocket.graphics
+import rocket.ui
+import rocket.ui.containers
+import rocket.ui.styles
+
+pub fn sample_panel(bounds: graphics.Rect, style: styles.PanelStyle, clip_children: Bool = false) -> Result[containers.Panel, String]:
+    return containers.panel(bounds, style, clip_children)
+
+pub fn sample_dialog(id: ui.WidgetId, overlay_bounds: graphics.Rect, panel_bounds: graphics.Rect, overlay_style: styles.PanelStyle, panel_style: styles.PanelStyle, stack_order: Int) -> Result[containers.Dialog, String]:
+    return containers.dialog(id, overlay_bounds, panel_bounds, overlay_style, panel_style, stack_order)
+
+pub fn sample_top_overlay(overlays: Array[containers.Overlay]) -> Result[containers.Overlay, String]:
+    return containers.top_overlay(overlays)
+
+fn main() -> Int:
+    return 0

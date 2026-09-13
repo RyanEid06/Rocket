@@ -1,0 +1,11 @@
+import rocket.ui
+
+fn retains(context: ui.Context, id: ui.WidgetId) -> Bool:
+    return ui.context_contains(context, id) and ui.context_retained_count(context) <= ui.context_capacity(context)
+
+fn main() -> Int:
+    let defaults = ui.new_context("surface")
+    let configured = ui.new_context("configured", capacity: 32, unseen_retention_frames: 4)
+    let default_capacity = ui.default_context_capacity()
+    let default_retention = ui.default_unseen_retention_frames()
+    return 0

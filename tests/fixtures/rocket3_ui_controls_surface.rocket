@@ -1,0 +1,22 @@
+import rocket.graphics
+import rocket.ui
+import rocket.ui.controls
+import rocket.ui.styles
+import rocket.ui.theme
+
+fn sample_button(frame: ui.UiFrame, id: ui.WidgetId, states: styles.StyleStates) -> Result[controls.ButtonResult, String]:
+    return controls.button(frame, id, "Play", graphics.rect(10.0, 20.0, 160.0, 48.0), states)
+
+fn sample_icon_button(frame: ui.UiFrame, id: ui.WidgetId, states: styles.StyleStates) -> Result[controls.IconButtonResult, String]:
+    return controls.icon_button(frame, id, "settings", "Settings", graphics.rect(10.0, 20.0, 48.0, 48.0), states, disabled: false)
+
+fn main() -> Int:
+    let palette = theme.dark_theme()
+    let states = styles.default_styles(palette)
+    let bounds = graphics.rect(10.0, 20.0, 160.0, 48.0)
+    let text_control = controls.text("Status", bounds, states.normal.text)
+    let image_control = controls.image("table-background", bounds, states.normal.image)
+    let separator_control = controls.separator(bounds, states.normal.button.border)
+    let badge_control = controls.badge("New", bounds, states.normal.panel, states.normal.text)
+    let pill_control = controls.pill("Ready", bounds, states.normal.panel, states.normal.text)
+    return 0

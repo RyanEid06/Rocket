@@ -63,8 +63,15 @@ Use `rocket.graphics` for value-owned `Vec2`, `Rect`, `Color`, typography, and
 `rocket.graphics.canvas` provide typed drawing, pointer mapping, clipping,
 render-target, resize, and screenshot helpers through the safe
 `rocket.raylib.safe` boundary. `rocket.ui` provides bounded immediate-mode
-frames, stable widget IDs, focus, modal, disabled, and response state;
+frames with a calibrated 2,048-ID capacity and eight-frame unseen window,
+stable widget IDs, focus, modal, disabled, and response state;
 `rocket.ui.layout` provides pure Row, Column, Grid, Stack, and Anchor placement.
+`rocket.ui.theme` centralizes semantic color, spacing, radius, typography, and
+motion tokens; `rocket.ui.styles` resolves validated style objects by state;
+and `rocket.ui.controls` supplies styled text, image, separator, badge, pill,
+button, and icon-button values over the centralized UI interaction contract.
+`rocket.ui.containers` adds panels, dialogs, overlays, tooltips, and toasts with
+explicit stack order, modal capture, and nested child clipping.
 `rocket.motion` supplies value-owned easing, tweens, timelines, and reduced
 motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.
@@ -72,7 +79,8 @@ out of the normal application surface.
 The accepted typed asset store is currently the reference-package module
 `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. It owns typed texture, font, sound, music, and shader
-references with package-rooted paths and explicit cleanup. The planned
+references with package-rooted paths, an explicit bounded capacity (256 by
+default), deterministic exhaustion, and explicit cleanup. The planned
 `rocket.assets` namespace is not available in this checkout.
 
 ## 8. Tools and reference

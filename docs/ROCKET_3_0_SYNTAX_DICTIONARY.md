@@ -210,9 +210,14 @@ return a recomputed mapping.
 ### rocket.ui
 
 WidgetId, Context, UiFrame, Response, and Interaction are public value types.
-new_context(namespace, capacity = 4096) creates a bounded namespaced store.
-begin_frame snapshots pointer and keyboard input once; end_frame commits the
-frame and evicts unseen IDs.
+new_context(namespace, capacity = 2048, unseen_retention_frames = 8) creates a
+bounded namespaced store. Capacity accepts 1..100000 and retention accepts
+0..10000. begin_frame snapshots pointer and keyboard input once; end_frame
+commits the frame and evicts IDs older than the retention window. At capacity,
+registration evicts the oldest unseen ID with insertion-order ties, or returns
+an error when every ID was seen in the current frame. context_capacity,
+context_unseen_retention_frames, context_retained_count, and context_contains
+expose the retained-state policy.
 
 widget_id and child_id use deterministic length-prefixed identity composition.
 register_widget rejects duplicate IDs and capacity exhaustion. interact handles
@@ -223,8 +228,8 @@ response_is_current and response_is_current_context reject stale responses.
 The activation_pressed, cancel_pressed, focus_next_pressed, and
 navigation_left_pressed/navigation_right_pressed/navigation_up_pressed/
 navigation_down_pressed helpers expose the frame's keyboard snapshot; active_is,
-focused_is, and modal_is query committed context state.
-Themes and concrete controls remain Wave C work.
+focused_is, and modal_is query committed context state. Concrete controls remain
+later Wave C work.
 
 ### rocket.ui.layout
 
@@ -242,6 +247,69 @@ The alignment constructors are horizontal_start, horizontal_center,
 horizontal_end, vertical_start, vertical_center, and vertical_end. The anchor
 constructors are top_left, top_center, top_right, center_left, center,
 center_right, bottom_left, bottom_center, and bottom_right.
+
+### rocket.ui.theme
+
+ColorTokens, SpacingTokens, RadiusTokens, TypographyTokens, MotionTokens, and
+Theme are public value types. color_tokens builds an explicit semantic palette;
+spacing_tokens, radius_tokens, typography_tokens, and motion_tokens provide
+named/default token scales; theme groups them; dark_theme provides the bundled
+dark/table palette; and theme_is_valid checks public values constructed directly.
+
+Semantic colors cover background, surface, raised surface, table treatment,
+action/hover/press, primary/muted text, success/warning/error, border, and focus.
+Numeric validation rejects non-finite or negative values, typography sizes must
+be positive, and color channels remain in [0, 1].
+
+### rocket.ui.styles
+
+ControlState, TextStyle, BorderStyle, ShadowStyle, ImageStyle, PanelStyle,
+ButtonStyle, StyleSet, and StyleStates are public value types. Constructor
+functions expose source-stable names and defaults; default_styles maps a Theme to
+all five control states. The validation predicates cover colors, dimensions,
+text sizes, offsets, and opacity.
+
+resolve(states, state) uses the fixed priority disabled, pressed, hovered,
+focused, then normal. These modules contain no drawing, native resources,
+inheritance, containers, or retained caches.
+
+### rocket.ui.controls
+
+Text, Image, Separator, Badge, Pill, Button, and IconButton are public value
+types. text(value, bounds, style), image(asset_name, bounds, style),
+separator(bounds, style), badge(value, bounds, panel_style, text_style), and
+pill(value, bounds, panel_style, text_style) validate bounds and consume WP25
+style objects without owning renderer or native state.
+
+button(frame, id, label, bounds, states, disabled = false) and
+icon_button(frame, id, icon, accessibility_label, bounds, states,
+disabled = false) return ButtonResult or IconButtonResult containing the next
+UiFrame, the current rocket.ui Response, and the selected control style. Both
+delegate pointer mapping and half-open hit testing, press/hold/release state,
+focus, Space/Enter activation, disabled behavior, modal capture, and outside-
+viewport rejection to rocket.ui.interact. Style resolution follows the WP25
+disabled, pressed, hovered, focused, normal priority.
+
+### rocket.ui.containers
+
+Panel, Overlay, Dialog, Tooltip, and Toast are public value types. panel(bounds,
+style, clip_children = false) validates the PanelStyle and exposes bounds,
+content_bounds, style, and the clipping choice. content_bounds is inset by the
+style's border width plus padding. dialog creates a modal overlay with a clipped
+panel; overlay, tooltip, and toast create explicit transient surface values.
+
+Overlay IDs are unique within a stack, and stack_order values are nonnegative
+and unique within a stack.
+top_overlay selects the greatest visual order; capturing_modal independently
+selects the modal with the greatest order. activate_modal/clear_modal and
+enter_modal/exit_modal delegate capture and focus rules to rocket.ui. A selected
+overlay that is not the capturing modal cannot enter the modal scope.
+
+begin_panel_clip(frame, mapping, panel) returns a rocket.raylib.safe
+ScissorScope for the panel's logical content bounds. end_panel_clip closes that
+scope through rocket.graphics.canvas. Nested calls intersect and restore the
+parent scope in strict LIFO order; the container module exposes no native scope
+state and owns no retained cache.
 
 ### rocket.raylib.safe
 
@@ -278,7 +346,8 @@ import src.rocket_assets
 The public value types are AssetStore, TextureRef, FontRef, SoundRef, MusicRef,
 and ShaderRef. The public operations are:
 
-- open(window, audio, package_root = ".") and cleanup(store);
+- open(window, audio, package_root = ".", capacity = 256), capacity(store), and
+  cleanup(store);
 - load_texture, load_font, load_sound, load_music, and load_shader;
 - typed texture, font, sound, music, and shader lookups; and
 - borrow_texture, borrow_font, borrow_sound, borrow_music, and borrow_shader.
