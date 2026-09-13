@@ -11,6 +11,7 @@ pub extern const RLV_ERR_SHADER_TYPE: Int = -8
 pub extern const RLV_ERR_DUPLICATE_ASSET: Int = -9
 pub extern const RLV_ERR_ASSET_TYPE: Int = -10
 pub extern const RLV_ERR_PATH_ESCAPE: Int = -11
+pub extern const RLV_ERR_CAPACITY: Int = -12
 pub extern const RLV_KEY_SPACE: Int = 32
 pub extern const RLV_KEY_ESCAPE: Int = 256
 pub extern const RLV_KEY_RIGHT: Int = 262
@@ -221,9 +222,10 @@ pub extern fn rlv_sound_set_volume(sound_id: Int, volume: Float) -> Int
 pub extern fn rlv_sound_unload(sound_id: Int) -> Int
 pub extern fn rlv_sound_live_count() -> Int
 pub extern fn rlv_music_live_count() -> Int
-pub extern fn rlv_asset_store_create(window_id: Int, audio_id: Int, package_root_buffer_id: Int) -> Int
+pub extern fn rlv_asset_store_create(window_id: Int, audio_id: Int, package_root_buffer_id: Int, capacity: Int) -> Int
 pub extern fn rlv_asset_store_cleanup(store_id: Int) -> Int
 pub extern fn rlv_asset_store_live_count() -> Int
+pub extern fn rlv_asset_store_capacity(store_id: Int) -> Int
 pub extern fn rlv_asset_store_asset_count(store_id: Int) -> Int
 pub extern fn rlv_asset_store_physical_count(store_id: Int) -> Int
 pub extern fn rlv_asset_texture_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int

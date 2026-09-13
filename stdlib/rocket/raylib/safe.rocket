@@ -90,6 +90,8 @@ fn status_message(status: Int) -> String:
         return "raylib: invalid shader program"
     if status == -8:
         return "raylib: shader uniform type mismatch or unsupported type"
+    if status == -12:
+        return "raylib: bounded resource capacity exceeded"
     return "raylib: unknown native failure"
 
 fn status_result(status: Int) -> Result[Bool, String]:

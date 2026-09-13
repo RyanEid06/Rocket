@@ -50,9 +50,9 @@ string(FIND "${documentation_index}" "\"name\": \"AssetStore\", \"kind\": \"stru
 string(FIND "${documentation_index}" "\"name\": \"load_texture\", \"kind\": \"fn\"" load_texture_found)
 string(FIND "${documentation_index}" "\"name\": \"load_music\", \"kind\": \"fn\"" load_music_found)
 string(FIND "${documentation_index}" "\"name\": \"borrow_shader\", \"kind\": \"fn\"" borrow_shader_found)
-string(FIND "${documentation_index}" "\"parameters\": [\"window\", \"audio\", \"package_root\"]" open_parameters_found)
+string(FIND "${documentation_index}" "\"parameters\": [\"window\", \"audio\", \"package_root\", \"capacity\"]" open_parameters_found)
 string(FIND "${documentation_index}"
-  [=["defaults": [null, null, "\".\""]]=] open_defaults_found)
+  [=["defaults": [null, null, "\".\"", "256"]]=] open_defaults_found)
 if(store_found EQUAL -1 OR load_texture_found EQUAL -1 OR
    load_music_found EQUAL -1 OR borrow_shader_found EQUAL -1 OR
    open_parameters_found EQUAL -1 OR open_defaults_found EQUAL -1)

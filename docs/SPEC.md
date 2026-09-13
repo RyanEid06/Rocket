@@ -580,7 +580,12 @@ scope restoration without exposing native state.
 The accepted typed asset-store reference
 implementation is the ordinary package module `src.rocket_assets` under
 `examples/raylib_showcase/src/`; the planned `rocket.assets` namespace is not a
-standard-library module in this checkout. The stable foundational modules are
+standard-library module in this checkout. Its logical and physical resource
+caches are bounded by the `open` capacity (256 by default), reject exhaustion
+before loading, and invalidate only measurements associated with fonts released
+by cleanup. UI contexts default to 2,048 retained IDs and an eight-frame unseen
+window; they evict the oldest unseen ID deterministically and clear absent
+active/focus/modal state immediately. The stable foundational modules are
 `std.string`,
 `std.collections`, `std.file`, `std.path`, `std.json`, `std.csv`, `std.random`,
 `std.process`, and `std.time`. Rocket 1.5 adds `std.binary`, `std.stream`,

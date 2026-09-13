@@ -539,11 +539,18 @@ viewport and its half-open outside rule are the single coordinate contract.
 ## `rocket.ui`
 
 `rocket.ui` is the Rocket 3 immediate-mode context foundation. `new_context`
-creates a bounded, namespaced state store; `begin_frame(context, window, canvas)`
-opens exactly one `UiFrame` and snapshots pointer and common keyboard state once
-through `rocket.graphics.input` and `rocket.raylib.safe`. `end_frame` closes the
-frame, evicts widget IDs not seen in that frame, and clears stale active, focused,
-or modal state. Nested frames, closed-frame use, duplicate IDs, over-capacity
+creates a bounded, namespaced state store with a calibrated 2,048-ID default
+capacity and an eight-frame unseen-retention window;
+`begin_frame(context, window, canvas)` opens exactly one `UiFrame` and snapshots
+pointer and common keyboard state once through `rocket.graphics.input` and
+`rocket.raylib.safe`. `end_frame` closes the frame, evicts IDs outside that
+window, and clears active, focused, or modal state as soon as its widget is
+absent from a frame. When capacity is reached, the oldest unseen ID is evicted;
+equal-age IDs use insertion order. If every retained ID was seen in the current
+frame, registration returns the explicit capacity error. `context_capacity`,
+`context_unseen_retention_frames`, `context_retained_count`, and
+`context_contains` expose the policy for diagnostics and deterministic tests.
+Nested frames, closed-frame use, duplicate IDs, over-capacity
 registration, invalid bounds, and unclosed modal scopes return recoverable
 contract errors. `Context` and `UiFrame` are single-thread-confined UI state;
 their atomic lease rejects stale copied values but is not a cross-thread
@@ -683,11 +690,24 @@ The accepted Wave B typed asset store is currently an ordinary package module
 at `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. It exposes `AssetStore`, `TextureRef`, `FontRef`,
 `SoundRef`, `MusicRef`, and `ShaderRef`, with typed load, lookup, borrow, and
-idempotent `cleanup` operations. Paths are rooted to the package, traversal and
+idempotent `cleanup` operations. `open` accepts a bounded logical-resource
+capacity from 1 through 100,000 (256 by default), and `capacity` reports the
+frozen value. Exhaustion occurs before physical loading, so the logical and
+physical caches remain unchanged. Paths are rooted to the package, traversal and
 symlink escapes are rejected, duplicate names and wrong-type lookups return
 recoverable errors, and cleanup invalidates borrowed references. The planned
 `rocket.assets` / `stdlib/rocket/assets` namespace in the Rocket 3 design is not
 an available standard-library module in this checkout.
+
+WP30 calibrated the integrated defaults in the Windows x64 Release build. The UI
+stress cycles 100,000 distinct IDs with a 16-entry test capacity and three-frame
+window, observing at most four retained IDs; separate cases fill a frame to prove
+exhaustion, oldest/insertion-order eviction, and immediate active/focus cleanup.
+The 2,048/eight production defaults replace the provisional 4,096/120 inputs.
+The resource test fills a two-entry store and proves a rejected third load does
+not change either cache. The 256-entry text-measurement LRU is filled exactly,
+its oldest entry is checked after a recency update, and asset cleanup proves
+font-specific invalidation leaves an unrelated font's cached measurement live.
 
 ## `std.file` and `std.path`
 

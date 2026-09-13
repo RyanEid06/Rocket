@@ -47,6 +47,8 @@ fn status_message(status: Int) -> String:
         return "raylib: asset type mismatch"
     if status == rocket_raylib_adapter.RLV_ERR_PATH_ESCAPE:
         return "raylib: asset path escapes package root"
+    if status == rocket_raylib_adapter.RLV_ERR_CAPACITY:
+        return "raylib: asset store capacity exceeded"
     return "raylib: unknown native failure"
 
 fn encode_text(value: String) -> Result[Int, String]:
@@ -75,14 +77,14 @@ fn finish_reference(reference_id: Int) -> Result[Int, String]:
         return Err(status_message(reference_id))
     return Ok(reference_id)
 
-pub fn open(window: rocket_raylib.Window, audio: rocket_raylib.AudioDevice, package_root: String = ".") -> Result[AssetStore, String]:
+pub fn open(window: rocket_raylib.Window, audio: rocket_raylib.AudioDevice, package_root: String = ".", capacity: Int = 256) -> Result[AssetStore, String]:
     match encode_text(package_root):
         case Err(message):
             return Err(message)
         case Ok(root_buffer):
             var store_id = rocket_raylib_adapter.RLV_ERR_INVALID_STATE
             unsafe:
-                store_id = rocket_raylib_adapter.rlv_asset_store_create(window.id, audio.id, root_buffer)
+                store_id = rocket_raylib_adapter.rlv_asset_store_create(window.id, audio.id, root_buffer, capacity)
             match release_text(root_buffer):
                 case Err(message):
                     return Err(message)
@@ -90,6 +92,13 @@ pub fn open(window: rocket_raylib.Window, audio: rocket_raylib.AudioDevice, pack
                     if store_id <= 0:
                         return Err(status_message(store_id))
                     return Ok(AssetStore(store_id))
+
+pub fn capacity(store: AssetStore) -> Result[Int, String]:
+    unsafe:
+        let value = rocket_raylib_adapter.rlv_asset_store_capacity(store.id)
+        if value <= 0:
+            return Err(status_message(value))
+        return Ok(value)
 
 pub fn cleanup(store: AssetStore) -> Result[Bool, String]:
     unsafe:

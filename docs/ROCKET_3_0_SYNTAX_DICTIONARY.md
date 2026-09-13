@@ -210,9 +210,14 @@ return a recomputed mapping.
 ### rocket.ui
 
 WidgetId, Context, UiFrame, Response, and Interaction are public value types.
-new_context(namespace, capacity = 4096) creates a bounded namespaced store.
-begin_frame snapshots pointer and keyboard input once; end_frame commits the
-frame and evicts unseen IDs.
+new_context(namespace, capacity = 2048, unseen_retention_frames = 8) creates a
+bounded namespaced store. Capacity accepts 1..100000 and retention accepts
+0..10000. begin_frame snapshots pointer and keyboard input once; end_frame
+commits the frame and evicts IDs older than the retention window. At capacity,
+registration evicts the oldest unseen ID with insertion-order ties, or returns
+an error when every ID was seen in the current frame. context_capacity,
+context_unseen_retention_frames, context_retained_count, and context_contains
+expose the retained-state policy.
 
 widget_id and child_id use deterministic length-prefixed identity composition.
 register_widget rejects duplicate IDs and capacity exhaustion. interact handles
@@ -341,7 +346,8 @@ import src.rocket_assets
 The public value types are AssetStore, TextureRef, FontRef, SoundRef, MusicRef,
 and ShaderRef. The public operations are:
 
-- open(window, audio, package_root = ".") and cleanup(store);
+- open(window, audio, package_root = ".", capacity = 256), capacity(store), and
+  cleanup(store);
 - load_texture, load_font, load_sound, load_music, and load_shader;
 - typed texture, font, sound, music, and shader lookups; and
 - borrow_texture, borrow_font, borrow_sound, borrow_music, and borrow_shader.

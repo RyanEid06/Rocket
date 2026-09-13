@@ -1,0 +1,10 @@
+import rocket.ui
+
+pub fn calibrated_context(namespace: String) -> Result[ui.Context, String]:
+    return ui.new_context(namespace)
+
+pub fn retained_count(context: ui.Context) -> Int:
+    return ui.context_retained_count(context)
+
+fn main() -> Int:
+    return 0

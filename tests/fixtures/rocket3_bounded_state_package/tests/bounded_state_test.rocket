@@ -1,0 +1,162 @@
+import std.string
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+import src.wp30_adapter_testing
+
+fn main() -> Int:
+    if ui.default_context_capacity() != 2048 or ui.default_unseen_retention_frames() != 8:
+        return 1
+    if not wp30_adapter_testing.enable() or not wp30_adapter_testing.reset():
+        return 2
+    match safe.open_window(800, 450, "WP30 bounded UI state"):
+        case Err(message):
+            return 3
+        case Ok(window):
+            if not wp30_adapter_testing.set_display():
+                return 4
+            match graphics.fit_virtual_canvas(graphics.size(800.0, 450.0), graphics.size(1600.0, 900.0)):
+                case Err(message):
+                    return 5
+                case Ok(canvas):
+                    match ui.new_context("stress", 16, 3):
+                        case Err(message):
+                            return 6
+                        case Ok(initial):
+                            if ui.context_capacity(initial) != 16 or ui.context_unseen_retention_frames(initial) != 3:
+                                return 7
+                            var context = initial
+                            var index = 0
+                            while index < 100000:
+                                match ui.begin_frame(context, window, canvas):
+                                    case Err(message):
+                                        return 8
+                                    case Ok(frame):
+                                        let id = ui.widget_id(string.concat("dynamic-", string.from_int(index)))
+                                        match ui.register_widget(frame, id):
+                                            case Err(message):
+                                                return 9
+                                            case Ok(registered):
+                                                match ui.end_frame(registered):
+                                                    case Err(message):
+                                                        return 10
+                                                    case Ok(next):
+                                                        context = next
+                                                        if ui.context_retained_count(context) > 4:
+                                                            return 11
+                                index = index + 1
+                            if ui.context_retained_count(context) != 4:
+                                return 12
+
+                    match ui.new_context("deterministic", 3, 8):
+                        case Err(message):
+                            return 13
+                        case Ok(initial):
+                            let oldest = ui.widget_id("oldest")
+                            let middle = ui.widget_id("middle")
+                            let newest = ui.widget_id("newest")
+                            let overflow = ui.widget_id("overflow")
+                            match ui.begin_frame(initial, window, canvas):
+                                case Err(message):
+                                    return 14
+                                case Ok(frame):
+                                    match ui.register_widget(frame, oldest):
+                                        case Err(message):
+                                            return 15
+                                        case Ok(a):
+                                            match ui.register_widget(a, middle):
+                                                case Err(message):
+                                                    return 16
+                                                case Ok(b):
+                                                    match ui.register_widget(b, newest):
+                                                        case Err(message):
+                                                            return 17
+                                                        case Ok(c):
+                                                            match ui.end_frame(c):
+                                                                case Err(message):
+                                                                    return 18
+                                                                case Ok(context):
+                                                                    match ui.begin_frame(context, window, canvas):
+                                                                        case Err(message):
+                                                                            return 19
+                                                                        case Ok(next_frame):
+                                                                            match ui.register_widget(next_frame, overflow):
+                                                                                case Err(message):
+                                                                                    return 20
+                                                                                case Ok(evicted):
+                                                                                    if ui.context_contains(evicted.context, oldest) or not ui.context_contains(evicted.context, middle) or not ui.context_contains(evicted.context, newest) or not ui.context_contains(evicted.context, overflow):
+                                                                                        return 21
+                                                                                    match ui.end_frame(evicted):
+                                                                                        case Err(message):
+                                                                                            return 22
+                                                                                        case Ok(done):
+                                                                                            let ignored = done
+
+                    match ui.new_context("exhaustion", 2, 0):
+                        case Err(message):
+                            return 23
+                        case Ok(initial):
+                            match ui.begin_frame(initial, window, canvas):
+                                case Err(message):
+                                    return 24
+                                case Ok(frame):
+                                    match ui.register_widget(frame, ui.widget_id("a")):
+                                        case Err(message):
+                                            return 25
+                                        case Ok(a):
+                                            match ui.register_widget(a, ui.widget_id("b")):
+                                                case Err(message):
+                                                    return 26
+                                                case Ok(b):
+                                                    match ui.register_widget(b, ui.widget_id("c")):
+                                                        case Ok(unexpected):
+                                                            return 27
+                                                        case Err(message):
+                                                            if message != "UI context widget capacity exceeded" or ui.context_retained_count(b.context) != 2:
+                                                                return 28
+
+                    match ui.new_context("cleanup", 4, 8):
+                        case Err(message):
+                            return 29
+                        case Ok(initial):
+                            if not wp30_adapter_testing.set_mouse(true, true, false):
+                                return 30
+                            let focused = ui.widget_id("focused")
+                            match ui.begin_frame(initial, window, canvas):
+                                case Err(message):
+                                    return 31
+                                case Ok(frame):
+                                    match ui.interact(frame, focused, graphics.rect(350.0, 200.0, 100.0, 50.0)):
+                                        case Err(message):
+                                            return 32
+                                        case Ok(interaction):
+                                            if not interaction.response.active or not interaction.response.focused:
+                                                return 33
+                                            match ui.end_frame(interaction.frame):
+                                                case Err(message):
+                                                    return 34
+                                                case Ok(context):
+                                                    if not wp30_adapter_testing.set_mouse(false, false, false):
+                                                        return 35
+                                                    match ui.begin_frame(context, window, canvas):
+                                                        case Err(message):
+                                                            return 36
+                                                        case Ok(empty):
+                                                            match ui.end_frame(empty):
+                                                                case Err(message):
+                                                                    return 37
+                                                                case Ok(cleaned):
+                                                                    if ui.active_is(cleaned, focused) or ui.focused_is(cleaned, focused) or not ui.context_contains(cleaned, focused):
+                                                                        return 38
+            match safe.close_window(window):
+                case Err(message):
+                    return 39
+                case Ok(closed):
+                    let ignored = closed
+    match ui.new_context("bad-retention", 8, -1):
+        case Ok(context):
+            return 40
+        case Err(message):
+            if message != "UI context unseen retention must be between 0 and 10000 frames":
+                return 41
+    return 0
