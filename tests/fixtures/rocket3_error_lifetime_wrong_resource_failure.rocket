@@ -1,0 +1,6 @@
+import rocket.raylib.safe
+
+fn main() -> Int:
+    let target = safe.RenderTexture(1)
+    let closed = safe.close_window(target)
+    return 0

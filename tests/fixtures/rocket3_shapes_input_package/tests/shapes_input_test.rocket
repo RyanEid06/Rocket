@@ -11,6 +11,13 @@ fn succeeded(value: Result[Bool, String]) -> Bool:
         case Err(message):
             return false
 
+fn succeeded_false(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(result):
+            return not result
+        case Err(message):
+            return false
+
 fn main() -> Int:
     if not wp20_adapter_testing.enable() or not wp20_adapter_testing.reset():
         return 1
@@ -90,43 +97,62 @@ fn main() -> Int:
 
             if not wp20_adapter_testing.set_mouse(150, 50, true, true, true):
                 return 34
-            let physical = input.pointer_position(window)
-            if physical.x != 150.0 or physical.y != 50.0:
-                return 35
-            if not input.pointer_down(window) or not input.pointer_pressed(window) or not input.pointer_released(window):
+            match input.pointer_position(window):
+                case Err(message):
+                    return 35
+                case Ok(physical):
+                    if physical.x != 150.0 or physical.y != 50.0:
+                        return 35
+            if not succeeded(input.pointer_down(window)) or not succeeded(input.pointer_pressed(window)) or not succeeded(input.pointer_released(window)):
                 return 36
-            if input.pointer_pressed(window) or input.pointer_released(window):
+            if not succeeded_false(input.pointer_pressed(window)) or not succeeded_false(input.pointer_released(window)):
                 return 37
-            if not input.pointer_down(window):
+            if not succeeded(input.pointer_down(window)):
                 return 38
             let canvas = graphics.virtual_canvas(graphics.size(100.0, 100.0), graphics.rect(100.0, 0.0, 200.0, 200.0), 2.0)
             match input.pointer_position_in_canvas(window, canvas):
-                case None:
+                case Err(message):
                     return 39
-                case Some(logical):
-                    if logical.x != 25.0 or logical.y != 25.0:
-                        return 40
+                case Ok(position):
+                    match position:
+                        case None:
+                            return 39
+                        case Some(logical):
+                            if logical.x != 25.0 or logical.y != 25.0:
+                                return 40
             if not wp20_adapter_testing.set_mouse(50, 50, false, false, false):
                 return 41
             match input.pointer_position_in_canvas(window, canvas):
-                case Some(logical):
+                case Err(message):
                     return 42
-                case None:
-                    let ignored = 0
+                case Ok(position):
+                    match position:
+                        case Some(logical):
+                            return 42
+                        case None:
+                            let ignored = 0
             if not wp20_adapter_testing.set_mouse(300, 50, false, false, false):
                 return 43
             match input.pointer_position_in_canvas(window, canvas):
-                case Some(logical):
+                case Err(message):
                     return 44
-                case None:
-                    let ignored = 0
+                case Ok(position):
+                    match position:
+                        case Some(logical):
+                            return 44
+                        case None:
+                            let ignored = 0
             if not wp20_adapter_testing.set_mouse(150, 200, false, false, false):
                 return 45
             match input.pointer_position_in_canvas(window, canvas):
-                case Some(logical):
+                case Err(message):
                     return 46
-                case None:
-                    let ignored = 0
+                case Ok(position):
+                    match position:
+                        case Some(logical):
+                            return 46
+                        case None:
+                            let ignored = 0
             if not succeeded(safe.close_window(window)):
                 return 47
     return 0

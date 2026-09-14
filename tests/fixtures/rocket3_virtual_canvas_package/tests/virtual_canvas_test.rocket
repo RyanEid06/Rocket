@@ -104,27 +104,43 @@ fn main() -> Int:
                 case Ok(mapping):
                     if not close(mapping.viewport.width, 1600.0) or not close(mapping.viewport.height, 900.0) or not close(mapping.scale, 1600.0 / 1920.0):
                         return 19
-                    let dpi = canvas.dpi_scale(window)
-                    if not close(dpi.x, 2.0) or not close(dpi.y, 1.5):
-                        return 20
-                    let revision_before = canvas.display_revision(window)
+                    match canvas.dpi_scale(window):
+                        case Err(message):
+                            return 20
+                        case Ok(dpi):
+                            if not close(dpi.x, 2.0) or not close(dpi.y, 1.5):
+                                return 20
+                    var revision_before = -1
+                    match canvas.display_revision(window):
+                        case Err(message):
+                            return 21
+                        case Ok(revision):
+                            revision_before = revision
                     if revision_before <= 0:
                         return 21
                     if not wp21_adapter_testing.set_mouse(400, 300):
                         return 22
                     match input.pointer_position_in_canvas(window, mapping):
-                        case None:
+                        case Err(message):
                             return 23
-                        case Some(point):
-                            if not close(point.x, 960.0) or not close(point.y, 540.0):
-                                return 24
+                        case Ok(position):
+                            match position:
+                                case None:
+                                    return 23
+                                case Some(point):
+                                    if not close(point.x, 960.0) or not close(point.y, 540.0):
+                                        return 24
                     if not wp21_adapter_testing.set_mouse(800, 300):
                         return 25
                     match input.pointer_position_in_canvas(window, mapping):
-                        case Some(point):
+                        case Err(message):
                             return 26
-                        case None:
-                            let ignored = 0
+                        case Ok(position):
+                            match position:
+                                case Some(point):
+                                    return 26
+                                case None:
+                                    let ignored = 0
 
                     match canvas.create_target(window, 1920, 1080):
                         case Err(message):
@@ -184,8 +200,12 @@ fn main() -> Int:
                         case Ok(resized):
                             if not close(resized.viewport.height, 750.0) or resized.viewport.x <= 0.0:
                                 return 46
-                            if canvas.display_revision(window) <= revision_before:
-                                return 47
+                            match canvas.display_revision(window):
+                                case Err(message):
+                                    return 47
+                                case Ok(revision):
+                                    if revision <= revision_before:
+                                        return 47
                             match canvas.set_fullscreen(window, resized, true):
                                 case Err(message):
                                     return 48

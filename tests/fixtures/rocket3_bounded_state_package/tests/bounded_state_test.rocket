@@ -4,6 +4,27 @@ import rocket.raylib.safe
 import rocket.ui
 import src.wp30_adapter_testing
 
+fn ui_int_is(result: Result[Int, String], expected: Int) -> Bool:
+    match result:
+        case Ok(value):
+            return value == expected
+        case Err(message):
+            return false
+
+fn ui_int_at_most(result: Result[Int, String], maximum: Int) -> Bool:
+    match result:
+        case Ok(value):
+            return value <= maximum
+        case Err(message):
+            return false
+
+fn ui_bool_is(result: Result[Bool, String], expected: Bool) -> Bool:
+    match result:
+        case Ok(value):
+            return value == expected
+        case Err(message):
+            return false
+
 fn advance_empty(context: ui.Context, window: safe.Window, canvas: graphics.VirtualCanvas, count: Int) -> Result[ui.Context, String]:
     var current = context
     var index = 0
@@ -53,13 +74,13 @@ fn main() -> Int:
                                             case Ok(next):
                                                 full = next
                                         default_index = default_index + 1
-                                    if ui.context_retained_count(full.context) != ui.default_context_capacity():
+                                    if not ui_int_is(ui.context_retained_count(full.context), ui.default_context_capacity()):
                                         return 45
                                     match ui.register_widget(full, ui.widget_id("default-overflow")):
                                         case Ok(unexpected):
                                             return 46
                                         case Err(message):
-                                            if message != "UI context widget capacity exceeded" or ui.context_retained_count(full.context) != ui.default_context_capacity():
+                                            if message != "UI context widget capacity exceeded" or not ui_int_is(ui.context_retained_count(full.context), ui.default_context_capacity()):
                                                 return 47
                                     match ui.end_frame(full):
                                         case Err(message):
@@ -69,20 +90,20 @@ fn main() -> Int:
                                                 case Err(message):
                                                     return 49
                                                 case Ok(retained):
-                                                    if ui.context_retained_count(retained) != ui.default_context_capacity():
+                                                    if not ui_int_is(ui.context_retained_count(retained), ui.default_context_capacity()):
                                                         return 50
                                                     match advance_empty(retained, window, canvas, 1):
                                                         case Err(message):
                                                             return 51
                                                         case Ok(evicted):
-                                                            if ui.context_retained_count(evicted) != 0:
+                                                            if not ui_int_is(ui.context_retained_count(evicted), 0):
                                                                 return 52
 
                     match ui.new_context("stress", 16, 3):
                         case Err(message):
                             return 6
                         case Ok(initial):
-                            if ui.context_capacity(initial) != 16 or ui.context_unseen_retention_frames(initial) != 3:
+                            if not ui_int_is(ui.context_capacity(initial), 16) or not ui_int_is(ui.context_unseen_retention_frames(initial), 3):
                                 return 7
                             var context = initial
                             var index = 0
@@ -101,10 +122,10 @@ fn main() -> Int:
                                                         return 10
                                                     case Ok(next):
                                                         context = next
-                                                        if ui.context_retained_count(context) > 4:
+                                                        if not ui_int_at_most(ui.context_retained_count(context), 4):
                                                             return 11
                                 index = index + 1
-                            if ui.context_retained_count(context) != 4:
+                            if not ui_int_is(ui.context_retained_count(context), 4):
                                 return 12
 
                     match ui.new_context("deterministic", 3, 8):
@@ -143,7 +164,7 @@ fn main() -> Int:
                                                                                 case Err(message):
                                                                                     return 20
                                                                                 case Ok(evicted):
-                                                                                    if ui.context_contains(evicted.context, oldest) or not ui.context_contains(evicted.context, middle) or not ui.context_contains(evicted.context, newest) or not ui.context_contains(evicted.context, overflow):
+                                                                                    if not ui_bool_is(ui.context_contains(evicted.context, oldest), false) or not ui_bool_is(ui.context_contains(evicted.context, middle), true) or not ui_bool_is(ui.context_contains(evicted.context, newest), true) or not ui_bool_is(ui.context_contains(evicted.context, overflow), true):
                                                                                         return 21
                                                                                     match ui.end_frame(evicted):
                                                                                         case Err(message):
@@ -171,7 +192,7 @@ fn main() -> Int:
                                                         case Ok(unexpected):
                                                             return 27
                                                         case Err(message):
-                                                            if message != "UI context widget capacity exceeded" or ui.context_retained_count(b.context) != 2:
+                                                            if message != "UI context widget capacity exceeded" or not ui_int_is(ui.context_retained_count(b.context), 2):
                                                                 return 28
 
                     match ui.new_context("cleanup", 4, 8):
@@ -205,7 +226,7 @@ fn main() -> Int:
                                                                 case Err(message):
                                                                     return 37
                                                                 case Ok(cleaned):
-                                                                    if ui.active_is(cleaned, focused) or ui.focused_is(cleaned, focused) or not ui.context_contains(cleaned, focused):
+                                                                    if not ui_bool_is(ui.active_is(cleaned, focused), false) or not ui_bool_is(ui.focused_is(cleaned, focused), false) or not ui_bool_is(ui.context_contains(cleaned, focused), true):
                                                                         return 38
             match safe.close_window(window):
                 case Err(message):

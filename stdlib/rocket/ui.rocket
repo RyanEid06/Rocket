@@ -77,6 +77,21 @@ struct Records:
     hashes: Array[Int]
     last_seen: Array[Int]
 
+struct InputSnapshot:
+    pointer_present: Bool
+    pointer: graphics.Vec2
+    pointer_pressed: Bool
+    pointer_down: Bool
+    pointer_released: Bool
+    space_pressed: Bool
+    enter_pressed: Bool
+    escape_pressed: Bool
+    tab_pressed: Bool
+    left_pressed: Bool
+    right_pressed: Bool
+    up_pressed: Bool
+    down_pressed: Bool
+
 pub fn widget_id(name: String) -> WidgetId:
     return compose_id("", name)
 
@@ -105,31 +120,101 @@ pub fn new_context(namespace: String, capacity: Int = 2048, unseen_retention_fra
     return Ok(Context(namespace, capacity, unseen_retention_frames, paths, hashes, last_seen, false, "", 0, false, "", 0, false, "", 0, 0, false, sync.atomic_int(0), 0))
 
 pub fn begin_frame(context: Context, window: safe.Window, canvas: graphics.VirtualCanvas) -> Result[UiFrame, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
     if context.frame_open:
         return Err("UI context already has an open frame")
     if not graphics.virtual_canvas_is_valid(canvas):
         return Err("UI frame requires a valid virtual canvas")
+    var snapshot = InputSnapshot(false, graphics.vec2(0.0, 0.0), false, false, false, false, false, false, false, false, false, false, false)
+    match capture_input(window, canvas):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            snapshot = value
     let opened = Context(context.namespace, context.capacity, context.retention_frames, context.paths, context.hashes, context.last_seen, context.active_present, context.active_path, context.active_hash, context.focused_present, context.focused_path, context.focused_hash, context.modal_present, context.modal_path, context.modal_hash, context.frame_index + 1, true, context.lease, context.lease_version)
     match commit_context(context, opened):
         case Err(message):
             return Err(message)
         case Ok(committed):
-            let pressed = input.pointer_pressed(window)
-            let down = input.pointer_down(window)
-            let released = input.pointer_released(window)
-            let space = safe.key_pressed(window, 32)
-            let enter = safe.key_pressed(window, 257)
-            let escape = safe.key_pressed(window, 256)
-            let tab = safe.key_pressed(window, 258)
-            let left = safe.key_pressed(window, 263)
-            let right = safe.key_pressed(window, 262)
-            let up = safe.key_pressed(window, 265)
-            let down_key = safe.key_pressed(window, 264)
-            match input.pointer_position_in_canvas(window, canvas):
+            return Ok(UiFrame(committed, snapshot.pointer_present, snapshot.pointer, snapshot.pointer_pressed, snapshot.pointer_down, snapshot.pointer_released, snapshot.space_pressed, snapshot.enter_pressed, snapshot.escape_pressed, snapshot.tab_pressed, snapshot.left_pressed, snapshot.right_pressed, snapshot.up_pressed, snapshot.down_pressed, false, "", 0))
+
+fn capture_input(window: safe.Window, canvas: graphics.VirtualCanvas) -> Result[InputSnapshot, String]:
+    var pointer_pressed = false
+    var pointer_down = false
+    var pointer_released = false
+    var space_pressed = false
+    var enter_pressed = false
+    var escape_pressed = false
+    var tab_pressed = false
+    var left_pressed = false
+    var right_pressed = false
+    var up_pressed = false
+    var down_pressed = false
+    match input.pointer_pressed(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            pointer_pressed = value
+    match input.pointer_down(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            pointer_down = value
+    match input.pointer_released(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            pointer_released = value
+    match safe.key_pressed(window, 32):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            space_pressed = value
+    match safe.key_pressed(window, 257):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            enter_pressed = value
+    match safe.key_pressed(window, 256):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            escape_pressed = value
+    match safe.key_pressed(window, 258):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            tab_pressed = value
+    match safe.key_pressed(window, 263):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            left_pressed = value
+    match safe.key_pressed(window, 262):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            right_pressed = value
+    match safe.key_pressed(window, 265):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            up_pressed = value
+    match safe.key_pressed(window, 264):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            down_pressed = value
+    match input.pointer_position_in_canvas(window, canvas):
+        case Err(message):
+            return Err(message)
+        case Ok(position):
+            match position:
                 case Some(pointer):
-                    return Ok(UiFrame(committed, true, pointer, pressed, down, released, space, enter, escape, tab, left, right, up, down_key, false, "", 0))
+                    return Ok(InputSnapshot(true, pointer, pointer_pressed, pointer_down, pointer_released, space_pressed, enter_pressed, escape_pressed, tab_pressed, left_pressed, right_pressed, up_pressed, down_pressed))
                 case None():
-                    return Ok(UiFrame(committed, false, graphics.vec2(0.0, 0.0), pressed, down, released, space, enter, escape, tab, left, right, up, down_key, false, "", 0))
+                    return Ok(InputSnapshot(false, graphics.vec2(0.0, 0.0), pointer_pressed, pointer_down, pointer_released, space_pressed, enter_pressed, escape_pressed, tab_pressed, left_pressed, right_pressed, up_pressed, down_pressed))
 
 pub fn register_widget(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
     match register_widget_uncommitted(frame, id):
@@ -139,6 +224,8 @@ pub fn register_widget(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
             return commit_frame(registered, registered.context)
 
 fn register_widget_uncommitted(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
+    if not lease_is_current(frame.context):
+        return Err("stale UI context or frame state")
     if not frame.context.frame_open:
         return Err("UI operation requires an open frame")
     var index = 0
@@ -163,6 +250,8 @@ fn register_widget_uncommitted(frame: UiFrame, id: WidgetId) -> Result[UiFrame, 
             return Ok(with_context(frame, next))
 
 pub fn interact(frame: UiFrame, id: WidgetId, bounds: graphics.Rect, disabled: Bool = false) -> Result[Interaction, String]:
+    if not lease_is_current(frame.context):
+        return Err("stale UI context or frame state")
     if not frame.context.frame_open:
         return Err("UI interaction requires an open frame")
     if not graphics.rect_has_nonnegative_size(bounds):
@@ -175,11 +264,11 @@ pub fn interact(frame: UiFrame, id: WidgetId, bounds: graphics.Rect, disabled: B
             let eligible = not disabled and not blocked
             var context = registered.context
             if disabled:
-                if active_is(context, id):
+                if active_is_unchecked(context, id):
                     context = clear_active(context)
-                if focused_is(context, id):
+                if focused_is_unchecked(context, id):
                     context = clear_focus(context)
-            if blocked and active_is(context, id):
+            if blocked and active_is_unchecked(context, id):
                 context = clear_active(context)
             var hovered = false
             if eligible and registered.pointer_present:
@@ -188,7 +277,7 @@ pub fn interact(frame: UiFrame, id: WidgetId, bounds: graphics.Rect, disabled: B
             if eligible and hovered and registered.pointer_pressed and not context.active_present:
                 context = set_active(set_focus(context, id), id)
                 pressed_here = true
-            let was_active = active_is(context, id)
+            let was_active = active_is_unchecked(context, id)
             var released_here = false
             var clicked = false
             if was_active and registered.pointer_released:
@@ -196,11 +285,17 @@ pub fn interact(frame: UiFrame, id: WidgetId, bounds: graphics.Rect, disabled: B
                 if eligible and hovered:
                     clicked = true
                 context = clear_active(context)
-            let keyboard_activated = eligible and focused_is(context, id) and activation_pressed(registered)
+            var activation = false
+            match activation_pressed(registered):
+                case Err(message):
+                    return Err(message)
+                case Ok(value):
+                    activation = value
+            let keyboard_activated = eligible and focused_is_unchecked(context, id) and activation
             if keyboard_activated:
                 clicked = true
-            let active = active_is(context, id)
-            let focused = focused_is(context, id)
+            let active = active_is_unchecked(context, id)
+            let focused = focused_is_unchecked(context, id)
             match commit_frame(registered, context):
                 case Err(message):
                     return Err(message)
@@ -209,6 +304,8 @@ pub fn interact(frame: UiFrame, id: WidgetId, bounds: graphics.Rect, disabled: B
                     return Ok(Interaction(next_frame, response))
 
 pub fn request_focus(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
+    if not lease_is_current(frame.context):
+        return Err("stale UI context or frame state")
     if not frame.context.frame_open:
         return Err("UI focus request requires an open frame")
     if not seen_this_frame(frame.context, id.path, id.hash):
@@ -218,12 +315,16 @@ pub fn request_focus(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
     return commit_frame(frame, set_focus(frame.context, id))
 
 pub fn activate_modal(context: Context, id: WidgetId) -> Result[Context, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
     if context.frame_open:
         return Err("UI modal state cannot change while a frame is open")
     let next = Context(context.namespace, context.capacity, context.retention_frames, context.paths, context.hashes, context.last_seen, false, context.active_path, context.active_hash, false, context.focused_path, context.focused_hash, true, id.path, id.hash, context.frame_index, false, context.lease, context.lease_version)
     return commit_context(context, next)
 
 pub fn clear_modal(context: Context, id: WidgetId) -> Result[Context, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
     if context.frame_open:
         return Err("UI modal state cannot change while a frame is open")
     if not context.modal_present:
@@ -234,6 +335,8 @@ pub fn clear_modal(context: Context, id: WidgetId) -> Result[Context, String]:
     return commit_context(context, next)
 
 pub fn enter_modal(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
+    if not lease_is_current(frame.context):
+        return Err("stale UI context or frame state")
     if not frame.context.frame_open:
         return Err("UI modal scope requires an open frame")
     if frame.modal_scope_present:
@@ -248,6 +351,8 @@ pub fn enter_modal(frame: UiFrame, id: WidgetId) -> Result[UiFrame, String]:
             return commit_frame(scoped, scoped.context)
 
 pub fn exit_modal(frame: UiFrame) -> Result[UiFrame, String]:
+    if not lease_is_current(frame.context):
+        return Err("stale UI context or frame state")
     if not frame.context.frame_open:
         return Err("UI modal scope requires an open frame")
     if not frame.modal_scope_present:
@@ -256,6 +361,8 @@ pub fn exit_modal(frame: UiFrame) -> Result[UiFrame, String]:
     return commit_frame(scoped, scoped.context)
 
 pub fn end_frame(frame: UiFrame) -> Result[Context, String]:
+    if not lease_is_current(frame.context):
+        return Err("stale UI context or frame state")
     if not frame.context.frame_open:
         return Err("UI frame is already closed")
     if frame.modal_scope_present:
@@ -273,46 +380,98 @@ pub fn end_frame(frame: UiFrame) -> Result[Context, String]:
     let next = Context(frame.context.namespace, frame.context.capacity, frame.context.retention_frames, records.paths, records.hashes, records.last_seen, active_present, frame.context.active_path, frame.context.active_hash, focused_present, frame.context.focused_path, frame.context.focused_hash, modal_present, frame.context.modal_path, frame.context.modal_hash, frame.context.frame_index, false, frame.context.lease, frame.context.lease_version)
     return commit_context(frame.context, next)
 
-pub fn activation_pressed(frame: UiFrame) -> Bool:
-    return frame.space_pressed or frame.enter_pressed
+pub fn activation_pressed(frame: UiFrame) -> Result[Bool, String]:
+    match require_current_frame(frame):
+        case Err(message):
+            return Err(message)
+        case Ok(current):
+            let ignored = current
+    return Ok(frame.space_pressed or frame.enter_pressed)
 
-pub fn cancel_pressed(frame: UiFrame) -> Bool:
-    return frame.escape_pressed
+pub fn cancel_pressed(frame: UiFrame) -> Result[Bool, String]:
+    match require_current_frame(frame):
+        case Err(message):
+            return Err(message)
+        case Ok(current):
+            let ignored = current
+    return Ok(frame.escape_pressed)
 
-pub fn focus_next_pressed(frame: UiFrame) -> Bool:
-    return frame.tab_pressed
+pub fn focus_next_pressed(frame: UiFrame) -> Result[Bool, String]:
+    match require_current_frame(frame):
+        case Err(message):
+            return Err(message)
+        case Ok(current):
+            let ignored = current
+    return Ok(frame.tab_pressed)
 
-pub fn navigation_left_pressed(frame: UiFrame) -> Bool:
-    return frame.left_pressed
+pub fn navigation_left_pressed(frame: UiFrame) -> Result[Bool, String]:
+    match require_current_frame(frame):
+        case Err(message):
+            return Err(message)
+        case Ok(current):
+            let ignored = current
+    return Ok(frame.left_pressed)
 
-pub fn navigation_right_pressed(frame: UiFrame) -> Bool:
-    return frame.right_pressed
+pub fn navigation_right_pressed(frame: UiFrame) -> Result[Bool, String]:
+    match require_current_frame(frame):
+        case Err(message):
+            return Err(message)
+        case Ok(current):
+            let ignored = current
+    return Ok(frame.right_pressed)
 
-pub fn navigation_up_pressed(frame: UiFrame) -> Bool:
-    return frame.up_pressed
+pub fn navigation_up_pressed(frame: UiFrame) -> Result[Bool, String]:
+    match require_current_frame(frame):
+        case Err(message):
+            return Err(message)
+        case Ok(current):
+            let ignored = current
+    return Ok(frame.up_pressed)
 
-pub fn navigation_down_pressed(frame: UiFrame) -> Bool:
-    return frame.down_pressed
+pub fn navigation_down_pressed(frame: UiFrame) -> Result[Bool, String]:
+    match require_current_frame(frame):
+        case Err(message):
+            return Err(message)
+        case Ok(current):
+            let ignored = current
+    return Ok(frame.down_pressed)
 
-pub fn active_is(context: Context, id: WidgetId) -> Bool:
-    return context.active_present and context.active_hash == id.hash and context.active_path == id.path
+pub fn active_is(context: Context, id: WidgetId) -> Result[Bool, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
+    return Ok(active_is_unchecked(context, id))
 
-pub fn focused_is(context: Context, id: WidgetId) -> Bool:
-    return context.focused_present and context.focused_hash == id.hash and context.focused_path == id.path
+pub fn focused_is(context: Context, id: WidgetId) -> Result[Bool, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
+    return Ok(focused_is_unchecked(context, id))
 
-pub fn modal_is(context: Context, id: WidgetId) -> Bool:
-    return context.modal_present and context.modal_hash == id.hash and context.modal_path == id.path
+pub fn modal_is(context: Context, id: WidgetId) -> Result[Bool, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
+    return Ok(context.modal_present and context.modal_hash == id.hash and context.modal_path == id.path)
 
-pub fn context_capacity(context: Context) -> Int:
-    return context.capacity
+pub fn context_capacity(context: Context) -> Result[Int, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
+    return Ok(context.capacity)
 
-pub fn context_unseen_retention_frames(context: Context) -> Int:
-    return context.retention_frames
+pub fn context_unseen_retention_frames(context: Context) -> Result[Int, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
+    return Ok(context.retention_frames)
 
-pub fn context_retained_count(context: Context) -> Int:
-    return collections.length(context.paths)
+pub fn context_retained_count(context: Context) -> Result[Int, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
+    return Ok(collections.length(context.paths))
 
-pub fn context_contains(context: Context, id: WidgetId) -> Bool:
+pub fn context_contains(context: Context, id: WidgetId) -> Result[Bool, String]:
+    if not lease_is_current(context):
+        return Err("stale UI context or frame state")
+    return Ok(context_contains_unchecked(context, id))
+
+fn context_contains_unchecked(context: Context, id: WidgetId) -> Bool:
     var index = 0
     while index < collections.length(context.hashes):
         if context.hashes[index] == id.hash and context.paths[index] == id.path:
@@ -372,6 +531,17 @@ fn commit_frame(frame: UiFrame, candidate: Context) -> Result[UiFrame, String]:
 
 fn lease_is_current(context: Context) -> Bool:
     return sync.atomic_load(context.lease) == context.lease_version
+
+fn require_current_frame(frame: UiFrame) -> Result[Bool, String]:
+    if not frame.context.frame_open or not lease_is_current(frame.context):
+        return Err("stale UI context or frame state")
+    return Ok(true)
+
+fn active_is_unchecked(context: Context, id: WidgetId) -> Bool:
+    return context.active_present and context.active_hash == id.hash and context.active_path == id.path
+
+fn focused_is_unchecked(context: Context, id: WidgetId) -> Bool:
+    return context.focused_present and context.focused_hash == id.hash and context.focused_path == id.path
 
 fn response_belongs_to(context: Context, response: Response) -> Bool:
     let version = context.lease_version

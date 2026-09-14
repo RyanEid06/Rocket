@@ -28,6 +28,13 @@ fn expect_error[T](value: Result[T, String], expected: String) -> Bool:
         case Err(message):
             return message == expected
 
+fn ui_bool_is(value: Result[Bool, String], expected: Bool) -> Bool:
+    match value:
+        case Ok(actual):
+            return actual == expected
+        case Err(message):
+            return false
+
 fn main() -> Int:
     let palette = theme.dark_theme()
     let border = styles.border_style(palette.colors.border, 2.0, 6.0)
@@ -154,14 +161,14 @@ fn main() -> Int:
                                                             return 29
                                                         case Ok(next):
                                                             context = next
-                            if not ui.focused_is(context, outside_id):
+                            if not ui_bool_is(ui.focused_is(context, outside_id), true):
                                 return 30
                             match containers.activate_modal(context, overlays):
                                 case Err(message):
                                     return 31
                                 case Ok(next):
                                     context = next
-                            if ui.focused_is(context, outside_id) or not ui.modal_is(context, high_id):
+                            if not ui_bool_is(ui.focused_is(context, outside_id), false) or not ui_bool_is(ui.modal_is(context, high_id), true):
                                 return 32
                             match ui.begin_frame(context, window, mapping):
                                 case Err(message):
@@ -192,7 +199,7 @@ fn main() -> Int:
                                                                 case Err(message):
                                                                     return 41
                                                                 case Ok(focused_inside):
-                                                                    if not ui.focused_is(focused_inside.context, inside_id):
+                                                                    if not ui_bool_is(ui.focused_is(focused_inside.context, inside_id), true):
                                                                         return 42
                                                                     match containers.exit_modal(focused_inside):
                                                                         case Err(message):
