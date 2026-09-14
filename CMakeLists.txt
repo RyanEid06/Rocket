@@ -188,6 +188,8 @@ set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
 add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
 set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
+set(ROCKET_WP33_EXAMPLE_PACKAGE
+  "${CMAKE_SOURCE_DIR}/examples/rocket3_graphics_ui")
 set(ROCKET_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/native/${ROCKET_NATIVE_TARGET}")
 set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_NATIVE_OUTPUT}")
 set_target_properties(raylib PROPERTIES
@@ -801,6 +803,21 @@ target_link_libraries(rocket_phase32_golden_tool PRIVATE
   rocket3_visual_compare)
 set_target_properties(rocket_phase32_golden_tool PROPERTIES
   MSVC_RUNTIME_LIBRARY "MultiThreaded")
+
+add_test(NAME rocket3_graphics_ui_examples
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DEXAMPLE_ROOT=${ROCKET_WP33_EXAMPLE_PACKAGE}"
+    "-DNATIVE_LIBRARY_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DVISUAL_TEST=$<TARGET_FILE:rocket_phase32_visual_regression_tests>"
+    "-DGOLDEN_ROOT=${CMAKE_SOURCE_DIR}/tests/visual/goldens"
+    "-DARTIFACT_ROOT=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp33/${CMAKE_BUILD_TYPE}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_examples_test.cmake")
+set_tests_properties(rocket3_graphics_ui_examples PROPERTIES
+  LABELS "phase33;rocket3;wp33;examples;package;relocation;visual"
+  TIMEOUT 180
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)

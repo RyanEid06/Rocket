@@ -1,4 +1,4 @@
-name: Rocket WP32 visual regression
+name: Rocket visual regression and examples
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: rocket-wp32-visual-${{ github.workflow }}-${{ github.ref }}
+  group: rocket-visual-examples-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -100,9 +100,9 @@ jobs:
           $preset = 'phase19-windows-x64-release'
           cmake --preset $preset
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build "out/phase19/build/$preset" --target rocket_phase32_visual_regression_tests comparator_tests evidence_schema_tests
+          cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests comparator_tests evidence_schema_tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|comparator_tests|evidence_schema_tests)$' --output-on-failure
+          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|comparator_tests|evidence_schema_tests)$' --output-on-failure
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Configure, build, and test POSIX visual surface
@@ -111,13 +111,15 @@ jobs:
         run: |
           preset="phase19-${{ matrix.target }}-release"
           cmake --preset "$preset"
-          cmake --build "out/phase19/build/$preset" --target rocket_phase32_visual_regression_tests comparator_tests evidence_schema_tests
-          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|comparator_tests|evidence_schema_tests)$' --output-on-failure
+          cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests comparator_tests evidence_schema_tests
+          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|comparator_tests|evidence_schema_tests)$' --output-on-failure
 
       - name: Upload visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: rocket-wp32-visual-${{ matrix.target }}
-          path: out/rocket3-provisional/wp32/Release/visual
+          path: |
+            out/rocket3-provisional/wp32/Release/visual
+            out/rocket3-provisional/wp33/Release
           if-no-files-found: warn
