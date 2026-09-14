@@ -10,19 +10,17 @@ is the accepted Rocket 2.1 portability baseline at
 **Companion plan:** `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`
 
 **Documentation status:** Current and historical repository documents are
-indexed by `docs/DOCUMENTATION_STATUS.md`; the accepted Wave C syntax/API
-surface is summarized in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+indexed by `docs/DOCUMENTATION_STATUS.md`; the accepted syntax/API surface is
+summarized in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
 
-**Wave C status (2026-09-14):** F20 themes/styles, F21 controls, F22
-containers/transient UI, and F25 bounded UI/cache state have reached `PUBLIC /
-WAVE-GREEN` on final reconciliation tree
-`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
-history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. The capacity choices are recorded
-in `ROCKET_3_0_WAVE_C_CALIBRATION.json`. Full Windows Debug/Release,
+**Wave D status (2026-09-15):** F24 error/lifetime hardening, F26 performance
+budgets, F27 visual regression, and F28 focused examples/showcase have reached
+`WAVE-GREEN` on implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`. Full Windows Debug/Release,
 LLVM-disabled predecessor, bootstrap, package/relocation, target-surface,
-native, application, review, and security evidence passes. Final `ACCEPTED`
-maturity and native non-Windows target-laboratory coverage remain governed by
-WP34/F29.
+native, application, and hardening evidence passes. Final `ACCEPTED` maturity
+and native Linux x64, Linux ARM64, and macOS ARM64 target-laboratory coverage
+remain governed by WP34/F29.
 
 ## 1. Purpose
 

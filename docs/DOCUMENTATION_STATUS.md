@@ -1,10 +1,9 @@
 # Rocket Documentation Status
 
-**Audit date:** 2026-09-14
-**Baseline:** Rocket 3 Wave C final reconciliation on `master`
-`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
-history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. Create any Wave D branches
-from the exact current pushed `origin/master` SHA.
+**Audit date:** 2026-09-15
+**Baseline:** Rocket 3 Wave D accepted implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`. WP34/F29 full native-target
+acceptance is the only current Rocket 3 work.
 **Baseline inventory:** 61 Markdown, text, RST, ADOC, or configuration-like explanatory files before this ledger and the implementation plan were added.
 
 This ledger is the index for the documentation consistency pass. It separates live
@@ -34,11 +33,10 @@ below retain their recorded facts; a historical banner points readers here.
 - Rocket 2.1 portability (Phase 19) is complete on the four documented
   production target rows. The frozen Rocket 2.0 Windows SDK remains available
   for Scroll2Roll compatibility.
-- Rocket 3 Wave C is accepted on the integrated Windows baseline at the
-  implementation SHA above. It promotes themes/styles, controls,
-  containers/transient UI, and bounded UI/cache state; Wave D is ready with
-  Ryan WP29 and Eddy WP31 -> WP32 -> WP33. WP34/F29 remains the final
-  non-Windows target-laboratory gate.
+- Rocket 3 Wave D is accepted on the integrated Windows baseline at the
+  implementation SHA above. It completes unified error/lifetime hardening,
+  performance budgets, visual regression, and focused examples/showcase.
+  WP34/F29 remains the full native-target acceptance gate.
 - The production compiler is `compiler/src/main.rocket`. C++ is the permanent
   reproducible stage0 plus runtime, native-adapter, language-server, and test
   infrastructure.
@@ -94,8 +92,8 @@ below retain their recorded facts; a historical banner points readers here.
 | `docs/ROCKET_1_5_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner added | Frozen 1.5 compatibility reference |
 | `docs/ROCKET_1_8_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner added | Frozen 1.8 compatibility reference |
 | `docs/ROCKET_2_0_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner/link updated | Frozen 2.0 syntax reference |
-| `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md` | CURRENT | Updated | Accepted Wave C barrier, calibration, and Wave D handoff |
-| `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md` | CURRENT | Updated | Wave C status and intended namespace |
+| `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md` | CURRENT | Updated | Accepted Wave D barrier and WP34 handoff |
+| `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md` | CURRENT | Updated | Wave D status and intended namespace |
 | `docs/ROCKET_3_0_WAVE_C_CALIBRATION.json` | EVIDENCE | Added | Machine-checked Wave C capacity/retention measurements and rationale |
 | `docs/SELF_HOSTING.md` | CURRENT | Updated | Production Rocket compiler and stage0 boundary |
 | `docs/SPEC.md` | VERSIONED/CURRENT | Updated | Normative grammar plus accepted Rocket 3 additions |

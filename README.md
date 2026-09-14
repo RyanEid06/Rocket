@@ -16,30 +16,28 @@ This page is the current public summary. The complete documentation inventory
 and historical/current boundary are in
 [`DOCUMENTATION_STATUS.md`](docs/DOCUMENTATION_STATUS.md).
 
-## Rocket 3.0 Wave C status
+## Rocket 3.0 Wave D status
 
-Wave C is accepted on final reconciliation tree
-`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
-history preserved by merge `b5e928afbecc5e036017b3eb26431bf935b4daf8`.
-The earlier WP25, WP26, WP27, and WP30 commits remain behind non-squash
-integration merge `6ad6e56`. Wave C adds
-public themes/styles, controls, containers/transient UI, and bounded UI,
-measurement, and resource caches. Debug and Release each pass `280/280`; the
-LLVM-disabled predecessor matrix passes `203/203`; deterministic stage0 ->
-stage3 bootstrap, predecessor conformance (`90` cases), release-line
-compatibility (`11` cases), and application validation (`32` packages, `11`
-checks) also pass. The independent final review and sealed security review found
-no reportable vulnerability. Native Linux x64, Linux ARM64, and macOS ARM64 Rocket
-3 target-laboratory acceptance remains deferred to WP34/F29.
+Wave D is accepted on implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`. WP29 `d115832`, WP31
+`2f8a73e`, WP32 `29e843f`, and WP33 `f1363ba` remain visible behind non-squash
+integration merges `0cf9910` and `4c06d54`. The integrated Windows Debug and
+Release suites each pass `288/288`; the LLVM-disabled Release predecessor
+matrix passes `209/209`; deterministic stage0 -> stage3 bootstrap passes with
+matching IR SHA-256
+`ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
+Rocket 2.1 conformance (`90` cases), compatibility (`11` cases), application
+validation (`32` packages and `11` raylib checks), hardening (`17/17`), and the
+976-file Windows SDK package/relocation gate also pass. Native Linux x64, Linux
+ARM64, and macOS ARM64 Rocket 3 target-laboratory acceptance is the remaining
+WP34/F29 work.
 
 The accepted asset-store implementation is the reference-package module
 `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. The planned `rocket.assets` namespace is not a module in
 this checkout yet.
 
-Wave D is ready: Ryan owns WP29;
-Eddy proceeds through WP31, WP32, and WP33. No Wave D implementation is part of
-this barrier.
+WP34 full compatibility/platform acceptance is the only current Rocket 3 work.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
