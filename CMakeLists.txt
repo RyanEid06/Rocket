@@ -411,6 +411,8 @@ if(WIN32)
 endif()
 
 enable_testing()
+
+add_subdirectory(experiments/rocket3_visual_compare)
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 set(ROCKET_PORTABLE_WORKFLOW_TEST
   "${CMAKE_SOURCE_DIR}/tests/portable_workflow_test.py")
@@ -755,6 +757,23 @@ add_test(NAME phase30_raylib_adapter
   COMMAND rocket_phase30_raylib_adapter_tests)
 set_tests_properties(phase30_raylib_adapter PROPERTIES
   LABELS "phase30;raylib;native;rocket3;wp30;bounded-state;caches")
+
+add_executable(rocket_phase31_performance_tests
+  tests/native/phase31_performance_tests.cpp)
+target_link_libraries(rocket_phase31_performance_tests PRIVATE
+  rocket_raylib_adapter rocket3_visual_compare)
+set_target_properties(rocket_phase31_performance_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket3_performance_budgets
+  COMMAND ${CMAKE_COMMAND}
+    "-DPERFORMANCE_TEST=$<TARGET_FILE:rocket_phase31_performance_tests>"
+    "-DBUDGET_RECORD=${CMAKE_SOURCE_DIR}/docs/ROCKET_3_0_WP31_PERFORMANCE_BUDGETS.json"
+    "-DARTIFACT_ROOT=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp31/${CMAKE_BUILD_TYPE}/performance"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_performance_budget_test.cmake")
+set_tests_properties(rocket3_performance_budgets PROPERTIES
+  LABELS "phase31;rocket3;wp31;performance;release;raylib;native"
+  TIMEOUT 120
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)

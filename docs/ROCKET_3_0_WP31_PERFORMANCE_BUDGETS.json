@@ -1,0 +1,74 @@
+{
+  "schema": "rocket3-wp31-performance-budgets-v1",
+  "implementation_baseline": "b31b47105b8a00f7cfd6922f9ce668adf990cb8e",
+  "measured_at": "2026-09-14",
+  "environment": {
+    "os": "Microsoft Windows 10.0.26200",
+    "architecture": "x64",
+    "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+    "logical_processors": 16,
+    "configuration": "Release",
+    "cmake": "3.31",
+    "msvc": "19.44.35228.0",
+    "llvm": "22.1.6",
+    "powershell": "7.6.5",
+    "backend": "raylib deterministic test mode"
+  },
+  "method": {
+    "scene": "steady-card-table-v1",
+    "warmup_frames": 30,
+    "measured_frames": 120,
+    "clock": "std::chrono::steady_clock around each complete frame",
+    "execution": "Seven fresh child-process executions from the repository root using the Release target.",
+    "instrumentation": "Reset after warm-up; diagnostic getters do not increment the FFI counter. State and cache peaks are relative to the warmed baseline.",
+    "coverage": [
+      "adapter-owned resource allocations",
+      "temporary native strings",
+      "layout allocations and recomputations",
+      "repeated text measurements and warmed cache reuse",
+      "typed asset lookup and borrow",
+      "scene-facing FFI calls",
+      "render-target switches",
+      "texture uploads",
+      "retained state and cache growth"
+    ]
+  },
+  "calibration": {
+    "samples": 7,
+    "mean_frame_time_us": [1.92583, 1.95667, 1.98917, 1.93083, 3.11667, 3.755, 1.9275],
+    "maximum_frame_time_us": [2.3, 2.5, 9.2, 2.1, 4.8, 4.1, 2.4],
+    "observed_counter_totals": {
+      "native_allocations": 120,
+      "temporary_strings": 0,
+      "layout_allocations": 120,
+      "layout_recomputations": 0,
+      "text_measurements": 240,
+      "asset_lookups": 120,
+      "ffi_calls": 1440,
+      "render_target_switches": 240,
+      "texture_uploads": 0,
+      "peak_state_growth": 1,
+      "peak_cache_growth": 0
+    }
+  },
+  "final_budgets": {
+    "native_allocations_per_frame": 1,
+    "temporary_strings": 0,
+    "layout_allocations_per_frame": 1,
+    "layout_recomputations": 0,
+    "text_measurements_per_frame": 2,
+    "asset_lookups_per_frame": 1,
+    "ffi_calls_per_frame": 12,
+    "render_target_switches_per_frame": 2,
+    "texture_uploads": 0,
+    "peak_state_growth": 1,
+    "peak_cache_growth": 0,
+    "mean_frame_time_us": 100.0,
+    "maximum_frame_time_us": 2000.0
+  },
+  "decision": {
+    "counter_limits": "Freeze exact observed steady-state structural counts. Any extra allocation, string, recomputation, upload, cache entry, or scene operation is a regression requiring review rather than a relaxed threshold.",
+    "timing_limits": "The 100 us mean and 2000 us single-frame ceilings remain far above the seven-sample Release observations while bounding meaningful CPU regressions and tolerating ordinary scheduler noise in Debug and CI runs.",
+    "updates": "Budgets must be recalibrated from known-good integrated infrastructure with recorded environment and method. A failing change may not weaken a limit solely to pass."
+  }
+}
