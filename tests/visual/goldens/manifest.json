@@ -1,0 +1,47 @@
+{
+  "schema": "rocket3-wp32-goldens-v1",
+  "policy": {
+    "windows-x64": "full-strict-suite",
+    "other-supported-targets": "portable-subset-plus-structural-checks",
+    "platform_specific_references": "evidence-and-review-required",
+    "tolerance_changes": "calibration-evidence-and-review-required"
+  },
+  "scenes": [
+    {
+      "name": "geometry",
+      "reference": "geometry.ppm",
+      "sha256": "dcad0611e933afd615ffc544f8cb0424063e1aa8116c786b8552d5aaf7c5b753",
+      "portability_subset": true,
+      "coverage": ["geometry", "rounded-geometry", "outlines", "rings-sectors", "gradients", "clipping", "blending"],
+      "tolerance": {"max_channel_delta": 0, "mean_absolute_error": 0.0, "changed_pixel_ratio": 0.0},
+      "approval": {"status": "approved", "update_mode": "review-only", "id": "wp32-initial-2026-09-14", "approved_by": "Eddy WP32 fixture review", "approved_at": "2026-09-14"}
+    },
+    {
+      "name": "surfaces",
+      "reference": "surfaces.ppm",
+      "sha256": "c5df1707e7f7a7ca68f236faa21d3ed2891aa8759dd8013f207ca4c31463912b",
+      "portability_subset": false,
+      "coverage": ["typography-alignments", "transformed-textures", "filtering", "shaders", "virtual-canvas"],
+      "tolerance": {"max_channel_delta": 0, "mean_absolute_error": 0.0, "changed_pixel_ratio": 0.0},
+      "approval": {"status": "approved", "update_mode": "review-only", "id": "wp32-initial-2026-09-14", "approved_by": "Eddy WP32 fixture review", "approved_at": "2026-09-14"}
+    },
+    {
+      "name": "ui",
+      "reference": "ui.ppm",
+      "sha256": "658c924dc0f6a8dd029fbb88ac71846793afe74d2e116e7330506594597e1ab3",
+      "portability_subset": true,
+      "coverage": ["layouts", "anchors", "control-states"],
+      "tolerance": {"max_channel_delta": 0, "mean_absolute_error": 0.0, "changed_pixel_ratio": 0.0},
+      "approval": {"status": "approved", "update_mode": "review-only", "id": "wp32-initial-2026-09-14", "approved_by": "Eddy WP32 fixture review", "approved_at": "2026-09-14"}
+    },
+    {
+      "name": "premium",
+      "reference": "premium.ppm",
+      "sha256": "e7669a2c0f5ebef4cce3a0487ad7c1db8eee61f1e4725c3a9307b6bb0c75332b",
+      "portability_subset": false,
+      "coverage": ["premium-showcase"],
+      "tolerance": {"max_channel_delta": 0, "mean_absolute_error": 0.0, "changed_pixel_ratio": 0.0},
+      "approval": {"status": "approved", "update_mode": "review-only", "id": "wp32-initial-2026-09-14", "approved_by": "Eddy WP32 fixture review", "approved_at": "2026-09-14"}
+    }
+  ]
+}

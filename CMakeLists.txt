@@ -775,6 +775,33 @@ set_tests_properties(rocket3_performance_budgets PROPERTIES
   TIMEOUT 120
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_executable(rocket_phase32_visual_regression_tests
+  tests/native/phase32_visual_regression_tests.cpp)
+target_link_libraries(rocket_phase32_visual_regression_tests PRIVATE
+  rocket_raylib_adapter rocket3_visual_compare)
+target_compile_definitions(rocket_phase32_visual_regression_tests PRIVATE
+  ROCKET_NATIVE_TARGET="${ROCKET_NATIVE_TARGET}")
+set_target_properties(rocket_phase32_visual_regression_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket3_visual_regression
+  COMMAND ${CMAKE_COMMAND}
+    "-DVISUAL_TEST=$<TARGET_FILE:rocket_phase32_visual_regression_tests>"
+    "-DMANIFEST=${CMAKE_SOURCE_DIR}/tests/visual/goldens/manifest.json"
+    "-DGOLDEN_ROOT=${CMAKE_SOURCE_DIR}/tests/visual/goldens"
+    "-DARTIFACT_ROOT=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp32/${CMAKE_BUILD_TYPE}/visual"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_visual_regression_test.cmake")
+set_tests_properties(rocket3_visual_regression PROPERTIES
+  LABELS "phase32;rocket3;wp32;visual;golden;raylib;native"
+  TIMEOUT 120
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rocket_phase32_golden_tool
+  experiments/rocket3_visual_compare/tools/golden_tool.cpp)
+target_link_libraries(rocket_phase32_golden_tool PRIVATE
+  rocket3_visual_compare)
+set_target_properties(rocket_phase32_golden_tool PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
 add_test(NAME runtime COMMAND rocketc_runtime_tests)

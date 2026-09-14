@@ -1,0 +1,123 @@
+name: Rocket WP32 visual regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rocket-wp32-visual-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  visual-regression:
+    name: ${{ matrix.target }} visual regression
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runner: windows-2025-vs2026
+          - target: linux-x64
+            runner: ubuntu-24.04
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: macos-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Linux native SDK prerequisites
+        if: startsWith(matrix.target, 'linux-')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake git libasound2-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev libicu-dev libssl-dev libx11-dev libxcursor-dev \
+            libxi-dev libxinerama-dev libxrandr-dev
+
+      - name: Install macOS native SDK prerequisites
+        if: matrix.target == 'macos-arm64'
+        shell: bash
+        run: |
+          brew install cmake icu4c openssl@3
+          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "ICU_ROOT=$(brew --prefix icu4c)" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix icu4c);$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+
+      - name: Restore pinned dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            dependencies/cache
+            dependencies/installed
+          key: rocket-wp32-${{ matrix.target }}-${{ hashFiles('dependencies/manifest.json') }}
+
+      - name: Install checksum-pinned build dependencies
+        shell: bash
+        run: python dependencies/bootstrap.py --host "${{ matrix.target }}"
+
+      - name: Export POSIX toolchain paths
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        run: |
+          llvm="$GITHUB_WORKSPACE/dependencies/installed/llvm-22.1.6"
+          echo "$GITHUB_WORKSPACE/dependencies/installed/ninja-1.13.1" >> "$GITHUB_PATH"
+          echo "$llvm/bin" >> "$GITHUB_PATH"
+          echo "LLVM_DIR=$llvm/lib/cmake/llvm" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_C_COMPILER=$llvm/bin/clang" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_CXX_COMPILER=$llvm/bin/clang++" >> "$GITHUB_ENV"
+          echo "ROCKET_HOST_AR=$llvm/bin/llvm-ar" >> "$GITHUB_ENV"
+          if [[ "${{ matrix.target }}" == macos-* ]]; then
+            sdk="$(xcrun --sdk macosx --show-sdk-path)"
+            echo "ROCKET_HOST_LINKER=$llvm/bin/ld64.lld" >> "$GITHUB_ENV"
+            echo "ROCKET_MACOS_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
+            echo "ROCKET_CXX_STANDARD_INCLUDE=$sdk/usr/include/c++/v1" >> "$GITHUB_ENV"
+            echo "ROCKET_CXX_STANDARD_LIBRARY=$sdk/usr/lib/libc++.tbd" >> "$GITHUB_ENV"
+          else
+            echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure, build, and test Windows visual surface
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          $preset = 'phase19-windows-x64-release'
+          cmake --preset $preset
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build "out/phase19/build/$preset" --target rocket_phase32_visual_regression_tests comparator_tests evidence_schema_tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|comparator_tests|evidence_schema_tests)$' --output-on-failure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Configure, build, and test POSIX visual surface
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        run: |
+          preset="phase19-${{ matrix.target }}-release"
+          cmake --preset "$preset"
+          cmake --build "out/phase19/build/$preset" --target rocket_phase32_visual_regression_tests comparator_tests evidence_schema_tests
+          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|comparator_tests|evidence_schema_tests)$' --output-on-failure
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rocket-wp32-visual-${{ matrix.target }}
+          path: out/rocket3-provisional/wp32/Release/visual
+          if-no-files-found: warn
