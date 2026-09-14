@@ -631,10 +631,11 @@ overflowing container geometry, and synchronized the generated binding.
 - Final Rocket 3.0 `ACCEPTED` maturity and native Linux x64, Linux ARM64, and
   macOS ARM64 target-laboratory evidence remain WP34/F29 responsibilities.
 
-**Next:** Publish the accepted barrier to `master`, then create
-`rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the same pushed SHA. Ryan
-implements WP29; Eddy implements WP31, WP32, and WP33 in order. No Wave D
-implementation is included in this barrier.
+**Next:** The accepted barrier is published to `master` in status commit
+`54251f8c5cc6b8126a7adcef3946a8578d910141`. Create
+`rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the exact current pushed
+SHA. Ryan implements WP29; Eddy implements WP31, WP32, and WP33 in order. No
+Wave D implementation is included in this barrier.
 
 ## Post-roadmap tooling maintenance
 

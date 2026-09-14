@@ -134,8 +134,9 @@ same `R6001`-`R6005` categories. Native bootstrap uses only the packaged target
 SDK after installation. Cross-emitted IR or objects cannot substitute for a
 native bootstrap result; exact evidence belongs in `PHASE_19_AUDIT.md`.
 
-The current Wave C publication at `master` is
-`fe948e98070d3d61b6ea02cdd0dfc787fcdae6fa`. Its Windows Debug and Release
-matrices each passed `267/267`, and the deterministic stage0 -> stage3 run
-recorded matching stage2/stage3 IR. Wave C remains additive work on this
-baseline; it does not replace the self-hosting contract.
+The accepted Wave C implementation tree is
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`; it was published to `master` in
+status commit `54251f8c5cc6b8126a7adcef3946a8578d910141`. Its Windows Debug and
+Release matrices each passed `280/280`, and the deterministic stage0 -> stage3
+run recorded matching stage2/stage3 IR. Wave C is additive to this baseline; it
+does not replace the self-hosting contract.

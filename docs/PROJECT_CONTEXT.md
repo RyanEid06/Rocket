@@ -1226,9 +1226,10 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Rocket 3 Wave D is ready after the accepted Wave C barrier is published to
-`master`. Create `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from that exact
-pushed SHA. Ryan's only packet is WP29 (unified error and lifetime hardening).
+**Rocket 3 Wave D is ready. The accepted Wave C barrier was published to
+`master` in status commit `54251f8c5cc6b8126a7adcef3946a8578d910141`. Create
+`rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the exact current pushed
+SHA. Ryan's only packet is WP29 (unified error and lifetime hardening).
 Eddy's serial queue is WP31 (performance budgets), WP32 (visual regression),
 then WP33 (examples/showcase). Do not begin Wave D work in this barrier chat.
 Native non-Windows target-laboratory acceptance remains a WP34/F29 item. The

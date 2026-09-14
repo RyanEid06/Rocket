@@ -2917,7 +2917,10 @@ extern "C" int64_t rlv_music_live_count(void) {
 extern "C" int64_t rlv_asset_store_create_bounded(
     int64_t windowId, int64_t audioId, int64_t packageRootBufferId,
     int64_t capacity) {
-  if (!validWindow(windowId) || !validAudio(audioId)) {
+  // A zero audio handle is the explicit graphics-only store mode. All
+  // audio-backed loads reject that mode below; nonzero handles still require
+  // the live audio device owned by the caller.
+  if (!validWindow(windowId) || (audioId != 0 && !validAudio(audioId))) {
     return RLV_ERR_STALE_HANDLE;
   }
   if (capacity <= 0 || capacity > kAssetStoreMaximumCapacity) {
@@ -3060,6 +3063,7 @@ extern "C" int64_t rlv_asset_sound_load(
   if (!nameValue || nameValue->empty() || !pathValue) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
+  if (store->second.audioId == 0) return RLV_ERR_UNAVAILABLE;
   const std::string name = *nameValue;
   const std::string relativePath = *pathValue;
   if (store->second.assets.find(name) != store->second.assets.end()) {
@@ -3099,6 +3103,7 @@ extern "C" int64_t rlv_asset_music_load(
   if (!nameValue || nameValue->empty() || !pathValue) {
     return RLV_ERR_INVALID_ARGUMENT;
   }
+  if (store->second.audioId == 0) return RLV_ERR_UNAVAILABLE;
   const std::string name = *nameValue;
   const std::string relativePath = *pathValue;
   if (store->second.assets.find(name) != store->second.assets.end()) {

@@ -43,7 +43,7 @@ fn main() -> Int:
                 case Ok(unexpected):
                     return 11
                 case Err(error):
-                    if error != "raylib: asset or uniform not found":
+                    if error != "raylib: monitor not found":
                         return 12
             if not rocket_raylib_testing.set_mouse(125, 50, false):
                 return 13

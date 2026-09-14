@@ -1,0 +1,48 @@
+import rocket.graphics
+import rocket.raylib.safe
+import testing
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            return false
+
+fn main() -> Int:
+    unsafe:
+        if testing.rlv_enable_test_mode(true) != 0 or testing.rlv_test_reset() != 0:
+            return 1
+    match safe.open_window(320, 180, "canonical typography"):
+        case Err(message):
+            return 2
+        case Ok(window):
+            match safe.default_font(window):
+                case Err(message):
+                    return 3
+                case Ok(font):
+                    let style = graphics.text_style("default", 20.0, 1.0, 1.25)
+                    match safe.measure_text(font, "Rocket type", style):
+                        case Err(message):
+                            return 4
+                        case Ok(layout):
+                            if layout.metrics.width <= 0.0 or layout.metrics.height != 25.0 or layout.metrics.baseline != 16.0 or layout.line_count != 1:
+                                return 5
+                    match safe.begin_frame(window):
+                        case Err(message):
+                            return 6
+                        case Ok(frame):
+                            let bounds = graphics.rect(10.0, 80.0, 280.0, 80.0)
+                            match safe.draw_text_layout(frame, font, "Rocket type", bounds, style, safe.color(255, 255, 255), graphics.text_align_center(), graphics.text_align_baseline()):
+                                case Err(message):
+                                    return 7
+                                case Ok(drawn):
+                                    if not drawn:
+                                        return 8
+                            if not succeeded(safe.end_frame(frame)):
+                                return 9
+                    if not succeeded(safe.invalidate_font_measurements(font)) or not succeeded(safe.unload_font(font)):
+                        return 10
+            if not succeeded(safe.close_window(window)):
+                return 11
+    return 0

@@ -407,16 +407,19 @@ cancelled sample. `fade`, `move`, `slide`, `scale`, `rotate`, `pulse`, and
 ## `rocket.raylib.safe`
 
 `rocket.raylib.safe` is the narrow bundled Rocket 3 native boundary over the
-reviewed raylib adapter. Application code should normally use `rocket.graphics`
-instead. The safe module owns the `Window` and `Frame` token wrappers, validates
-primitive geometry and color arguments before an `unsafe` adapter call, and
-translates adapter status values to `Result`. It exposes no native pointer or
-raylib structure. Pointer queries use framebuffer coordinates and provide
-pressed, down, and released states. `key_pressed` and `key_down` expose reviewed
-integer key queries for higher-level UI input snapshots. F17 also uses this boundary
-for checked render-target/scissor scopes, framebuffer/DPI/display-revision queries,
-resize/fullscreen/borderless transitions, and render-target PNG export; those
-primitives remain backend plumbing rather than the preferred application API.
+reviewed raylib adapter. `rocket.raylib.native` contains the primitive-only
+declarations used by the wrapper and is not intended for ordinary application
+imports. Application code should normally use `rocket.graphics` instead. The
+safe module owns the `Window`, `Frame`, and `Font` token wrappers, validates
+primitive geometry, typography, and color arguments before an `unsafe` adapter
+call, and translates adapter status values to `Result`. It exposes no native
+pointer or raylib structure. Pointer queries use framebuffer coordinates and
+provide pressed, down, and released states. `key_pressed` and `key_down` expose
+reviewed integer key queries for higher-level UI input snapshots. F17 also uses
+this boundary for checked render-target/scissor scopes, framebuffer/DPI/display-
+revision queries, resize/fullscreen/borderless transitions, and render-target
+PNG export; those primitives remain backend plumbing rather than the preferred
+application API.
 
 ## `rocket.graphics`
 
@@ -448,8 +451,9 @@ container policy. Font selection is explicit: applications load or select a
 synthesizes guessed bold metrics. `TextStyle.font_name` is the stable
 application/asset identity paired with that token.
 
-The safe raylib package provides `default_font`, `measure_text`,
-`draw_text_layout`, and `invalidate_font_measurements`. Measurement includes
+The safe raylib package provides `default_font`, `load_font`, `measure_text`,
+`draw_text_layout`, `invalidate_font_measurements`, and `unload_font`.
+Measurement includes
 requested size, letter spacing, line-height multiplier, explicit newlines,
 optional word wrapping, maximum width/height, clipping, and last-visible-line
 ellipsis. Zero maximum width or height means unbounded measurement; draw bounds
@@ -691,7 +695,10 @@ at `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `SoundRef`, `MusicRef`, and `ShaderRef`, with typed load, lookup, borrow, and
 idempotent `cleanup` operations. `open` accepts a bounded logical-resource
 capacity from 1 through 100,000 (256 by default), and `capacity` reports the
-frozen value. Exhaustion occurs before physical loading, so the logical and
+frozen value. `open_graphics(window, package_root = ".")` creates the default-
+capacity store without an audio device for texture, font, and shader workloads;
+sound and music loads from that store return the stable unavailable error.
+Exhaustion occurs before physical loading, so the logical and
 physical caches remain unchanged. Paths are rooted to the package, traversal and
 symlink escapes are rejected, duplicate names and wrong-type lookups return
 recoverable errors, and cleanup invalidates borrowed references. The planned

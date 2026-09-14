@@ -1,0 +1,8 @@
+import rocket.graphics
+import rocket.raylib.safe
+
+fn main() -> Int:
+    let style = graphics.text_style("default", 20.0)
+    if not graphics.text_style_is_valid(style):
+        return 1
+    return 0

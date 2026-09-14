@@ -16,7 +16,8 @@ discovery.
 The accepted Rocket 3 Wave C callable and UI surface is editor-neutral:
 named/default arguments, labeled enum payloads, and the bundled graphics/UI
 modules use the same formatter, LSP metadata, signature help, and coded
-diagnostics. Wave C is not yet a released Rocket 3.0 tooling contract. Use
+diagnostics. Wave C is accepted on the Windows integration baseline but is not
+yet a released Rocket 3.0 tooling contract. Use
 `ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current syntax index and
 `DOCUMENTATION_STATUS.md` for the live/historical document boundary.
 

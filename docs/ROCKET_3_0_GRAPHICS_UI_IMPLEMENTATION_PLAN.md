@@ -63,16 +63,16 @@ current, historical, example, and provisional documents are indexed by
 | Integration branch | `master` |
 | Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
 | Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
-| Rocket 3 shared baseline | accepted Wave C implementation tree `39259b6704c517b123d5d1a8d153bc4ea4d32e0d`; publish this barrier record to `master` before creating Wave D branches |
+| Rocket 3 shared baseline | Wave C implementation tree `39259b6704c517b123d5d1a8d153bc4ea4d32e0d`, published to `master` in status commit `54251f8c5cc6b8126a7adcef3946a8578d910141` |
 | WP16 implementation owner | Eddy |
 | Packet generated output | packet-local paths below `out/rocket3-provisional/`; never share generated state between developer checkouts |
 | Parallel delivery policy | Ryan and Eddy push isolated wave branches; Ryan integrates only at a defined barrier after required verification |
 
 The accepted Rocket 2.1 baseline remains compatibility provenance. The Wave C
 barrier verified the implementation tree at
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`; its calibration and barrier record
-must be published to `master` before Wave D branches are created. At the start
-of each wave, record the exact accepted `origin/master` SHA with `git rev-parse
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d` and was published to `master` in
+status commit `54251f8c5cc6b8126a7adcef3946a8578d910141`. At the start of each
+wave, record the exact accepted `origin/master` SHA with `git rev-parse
 origin/master`; both developer branches for that wave must be created from that
 same SHA.
 
@@ -443,13 +443,11 @@ integration branch owns mechanical reconciliation.
 **Wave B barrier:** FULL. This barrier integrates six packets and is mandatory
 before WP25 begins.
 
-### Wave C - serial public-UI completion and cache integration
+### Wave C - completed public-UI and cache integration
 
-Create `rocket3/eddy-wave-c` from the Wave B accepted `master` SHA. Ryan does not
-start another implementation packet during this wave; he may review Eddy's pushed
-commits, but must not duplicate or pre-implement blocked WP29 work. The apparent
-idle lane is intentional: the remaining public UI chain is dependency-serial, and
-forcing fake parallelism here would create more rework than it saves.
+**Completed 2026-09-14.** Eddy's Wave C branch was created from the accepted
+Wave B baseline and integrated without starting WP29 early. Ryan reviewed the
+serial public-UI chain and completed the barrier hardening and acceptance gates.
 
 **Eddy lane**
 
@@ -464,10 +462,11 @@ first allows WP29's later cross-cutting hardening audit to include the final cac
 layer rather than forcing two developers to modify the same UI/state files in
 parallel.
 
-**Wave C barrier:** FULL. Ryan integrates Eddy's lane, runs section 4.5, and
-creates the common baseline that unlocks WP29 and WP31.
+**Wave C barrier:** COMPLETE / FULL / ACCEPTED. Eddy's lane is integrated and
+section 4.5 passed on the Windows baseline, creating the common baseline that
+unlocks WP29 and WP31.
 
-### Wave D - hardening versus performance/visual/examples
+### Wave D - READY: hardening versus performance/visual/examples
 
 Create `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the Wave C accepted
 `master` SHA.
@@ -1525,9 +1524,9 @@ been integrated and verified. Ordinary packet chats never rotate this section.
 `c79c34453896510591a6243a4806f2fc888c90f6`, WP27
 `2f290d95835c1227a49977d89c3899cc89959028`, and WP30
 `fadda377fe93ef791e13aa76bc9649cfdc98dc10`, plus integration hardening
-`96f0494` and binding synchronization `39259b6`. Publish this verified tree and
-its status update to `master`; the exact pushed `origin/master` SHA is the
-common branch point for Wave D.
+`96f0494` and binding synchronization `39259b6`. The barrier status is published
+to `master` in commit `54251f8c5cc6b8126a7adcef3946a8578d910141`; the exact
+current pushed `origin/master` SHA is the common branch point for Wave D.
 
 **Current wave:** Wave D
 

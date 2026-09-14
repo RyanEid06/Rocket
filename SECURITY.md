@@ -8,10 +8,11 @@ Rocket 1.x and 2.0 remain source-compatibility inputs, and the frozen Rocket
 accepted Rocket 2.1 target rows are Windows x64, Linux x64, Linux ARM64, and
 macOS ARM64; security fixes are released against the current 2.1 line.
 
-Rocket 3.0 is still in development. Wave B is accepted on the Windows
-integration baseline, while Wave C and the final non-Windows Rocket 3 target
-laboratory work remain in progress. Do not treat Wave B documentation or
-provisional graphics/UI experiments as a released security-support promise.
+Rocket 3.0 is still in development. Waves A through C are accepted on the
+Windows integration baseline; Wave D and the final non-Windows Rocket 3 target
+laboratory work remain in progress. Do not treat the accepted development
+baseline or provisional graphics/UI modules as a released security-support
+promise.
 
 ## Reporting a vulnerability
 

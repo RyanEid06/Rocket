@@ -19,7 +19,8 @@ and historical/current boundary are in
 ## Rocket 3.0 Wave C status
 
 Wave C is accepted on implementation tree
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`, preserving Eddy's WP25, WP26,
+`39259b6704c517b123d5d1a8d153bc4ea4d32e0d` and published to `master` in status
+commit `54251f8c5cc6b8126a7adcef3946a8578d910141`, preserving Eddy's WP25, WP26,
 WP27, and WP30 commits behind non-squash integration merge `6ad6e56`. It adds
 public themes/styles, controls, containers/transient UI, and bounded UI,
 measurement, and resource caches. Debug and Release each pass `280/280`; the
@@ -35,7 +36,7 @@ The accepted asset-store implementation is the reference-package module
 `src.rocket_assets`. The planned `rocket.assets` namespace is not a module in
 this checkout yet.
 
-Wave D is ready after this barrier is published to `master`: Ryan owns WP29;
+Wave D is ready: Ryan owns WP29;
 Eddy proceeds through WP31, WP32, and WP33. No Wave D implementation is part of
 this barrier.
 
