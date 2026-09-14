@@ -7,6 +7,13 @@ add_library(rocket3_visual_compare STATIC
     src/comparator.cpp
     src/evidence_schema.cpp
 )
+if(TARGET raylib)
+    target_sources(rocket3_visual_compare PRIVATE
+        src/canonical_scenes.cpp
+        src/image_io.cpp
+    )
+    target_link_libraries(rocket3_visual_compare PUBLIC raylib)
+endif()
 target_compile_features(rocket3_visual_compare PUBLIC cxx_std_20)
 target_include_directories(rocket3_visual_compare PUBLIC src)
 

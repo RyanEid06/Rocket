@@ -168,6 +168,18 @@ struct AdapterState {
   int64_t screenshotCount = 0;
   int64_t textCacheHits = 0;
   int64_t textCacheMisses = 0;
+  int64_t performanceNativeAllocations = 0;
+  int64_t performanceTemporaryStrings = 0;
+  int64_t performanceLayoutAllocations = 0;
+  int64_t performanceLayoutRecomputations = 0;
+  int64_t performanceTextMeasurements = 0;
+  int64_t performanceAssetLookups = 0;
+  int64_t performanceFfiCalls = 0;
+  int64_t performanceTextureUploads = 0;
+  int64_t performanceStateBaseline = 0;
+  int64_t performanceStatePeak = 0;
+  int64_t performanceCacheBaseline = 0;
+  int64_t performanceCachePeak = 0;
   int64_t mouseX = 0;
   int64_t mouseY = 0;
   bool mousePressed = false;
@@ -218,6 +230,43 @@ struct AdapterState {
 
 AdapterState state;
 unsigned int nativeQualityFlags = 0;
+
+int64_t performanceStateEntries() {
+  return (state.windowOpen ? 1 : 0) + (state.audioOpen ? 1 : 0) +
+         static_cast<int64_t>(
+             state.buffers.size() + state.pointBuffers.size() +
+             state.textures.size() + state.renderTextures.size() +
+             state.shaders.size() + state.shaderUniforms.size() +
+             state.fonts.size() + state.textLayouts.size() +
+             state.sounds.size() + state.musics.size() +
+             state.assetStores.size() + state.assetReferences.size() +
+             state.scopes.size());
+}
+
+int64_t performanceCacheEntries() {
+  int64_t assetEntries = 0;
+  for (const auto& [storeId, store] : state.assetStores) {
+    (void)storeId;
+    assetEntries += static_cast<int64_t>(store.assets.size());
+    assetEntries += static_cast<int64_t>(store.physicalAssets.size());
+  }
+  return static_cast<int64_t>(state.textMeasurementCache.size()) +
+         assetEntries;
+}
+
+void observePerformanceGrowth() {
+  state.performanceStatePeak =
+      std::max(state.performanceStatePeak, performanceStateEntries());
+  state.performanceCachePeak =
+      std::max(state.performanceCachePeak, performanceCacheEntries());
+}
+
+void recordPerformanceFfiCall() { ++state.performanceFfiCalls; }
+
+void recordPerformanceAllocation() {
+  ++state.performanceNativeAllocations;
+  observePerformanceGrowth();
+}
 
 bool fitsInt(int64_t value) {
   return value >= std::numeric_limits<int>::min() &&
@@ -721,6 +770,7 @@ TextLayoutData cachedTextLayout(int64_t fontId, const FontRecord& font,
                                 double spacing, double lineHeight,
                                 double maxWidth, double maxHeight, bool wrap,
                                 int64_t overflow) {
+  ++state.performanceTextMeasurements;
   const std::string key = textLayoutKey(fontId, text, size, spacing, lineHeight,
                                         maxWidth, maxHeight, wrap, overflow);
   for (std::size_t index = 0; index < state.textMeasurementCache.size();
@@ -734,6 +784,7 @@ TextLayoutData cachedTextLayout(int64_t fontId, const FontRecord& font,
     return hit.layout;
   }
   ++state.textCacheMisses;
+  ++state.performanceLayoutRecomputations;
   TextLayoutData layout = buildTextLayout(font, text, size, spacing, lineHeight,
                                           maxWidth, maxHeight, wrap, overflow);
   layout.fontId = fontId;
@@ -741,6 +792,7 @@ TextLayoutData cachedTextLayout(int64_t fontId, const FontRecord& font,
     state.textMeasurementCache.erase(state.textMeasurementCache.begin());
   }
   state.textMeasurementCache.push_back(CachedTextLayout{key, fontId, layout});
+  observePerformanceGrowth();
   return layout;
 }
 
@@ -840,11 +892,15 @@ std::string physicalAssetKey(AssetKind kind, const std::string& first,
 int64_t temporaryTextBuffer(const std::string& value) {
   const int64_t id = nextId();
   state.buffers.emplace(id, value);
+  ++state.performanceTemporaryStrings;
+  recordPerformanceAllocation();
   return id;
 }
 
 int64_t assetLookup(int64_t storeId, int64_t nameBufferId,
                     AssetKind expectedKind) {
+  recordPerformanceFfiCall();
+  ++state.performanceAssetLookups;
   const auto store = state.assetStores.find(storeId);
   if (store == state.assetStores.end()) return RLV_ERR_STALE_HANDLE;
   const std::string* name = buffer(nameBufferId);
@@ -856,6 +912,7 @@ int64_t assetLookup(int64_t storeId, int64_t nameBufferId,
 }
 
 int64_t assetBorrow(int64_t referenceId, AssetKind expectedKind) {
+  recordPerformanceFfiCall();
   const auto reference = state.assetReferences.find(referenceId);
   if (reference == state.assetReferences.end()) return RLV_ERR_STALE_HANDLE;
   if (reference->second.kind != expectedKind) return RLV_ERR_ASSET_TYPE;
@@ -876,6 +933,8 @@ int64_t addAssetEntry(int64_t storeId, const std::string& name,
       name, AssetEntry{kind, referenceId, resourceId, physicalKey});
   state.assetReferences.emplace(
       referenceId, AssetReferenceRecord{storeId, kind, resourceId});
+  recordPerformanceAllocation();
+  observePerformanceGrowth();
   return referenceId;
 }
 
@@ -914,9 +973,83 @@ extern "C" int64_t rlv_test_reset(void) {
   return RLV_OK;
 }
 
+extern "C" int64_t rlv_performance_reset(void) {
+  if (state.drawing || !state.scopes.empty()) return RLV_ERR_INVALID_STATE;
+  state.performanceNativeAllocations = 0;
+  state.performanceTemporaryStrings = 0;
+  state.performanceLayoutAllocations = 0;
+  state.performanceLayoutRecomputations = 0;
+  state.performanceTextMeasurements = 0;
+  state.performanceAssetLookups = 0;
+  state.performanceFfiCalls = 0;
+  state.performanceTextureUploads = 0;
+  state.renderTargetSwitchCount = 0;
+  state.scissorSwitchCount = 0;
+  state.blendSwitchCount = 0;
+  state.shaderSwitchCount = 0;
+  state.textCacheHits = 0;
+  state.textCacheMisses = 0;
+  state.performanceStateBaseline = performanceStateEntries();
+  state.performanceStatePeak = state.performanceStateBaseline;
+  state.performanceCacheBaseline = performanceCacheEntries();
+  state.performanceCachePeak = state.performanceCacheBaseline;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_performance_native_allocations(void) {
+  return state.performanceNativeAllocations;
+}
+
+extern "C" int64_t rlv_performance_temporary_strings(void) {
+  return state.performanceTemporaryStrings;
+}
+
+extern "C" int64_t rlv_performance_layout_allocations(void) {
+  return state.performanceLayoutAllocations;
+}
+
+extern "C" int64_t rlv_performance_layout_recomputations(void) {
+  return state.performanceLayoutRecomputations;
+}
+
+extern "C" int64_t rlv_performance_text_measurements(void) {
+  return state.performanceTextMeasurements;
+}
+
+extern "C" int64_t rlv_performance_asset_lookups(void) {
+  return state.performanceAssetLookups;
+}
+
+extern "C" int64_t rlv_performance_ffi_calls(void) {
+  return state.performanceFfiCalls;
+}
+
+extern "C" int64_t rlv_performance_texture_uploads(void) {
+  return state.performanceTextureUploads;
+}
+
+extern "C" int64_t rlv_performance_state_entries(void) {
+  return performanceStateEntries();
+}
+
+extern "C" int64_t rlv_performance_peak_state_growth(void) {
+  return std::max<int64_t>(
+      0, state.performanceStatePeak - state.performanceStateBaseline);
+}
+
+extern "C" int64_t rlv_performance_cache_entries(void) {
+  return performanceCacheEntries();
+}
+
+extern "C" int64_t rlv_performance_peak_cache_growth(void) {
+  return std::max<int64_t>(
+      0, state.performanceCachePeak - state.performanceCacheBaseline);
+}
+
 extern "C" int64_t rlv_buffer_create(void) {
   const int64_t id = nextId();
   state.buffers.emplace(id, std::string{});
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -939,6 +1072,7 @@ extern "C" int64_t rlv_buffer_live_count(void) {
 extern "C" int64_t rlv_point_buffer_create(void) {
   const int64_t id = nextId();
   state.pointBuffers.emplace(id, std::vector<Vector2>{});
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -990,6 +1124,7 @@ extern "C" int64_t rlv_window_open_quality(int64_t width, int64_t height,
   state.windowOpen = true;
   state.closeRequested = false;
   state.windowId = nextId();
+  recordPerformanceAllocation();
   state.windowResizable = resizable != 0;
   state.windowHighDpi = highDpi != 0;
   state.windowMsaa4x = msaa4x != 0;
@@ -1066,6 +1201,7 @@ extern "C" double rlv_time(int64_t windowId) {
 }
 
 extern "C" int64_t rlv_begin_drawing(int64_t windowId) {
+  recordPerformanceFfiCall();
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   if (state.drawing) return RLV_ERR_INVALID_STATE;
   refreshDisplayMetrics();
@@ -1076,6 +1212,7 @@ extern "C" int64_t rlv_begin_drawing(int64_t windowId) {
 }
 
 extern "C" int64_t rlv_end_drawing(int64_t frameId) {
+  recordPerformanceFfiCall();
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   if (!state.scopes.empty()) return RLV_ERR_INVALID_STATE;
   if (!state.testMode) EndDrawing();
@@ -1107,6 +1244,7 @@ extern "C" int64_t rlv_abort_drawing(int64_t frameId) {
 
 extern "C" int64_t rlv_clear_background(int64_t frameId, int64_t red, int64_t green,
                                           int64_t blue, int64_t alpha) {
+  recordPerformanceFfiCall();
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   if (!validColor(red, green, blue, alpha)) return RLV_ERR_INVALID_ARGUMENT;
   if (!state.testMode) ClearBackground(color(red, green, blue, alpha));
@@ -1117,6 +1255,7 @@ extern "C" int64_t rlv_clear_background(int64_t frameId, int64_t red, int64_t gr
 extern "C" int64_t rlv_draw_rectangle(int64_t frameId, int64_t x, int64_t y, int64_t width,
                                         int64_t height, int64_t red, int64_t green,
                                         int64_t blue, int64_t alpha) {
+  recordPerformanceFfiCall();
   if (beginGeometry(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   if (!fitsInt(x) || !fitsInt(y) || !fitsInt(width) || !fitsInt(height) ||
       width < 0 || height < 0 || !validColor(red, green, blue, alpha)) {
@@ -1466,6 +1605,8 @@ extern "C" int64_t rlv_texture_load(int64_t windowId, int64_t pathBufferId) {
   }
   const int64_t id = nextId();
   state.textures.emplace(id, record);
+  ++state.performanceTextureUploads;
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -1682,6 +1823,7 @@ extern "C" int64_t rlv_render_texture_load(int64_t windowId, int64_t width,
   }
   const int64_t id = nextId();
   state.renderTextures.emplace(id, record);
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -1726,6 +1868,7 @@ extern "C" int64_t rlv_render_texture_live_count(void) {
 
 extern "C" int64_t rlv_render_target_begin(int64_t frameId,
                                              int64_t renderTextureId) {
+  recordPerformanceFfiCall();
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   const auto found = state.renderTextures.find(renderTextureId);
   if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
@@ -1735,11 +1878,13 @@ extern "C" int64_t rlv_render_target_begin(int64_t frameId,
   if (!state.testMode) BeginTextureMode(found->second.value);
   state.scopes.push_back(ScopeRecord{scopeId, frameId, ScopeKind::RenderTarget,
                                      renderTextureId});
+  observePerformanceGrowth();
   ++state.renderTargetSwitchCount;
   return scopeId;
 }
 
 extern "C" int64_t rlv_render_target_end(int64_t scopeId) {
+  recordPerformanceFfiCall();
   if (!scopeExists(scopeId)) return RLV_ERR_STALE_HANDLE;
   if (state.scopes.empty() || state.scopes.back().id != scopeId ||
       state.scopes.back().kind != ScopeKind::RenderTarget) {
@@ -1764,6 +1909,7 @@ extern "C" int64_t rlv_render_texture_draw(
     double destX, double destY, double destWidth, double destHeight,
     double originX, double originY, double rotation,
     int64_t red, int64_t green, int64_t blue, int64_t alpha) {
+  recordPerformanceFfiCall();
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   const auto found = state.renderTextures.find(renderTextureId);
   if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
@@ -1873,6 +2019,7 @@ extern "C" int64_t rlv_scissor_begin(int64_t frameId, double x, double y,
   scope.width = effectiveWidth;
   scope.height = effectiveHeight;
   state.scopes.push_back(scope);
+  observePerformanceGrowth();
   ++state.scissorSwitchCount;
   return scopeId;
 }
@@ -1923,6 +2070,7 @@ extern "C" int64_t rlv_blend_begin(int64_t frameId, int64_t blendMode) {
   ScopeRecord scope{scopeId, frameId, ScopeKind::Blend};
   scope.blendMode = blendMode;
   state.scopes.push_back(scope);
+  observePerformanceGrowth();
   ++state.blendSwitchCount;
   return scopeId;
 }
@@ -2327,6 +2475,7 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
   if (fragmentSource) UnloadFileText(fragmentSource);
   const int64_t id = nextId();
   state.shaders.emplace(id, record);
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2366,6 +2515,7 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
   }
   const int64_t id = nextId();
   state.shaders.emplace(id, record);
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2418,6 +2568,7 @@ extern "C" int64_t rlv_shader_uniform(int64_t shaderId,
   const int64_t id = nextId();
   state.shaderUniforms.emplace(
       id, ShaderUniformRecord{shaderId, location, uniformType});
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2500,6 +2651,7 @@ extern "C" int64_t rlv_shader_begin(int64_t frameId, int64_t shaderId) {
   if (!state.testMode) BeginShaderMode(shader->second.value);
   state.scopes.push_back(
       ScopeRecord{scopeId, frameId, ScopeKind::Shader, shaderId});
+  observePerformanceGrowth();
   ++state.shaderSwitchCount;
   return scopeId;
 }
@@ -2542,6 +2694,7 @@ extern "C" int64_t rlv_font_load(int64_t windowId, int64_t pathBufferId) {
   }
   const int64_t id = nextId();
   state.fonts.emplace(id, record);
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2552,6 +2705,7 @@ extern "C" int64_t rlv_font_default(int64_t windowId) {
   if (!state.testMode) record.value = GetFontDefault();
   const int64_t id = nextId();
   state.fonts.emplace(id, record);
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2585,6 +2739,7 @@ extern "C" int64_t rlv_font_measure(int64_t fontId, int64_t textBufferId,
                                        double lineHeight, double maxWidth,
                                        double maxHeight, rocket_bool wrap,
                                        int64_t overflow) {
+  recordPerformanceFfiCall();
   const auto font = state.fonts.find(fontId);
   if (font == state.fonts.end()) return RLV_ERR_STALE_HANDLE;
   if (!validWindow(font->second.windowId)) return RLV_ERR_STALE_HANDLE;
@@ -2598,6 +2753,8 @@ extern "C" int64_t rlv_font_measure(int64_t fontId, int64_t textBufferId,
       maxHeight, wrap != 0, overflow);
   const int64_t id = nextId();
   state.textLayouts.emplace(id, std::move(layout));
+  ++state.performanceLayoutAllocations;
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2647,6 +2804,7 @@ extern "C" rocket_bool rlv_text_layout_ellipsized(int64_t layoutId) {
 }
 
 extern "C" int64_t rlv_text_layout_destroy(int64_t layoutId) {
+  recordPerformanceFfiCall();
   return state.textLayouts.erase(layoutId) == 1 ? RLV_OK
                                                 : RLV_ERR_STALE_HANDLE;
 }
@@ -2662,6 +2820,7 @@ extern "C" int64_t rlv_font_draw_layout(
     int64_t verticalAlign, rocket_bool wrap, rocket_bool clip,
     int64_t overflow, int64_t red, int64_t green, int64_t blue,
     int64_t alpha) {
+  recordPerformanceFfiCall();
   if (requireDrawing(frameId) != RLV_OK) return RLV_ERR_STALE_HANDLE;
   const auto font = state.fonts.find(fontId);
   if (font == state.fonts.end()) return RLV_ERR_STALE_HANDLE;
@@ -2804,6 +2963,7 @@ extern "C" int64_t rlv_audio_open(void) {
   }
   state.audioOpen = true;
   state.audioId = nextId();
+  recordPerformanceAllocation();
   return state.audioId;
 }
 
@@ -2842,6 +3002,7 @@ extern "C" int64_t rlv_sound_load(int64_t audioId, int64_t pathBufferId) {
   }
   const int64_t id = nextId();
   state.sounds.emplace(id, record);
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2870,6 +3031,7 @@ extern "C" int64_t rlv_sound_tone(int64_t audioId, double frequency,
   }
   const int64_t id = nextId();
   state.sounds.emplace(id, record);
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -2943,6 +3105,7 @@ extern "C" int64_t rlv_asset_store_create_bounded(
   store.capacity = capacity;
   store.packageRoot = std::move(root);
   state.assetStores.emplace(id, std::move(store));
+  recordPerformanceAllocation();
   return id;
 }
 
@@ -3133,6 +3296,7 @@ extern "C" int64_t rlv_asset_music_load(
     }
     resourceId = nextId();
     state.musics.emplace(resourceId, record);
+    recordPerformanceAllocation();
     store->second.physicalAssets.emplace(
         key, PhysicalAsset{AssetKind::Music, resourceId});
   }

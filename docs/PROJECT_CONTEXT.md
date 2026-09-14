@@ -12,7 +12,7 @@ other repository documentation, see `DOCUMENTATION_STATUS.md`.
 - **Primary target:** Windows x64 integration baseline; Rocket 2.1 also accepts
   Linux x64, Linux ARM64, and macOS ARM64 target rows.
 - **Goal:** Maintain the completed, beginner-friendly, statically typed,
-  LLVM-native Rocket 2.1 language and the additive Rocket 3.0 Wave C surface
+  LLVM-native Rocket 2.1 language and the additive Rocket 3.0 Wave D surface
   across the accepted target contract without changing ABI v1.
 - **Possible casino goal:** A separate local, single-player, play-money desktop
   application may be planned independently of Rocket language work.
@@ -43,13 +43,11 @@ bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
 
-Rocket 3 Wave C is accepted on final reconciliation tree
-`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
-history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. It adds public themes/styles,
-controls, containers/transient UI, and bounded UI, measurement, and asset-cache
-state to the accepted public Wave C surface. Wave D is ready with Ryan WP29 and Eddy's
-WP31 -> WP32 -> WP33 queue; the final Rocket 3.0 release and non-Windows
-target-laboratory gate are not yet complete.
+Rocket 3 Wave D is accepted on implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`. It adds unified error/lifetime
+hardening, enforced performance budgets, visual regression, and focused public
+examples/showcase to the accepted Wave C surface. WP34/F29 full native-target
+acceptance is the only current Rocket 3 work.
 
 Implemented:
 
@@ -1225,17 +1223,28 @@ Known limitations remain those in the implementation-state list above; no langua
 - Native Linux x64, Linux ARM64, and macOS ARM64 execution remains deferred to
   WP34/F29 target-laboratory acceptance.
 
+**Rocket 3 Wave D - accepted hardening, performance, visuals, and examples**
+
+- Preserved Ryan WP29 `d115832` and Eddy WP31 `2f8a73e`, WP32 `29e843f`, and
+  WP33 `f1363ba` behind non-squash integration merges `0cf9910` and `4c06d54`.
+- The integrated Windows Debug and Release suites each passed `288/288`; the
+  LLVM-disabled Release predecessor matrix passed `209/209`.
+- Native Release bootstrap passed `184` cases with matching stage2/stage3 IR
+  SHA-256 `ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
+- Rocket 2.1 conformance passed `90` cases, compatibility passed `11`,
+  application validation resolved `32` packages and passed `11` headless
+  raylib checks, and hardening passed `17/17`.
+- The isolated 976-file Windows SDK passed checksum, installation, and
+  sanitized-path relocation verification with archive SHA-256
+  `e1e141f08b2bb3dcec35dd2abaf1af9a20dc5a3bb114d60120e1dad6c434085f`.
+
 ## Current next task
 
-**Rocket 3 Wave D is ready. The accepted Wave C barrier was reconciled on
-`master` in `f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining
-history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. Create
-`rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the exact current pushed
-SHA. Ryan's only packet is WP29 (unified error and lifetime hardening).
-Eddy's serial queue is WP31 (performance budgets), WP32 (visual regression),
-then WP33 (examples/showcase). Do not begin Wave D work in this barrier chat.
-Native non-Windows target-laboratory acceptance remains a WP34/F29 item. The
-exact packet scopes and success-only handoff are in
+**Execute only WP34/F29 full compatibility/platform acceptance from accepted
+Wave D implementation tree `4c06d544e457541b09acb92aeb37565f065c15f9`.
+Windows local acceptance is green; collect direct native Linux x64, Linux ARM64,
+and macOS ARM64 evidence, fix only verified WP34 defects without weakening any
+gate, and integrate the combined evidence. The exact packet scope is in
 `ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
 its reproducible CMake/script fallbacks, and the preserved owner demo edit
 remain baseline state.**

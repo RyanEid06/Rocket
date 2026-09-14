@@ -77,11 +77,44 @@ static bool test_threshold_rejects_over_limit_without_final_budget_claim() {
     return true;
 }
 
+static bool test_final_performance_budget_enforces_every_counter_and_timing() {
+    const auto budget = rocket3::visual_compare::final_performance_budget();
+    CHECK(budget.warmup_frames == 30);
+    CHECK(budget.measured_frames == 120);
+    rocket3::visual_compare::PerformanceObservation observation;
+    observation.measured_frames = budget.measured_frames;
+    observation.native_allocations = 120;
+    observation.layout_allocations = 120;
+    observation.text_measurements = 240;
+    observation.asset_lookups = 120;
+    observation.ffi_calls = 1440;
+    observation.render_target_switches = 240;
+    observation.peak_state_growth = 1;
+    observation.mean_frame_time_us = 3.0;
+    observation.maximum_frame_time_us = 5.0;
+    CHECK(rocket3::visual_compare::performance_budget_violations(
+              observation, budget).empty());
+
+    observation.texture_uploads = 1;
+    CHECK(!rocket3::visual_compare::performance_budget_violations(
+               observation, budget).empty());
+    observation.texture_uploads = 0;
+    observation.layout_recomputations = 1;
+    CHECK(!rocket3::visual_compare::performance_budget_violations(
+               observation, budget).empty());
+    observation.layout_recomputations = 0;
+    observation.mean_frame_time_us = std::nan("");
+    CHECK(!rocket3::visual_compare::performance_budget_violations(
+               observation, budget).empty());
+    return true;
+}
+
 int main() {
     return test_fixture_has_versioned_deterministic_identity_and_environment() &&
                    test_fixture_carries_measured_counters_and_thresholds() &&
                    test_failure_manifest_and_golden_record_are_explicit() &&
-                   test_threshold_rejects_over_limit_without_final_budget_claim()
+                   test_threshold_rejects_over_limit_without_final_budget_claim() &&
+                   test_final_performance_budget_enforces_every_counter_and_timing()
                ? 0
                : 1;
 }

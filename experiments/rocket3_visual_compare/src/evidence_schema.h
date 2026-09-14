@@ -84,6 +84,46 @@ struct EvidenceFixture {
     GoldenApproval golden;
 };
 
+struct PerformanceObservation {
+    std::uint64_t measured_frames = 0;
+    std::uint64_t native_allocations = 0;
+    std::uint64_t temporary_strings = 0;
+    std::uint64_t layout_allocations = 0;
+    std::uint64_t layout_recomputations = 0;
+    std::uint64_t text_measurements = 0;
+    std::uint64_t asset_lookups = 0;
+    std::uint64_t ffi_calls = 0;
+    std::uint64_t render_target_switches = 0;
+    std::uint64_t texture_uploads = 0;
+    std::uint64_t peak_state_growth = 0;
+    std::uint64_t peak_cache_growth = 0;
+    double mean_frame_time_us = 0.0;
+    double maximum_frame_time_us = 0.0;
+};
+
+struct PerformanceBudget {
+    std::uint64_t warmup_frames = 0;
+    std::uint64_t measured_frames = 0;
+    std::uint64_t maximum_native_allocations_per_frame = 0;
+    std::uint64_t maximum_temporary_strings = 0;
+    std::uint64_t maximum_layout_allocations_per_frame = 0;
+    std::uint64_t maximum_layout_recomputations = 0;
+    std::uint64_t maximum_text_measurements_per_frame = 0;
+    std::uint64_t maximum_asset_lookups_per_frame = 0;
+    std::uint64_t maximum_ffi_calls_per_frame = 0;
+    std::uint64_t maximum_render_target_switches_per_frame = 0;
+    std::uint64_t maximum_texture_uploads = 0;
+    std::uint64_t maximum_peak_state_growth = 0;
+    std::uint64_t maximum_peak_cache_growth = 0;
+    double maximum_mean_frame_time_us = 0.0;
+    double maximum_frame_time_us = 0.0;
+};
+
+PerformanceBudget final_performance_budget();
+std::vector<std::string> performance_budget_violations(
+    const PerformanceObservation& observation,
+    const PerformanceBudget& budget);
+
 EvidenceFixture make_synthetic_fixture();
 
 } // namespace rocket3::visual_compare

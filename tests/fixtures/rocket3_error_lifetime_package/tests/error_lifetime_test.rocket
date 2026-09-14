@@ -1,0 +1,295 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.graphics.input
+import rocket.raylib.safe
+import rocket.ui
+import src.wp29_adapter_testing
+
+fn ok(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            return false
+
+fn is_stale_bool(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "raylib: stale or already released handle"
+
+fn is_invalid_bool(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "raylib: invalid argument"
+
+fn is_stale_ui_bool(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "stale UI context or frame state"
+
+fn is_stale_ui_int(result: Result[Int, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "stale UI context or frame state"
+
+fn is_stale_ui[T](result: Result[T, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "stale UI context or frame state"
+
+fn is_stale_float(result: Result[Float, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "raylib: stale or already released handle"
+
+fn is_stale_int(result: Result[Int, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "raylib: stale or already released handle"
+
+fn is_stale_vec2(result: Result[graphics.Vec2, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "raylib: stale or already released handle"
+
+fn is_stale_size(result: Result[graphics.Size, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "raylib: stale or already released handle"
+
+fn is_stale_position(result: Result[Option[graphics.Vec2], String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "raylib: stale or already released handle"
+
+fn is_invalid_position(result: Result[Option[graphics.Vec2], String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "virtual canvas mapping is invalid"
+
+fn is_invalid_canvas(result: Result[graphics.VirtualCanvas, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == "virtual canvas mapping is invalid"
+
+fn int_or_negative(result: Result[Int, String]) -> Int:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            return -1
+
+fn stale_ui_context_is_reusable() -> Bool:
+    if not wp29_adapter_testing.reset():
+        return false
+    let mapping = graphics.virtual_canvas(graphics.size(320.0, 200.0), graphics.rect(0.0, 0.0, 320.0, 200.0), 1.0)
+    match ui.new_context("wp29-reusable", 8):
+        case Err(message):
+            return false
+        case Ok(context):
+            match safe.open_window(320, 200, "WP29 stale UI window"):
+                case Err(message):
+                    return false
+                case Ok(window):
+                    if not ok(safe.close_window(window)):
+                        return false
+                    match ui.begin_frame(context, window, mapping):
+                        case Ok(frame):
+                            return false
+                        case Err(message):
+                            if message != "raylib: stale or already released handle":
+                                return false
+                    match safe.open_window(320, 200, "WP29 replacement UI window"):
+                        case Err(message):
+                            return false
+                        case Ok(replacement):
+                            match ui.begin_frame(context, replacement, mapping):
+                                case Err(message):
+                                    let closed = safe.close_window(replacement)
+                                    return false
+                                case Ok(frame):
+                                    let probe = ui.widget_id("stale-probe")
+                                    if not is_stale_ui_bool(ui.active_is(context, probe)) or not is_stale_ui_bool(ui.focused_is(context, probe)) or not is_stale_ui_bool(ui.modal_is(context, probe)):
+                                        let closed = safe.close_window(replacement)
+                                        return false
+                                    if not is_stale_ui_int(ui.context_capacity(context)) or not is_stale_ui_int(ui.context_unseen_retention_frames(context)) or not is_stale_ui_int(ui.context_retained_count(context)):
+                                        let closed = safe.close_window(replacement)
+                                        return false
+                                    if not is_stale_ui_bool(ui.context_contains(context, probe)):
+                                        let closed = safe.close_window(replacement)
+                                        return false
+                                    match ui.register_widget(frame, probe):
+                                        case Err(message):
+                                            let closed = safe.close_window(replacement)
+                                            return false
+                                        case Ok(registered):
+                                            if not is_stale_ui(ui.begin_frame(frame.context, replacement, mapping)):
+                                                let closed = safe.close_window(replacement)
+                                                return false
+                                            if not is_stale_ui(ui.interact(frame, probe, graphics.rect(0.0, 0.0, -1.0, 1.0))):
+                                                let closed = safe.close_window(replacement)
+                                                return false
+                                            if not is_stale_ui(ui.request_focus(frame, probe)) or not is_stale_ui(ui.activate_modal(frame.context, probe)) or not is_stale_ui(ui.clear_modal(frame.context, probe)):
+                                                let closed = safe.close_window(replacement)
+                                                return false
+                                            if not is_stale_ui(ui.enter_modal(frame, probe)) or not is_stale_ui(ui.exit_modal(frame)) or not is_stale_ui(ui.end_frame(frame)):
+                                                let closed = safe.close_window(replacement)
+                                                return false
+                                            match ui.request_focus(registered, probe):
+                                                case Err(message):
+                                                    let closed = safe.close_window(replacement)
+                                                    return false
+                                                case Ok(focused):
+                                                    if not is_stale_ui(ui.register_widget(registered, probe)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                                                    match ui.end_frame(focused):
+                                                        case Err(message):
+                                                            let closed = safe.close_window(replacement)
+                                                            return false
+                                                        case Ok(next):
+                                                            let ignored = next
+                                                    if not is_stale_ui_bool(ui.activation_pressed(focused)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                                                    if not is_stale_ui_bool(ui.cancel_pressed(focused)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                                                    if not is_stale_ui_bool(ui.focus_next_pressed(focused)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                                                    if not is_stale_ui_bool(ui.navigation_left_pressed(focused)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                                                    if not is_stale_ui_bool(ui.navigation_right_pressed(focused)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                                                    if not is_stale_ui_bool(ui.navigation_up_pressed(focused)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                                                    if not is_stale_ui_bool(ui.navigation_down_pressed(focused)):
+                                                        let closed = safe.close_window(replacement)
+                                                        return false
+                            return ok(safe.close_window(replacement))
+
+fn main() -> Int:
+    if not wp29_adapter_testing.enable() or not wp29_adapter_testing.reset():
+        return 1
+    match safe.open_window(320, 200, "WP29 error and lifetime contracts"):
+        case Err(message):
+            return 2
+        case Ok(window):
+            if not ok(safe.close_window(window)):
+                return 3
+            match input.pointer_down(window):
+                case Ok(value):
+                    return 4
+                case Err(message):
+                    if message != "raylib: stale or already released handle":
+                        return 5
+            if not is_stale_bool(input.pointer_pressed(window)):
+                return 6
+            if not is_stale_bool(input.pointer_released(window)):
+                return 7
+            if not is_stale_bool(safe.key_pressed(window, 32)):
+                return 8
+            if not is_stale_bool(safe.key_down(window, 32)):
+                return 9
+            let mapping = graphics.virtual_canvas(graphics.size(320.0, 200.0), graphics.rect(0.0, 0.0, 320.0, 200.0), 1.0)
+            if not is_stale_vec2(input.pointer_position(window)):
+                return 10
+            if not is_stale_position(input.pointer_position_in_canvas(window, mapping)):
+                return 11
+            if not is_stale_size(canvas.framebuffer_size(window)):
+                return 12
+            if not is_stale_vec2(canvas.dpi_scale(window)):
+                return 13
+            if not is_stale_int(canvas.display_revision(window)):
+                return 14
+    if not stale_ui_context_is_reusable():
+        return 36
+    if not wp29_adapter_testing.reset():
+        return 15
+    match safe.open_window(320, 200, "WP29 stale target contracts"):
+        case Err(message):
+            return 16
+        case Ok(window):
+            let invalid_mapping = graphics.virtual_canvas(graphics.size(320.0, 200.0), graphics.rect(0.0, 0.0, 320.0, 200.0), 0.0)
+            if not is_invalid_position(input.pointer_position_in_canvas(window, invalid_mapping)):
+                return 27
+            if not is_invalid_canvas(canvas.refresh(window, invalid_mapping)):
+                return 28
+            let revision_before_resize = int_or_negative(canvas.display_revision(window))
+            if revision_before_resize < 0:
+                return 29
+            if not is_invalid_canvas(canvas.resize(window, invalid_mapping, 640, 480)):
+                return 30
+            if int_or_negative(canvas.display_revision(window)) != revision_before_resize:
+                return 31
+            let revision_before_fullscreen = int_or_negative(canvas.display_revision(window))
+            if not is_invalid_canvas(canvas.set_fullscreen(window, invalid_mapping, true)):
+                return 32
+            if int_or_negative(canvas.display_revision(window)) != revision_before_fullscreen:
+                return 33
+            let revision_before_borderless = int_or_negative(canvas.display_revision(window))
+            if not is_invalid_canvas(canvas.set_borderless(window, invalid_mapping, true)):
+                return 34
+            if int_or_negative(canvas.display_revision(window)) != revision_before_borderless:
+                return 35
+            if not is_invalid_bool(input.pointer_down(window, -1)):
+                return 22
+            if not is_invalid_bool(input.pointer_pressed(window, -1)):
+                return 23
+            if not is_invalid_bool(input.pointer_released(window, -1)):
+                return 24
+            if not is_invalid_bool(safe.key_pressed(window, -1)):
+                return 25
+            if not is_invalid_bool(safe.key_down(window, -1)):
+                return 26
+            if not is_invalid_bool(input.pointer_down(window, 2147483648)):
+                return 37
+            if not is_invalid_bool(input.pointer_pressed(window, 2147483648)):
+                return 38
+            if not is_invalid_bool(input.pointer_released(window, 2147483648)):
+                return 39
+            if not is_invalid_bool(safe.key_pressed(window, 2147483648)):
+                return 40
+            if not is_invalid_bool(safe.key_down(window, 2147483648)):
+                return 41
+            match safe.create_render_texture(window, 64, 64):
+                case Err(message):
+                    return 17
+                case Ok(target):
+                    if not ok(safe.unload_render_texture(target)):
+                        return 18
+                    if not is_stale_float(safe.render_texture_width(target)):
+                        return 19
+                    if not is_stale_float(safe.render_texture_height(target)):
+                        return 20
+            if not ok(safe.close_window(window)):
+                return 21
+    return 0

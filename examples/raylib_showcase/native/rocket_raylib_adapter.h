@@ -71,6 +71,22 @@ ROCKET_API int64_t rlv_version_minor(void);
 ROCKET_API int64_t rlv_enable_test_mode(rocket_bool enabled);
 ROCKET_API int64_t rlv_test_reset(void);
 
+/* WP31 performance counters are resettable observations. Diagnostic getters
+ * do not contribute to the FFI-call count. */
+ROCKET_API int64_t rlv_performance_reset(void);
+ROCKET_API int64_t rlv_performance_native_allocations(void);
+ROCKET_API int64_t rlv_performance_temporary_strings(void);
+ROCKET_API int64_t rlv_performance_layout_allocations(void);
+ROCKET_API int64_t rlv_performance_layout_recomputations(void);
+ROCKET_API int64_t rlv_performance_text_measurements(void);
+ROCKET_API int64_t rlv_performance_asset_lookups(void);
+ROCKET_API int64_t rlv_performance_ffi_calls(void);
+ROCKET_API int64_t rlv_performance_texture_uploads(void);
+ROCKET_API int64_t rlv_performance_state_entries(void);
+ROCKET_API int64_t rlv_performance_peak_state_growth(void);
+ROCKET_API int64_t rlv_performance_cache_entries(void);
+ROCKET_API int64_t rlv_performance_peak_cache_growth(void);
+
 ROCKET_API int64_t rlv_buffer_create(void);
 ROCKET_API int64_t rlv_buffer_push(int64_t buffer_id, uint8_t byte_value);
 ROCKET_API int64_t rlv_buffer_destroy(int64_t buffer_id);

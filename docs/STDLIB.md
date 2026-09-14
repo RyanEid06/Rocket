@@ -27,6 +27,15 @@ Recoverable operating-system, parsing, and conversion failures return
 Only violated programmer contracts, such as an invalid random range or a
 negative sleep duration, terminate through the runtime error path.
 
+Graphics/UI contracts use the same classification. Static resource-type
+mismatches are compile-time errors. Missing or invalid external resources,
+stale or wrong-window handles, invalid geometry/canvas/scope state, duplicate
+assets or widget IDs, wrong-type asset lookup, and invalid UI lifecycle use are
+recoverable `Result[..., String]` failures. Documented value normalization such
+as color-channel clamping remains intentional value semantics. Invalid
+operations are not silently treated as successful and tests do not substitute
+fake resource handles.
+
 Every parameter name shown in this inventory is a stable source-compatibility
 commitment and may be used in named calls. Module-function and dot-call forms
 share the same compiler-owned names; a dot-call receiver supplies the first
@@ -413,7 +422,9 @@ imports. Application code should normally use `rocket.graphics` instead. The
 safe module owns the `Window`, `Frame`, and `Font` token wrappers, validates
 primitive geometry, typography, and color arguments before an `unsafe` adapter
 call, and translates adapter status values to `Result`. It exposes no native
-pointer or raylib structure. Pointer queries use framebuffer coordinates and
+pointer or raylib structure. Pointer and key queries return recoverable
+`Result` values, reject invalid integer codes, and reject stale windows instead
+of returning false or zero. Pointer queries use framebuffer coordinates and
 provide pressed, down, and released states. `key_pressed` and `key_down` expose
 reviewed integer key queries for higher-level UI input snapshots. F17 also uses
 this boundary for checked render-target/scissor scopes, framebuffer/DPI/display-
@@ -506,13 +517,14 @@ zero-area rectangles never contain a point. Circle containment includes the
 circumference and rejects negative or non-finite radii.
 
 `rocket.graphics.input` owns native pointer mapping. `pointer_position(window)`
-reports physical framebuffer coordinates, while `pointer_down`,
-`pointer_pressed`, and `pointer_released` default to button `0`.
+reports physical framebuffer coordinates through `Result`, while
+`pointer_down`, `pointer_pressed`, and `pointer_released` return checked
+`Result[Bool, String]` values and default to button `0`.
 `pointer_position_in_canvas` converts
-a physical pointer through a `VirtualCanvas` viewport and scale. It returns
-`None` for invalid canvas data, letterbox/pillarbox space, and the exclusive
-right/bottom viewport edges, so outside input cannot be mistaken for logical UI
-input.
+a physical pointer through a `VirtualCanvas` viewport and scale. Invalid canvas
+data returns `Err`; valid letterbox/pillarbox space and the exclusive
+right/bottom viewport edges return `Ok(None)`, so outside input cannot be
+mistaken for logical UI input or for a contract failure.
 
 ## `rocket.graphics.canvas`
 
@@ -521,6 +533,9 @@ rendering and display state through `rocket.raylib.safe`. `framebuffer_size`,
 `from_window`, and `refresh` fit the logical design size to the current physical
 framebuffer, while `dpi_scale` and `display_revision` expose the values needed
 to detect DPI/monitor/display changes without inventing a second mapping rule.
+These live queries return `Result` and reject stale windows. Canvas refresh,
+resize, fullscreen, and borderless transitions validate the supplied mapping
+before any native display state can change.
 
 `create_target`, `begin_target`, `end_target`, and `unload_target` manage the
 logical-size render target. `present(frame, target, mapping)` requires the
@@ -552,7 +567,10 @@ absent from a frame. When capacity is reached, the oldest unseen ID is evicted;
 equal-age IDs use insertion order. If every retained ID was seen in the current
 frame, registration returns the explicit capacity error. `context_capacity`,
 `context_unseen_retention_frames`, `context_retained_count`, and
-`context_contains` expose the policy for diagnostics and deterministic tests.
+`context_contains` expose the policy through checked `Result` values for
+diagnostics and deterministic tests. `active_is`, `focused_is`, and `modal_is`
+are checked in the same way. A current closed context remains inspectable, while
+an outdated copied lease returns the stale-lifecycle error.
 Nested frames, closed-frame use, duplicate IDs, over-capacity
 registration, invalid bounds, and unclosed modal scopes return recoverable
 contract errors. `Context` and `UiFrame` are single-thread-confined UI state;
@@ -568,8 +586,10 @@ focused Space/Enter activation, disabled behavior, and modal capture.
 make focus and modal ownership explicit. `Response` records hover/active/click/
 focus/disabled/modal and activation facts for the frame that produced it;
 `response_is_current` and `response_is_current_context` reject stale responses.
-Keyboard helpers expose activation, cancel, focus-next, and directional snapshots
-without rereading native input during widget evaluation. Themes, styles, and
+Keyboard helpers expose activation, cancel, focus-next, and directional
+snapshots as checked `Result` values without rereading native input during
+widget evaluation; closed or superseded frames return the stale-lifecycle
+error. Themes, styles, and
 controls are provided by `rocket.ui.theme`, `rocket.ui.styles`, and
 `rocket.ui.controls`. Layout is provided by `rocket.ui.layout`.
 

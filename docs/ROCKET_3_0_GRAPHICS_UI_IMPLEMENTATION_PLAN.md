@@ -26,7 +26,7 @@ LLVM 22.1.6, raylib 6.0, CMake/Ninja, native target SDKs inherited from Rocket
 
 **Spec:** `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md`
 
-**Documentation status:** The accepted Wave C baseline and the disposition of
+**Documentation status:** The accepted Wave D baseline and the disposition of
 current, historical, example, and provisional documents are indexed by
 `docs/DOCUMENTATION_STATUS.md`; the copyable accepted syntax/API surface is in
 `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
@@ -63,18 +63,16 @@ current, historical, example, and provisional documents are indexed by
 | Integration branch | `master` |
 | Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
 | Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
-| Rocket 3 shared baseline | Wave C final reconciliation `f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy follow-up history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8` |
+| Rocket 3 shared baseline | Wave D accepted implementation tree `4c06d544e457541b09acb92aeb37565f065c15f9` |
 | WP16 implementation owner | Eddy |
 | Packet generated output | packet-local paths below `out/rocket3-provisional/`; never share generated state between developer checkouts |
 | Parallel delivery policy | Ryan and Eddy push isolated wave branches; Ryan integrates only at a defined barrier after required verification |
 
-The accepted Rocket 2.1 baseline remains compatibility provenance. The Wave C
-barrier's final reconciliation is
-`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
-history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. At the start of each
-wave, record the exact accepted `origin/master` SHA with `git rev-parse
-origin/master`; both developer branches for that wave must be created from that
-same SHA.
+The accepted Rocket 2.1 baseline remains compatibility provenance. The Wave D
+accepted implementation tree is
+`4c06d544e457541b09acb92aeb37565f065c15f9`, preserving WP29, WP31, WP32, and
+WP33 behind non-squash integration merges. WP34 runs from the exact accepted
+and pushed `origin/master` SHA produced by this barrier.
 
 Before a lane starts a packet, verify all of the following:
 
@@ -356,12 +354,12 @@ section 5A assigns it to the current owner/wave.
 | WP26 | F21 | Controls | COMPLETE / WAVE-GREEN (`c79c344`) | Eddy | C |
 | WP27 | F22 | Containers/dialogs/transient UI | COMPLETE / WAVE-GREEN (`2f290d9`) | Eddy | C |
 | WP28 | F23 | Typed asset store | COMPLETE / WAVE-GREEN (`778de291`) | Eddy | B |
-| WP29 | F24 | Unified errors and lifetime hardening | READY / RED; Wave C accepted | Ryan | D |
+| WP29 | F24 | Unified errors and lifetime hardening | COMPLETE / WAVE-GREEN (`d115832`) | Ryan | D |
 | WP30 | F25 | Bounded-state/cache integration | COMPLETE / WAVE-GREEN (`fadda37`; integration hardening `96f0494`, `39259b6`) | Eddy | C |
-| WP31 | F26 | Performance instrumentation and budgets | READY / RED; Wave C accepted | Eddy | D |
-| WP32 | F27 | Visual scenes, image I/O, goldens, CI | BLOCKED until Eddy WP31 and integrated WP17 / RED | Eddy | D |
-| WP33 | F28 | Focused examples and premium showcase | BLOCKED until Eddy WP32 / RED | Eddy | D |
-| WP34 | F29 | Full compiler/platform/compatibility acceptance | BLOCKED until Wave D integrates WP33 / RED | Ryan + Eddy | FINAL |
+| WP31 | F26 | Performance instrumentation and budgets | COMPLETE / WAVE-GREEN (`2f8a73e`) | Eddy | D |
+| WP32 | F27 | Visual scenes, image I/O, goldens, CI | COMPLETE / WAVE-GREEN (`29e843f`) | Eddy | D |
+| WP33 | F28 | Focused examples and premium showcase | COMPLETE / WAVE-GREEN (`f1363ba`) | Eddy | D |
+| WP34 | F29 | Full compiler/platform/compatibility acceptance | READY / RED; Wave D accepted | Ryan + Eddy | FINAL |
 | WP35 | F30 | Documentation, release, traceability closure | WAIT FOR WP34 / RED | release owner after WP34 | post-parallel |
 
 ## 5A. Ryan/Eddy dependency-safe execution schedule
@@ -466,10 +464,10 @@ parallel.
 section 4.5 passed on the Windows baseline, creating the common baseline that
 unlocks WP29 and WP31.
 
-### Wave D - READY: hardening versus performance/visual/examples
+### Wave D - COMPLETE: hardening versus performance/visual/examples
 
-Create `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the Wave C accepted
-`master` SHA.
+`rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` were created from the same Wave
+C accepted `master` SHA and integrated without squashing their packet commits.
 
 **Ryan lane**
 
@@ -496,8 +494,9 @@ and showcase work localized. If WP31 needs production instrumentation hooks, kee
 them minimal and do not refactor error/lifetime behavior owned by WP29. A genuine
 contract collision triggers section 4.4.
 
-**Wave D barrier:** FULL. After it passes, every implementation packet through
-WP33 is in one accepted common baseline.
+**Wave D barrier:** COMPLETE / FULL / ACCEPTED. Every implementation packet
+through WP33 is in accepted implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`; WP34 is unlocked.
 
 ### FINAL - WP34 shared full compatibility/platform acceptance
 
@@ -1455,6 +1454,28 @@ showcase using only public APIs; validate packaging, relocation, and visuals.
 
 **Checkpoint:** `docs: add Rocket 3 graphics and UI examples`
 
+### Wave D acceptance (WP29 and WP31-WP33)
+
+Ryan WP29 `d115832` and Eddy WP31 `2f8a73e`, WP32 `29e843f`, and WP33
+`f1363ba` are preserved without squashing behind integration merges `0cf9910`
+and `4c06d54`. Fresh Windows evidence on implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`:
+
+- The complete Debug and Release CTest suites each passed `288/288`; the
+  LLVM-disabled Release predecessor matrix passed `209/209`.
+- The native Phase 19 Release build and stage0 -> stage3 bootstrap passed `184`
+  validation cases with matching stage2/stage3 IR SHA-256
+  `ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
+- Rocket 2.1 predecessor conformance passed `90` cases; compatibility passed
+  `11` release-line cases; application validation resolved `32` packages and
+  passed `11` headless raylib checks; hardening passed `17/17`.
+- The isolated 976-file Rocket 2.1 Windows SDK passed checksum, installation,
+  and sanitized-path relocation verification. Its archive SHA-256 is
+  `e1e141f08b2bb3dcec35dd2abaf1af9a20dc5a3bb114d60120e1dad6c434085f`.
+- Native Linux x64, Linux ARM64, and macOS ARM64 execution remains WP34/F29
+  target-laboratory acceptance; configured or cross-compiled target evidence is
+  not mislabeled as native evidence.
+
 ### WP34 - Full compatibility and platform acceptance
 
 **Feature:** F29. Run fresh Debug/Release, stage0, stage1-stage3, conformance,
@@ -1504,12 +1525,12 @@ file/test/doc/evidence links when executed.
 | F21 Controls | WP26 | PUBLIC / WAVE-GREEN: text/image/separator/badge/pill/button/icon-button values use centralized deterministic interaction, keyboard, focus, disabled, modal, and virtual-canvas behavior; combined Wave C gates passed and final cross-target acceptance remains WP34 | WP34 |
 | F22 Containers/transient UI | WP27 | PUBLIC / WAVE-GREEN: panels, dialogs, overlays, tooltips, toasts, stacking, modal capture, shadows, and nested safe clipping passed the combined Wave C gates; final cross-target acceptance remains WP34 | WP34 |
 | F23 Asset store | WP28 | PUBLIC / WAVE-GREEN: typed texture/font/sound/music/shader lookup, path security, duplicate/missing handling, relocation, cleanup, and native adapter checks passed the combined Wave B gates; Wave C retained and hardened this contract; final cross-target acceptance remains WP34 | WP34 |
-| F24 Errors/lifetimes | WP29 | RED; Wave D READY | WP34 |
+| F24 Errors/lifetimes | WP29 | WAVE-GREEN: unified public compile-time, `Result`, contract-failure, and lifetime behavior passed the combined Wave D stage0/self-host/target/native and full-suite gates | WP34 |
 | F25 Bounded state | WP05, WP30 | PUBLIC / WAVE-GREEN: 2,048-ID/eight-frame UI retention, 256-entry measurement and asset bounds, deterministic eviction/exhaustion, 100,000-ID stress, selective invalidation, and cleanup churn passed the combined Wave C gates; seven-sample calibration and rationale are recorded in `ROCKET_3_0_WAVE_C_CALIBRATION.json`; final cross-target acceptance remains WP34 | WP34 |
-| F26 Performance | WP08, WP31 | WP09 retained the WP08 synthetic evidence schema as INTEGRATION-READY internal tooling: `experiments/rocket3_visual_compare/src/evidence_schema.h`; fresh Debug/Release CTest evidence recorded above and final budgets remain deferred | WP34 |
-| F27 Visual regression | WP07, WP08, WP32 | WP09 retained the WP07 raw-RGBA comparator and WP08 evidence schema as INTEGRATION-READY internal tooling: `experiments/rocket3_visual_compare/src/comparator.h` and `src/evidence_schema.h`; fresh Debug/Release CTest evidence recorded above | WP34 |
-| F28 Examples/showcase | WP33 | RED | WP34 |
-| F29 Platform/compatibility | WP09, WP34 | WAVE-GREEN Windows evidence: Wave C Debug/Release `280/280`, LLVM-disabled predecessor `203/203`, deterministic bootstrap with matching stage2/stage3 IR, Rocket 2.1 conformance `90`, predecessor compatibility `11`, application validation, package/relocation, and native raylib checks all passed; native non-Windows target-lab acceptance remains WP34 | WP34 |
+| F26 Performance | WP08, WP31 | WAVE-GREEN: calibrated warm-up/steady-state instrumentation, versioned environment evidence, and enforced budgets passed the combined Wave D gates | WP34 |
+| F27 Visual regression | WP07, WP08, WP32 | WAVE-GREEN: canonical scenes, PNG I/O/capture, strict Windows goldens, portability metrics, guarded golden updates, artifacts, and CI passed the combined Wave D gates | WP34 |
+| F28 Examples/showcase | WP33 | WAVE-GREEN: focused public-API examples and the neutral premium showcase passed compile, runtime, package, relocation, and visual checks | WP34 |
+| F29 Platform/compatibility | WP09, WP34 | WAVE-GREEN Windows evidence: Wave D Debug/Release `288/288`, LLVM-disabled predecessor `209/209`, native bootstrap `184` with matching stage2/stage3 IR, Rocket 2.1 conformance `90`, compatibility `11`, application validation, hardening `17/17`, and 976-file package/relocation all passed; native non-Windows target-lab acceptance remains WP34 | WP34 |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
 
 ## 9. Current parallel handoff
@@ -1518,41 +1539,29 @@ This section replaces the former single mutable next-packet slot. It is updated
 only by Ryan during a successful full wave barrier, after both lane branches have
 been integrated and verified. Ordinary packet chats never rotate this section.
 
-**Current common baseline:** Wave C is accepted on final reconciliation tree
-`f33e13cfa3206a770f3186c8c78d5d45853c961b`, preserving Eddy WP25
-`8ac45f41f062ff790956c44d9b33905f1e0fb35a`, WP26
-`c79c34453896510591a6243a4806f2fc888c90f6`, WP27
-`2f290d95835c1227a49977d89c3899cc89959028`, and WP30
-`fadda377fe93ef791e13aa76bc9649cfdc98dc10`, plus integration hardening
-`96f0494` and binding synchronization `39259b6`. Eddy's remaining Wave B
-follow-up history is merged in `b5e928a`; the exact current pushed
-`origin/master` SHA is the common branch point for Wave D.
+**Current common baseline:** Wave D is accepted on implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`, preserving Ryan WP29 `d115832`
+and Eddy WP31 `2f8a73e`, WP32 `29e843f`, and WP33 `f1363ba` behind non-squash
+integration merges `0cf9910` and `4c06d54`.
 
-**Current wave:** Wave D
+**Current wave:** FINAL - WP34
 
-**Ryan current lane:**
+**Current shared lane:**
 
-1. **NEXT: WP29 - Unified error and lifetime hardening - READY / RED**
-2. Do not begin WP34 before the Wave D barrier.
-3. Stop at the Wave D barrier.
+1. **NEXT: WP34 - Full compatibility and platform acceptance - READY / RED**
+2. Run the complete F29 contract; reduced packet verification is not permitted.
+3. Require direct native evidence for Windows x64, Linux x64, Linux ARM64, and
+   macOS ARM64; never count cross-compilation or workflow configuration alone.
+4. Fix only verified WP34 defects without weakening or skipping a gate.
+5. Stop after WP34 acceptance.
 
-**Eddy current lane:**
+**Wave D barrier:** COMPLETE. The integrated Windows Debug/Release,
+LLVM-disabled predecessor, native bootstrap, conformance, compatibility,
+application, hardening, package/relocation, performance, visual, and example
+gates are recorded in the Wave D acceptance block above.
 
-1. **NEXT: WP31 - Performance budgets - READY / RED**
-2. WP32 - Visual regression system - BLOCKED until WP31
-3. WP33 - Examples and showcase - BLOCKED until WP32
-4. Stop at the Wave D barrier.
-
-**Wave C barrier:** COMPLETE. The integrated Windows Debug/Release, LLVM-disabled
-predecessor, bootstrap, conformance, compatibility, application,
-package/relocation, native, focused, calibration, review, and security gates are
-recorded in the acceptance block above. Native non-Windows target-laboratory
-acceptance remains deferred to WP34/F29.
-
-**Wave D launch condition:** satisfied by this accepted Wave C barrier. Create
-`rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the exact pushed
-`origin/master` SHA. Ryan implements only WP29; Eddy implements WP31 -> WP32 ->
-WP33 in order. Do not begin Wave D implementation in the barrier chat.
+**WP34 launch condition:** satisfied by the accepted Wave D barrier. Execute
+only WP34/F29 from the exact accepted and pushed `origin/master` SHA.
 
 When a barrier succeeds, Ryan replaces only the current baseline/wave/lane block
 above with the next wave's exact queues from section 5A and records the new master

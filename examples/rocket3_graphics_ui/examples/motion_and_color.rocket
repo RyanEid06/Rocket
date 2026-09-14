@@ -1,0 +1,37 @@
+# Rocket 3 focused example: named/default calls, math, color, easing, motion,
+# and the explicit reduced-motion policy.
+
+import std.math
+import rocket.graphics
+import rocket.motion
+
+pub struct MotionPalette:
+    accent: graphics.Color
+    highlight: graphics.Color
+    opacity: Float
+    offset: motion.Vec2
+    eased_progress: Float
+
+pub fn sample_palette(elapsed: Float, reduced_motion: Bool) -> Result[MotionPalette, String]:
+    let policy = motion.policy(allow_essential: true, reduced: reduced_motion)
+    let fade = motion.fade(duration: 0.24, finish: 1.0, start: 0.35)
+    let slide = motion.slide(duration: 0.28, finish: motion.vec2(x: 0.0, y: 0.0), start: motion.vec2(x: 0.0, y: 14.0))
+    let opacity = motion.sample_float(elapsed: elapsed, tween: fade, policy: policy)
+    let offset = motion.sample_vec2(elapsed: elapsed, tween: slide, policy: policy)
+    let eased = motion.apply_easing(value: motion.out_cubic_easing(), progress: math.clamp(value: elapsed / 0.28, minimum: 0.0, maximum: 1.0))
+    match graphics.color_from_hex(text: "#4F8EF7"):
+        case Err(message):
+            return Err(message)
+        case Ok(accent):
+            let highlight = graphics.color_lighten(value: accent, amount: math.lerp(start: 0.04, end: 0.12, progress: eased))
+            return Ok(MotionPalette(accent, highlight, opacity.value, offset.value, eased))
+
+fn main() -> Int:
+    match sample_palette(elapsed: 0.12, reduced_motion: true):
+        case Err(message):
+            print(message)
+            return 1
+        case Ok(sample):
+            if sample.opacity != 1.0 or sample.offset.x != 0.0:
+                return 2
+            return 0

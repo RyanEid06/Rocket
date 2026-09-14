@@ -1,0 +1,10 @@
+extern fn rlv_enable_test_mode(enabled: Bool) -> Int
+extern fn rlv_test_reset() -> Int
+
+pub fn enable() -> Bool:
+    unsafe:
+        return rlv_enable_test_mode(true) == 0
+
+pub fn reset() -> Bool:
+    unsafe:
+        return rlv_test_reset() == 0

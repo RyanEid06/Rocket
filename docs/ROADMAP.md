@@ -1,13 +1,10 @@
 # Rocket Master Roadmap
 
-**Current status (updated 2026-09-14):** Rocket 2.1 portability is complete and
-Rocket 3 Wave C is accepted on the integrated Windows baseline. Wave D is ready
-with Ryan WP29 and Eddy's WP31 -> WP32 -> WP33 queue. Native non-Windows Rocket
-3 target-laboratory acceptance remains deferred to WP34/F29. The Rocket 2.0
-Windows x64 SDK remains available as the stable compatibility archive. The
+**Current status (updated 2026-09-15):** Rocket 2.1 portability is complete and
+Rocket 3 Wave D is accepted on implementation tree `4c06d54`. WP34/F29 full
+compatibility/platform acceptance is the only current Rocket 3 work. The Rocket
+2.0 Windows x64 SDK remains available as the stable compatibility archive. The
 complete documentation disposition is indexed in `DOCUMENTATION_STATUS.md`.
-The final Wave C reconciliation is `f33e13c`, and Eddy's remaining follow-up
-history is preserved by merge `b5e928a`.
 
 ## Long-term objective
 
@@ -638,6 +635,28 @@ on `master` through `b5e928afbecc5e036017b3eb26431bf935b4daf8`. Create
 `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the exact current pushed
 SHA. Ryan implements WP29; Eddy implements WP31, WP32, and WP33 in order. No
 Wave D implementation is included in this barrier.
+
+### Phase 23 - Rocket 3.0 hardening, performance, visuals, and examples: Wave D - Accepted
+
+**Completed 2026-09-15; implementation tree
+`4c06d544e457541b09acb92aeb37565f065c15f9`.** Ryan's WP29 `d115832` and
+Eddy's WP31 `2f8a73e`, WP32 `29e843f`, and WP33 `f1363ba` are preserved behind
+non-squash integration merges `0cf9910` and `4c06d54`.
+
+- Full Windows Debug and Release CTest suites passed `288/288` each; the
+  LLVM-disabled Release predecessor matrix passed `209/209`.
+- Release stage0 -> stage3 bootstrap passed `184` validation cases with matching
+  stage2/stage3 IR SHA-256
+  `ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
+- Rocket 2.1 conformance passed `90` cases, compatibility passed `11` cases,
+  application validation resolved `32` packages and passed `11` headless
+  raylib checks, and hardening passed `17/17`.
+- The isolated 976-file Rocket 2.1 Windows SDK passed checksum, installation,
+  and sanitized-path relocation verification; archive SHA-256 is
+  `e1e141f08b2bb3dcec35dd2abaf1af9a20dc5a3bb114d60120e1dad6c434085f`.
+
+**Next:** Execute WP34/F29 full native compatibility/platform acceptance from
+the accepted Wave D baseline.
 
 ## Post-roadmap tooling maintenance
 

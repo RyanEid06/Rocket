@@ -188,6 +188,8 @@ set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
 add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
 set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
+set(ROCKET_WP33_EXAMPLE_PACKAGE
+  "${CMAKE_SOURCE_DIR}/examples/rocket3_graphics_ui")
 set(ROCKET_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/native/${ROCKET_NATIVE_TARGET}")
 set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_NATIVE_OUTPUT}")
 set_target_properties(raylib PROPERTIES
@@ -411,6 +413,8 @@ if(WIN32)
 endif()
 
 enable_testing()
+
+add_subdirectory(experiments/rocket3_visual_compare)
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 set(ROCKET_PORTABLE_WORKFLOW_TEST
   "${CMAKE_SOURCE_DIR}/tests/portable_workflow_test.py")
@@ -617,6 +621,18 @@ set_tests_properties(rocket3_asset_store_stage0 PROPERTIES
   TIMEOUT 360
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_error_lifetime_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp29/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_error_lifetime_test.cmake")
+set_tests_properties(rocket3_error_lifetime_stage0 PROPERTIES
+  LABELS "rocket3;wp29;errors;lifetimes;stage0;raylib;native;ui;docs;formatter"
+  TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_bounded_state_stage0
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -755,6 +771,65 @@ add_test(NAME phase30_raylib_adapter
   COMMAND rocket_phase30_raylib_adapter_tests)
 set_tests_properties(phase30_raylib_adapter PROPERTIES
   LABELS "phase30;raylib;native;rocket3;wp30;bounded-state;caches")
+
+add_executable(rocket_phase31_performance_tests
+  tests/native/phase31_performance_tests.cpp)
+target_link_libraries(rocket_phase31_performance_tests PRIVATE
+  rocket_raylib_adapter rocket3_visual_compare)
+set_target_properties(rocket_phase31_performance_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket3_performance_budgets
+  COMMAND ${CMAKE_COMMAND}
+    "-DPERFORMANCE_TEST=$<TARGET_FILE:rocket_phase31_performance_tests>"
+    "-DBUDGET_RECORD=${CMAKE_SOURCE_DIR}/docs/ROCKET_3_0_WP31_PERFORMANCE_BUDGETS.json"
+    "-DARTIFACT_ROOT=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp31/${CMAKE_BUILD_TYPE}/performance"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_performance_budget_test.cmake")
+set_tests_properties(rocket3_performance_budgets PROPERTIES
+  LABELS "phase31;rocket3;wp31;performance;release;raylib;native"
+  TIMEOUT 120
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rocket_phase32_visual_regression_tests
+  tests/native/phase32_visual_regression_tests.cpp)
+target_link_libraries(rocket_phase32_visual_regression_tests PRIVATE
+  rocket_raylib_adapter rocket3_visual_compare)
+target_compile_definitions(rocket_phase32_visual_regression_tests PRIVATE
+  ROCKET_NATIVE_TARGET="${ROCKET_NATIVE_TARGET}")
+set_target_properties(rocket_phase32_visual_regression_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket3_visual_regression
+  COMMAND ${CMAKE_COMMAND}
+    "-DVISUAL_TEST=$<TARGET_FILE:rocket_phase32_visual_regression_tests>"
+    "-DMANIFEST=${CMAKE_SOURCE_DIR}/tests/visual/goldens/manifest.json"
+    "-DGOLDEN_ROOT=${CMAKE_SOURCE_DIR}/tests/visual/goldens"
+    "-DARTIFACT_ROOT=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp32/${CMAKE_BUILD_TYPE}/visual"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_visual_regression_test.cmake")
+set_tests_properties(rocket3_visual_regression PROPERTIES
+  LABELS "phase32;rocket3;wp32;visual;golden;raylib;native"
+  TIMEOUT 120
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rocket_phase32_golden_tool
+  experiments/rocket3_visual_compare/tools/golden_tool.cpp)
+target_link_libraries(rocket_phase32_golden_tool PRIVATE
+  rocket3_visual_compare)
+set_target_properties(rocket_phase32_golden_tool PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+
+add_test(NAME rocket3_graphics_ui_examples
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DEXAMPLE_ROOT=${ROCKET_WP33_EXAMPLE_PACKAGE}"
+    "-DNATIVE_LIBRARY_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DVISUAL_TEST=$<TARGET_FILE:rocket_phase32_visual_regression_tests>"
+    "-DGOLDEN_ROOT=${CMAKE_SOURCE_DIR}/tests/visual/goldens"
+    "-DARTIFACT_ROOT=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp33/${CMAKE_BUILD_TYPE}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_examples_test.cmake")
+set_tests_properties(rocket3_graphics_ui_examples PROPERTIES
+  LABELS "phase33;rocket3;wp33;examples;package;relocation;visual"
+  TIMEOUT 180
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_executable(rocketc_runtime_tests tests/runtime_tests.cpp)
 target_link_libraries(rocketc_runtime_tests PRIVATE rocket_runtime)
@@ -1181,6 +1256,19 @@ set_tests_properties(rocket3_asset_store_self_hosted PROPERTIES
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket3_error_lifetime_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp29/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_error_lifetime_test.cmake")
+set_tests_properties(rocket3_error_lifetime_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp29;errors;lifetimes;selfhost;raylib;native;ui;docs;formatter"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_bounded_state_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -1344,6 +1432,19 @@ add_test(NAME rocket3_asset_store_target_surface
 set_tests_properties(rocket3_asset_store_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp28;assets;target;surface;selfhost;raylib"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket3_error_lifetime_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp29/${CMAKE_BUILD_TYPE}/target-surface"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket3_error_lifetime_target_surface_test.cmake")
+set_tests_properties(rocket3_error_lifetime_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket3;wp29;errors;lifetimes;target;surface;selfhost;raylib;ui"
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
