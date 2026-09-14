@@ -22,6 +22,10 @@ static bool test_identical_buffers_are_clean() {
     CHECK(result.metrics.mean_absolute_error == 0.0);
     CHECK(result.metrics.changed_pixel_ratio == 0.0);
     CHECK(result.metrics.max_channel_delta == 0);
+    CHECK((result.metrics.mean_absolute_error_by_channel ==
+           std::array<double, 4>{0.0, 0.0, 0.0, 0.0}));
+    CHECK((result.metrics.max_delta_by_channel ==
+           std::array<std::uint8_t, 4>{0, 0, 0, 0}));
     CHECK(!result.metrics.changed_bounds.has_pixels);
     CHECK(result.metrics.difference == std::vector<std::uint8_t>(8, 0));
     CHECK(result.metrics.heat == std::vector<std::uint8_t>(8, 0));
@@ -47,6 +51,10 @@ static bool test_threshold_metrics_artifacts_and_bounds() {
     CHECK(result.metrics.mean_absolute_error == 1.6875);
     CHECK(result.metrics.changed_pixel_ratio == 0.5);
     CHECK(result.metrics.max_channel_delta == 10);
+    CHECK((result.metrics.mean_absolute_error_by_channel ==
+           std::array<double, 4>{3.0, 2.5, 1.25, 0.0}));
+    CHECK((result.metrics.max_delta_by_channel ==
+           std::array<std::uint8_t, 4>{10, 10, 5, 0}));
     const Bounds bounds = result.metrics.changed_bounds;
     CHECK(bounds.has_pixels);
     CHECK(bounds.min_x == 1);
@@ -55,6 +63,10 @@ static bool test_threshold_metrics_artifacts_and_bounds() {
     CHECK(bounds.max_y == 1);
     CHECK(result.metrics.difference == std::vector<std::uint8_t>({2, 0, 0, 0, 10, 10, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0}));
     CHECK(result.metrics.heat == std::vector<std::uint8_t>({0, 0, 0, 0, 10, 10, 10, 255, 0, 0, 0, 0, 5, 5, 5, 255}));
+    CHECK(rocket3::visual_compare::within_tolerance(
+        result, rocket3::visual_compare::Tolerance{10, 1.6875, 0.5}));
+    CHECK(!rocket3::visual_compare::within_tolerance(
+        result, rocket3::visual_compare::Tolerance{9, 1.6875, 0.5}));
     return true;
 }
 

@@ -49,6 +49,19 @@ pub extern fn rlv_version_major() -> Int
 pub extern fn rlv_version_minor() -> Int
 pub extern fn rlv_enable_test_mode(enabled: Bool) -> Int
 pub extern fn rlv_test_reset() -> Int
+pub extern fn rlv_performance_reset() -> Int
+pub extern fn rlv_performance_native_allocations() -> Int
+pub extern fn rlv_performance_temporary_strings() -> Int
+pub extern fn rlv_performance_layout_allocations() -> Int
+pub extern fn rlv_performance_layout_recomputations() -> Int
+pub extern fn rlv_performance_text_measurements() -> Int
+pub extern fn rlv_performance_asset_lookups() -> Int
+pub extern fn rlv_performance_ffi_calls() -> Int
+pub extern fn rlv_performance_texture_uploads() -> Int
+pub extern fn rlv_performance_state_entries() -> Int
+pub extern fn rlv_performance_peak_state_growth() -> Int
+pub extern fn rlv_performance_cache_entries() -> Int
+pub extern fn rlv_performance_peak_cache_growth() -> Int
 pub extern fn rlv_buffer_create() -> Int
 pub extern fn rlv_buffer_push(buffer_id: Int, byte_value: Char) -> Int
 pub extern fn rlv_buffer_destroy(buffer_id: Int) -> Int

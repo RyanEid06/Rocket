@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -20,9 +21,17 @@ struct Metrics {
     double mean_absolute_error = 0.0;
     double changed_pixel_ratio = 0.0;
     std::uint8_t max_channel_delta = 0;
+    std::array<double, 4> mean_absolute_error_by_channel{};
+    std::array<std::uint8_t, 4> max_delta_by_channel{};
     Bounds changed_bounds;
     std::vector<std::uint8_t> difference;
     std::vector<std::uint8_t> heat;
+};
+
+struct Tolerance {
+    std::uint8_t maximum_channel_delta = 0;
+    double maximum_mean_absolute_error = 0.0;
+    double maximum_changed_pixel_ratio = 0.0;
 };
 
 struct Comparison {
@@ -36,5 +45,8 @@ Comparison compare(const std::vector<std::uint8_t>& expected,
                    int width,
                    int height,
                    std::uint8_t ignored_channel_delta);
+
+bool within_tolerance(const Comparison& comparison,
+                      const Tolerance& tolerance);
 
 } // namespace rocket3::visual_compare

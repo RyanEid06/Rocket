@@ -1,0 +1,55 @@
+# Rocket 3 focused example: VirtualCanvas, responsive rows, anchors, controls,
+# themes, and logical asset references. Rendering stays in the public modules.
+
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui
+import rocket.ui.controls
+import rocket.ui.layout
+import rocket.ui.styles
+import rocket.ui.theme
+
+pub fn fit_table(framebuffer: graphics.Size) -> Result[graphics.VirtualCanvas, String]:
+    return graphics.fit_virtual_canvas(logical_size: graphics.size(width: 960.0, height: 540.0), framebuffer_size: framebuffer)
+
+pub fn transform_card_point(point: graphics.Vec2, offset: graphics.Vec2, rotation: Float, scale: graphics.Vec2) -> graphics.Vec2:
+    let transform = graphics.transform2d(translation: offset, rotation: rotation, scale: scale, pivot: graphics.vec2(0.5, 0.5))
+    return graphics.transform_point(transform, point)
+
+pub fn card_row(viewport: graphics.Rect) -> Result[Array[graphics.Rect], String]:
+    let card = layout.layout_item(layout.percent(0.30), layout.fill(), graphics.size(180.0, 250.0), layout.insets_all(4.0), layout.center())
+    let cards: Array[layout.LayoutItem] = [card, card, card]
+    return layout.row(viewport, cards, 18.0, layout.insets_all(20.0), layout.no_safe_area(), layout.horizontal_center(), layout.vertical_center())
+
+pub fn anchored_action(viewport: graphics.Rect) -> Result[graphics.Rect, String]:
+    let action = layout.layout_item(layout.fixed(148.0), layout.fixed(44.0), graphics.size(148.0, 44.0), layout.insets_all(0.0), layout.bottom_right())
+    return layout.anchor_rect(viewport, action, layout.insets_all(24.0), layout.no_safe_area())
+
+pub fn card_art(bounds: graphics.Rect) -> Result[controls.Image, String]:
+    let palette = theme.dark_theme()
+    let image_style = styles.image_style(tint: palette.colors.text)
+    return controls.image(asset_name: "assets/card-back.ppm", bounds: bounds, style: image_style)
+
+pub fn primary_button(frame: ui.UiFrame, id: ui.WidgetId, bounds: graphics.Rect, disabled: Bool = false) -> Result[controls.ButtonResult, String]:
+    let states = styles.default_styles(theme.dark_theme())
+    return controls.button(frame: frame, id: id, label: "Continue", bounds: bounds, states: states, disabled: disabled)
+
+pub fn title_layout(font: safe.Font, width: Float) -> Result[graphics.TextLayout, String]:
+    let style = graphics.text_style(font_name: "default", size: 28.0)
+    return safe.measure_text(font: font, text: "Rocket 3 UI Gallery", style: style, max_width: width, wrap: false, overflow: graphics.text_overflow_ellipsis())
+
+fn main() -> Int:
+    match fit_table(graphics.size(1920.0, 1080.0)):
+        case Err(message):
+            print(message)
+            return 1
+        case Ok(mapping):
+            if not graphics.virtual_canvas_is_valid(mapping):
+                return 2
+    match card_row(graphics.rect(0.0, 0.0, 960.0, 540.0)):
+        case Err(message):
+            print(message)
+            return 3
+        case Ok(cards):
+            let ignored = cards
+            return 0

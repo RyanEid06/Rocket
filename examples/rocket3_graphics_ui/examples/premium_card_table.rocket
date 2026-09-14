@@ -1,0 +1,137 @@
+# Rocket 3 premium visual showcase. It is deliberately a neutral UI gallery:
+# it contains presentation only, with no game rules, wagering, or product logic.
+
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.graphics.shapes
+import rocket.motion
+import rocket.raylib.safe
+import rocket.ui.layout
+import rocket.ui.styles
+import rocket.ui.theme
+
+fn draw_card(frame: safe.Frame, font: safe.Font, bounds: graphics.Rect, label: String, hovered: Bool, lift: Float) -> Bool:
+    let palette = theme.dark_theme()
+    var raised = bounds
+    var border_color = palette.colors.border
+    var border_width = 1.0
+    if hovered:
+        raised = graphics.rect(bounds.x, bounds.y - lift, bounds.width, bounds.height)
+        border_color = palette.colors.focus
+        border_width = 2.0
+    let shadow = graphics.rect(raised.x + 4.0, raised.y + 6.0, raised.width, raised.height)
+    let shadow_drawn = shapes.draw_rounded_rect(frame, shadow, graphics.color_from_rgba(0.0, 0.0, 0.0, 0.28), roundness: 0.12)
+    let face = shapes.draw_gradient_rect(frame, raised, graphics.color_from_rgb(250.0, 245.0, 232.0), graphics.color_from_rgb(214.0, 209.0, 196.0), vertical: true)
+    let outline = shapes.draw_rounded_rect_outline(frame, raised, border_color, roundness: 0.12, thickness: border_width)
+    let typography = graphics.text_style(font_name: "default", size: 30.0, letter_spacing: 0.5)
+    let ink = safe.color(red: 34, green: 39, blue: 47)
+    let title = safe.draw_text_layout(frame, font, label, raised, typography, ink, horizontal_align: graphics.text_align_center(), vertical_align: graphics.text_align_middle(), wrap: false, clip: true, overflow: graphics.text_overflow_clip())
+    return true
+
+fn draw_chip(frame: safe.Frame, center: graphics.Vec2, radius: Float, color: graphics.Color) -> Bool:
+    let body = shapes.draw_circle(frame, center, radius, color)
+    let ring = shapes.draw_circle_outline(frame, center, radius - 4.0, graphics.color_from_rgba(1.0, 1.0, 1.0, 0.70), thickness: 2.0)
+    return true
+
+pub fn draw_premium_showcase(frame: safe.Frame, font: safe.Font, mapping: graphics.VirtualCanvas, elapsed: Float, reduced_motion: Bool, hovered_card: Int, button_hovered: Bool) -> Result[Bool, String]:
+    let palette = theme.dark_theme()
+    let logical = graphics.rect(0.0, 0.0, 960.0, 540.0)
+    match canvas.begin_clip(frame, mapping, logical):
+        case Err(message):
+            return Err(message)
+        case Ok(scope):
+            let background = shapes.draw_gradient_rect(frame, logical, palette.colors.background, graphics.color_from_rgba(0.04, 0.10, 0.10), vertical: true)
+            let table = graphics.rect(42.0, 56.0, 876.0, 428.0)
+            let table_surface = shapes.draw_rounded_rect(frame, table, palette.colors.table, roundness: 0.08)
+            let table_border = shapes.draw_rounded_rect_outline(frame, table, palette.colors.border, roundness: 0.08, thickness: 2.0)
+
+            let policy = motion.policy(reduced: reduced_motion, allow_essential: false)
+            let lift_tween = motion.pulse(start: 0.0, finish: 10.0, duration: palette.motion.normal)
+            let lift = motion.sample_float(policy: policy, tween: lift_tween, elapsed: elapsed).value
+            let card = layout.layout_item(layout.fixed(174.0), layout.fixed(238.0), graphics.size(174.0, 238.0), layout.insets_all(0.0), layout.center())
+            match layout.row(graphics.rect(174.0, 128.0, 612.0, 238.0), [card, card, card], 28.0, layout.insets_all(0.0), layout.no_safe_area(), layout.horizontal_center(), layout.vertical_center()):
+                case Err(message):
+                    let closed = canvas.end_clip(scope)
+                    return Err(message)
+                case Ok(cards):
+                    let first = draw_card(frame, font, cards[0], "A", hovered_card == 0, lift)
+                    let second = draw_card(frame, font, cards[1], "K", hovered_card == 1, lift)
+                    let third = draw_card(frame, font, cards[2], "Q", hovered_card == 2, lift)
+
+            let red_chip = draw_chip(frame, graphics.vec2(254.0, 420.0), 24.0, palette.colors.error)
+            let blue_chip = draw_chip(frame, graphics.vec2(316.0, 420.0), 24.0, palette.colors.action)
+            let gold_chip = draw_chip(frame, graphics.vec2(378.0, 420.0), 24.0, palette.colors.warning)
+
+            let style_states = styles.default_styles(palette)
+            let button_style = styles.resolve(style_states, styles.control_state(hovered: button_hovered))
+            let button_bounds = graphics.rect(708.0, 398.0, 164.0, 52.0)
+            let button = shapes.draw_rounded_rect(frame, button_bounds, button_style.button.background, roundness: 0.25)
+            let button_border = shapes.draw_rounded_rect_outline(frame, button_bounds, button_style.button.border.color, roundness: 0.25, thickness: button_style.button.border.width)
+            let button_text = safe.draw_text_layout(frame, font, "Continue", button_bounds, graphics.text_style("default", 18.0), safe.color(245, 248, 252), horizontal_align: graphics.text_align_center(), vertical_align: graphics.text_align_middle())
+            return canvas.end_clip(scope)
+
+fn render_once(window: safe.Window, font: safe.Font, target: safe.RenderTexture, mapping: graphics.VirtualCanvas) -> Result[Bool, String]:
+    match safe.begin_frame(window):
+        case Err(message):
+            return Err(message)
+        case Ok(frame):
+            match canvas.begin_target(frame, target):
+                case Err(message):
+                    let aborted = safe.abort_frame(frame)
+                    return Err(message)
+                case Ok(target_scope):
+                    let drawn = draw_premium_showcase(frame, font, mapping, 0.16, false, 1, true)
+                    let target_ended = canvas.end_target(target_scope)
+                    let presented = canvas.present(frame, target, mapping)
+                    let frame_ended = safe.end_frame(frame)
+                    match drawn:
+                        case Err(message):
+                            return Err(message)
+                        case Ok(value):
+                            return Ok(value)
+
+fn run_showcase(window: safe.Window, font: safe.Font, target: safe.RenderTexture) -> Int:
+    match graphics.fit_virtual_canvas(graphics.size(960.0, 540.0), graphics.size(960.0, 540.0)):
+        case Err(message):
+            print(message)
+            return 4
+        case Ok(mapping):
+            match render_once(window, font, target, mapping):
+                case Err(message):
+                    print(message)
+                    return 5
+                case Ok(rendered):
+                    match canvas.save_logical_screenshot(window, target, "rocket3-premium-showcase.png"):
+                        case Err(message):
+                            print(message)
+                            return 6
+                        case Ok(saved):
+                            return 0
+
+fn with_font(window: safe.Window, font: safe.Font) -> Int:
+    match canvas.create_target(window, 960, 540):
+        case Err(message):
+            print(message)
+            let font_closed = safe.unload_font(font)
+            let window_closed = safe.close_window(window)
+            return 3
+        case Ok(target):
+            let status = run_showcase(window, font, target)
+            let target_closed = canvas.unload_target(target)
+            let font_closed = safe.unload_font(font)
+            let window_closed = safe.close_window(window)
+            return status
+
+fn main() -> Int:
+    match safe.open_window(960, 540, "Rocket 3 graphics and UI showcase"):
+        case Err(message):
+            print(message)
+            return 1
+        case Ok(window):
+            match safe.default_font(window):
+                case Err(message):
+                    print(message)
+                    let window_closed = safe.close_window(window)
+                    return 2
+                case Ok(font):
+                    return with_font(window, font)

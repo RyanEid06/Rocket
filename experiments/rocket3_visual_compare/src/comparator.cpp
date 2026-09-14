@@ -1,6 +1,7 @@
 #include "comparator.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace rocket3::visual_compare {
@@ -48,13 +49,17 @@ Comparison compare(const std::vector<std::uint8_t>& expected,
     result.metrics.heat.resize(expected_length, 0);
 
     std::size_t total_delta = 0;
+    std::array<std::size_t, kChannels> channel_deltas{};
     for (std::size_t offset = 0; offset < expected_length; offset += kChannels) {
         std::uint8_t pixel_max_delta = 0;
         for (std::size_t channel = 0; channel < kChannels; ++channel) {
             const std::uint8_t delta = channel_delta(expected[offset + channel], actual[offset + channel]);
             result.metrics.difference[offset + channel] = delta;
             total_delta += delta;
+            channel_deltas[channel] += delta;
             pixel_max_delta = std::max(pixel_max_delta, delta);
+            result.metrics.max_delta_by_channel[channel] =
+                std::max(result.metrics.max_delta_by_channel[channel], delta);
         }
         result.metrics.max_channel_delta =
             std::max(result.metrics.max_channel_delta, pixel_max_delta);
@@ -86,7 +91,24 @@ Comparison compare(const std::vector<std::uint8_t>& expected,
     result.metrics.mean_absolute_error = static_cast<double>(total_delta) / channel_count;
     result.metrics.changed_pixel_ratio =
         static_cast<double>(result.metrics.changed_pixels) / pixel_count;
+    for (std::size_t channel = 0; channel < kChannels; ++channel) {
+        result.metrics.mean_absolute_error_by_channel[channel] =
+            static_cast<double>(channel_deltas[channel]) / pixel_count;
+    }
     return result;
+}
+
+bool within_tolerance(const Comparison& comparison,
+                      const Tolerance& tolerance) {
+    return comparison.ok &&
+           std::isfinite(comparison.metrics.mean_absolute_error) &&
+           std::isfinite(comparison.metrics.changed_pixel_ratio) &&
+           comparison.metrics.max_channel_delta <=
+               tolerance.maximum_channel_delta &&
+           comparison.metrics.mean_absolute_error <=
+               tolerance.maximum_mean_absolute_error &&
+           comparison.metrics.changed_pixel_ratio <=
+               tolerance.maximum_changed_pixel_ratio;
 }
 
 } // namespace rocket3::visual_compare
