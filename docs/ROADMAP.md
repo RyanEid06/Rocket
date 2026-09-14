@@ -6,6 +6,8 @@ with Ryan WP29 and Eddy's WP31 -> WP32 -> WP33 queue. Native non-Windows Rocket
 3 target-laboratory acceptance remains deferred to WP34/F29. The Rocket 2.0
 Windows x64 SDK remains available as the stable compatibility archive. The
 complete documentation disposition is indexed in `DOCUMENTATION_STATUS.md`.
+The final Wave C reconciliation is `f33e13c`, and Eddy's remaining follow-up
+history is preserved by merge `b5e928a`.
 
 ## Long-term objective
 
@@ -608,8 +610,8 @@ the Wave C barrier integration. WP29 remains deferred until Wave C is accepted.
 
 ### Phase 22 - Rocket 3.0 public UI and bounded state: Wave C - Accepted
 
-**Completed 2026-09-14 on implementation tree
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`.** Wave C promoted public themes
+**Completed 2026-09-14; final reconciliation tree
+`f33e13cfa3206a770f3186c8c78d5d45853c961b`.** Wave C promoted public themes
 and styles, controls, containers/transient UI, and bounded UI/cache integration
 through Eddy's WP25 -> WP26 -> WP27 -> WP30 chain. The owner commits remain
 visible behind non-squash integration merge `6ad6e56`; integration hardening
@@ -631,8 +633,8 @@ overflowing container geometry, and synchronized the generated binding.
 - Final Rocket 3.0 `ACCEPTED` maturity and native Linux x64, Linux ARM64, and
   macOS ARM64 target-laboratory evidence remain WP34/F29 responsibilities.
 
-**Next:** The accepted barrier is published to `master` in status commit
-`54251f8c5cc6b8126a7adcef3946a8578d910141`. Create
+**Next:** The accepted barrier and Eddy's remaining follow-up history are merged
+on `master` through `b5e928afbecc5e036017b3eb26431bf935b4daf8`. Create
 `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the exact current pushed
 SHA. Ryan implements WP29; Eddy implements WP31, WP32, and WP33 in order. No
 Wave D implementation is included in this barrier.

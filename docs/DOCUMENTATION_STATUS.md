@@ -1,10 +1,10 @@
 # Rocket Documentation Status
 
 **Audit date:** 2026-09-14
-**Baseline:** Rocket 3 Wave C status commit on `master`
-`54251f8c5cc6b8126a7adcef3946a8578d910141` (implementation tree
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`). Create any Wave D branches from
-the exact current pushed `origin/master` SHA.
+**Baseline:** Rocket 3 Wave C final reconciliation on `master`
+`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
+history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. Create any Wave D branches
+from the exact current pushed `origin/master` SHA.
 **Baseline inventory:** 61 Markdown, text, RST, ADOC, or configuration-like explanatory files before this ledger and the implementation plan were added.
 
 This ledger is the index for the documentation consistency pass. It separates live

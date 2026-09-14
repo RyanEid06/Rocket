@@ -43,8 +43,9 @@ bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
 
-Rocket 3 Wave C is accepted on implementation tree
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`. It adds public themes/styles,
+Rocket 3 Wave C is accepted on final reconciliation tree
+`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
+history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. It adds public themes/styles,
 controls, containers/transient UI, and bounded UI, measurement, and asset-cache
 state to the accepted public Wave C surface. Wave D is ready with Ryan WP29 and Eddy's
 WP31 -> WP32 -> WP33 queue; the final Rocket 3.0 release and non-Windows
@@ -1226,8 +1227,9 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**Rocket 3 Wave D is ready. The accepted Wave C barrier was published to
-`master` in status commit `54251f8c5cc6b8126a7adcef3946a8578d910141`. Create
+**Rocket 3 Wave D is ready. The accepted Wave C barrier was reconciled on
+`master` in `f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining
+history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. Create
 `rocket3/ryan-wave-d` and `rocket3/eddy-wave-d` from the exact current pushed
 SHA. Ryan's only packet is WP29 (unified error and lifetime hardening).
 Eddy's serial queue is WP31 (performance budgets), WP32 (visual regression),

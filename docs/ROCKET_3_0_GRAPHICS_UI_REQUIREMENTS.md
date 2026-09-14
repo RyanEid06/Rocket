@@ -15,9 +15,9 @@ surface is summarized in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
 
 **Wave C status (2026-09-14):** F20 themes/styles, F21 controls, F22
 containers/transient UI, and F25 bounded UI/cache state have reached `PUBLIC /
-WAVE-GREEN` on implementation tree
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`, published to `master` in status
-commit `54251f8c5cc6b8126a7adcef3946a8578d910141`. The capacity choices are recorded
+WAVE-GREEN` on final reconciliation tree
+`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
+history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. The capacity choices are recorded
 in `ROCKET_3_0_WAVE_C_CALIBRATION.json`. Full Windows Debug/Release,
 LLVM-disabled predecessor, bootstrap, package/relocation, target-surface,
 native, application, review, and security evidence passes. Final `ACCEPTED`

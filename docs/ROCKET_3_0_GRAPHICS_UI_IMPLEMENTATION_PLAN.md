@@ -63,15 +63,15 @@ current, historical, example, and provisional documents are indexed by
 | Integration branch | `master` |
 | Accepted Rocket 2.1 baseline | `19596db860d4105d2226c98be2693edc5632aaf0` (`Refresh Phase 19 roadmap and context`) |
 | Phase 19 state | complete by owner direction on 2026-08-29; Rocket 2.1 portability accepted |
-| Rocket 3 shared baseline | Wave C implementation tree `39259b6704c517b123d5d1a8d153bc4ea4d32e0d`, published to `master` in status commit `54251f8c5cc6b8126a7adcef3946a8578d910141` |
+| Rocket 3 shared baseline | Wave C final reconciliation `f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy follow-up history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8` |
 | WP16 implementation owner | Eddy |
 | Packet generated output | packet-local paths below `out/rocket3-provisional/`; never share generated state between developer checkouts |
 | Parallel delivery policy | Ryan and Eddy push isolated wave branches; Ryan integrates only at a defined barrier after required verification |
 
 The accepted Rocket 2.1 baseline remains compatibility provenance. The Wave C
-barrier verified the implementation tree at
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d` and was published to `master` in
-status commit `54251f8c5cc6b8126a7adcef3946a8578d910141`. At the start of each
+barrier's final reconciliation is
+`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
+history merged in `b5e928afbecc5e036017b3eb26431bf935b4daf8`. At the start of each
 wave, record the exact accepted `origin/master` SHA with `git rev-parse
 origin/master`; both developer branches for that wave must be created from that
 same SHA.
@@ -1518,15 +1518,15 @@ This section replaces the former single mutable next-packet slot. It is updated
 only by Ryan during a successful full wave barrier, after both lane branches have
 been integrated and verified. Ordinary packet chats never rotate this section.
 
-**Current common baseline:** Wave C is accepted on implementation tree
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d`, preserving Eddy WP25
+**Current common baseline:** Wave C is accepted on final reconciliation tree
+`f33e13cfa3206a770f3186c8c78d5d45853c961b`, preserving Eddy WP25
 `8ac45f41f062ff790956c44d9b33905f1e0fb35a`, WP26
 `c79c34453896510591a6243a4806f2fc888c90f6`, WP27
 `2f290d95835c1227a49977d89c3899cc89959028`, and WP30
 `fadda377fe93ef791e13aa76bc9649cfdc98dc10`, plus integration hardening
-`96f0494` and binding synchronization `39259b6`. The barrier status is published
-to `master` in commit `54251f8c5cc6b8126a7adcef3946a8578d910141`; the exact
-current pushed `origin/master` SHA is the common branch point for Wave D.
+`96f0494` and binding synchronization `39259b6`. Eddy's remaining Wave B
+follow-up history is merged in `b5e928a`; the exact current pushed
+`origin/master` SHA is the common branch point for Wave D.
 
 **Current wave:** Wave D
 

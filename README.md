@@ -18,17 +18,18 @@ and historical/current boundary are in
 
 ## Rocket 3.0 Wave C status
 
-Wave C is accepted on implementation tree
-`39259b6704c517b123d5d1a8d153bc4ea4d32e0d` and published to `master` in status
-commit `54251f8c5cc6b8126a7adcef3946a8578d910141`, preserving Eddy's WP25, WP26,
-WP27, and WP30 commits behind non-squash integration merge `6ad6e56`. It adds
+Wave C is accepted on final reconciliation tree
+`f33e13cfa3206a770f3186c8c78d5d45853c961b`, with Eddy's remaining follow-up
+history preserved by merge `b5e928afbecc5e036017b3eb26431bf935b4daf8`.
+The earlier WP25, WP26, WP27, and WP30 commits remain behind non-squash
+integration merge `6ad6e56`. Wave C adds
 public themes/styles, controls, containers/transient UI, and bounded UI,
 measurement, and resource caches. Debug and Release each pass `280/280`; the
 LLVM-disabled predecessor matrix passes `203/203`; deterministic stage0 ->
 stage3 bootstrap, predecessor conformance (`90` cases), release-line
 compatibility (`11` cases), and application validation (`32` packages, `11`
-checks) also pass. The independent final review and security review found no
-reportable vulnerability. Native Linux x64, Linux ARM64, and macOS ARM64 Rocket
+checks) also pass. The independent final review and sealed security review found
+no reportable vulnerability. Native Linux x64, Linux ARM64, and macOS ARM64 Rocket
 3 target-laboratory acceptance remains deferred to WP34/F29.
 
 The accepted asset-store implementation is the reference-package module
