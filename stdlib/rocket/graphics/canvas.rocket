@@ -5,19 +5,45 @@
 import rocket.graphics
 import rocket.raylib.safe
 
-pub fn framebuffer_size(window: safe.Window) -> graphics.Size:
-    return graphics.Size(safe.framebuffer_width(window), safe.framebuffer_height(window))
+pub fn framebuffer_size(window: safe.Window) -> Result[graphics.Size, String]:
+    var width = 0.0
+    match safe.framebuffer_width(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            width = value
+    match safe.framebuffer_height(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            return Ok(graphics.Size(width, value))
 
 pub fn from_window(window: safe.Window, logical_size: graphics.Size) -> Result[graphics.VirtualCanvas, String]:
-    return graphics.fit_virtual_canvas(logical_size, framebuffer_size(window))
+    match framebuffer_size(window):
+        case Err(message):
+            return Err(message)
+        case Ok(size):
+            return graphics.fit_virtual_canvas(logical_size, size)
 
 pub fn refresh(window: safe.Window, mapping: graphics.VirtualCanvas) -> Result[graphics.VirtualCanvas, String]:
+    if not graphics.virtual_canvas_is_valid(mapping):
+        return Err("virtual canvas mapping is invalid")
     return from_window(window, mapping.logical_size)
 
-pub fn dpi_scale(window: safe.Window) -> graphics.Vec2:
-    return graphics.Vec2(safe.dpi_scale_x(window), safe.dpi_scale_y(window))
+pub fn dpi_scale(window: safe.Window) -> Result[graphics.Vec2, String]:
+    var x = 0.0
+    match safe.dpi_scale_x(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            x = value
+    match safe.dpi_scale_y(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            return Ok(graphics.Vec2(x, value))
 
-pub fn display_revision(window: safe.Window) -> Int:
+pub fn display_revision(window: safe.Window) -> Result[Int, String]:
     return safe.display_revision(window)
 
 pub fn create_target(window: safe.Window, width: Int, height: Int) -> Result[safe.RenderTexture, String]:
@@ -35,8 +61,18 @@ pub fn end_target(scope: safe.RenderTargetScope) -> Result[Bool, String]:
 pub fn present(frame: safe.Frame, target: safe.RenderTexture, mapping: graphics.VirtualCanvas) -> Result[Bool, String]:
     if not graphics.virtual_canvas_is_valid(mapping):
         return Err("virtual canvas mapping is invalid")
-    let target_width = safe.render_texture_width(target)
-    let target_height = safe.render_texture_height(target)
+    var target_width = 0.0
+    var target_height = 0.0
+    match safe.render_texture_width(target):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            target_width = value
+    match safe.render_texture_height(target):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            target_height = value
     if target_width != mapping.logical_size.width or target_height != mapping.logical_size.height:
         return Err("virtual canvas target size does not match logical size")
     return safe.draw_render_texture_framebuffer(frame, target, 0.0, 0.0, mapping.logical_size.width, -mapping.logical_size.height, mapping.viewport.x, mapping.viewport.y, mapping.viewport.width, mapping.viewport.height)
@@ -58,6 +94,8 @@ pub fn save_logical_screenshot(window: safe.Window, target: safe.RenderTexture, 
     return safe.save_render_texture_png(window, target, path)
 
 pub fn resize(window: safe.Window, mapping: graphics.VirtualCanvas, width: Int, height: Int) -> Result[graphics.VirtualCanvas, String]:
+    if not graphics.virtual_canvas_is_valid(mapping):
+        return Err("virtual canvas mapping is invalid")
     match safe.set_window_size(window, width, height):
         case Err(error):
             return Err(error)
@@ -65,6 +103,8 @@ pub fn resize(window: safe.Window, mapping: graphics.VirtualCanvas, width: Int, 
             return refresh(window, mapping)
 
 pub fn set_fullscreen(window: safe.Window, mapping: graphics.VirtualCanvas, enabled: Bool) -> Result[graphics.VirtualCanvas, String]:
+    if not graphics.virtual_canvas_is_valid(mapping):
+        return Err("virtual canvas mapping is invalid")
     match safe.set_window_fullscreen(window, enabled):
         case Err(error):
             return Err(error)
@@ -72,6 +112,8 @@ pub fn set_fullscreen(window: safe.Window, mapping: graphics.VirtualCanvas, enab
             return refresh(window, mapping)
 
 pub fn set_borderless(window: safe.Window, mapping: graphics.VirtualCanvas, enabled: Bool) -> Result[graphics.VirtualCanvas, String]:
+    if not graphics.virtual_canvas_is_valid(mapping):
+        return Err("virtual canvas mapping is invalid")
     match safe.set_window_borderless(window, enabled):
         case Err(error):
             return Err(error)

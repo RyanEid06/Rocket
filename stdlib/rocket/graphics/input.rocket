@@ -3,17 +3,33 @@
 import rocket.graphics
 import rocket.raylib.safe
 
-pub fn pointer_position(window: safe.Window) -> graphics.Vec2:
-    return graphics.Vec2(safe.pointer_framebuffer_x(window), safe.pointer_framebuffer_y(window))
+pub fn pointer_position(window: safe.Window) -> Result[graphics.Vec2, String]:
+    var x = 0.0
+    match safe.pointer_framebuffer_x(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            x = value
+    match safe.pointer_framebuffer_y(window):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            return Ok(graphics.Vec2(x, value))
 
-pub fn pointer_down(window: safe.Window, button: Int = 0) -> Bool:
+pub fn pointer_down(window: safe.Window, button: Int = 0) -> Result[Bool, String]:
     return safe.pointer_down(window, button)
 
-pub fn pointer_pressed(window: safe.Window, button: Int = 0) -> Bool:
+pub fn pointer_pressed(window: safe.Window, button: Int = 0) -> Result[Bool, String]:
     return safe.pointer_pressed(window, button)
 
-pub fn pointer_released(window: safe.Window, button: Int = 0) -> Bool:
+pub fn pointer_released(window: safe.Window, button: Int = 0) -> Result[Bool, String]:
     return safe.pointer_released(window, button)
 
-pub fn pointer_position_in_canvas(window: safe.Window, canvas: graphics.VirtualCanvas) -> Option[graphics.Vec2]:
-    return graphics.virtual_canvas_physical_to_logical(canvas, pointer_position(window))
+pub fn pointer_position_in_canvas(window: safe.Window, canvas: graphics.VirtualCanvas) -> Result[Option[graphics.Vec2], String]:
+    if not graphics.virtual_canvas_is_valid(canvas):
+        return Err("virtual canvas mapping is invalid")
+    match pointer_position(window):
+        case Err(message):
+            return Err(message)
+        case Ok(position):
+            return Ok(graphics.virtual_canvas_physical_to_logical(canvas, position))

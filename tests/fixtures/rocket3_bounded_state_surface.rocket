@@ -1,7 +1,19 @@
 import rocket.ui
 
-fn retains(context: ui.Context, id: ui.WidgetId) -> Bool:
-    return ui.context_contains(context, id) and ui.context_retained_count(context) <= ui.context_capacity(context)
+fn retains(context: ui.Context, id: ui.WidgetId) -> Result[Bool, String]:
+    match ui.context_contains(context, id):
+        case Err(message):
+            return Err(message)
+        case Ok(present):
+            match ui.context_retained_count(context):
+                case Err(message):
+                    return Err(message)
+                case Ok(count):
+                    match ui.context_capacity(context):
+                        case Err(message):
+                            return Err(message)
+                        case Ok(capacity):
+                            return Ok(present and count <= capacity)
 
 fn main() -> Int:
     let defaults = ui.new_context("surface")

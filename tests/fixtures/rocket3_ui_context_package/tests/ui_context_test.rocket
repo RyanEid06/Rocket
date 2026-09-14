@@ -144,13 +144,13 @@ fn main() -> Int:
                                         case Err(message):
                                             return 29
                                         case Ok(keyed):
-                                            if not keyed.response.keyboard_activated or not keyed.response.clicked or not keyed.response.focused or not ui.activation_pressed(keyed.frame):
+                                            if not keyed.response.keyboard_activated or not keyed.response.clicked or not keyed.response.focused or not ok(ui.activation_pressed(keyed.frame)):
                                                 return 30
                                             match ui.request_focus(keyed.frame, button):
                                                 case Err(message):
                                                     return 64
                                                 case Ok(refocused):
-                                                    if not ui.focused_is(refocused.context, button):
+                                                    if not ok(ui.focused_is(refocused.context, button)):
                                                         return 65
                                                     match ui.end_frame(refocused):
                                                         case Err(message):

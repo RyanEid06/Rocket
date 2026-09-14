@@ -36,12 +36,14 @@ extern fn rlv_window_framebuffer_height_f64(window_id: Int) -> Float
 extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
 extern fn rlv_window_dpi_scale_y(window_id: Int) -> Float
 extern fn rlv_window_display_revision(window_id: Int) -> Int
+extern fn rlv_window_logical_width(window_id: Int) -> Int
 extern fn rlv_window_set_size(window_id: Int, width: Int, height: Int) -> Int
 extern fn rlv_window_set_fullscreen(window_id: Int, enabled: Bool) -> Int
 extern fn rlv_window_set_borderless(window_id: Int, enabled: Bool) -> Int
 extern fn rlv_render_texture_load(window_id: Int, width: Int, height: Int) -> Int
 extern fn rlv_render_texture_width_f64(render_texture_id: Int) -> Float
 extern fn rlv_render_texture_height_f64(render_texture_id: Int) -> Float
+extern fn rlv_render_texture_width(render_texture_id: Int) -> Int
 extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
 extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int
 extern fn rlv_render_target_end(scope_id: Int) -> Int
@@ -119,6 +121,17 @@ fn valid_circle(x: Float, y: Float, radius: Float) -> Bool:
 
 fn invalid_geometry() -> Result[Bool, String]:
     return Err("raylib: invalid argument")
+
+fn window_is_valid(window: Window) -> Bool:
+    unsafe:
+        return rlv_window_logical_width(window.id) > 0
+
+fn render_texture_is_valid(target: RenderTexture) -> Bool:
+    unsafe:
+        return rlv_render_texture_width(target.id) > 0
+
+fn valid_input_code(value: Int) -> Bool:
+    return value >= 0 and value <= 2147483647
 
 fn encode_text(value: String) -> Result[Int, String]:
     unsafe:
@@ -288,54 +301,88 @@ pub fn draw_gradient_circle(frame: Frame, x: Float, y: Float, radius: Float, inn
     unsafe:
         return status_result(rlv_draw_circle_gradient(frame.id, x, y, radius, inner_red, inner_green, inner_blue, inner_alpha, outer_red, outer_green, outer_blue, outer_alpha))
 
-pub fn pointer_pressed(window: Window, button: Int) -> Bool:
+pub fn pointer_pressed(window: Window, button: Int) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    if not valid_input_code(button):
+        return Err("raylib: invalid argument")
     unsafe:
-        return rlv_mouse_pressed(window.id, button)
+        return Ok(rlv_mouse_pressed(window.id, button))
 
-pub fn pointer_down(window: Window, button: Int) -> Bool:
+pub fn pointer_down(window: Window, button: Int) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    if not valid_input_code(button):
+        return Err("raylib: invalid argument")
     unsafe:
-        return rlv_mouse_down(window.id, button)
+        return Ok(rlv_mouse_down(window.id, button))
 
-pub fn pointer_released(window: Window, button: Int) -> Bool:
+pub fn pointer_released(window: Window, button: Int) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    if not valid_input_code(button):
+        return Err("raylib: invalid argument")
     unsafe:
-        return rlv_mouse_released(window.id, button)
+        return Ok(rlv_mouse_released(window.id, button))
 
-pub fn key_pressed(window: Window, key: Int) -> Bool:
+pub fn key_pressed(window: Window, key: Int) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    if not valid_input_code(key):
+        return Err("raylib: invalid argument")
     unsafe:
-        return rlv_key_pressed(window.id, key)
+        return Ok(rlv_key_pressed(window.id, key))
 
-pub fn key_down(window: Window, key: Int) -> Bool:
+pub fn key_down(window: Window, key: Int) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    if not valid_input_code(key):
+        return Err("raylib: invalid argument")
     unsafe:
-        return rlv_key_down(window.id, key)
+        return Ok(rlv_key_down(window.id, key))
 
-pub fn pointer_framebuffer_x(window: Window) -> Float:
+pub fn pointer_framebuffer_x(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_mouse_framebuffer_x(window.id)
+        return Ok(rlv_mouse_framebuffer_x(window.id))
 
-pub fn pointer_framebuffer_y(window: Window) -> Float:
+pub fn pointer_framebuffer_y(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_mouse_framebuffer_y(window.id)
+        return Ok(rlv_mouse_framebuffer_y(window.id))
 
 # F17 display/render-target primitives used by rocket.graphics.canvas.
-pub fn framebuffer_width(window: Window) -> Float:
+pub fn framebuffer_width(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_window_framebuffer_width_f64(window.id)
+        return Ok(rlv_window_framebuffer_width_f64(window.id))
 
-pub fn framebuffer_height(window: Window) -> Float:
+pub fn framebuffer_height(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_window_framebuffer_height_f64(window.id)
+        return Ok(rlv_window_framebuffer_height_f64(window.id))
 
-pub fn dpi_scale_x(window: Window) -> Float:
+pub fn dpi_scale_x(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_window_dpi_scale_x(window.id)
+        return Ok(rlv_window_dpi_scale_x(window.id))
 
-pub fn dpi_scale_y(window: Window) -> Float:
+pub fn dpi_scale_y(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_window_dpi_scale_y(window.id)
+        return Ok(rlv_window_dpi_scale_y(window.id))
 
-pub fn display_revision(window: Window) -> Int:
+pub fn display_revision(window: Window) -> Result[Int, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_window_display_revision(window.id)
+        return Ok(rlv_window_display_revision(window.id))
 
 pub fn set_window_size(window: Window, width: Int, height: Int) -> Result[Bool, String]:
     if width <= 0 or height <= 0:
@@ -360,13 +407,17 @@ pub fn create_render_texture(window: Window, width: Int, height: Int) -> Result[
             return Ok(RenderTexture(target_id))
         return Err(status_message(target_id))
 
-pub fn render_texture_width(target: RenderTexture) -> Float:
+pub fn render_texture_width(target: RenderTexture) -> Result[Float, String]:
+    if not render_texture_is_valid(target):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_render_texture_width_f64(target.id)
+        return Ok(rlv_render_texture_width_f64(target.id))
 
-pub fn render_texture_height(target: RenderTexture) -> Float:
+pub fn render_texture_height(target: RenderTexture) -> Result[Float, String]:
+    if not render_texture_is_valid(target):
+        return Err("raylib: stale or already released handle")
     unsafe:
-        return rlv_render_texture_height_f64(target.id)
+        return Ok(rlv_render_texture_height_f64(target.id))
 
 pub fn unload_render_texture(target: RenderTexture) -> Result[Bool, String]:
     unsafe:

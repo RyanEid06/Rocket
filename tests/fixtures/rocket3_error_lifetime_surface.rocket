@@ -1,0 +1,80 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.graphics.input
+import rocket.raylib.safe
+import rocket.ui
+
+fn pointer_position(window: safe.Window) -> Result[graphics.Vec2, String]:
+    return input.pointer_position(window)
+
+fn pointer_down(window: safe.Window) -> Result[Bool, String]:
+    return input.pointer_down(window)
+
+fn pointer_pressed(window: safe.Window) -> Result[Bool, String]:
+    return input.pointer_pressed(window)
+
+fn pointer_released(window: safe.Window) -> Result[Bool, String]:
+    return input.pointer_released(window)
+
+fn pointer_in_canvas(window: safe.Window, mapping: graphics.VirtualCanvas) -> Result[Option[graphics.Vec2], String]:
+    return input.pointer_position_in_canvas(window, mapping)
+
+fn framebuffer_size(window: safe.Window) -> Result[graphics.Size, String]:
+    return canvas.framebuffer_size(window)
+
+fn dpi_scale(window: safe.Window) -> Result[graphics.Vec2, String]:
+    return canvas.dpi_scale(window)
+
+fn display_revision(window: safe.Window) -> Result[Int, String]:
+    return canvas.display_revision(window)
+
+fn target_width(target: safe.RenderTexture) -> Result[Float, String]:
+    return safe.render_texture_width(target)
+
+fn target_height(target: safe.RenderTexture) -> Result[Float, String]:
+    return safe.render_texture_height(target)
+
+fn activation(frame: ui.UiFrame) -> Result[Bool, String]:
+    return ui.activation_pressed(frame)
+
+fn cancel(frame: ui.UiFrame) -> Result[Bool, String]:
+    return ui.cancel_pressed(frame)
+
+fn focus_next(frame: ui.UiFrame) -> Result[Bool, String]:
+    return ui.focus_next_pressed(frame)
+
+fn navigation_left(frame: ui.UiFrame) -> Result[Bool, String]:
+    return ui.navigation_left_pressed(frame)
+
+fn navigation_right(frame: ui.UiFrame) -> Result[Bool, String]:
+    return ui.navigation_right_pressed(frame)
+
+fn navigation_up(frame: ui.UiFrame) -> Result[Bool, String]:
+    return ui.navigation_up_pressed(frame)
+
+fn navigation_down(frame: ui.UiFrame) -> Result[Bool, String]:
+    return ui.navigation_down_pressed(frame)
+
+fn active(context: ui.Context, id: ui.WidgetId) -> Result[Bool, String]:
+    return ui.active_is(context, id)
+
+fn focused(context: ui.Context, id: ui.WidgetId) -> Result[Bool, String]:
+    return ui.focused_is(context, id)
+
+fn modal(context: ui.Context, id: ui.WidgetId) -> Result[Bool, String]:
+    return ui.modal_is(context, id)
+
+fn capacity(context: ui.Context) -> Result[Int, String]:
+    return ui.context_capacity(context)
+
+fn retention(context: ui.Context) -> Result[Int, String]:
+    return ui.context_unseen_retention_frames(context)
+
+fn retained(context: ui.Context) -> Result[Int, String]:
+    return ui.context_retained_count(context)
+
+fn contains(context: ui.Context, id: ui.WidgetId) -> Result[Bool, String]:
+    return ui.context_contains(context, id)
+
+fn main() -> Int:
+    return 0
