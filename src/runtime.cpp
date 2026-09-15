@@ -37,6 +37,68 @@ namespace {
 
 inline constexpr std::uint32_t RuntimeAbiVersion = 1;
 
+#if defined(__cpp_lib_atomic_ref)
+template <typename Value>
+using AtomicReference = std::atomic_ref<Value>;
+#elif defined(__clang__) || defined(__GNUC__)
+constexpr int builtinMemoryOrder(std::memory_order order) {
+  switch (order) {
+  case std::memory_order_relaxed:
+    return __ATOMIC_RELAXED;
+  case std::memory_order_consume:
+    return __ATOMIC_CONSUME;
+  case std::memory_order_acquire:
+    return __ATOMIC_ACQUIRE;
+  case std::memory_order_release:
+    return __ATOMIC_RELEASE;
+  case std::memory_order_acq_rel:
+    return __ATOMIC_ACQ_REL;
+  case std::memory_order_seq_cst:
+    return __ATOMIC_SEQ_CST;
+  }
+  return __ATOMIC_SEQ_CST;
+}
+
+template <typename Value>
+class AtomicReference {
+public:
+  explicit AtomicReference(Value& value) : value_(&value) {}
+
+  Value load(std::memory_order order) const {
+    return __atomic_load_n(value_, builtinMemoryOrder(order));
+  }
+
+  void store(Value desired, std::memory_order order) const {
+    __atomic_store_n(value_, desired, builtinMemoryOrder(order));
+  }
+
+  Value fetch_add(Value argument, std::memory_order order) const {
+    return __atomic_fetch_add(value_, argument, builtinMemoryOrder(order));
+  }
+
+  Value fetch_sub(Value argument, std::memory_order order) const {
+    return __atomic_fetch_sub(value_, argument, builtinMemoryOrder(order));
+  }
+
+  Value fetch_or(Value argument, std::memory_order order) const {
+    return __atomic_fetch_or(value_, argument, builtinMemoryOrder(order));
+  }
+
+  bool compare_exchange_weak(Value& expected, Value desired,
+                             std::memory_order success,
+                             std::memory_order failure) const {
+    return __atomic_compare_exchange_n(value_, &expected, desired, true,
+                                       builtinMemoryOrder(success),
+                                       builtinMemoryOrder(failure));
+  }
+
+private:
+  Value* value_;
+};
+#else
+#error "Rocket requires std::atomic_ref or compiler atomic builtins"
+#endif
+
 struct AllocationHeader {
   std::uint64_t references;
   std::uint64_t sharedReferences;
@@ -589,10 +651,10 @@ RocketArray* appendUniqueBuffer(RocketArray* buffer, Value value,
 
 std::uint64_t strongReferenceCount(const AllocationHeader* header) {
   auto* mutableHeader = const_cast<AllocationHeader*>(header);
-  const auto flags = std::atomic_ref<std::uint32_t>(mutableHeader->flags)
+  const auto flags = AtomicReference<std::uint32_t>(mutableHeader->flags)
                          .load(std::memory_order_acquire);
   if ((flags & AllocationShared) == 0) return header->references;
-  return std::atomic_ref<std::uint64_t>(mutableHeader->sharedReferences)
+  return AtomicReference<std::uint64_t>(mutableHeader->sharedReferences)
       .load(std::memory_order_relaxed);
 }
 
@@ -624,7 +686,7 @@ void freeAllocationStorage(AllocationHeader* header) {
 }
 
 void releaseWeakReference(AllocationHeader* header) {
-  auto weak = std::atomic_ref<std::uint64_t>(header->weakReferences);
+  auto weak = AtomicReference<std::uint64_t>(header->weakReferences);
   const std::uint64_t previous = weak.fetch_sub(1, std::memory_order_release);
   if (previous == 0) runtimeFailure("weak reference count underflow");
   if (previous == 1) {
@@ -758,7 +820,7 @@ void promoteChildren(AllocationHeader* header) {
 void promoteObject(void* object) {
   if (!object) return;
   AllocationHeader* header = headerFor(object);
-  auto flags = std::atomic_ref<std::uint32_t>(header->flags);
+  auto flags = AtomicReference<std::uint32_t>(header->flags);
   std::uint32_t observed = flags.load(std::memory_order_acquire);
   while (true) {
     if ((observed & AllocationShared) != 0) return;
@@ -775,14 +837,14 @@ void promoteObject(void* object) {
       break;
   }
   promoteChildren(header);
-  std::atomic_ref<std::uint64_t>(header->sharedReferences)
+  AtomicReference<std::uint64_t>(header->sharedReferences)
       .store(header->references, std::memory_order_relaxed);
   flags.store(AllocationShared, std::memory_order_release);
 }
 
 void finishStrongLifetime(AllocationHeader* header) {
   header->destroy(header);
-  std::atomic_ref<std::uint32_t>(header->flags)
+  AtomicReference<std::uint32_t>(header->flags)
       .fetch_or(AllocationDestroyed, std::memory_order_release);
   releaseWeakReference(header);
 }
@@ -1926,10 +1988,10 @@ RocketString* rocket_std_string_builder_finish(RocketStringBuilder* opaque) {
 void rocket_rt_retain(void* object) {
   if (!object) return;
   AllocationHeader* header = headerFor(object);
-  const std::uint32_t flags = std::atomic_ref<std::uint32_t>(header->flags)
+  const std::uint32_t flags = AtomicReference<std::uint32_t>(header->flags)
                                   .load(std::memory_order_acquire);
   if ((flags & AllocationShared) != 0) {
-    auto references = std::atomic_ref<std::uint64_t>(header->sharedReferences);
+    auto references = AtomicReference<std::uint64_t>(header->sharedReferences);
     const std::uint64_t previous = references.fetch_add(1, std::memory_order_relaxed);
     if (previous == 0 || previous == (std::numeric_limits<std::uint64_t>::max)())
       runtimeFailure(previous == 0 ? "retain of destroyed object" :
@@ -1946,10 +2008,10 @@ void rocket_rt_retain(void* object) {
 void rocket_rt_release(void* object) {
   if (!object) return;
   AllocationHeader* header = headerFor(object);
-  const std::uint32_t flags = std::atomic_ref<std::uint32_t>(header->flags)
+  const std::uint32_t flags = AtomicReference<std::uint32_t>(header->flags)
                                   .load(std::memory_order_acquire);
   if ((flags & AllocationShared) != 0) {
-    auto references = std::atomic_ref<std::uint64_t>(header->sharedReferences);
+    auto references = AtomicReference<std::uint64_t>(header->sharedReferences);
     const std::uint64_t previous = references.fetch_sub(1, std::memory_order_release);
     if (previous == 0) runtimeFailure("reference count underflow");
     if (previous == 1) {
@@ -1969,7 +2031,7 @@ RocketWeak* rocket_rt_weak_new(void* object) {
   if (!object) runtimeFailure("cannot create Weak from a null object");
   promoteObject(object);
   AllocationHeader* target = headerFor(object);
-  auto weakReferences = std::atomic_ref<std::uint64_t>(target->weakReferences);
+  auto weakReferences = AtomicReference<std::uint64_t>(target->weakReferences);
   const std::uint64_t previous =
       weakReferences.fetch_add(1, std::memory_order_relaxed);
   if (previous == (std::numeric_limits<std::uint64_t>::max)())
@@ -1991,7 +2053,7 @@ void* rocket_rt_weak_upgrade(RocketWeak* opaque) {
     runtimeFailure("Weak upgrade received an invalid value");
   AllocationHeader* target = weak->target;
   if (!target) return nullptr;
-  auto references = std::atomic_ref<std::uint64_t>(target->sharedReferences);
+  auto references = AtomicReference<std::uint64_t>(target->sharedReferences);
   std::uint64_t observed = references.load(std::memory_order_acquire);
   while (observed != 0) {
     if (observed == (std::numeric_limits<std::uint64_t>::max)())
@@ -2009,7 +2071,7 @@ std::uint8_t rocket_rt_weak_expired(RocketWeak* opaque) {
   if (!weak || weak->header.objectKind != ObjectWeak)
     runtimeFailure("Weak expiration check received an invalid value");
   if (!weak->target) return 1;
-  return std::atomic_ref<std::uint64_t>(weak->target->sharedReferences)
+  return AtomicReference<std::uint64_t>(weak->target->sharedReferences)
                      .load(std::memory_order_acquire) == 0
              ? 1
              : 0;
