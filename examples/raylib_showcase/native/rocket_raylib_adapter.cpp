@@ -2432,12 +2432,15 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
     return RLV_ERR_INVALID_ARGUMENT;
   }
   if (!rlv_shader_supported(windowId)) return RLV_ERR_UNAVAILABLE;
-  if ((!vertexPath->empty() &&
-       (state.testMode ? simulatedMissing(*vertexPath)
-                       : !FileExists(vertexPath->c_str()))) ||
-      (!fragmentPath->empty() &&
-       (state.testMode ? simulatedMissing(*fragmentPath)
-                       : !FileExists(fragmentPath->c_str())))) {
+  const auto missingShaderFile = [](const std::string& path) {
+    if (path.empty()) return false;
+    if (state.testMode) return simulatedMissing(path);
+    std::error_code error;
+    return !std::filesystem::is_regular_file(std::filesystem::path(path),
+                                             error) ||
+           error;
+  };
+  if (missingShaderFile(*vertexPath) || missingShaderFile(*fragmentPath)) {
     return RLV_ERR_NOT_FOUND;
   }
 

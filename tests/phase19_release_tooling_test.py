@@ -206,6 +206,21 @@ def main() -> int:
         "macOS C ABI consumers do not link through the accepted Apple SDK",
     )
     check(
+        'ROCKET_CXX_STANDARD_INCLUDE' in consumer_test
+        and '-nostdinc++' in consumer_test
+        and '-isystem "$ENV{ROCKET_CXX_STANDARD_INCLUDE}"' in consumer_test,
+        "macOS C ABI consumers do not use the SDK-matched libc++ headers",
+    )
+    check(
+        'ROCKET_CXX_STANDARD_LIBRARY' in consumer_test
+        and '"$ENV{ROCKET_CXX_STANDARD_LIBRARY}"' in consumer_test,
+        "macOS C ABI consumers do not link the SDK-matched libc++ runtime",
+    )
+    check(
+        '-fuse-ld=lld' in consumer_test,
+        "macOS C ABI consumers do not use the pinned LLD linker",
+    )
+    check(
         "-framework Security -framework CoreFoundation" in consumer_test,
         "macOS static C ABI consumers omit Rocket runtime frameworks",
     )

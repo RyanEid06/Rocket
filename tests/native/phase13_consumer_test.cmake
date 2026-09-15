@@ -42,9 +42,23 @@ else()
       message(FATAL_ERROR
         "Phase 13 macOS consumer test requires ROCKET_MACOS_SDK_ROOT")
     endif()
+    if("$ENV{ROCKET_CXX_STANDARD_INCLUDE}" STREQUAL "" OR
+       NOT IS_DIRECTORY "$ENV{ROCKET_CXX_STANDARD_INCLUDE}")
+      message(FATAL_ERROR
+        "Phase 13 macOS consumer test requires ROCKET_CXX_STANDARD_INCLUDE")
+    endif()
+    if("$ENV{ROCKET_CXX_STANDARD_LIBRARY}" STREQUAL "" OR
+       NOT EXISTS "$ENV{ROCKET_CXX_STANDARD_LIBRARY}")
+      message(FATAL_ERROR
+        "Phase 13 macOS consumer test requires ROCKET_CXX_STANDARD_LIBRARY")
+    endif()
     list(APPEND platform_compile_options
-      -isysroot "$ENV{ROCKET_MACOS_SDK_ROOT}")
+      -nostdinc++
+      -isystem "$ENV{ROCKET_CXX_STANDARD_INCLUDE}"
+      -isysroot "$ENV{ROCKET_MACOS_SDK_ROOT}"
+      -fuse-ld=lld)
     list(APPEND platform_libraries
+      "$ENV{ROCKET_CXX_STANDARD_LIBRARY}"
       -framework Security -framework CoreFoundation)
     if(DEFINED DYNAMIC_LIBRARY AND NOT DYNAMIC_LIBRARY STREQUAL "")
       if(NOT EXISTS "${DYNAMIC_LIBRARY}")

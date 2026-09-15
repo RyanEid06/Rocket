@@ -192,6 +192,24 @@ set(ROCKET_WP33_EXAMPLE_PACKAGE
   "${CMAKE_SOURCE_DIR}/examples/rocket3_graphics_ui")
 set(ROCKET_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/native/${ROCKET_NATIVE_TARGET}")
 set(ROCKET_RAYLIB_NATIVE_OUTPUT "${ROCKET_NATIVE_OUTPUT}")
+if(APPLE)
+  add_custom_target(rocket_macos_native_library_links ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${ROCKET_NATIVE_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+      "${ROCKET_NATIVE_OUTPUT}/libcrypto.dylib"
+      "${ROCKET_NATIVE_OUTPUT}/libicuuc.dylib"
+      "${ROCKET_NATIVE_OUTPUT}/libicudata.dylib"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+      "$<TARGET_FILE:OpenSSL::Crypto>"
+      "${ROCKET_NATIVE_OUTPUT}/libcrypto.dylib"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+      "$<TARGET_FILE:ICU::uc>"
+      "${ROCKET_NATIVE_OUTPUT}/libicuuc.dylib"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+      "$<TARGET_FILE:ICU::data>"
+      "${ROCKET_NATIVE_OUTPUT}/libicudata.dylib"
+    VERBATIM)
+endif()
 set_target_properties(raylib PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_RAYLIB_NATIVE_OUTPUT}"
   MSVC_RUNTIME_LIBRARY "MultiThreaded")
@@ -299,6 +317,7 @@ endif()
 add_executable(rocketc src/main.cpp)
 target_link_libraries(rocketc PRIVATE rocketc_core)
 if(APPLE)
+  add_dependencies(rocketc rocket_macos_native_library_links)
   target_compile_definitions(rocketc PRIVATE
     ROCKETC_MACOS_SDK_ROOT="${ROCKET_MACOS_SDK_ROOT}"
     ROCKETC_CXX_STANDARD_INCLUDE="${ROCKET_CXX_STANDARD_INCLUDE}"
@@ -2202,7 +2221,9 @@ if(LLVM_FOUND)
 endif()
 if(APPLE)
   list(APPEND ROCKET_CONFIGURED_TEST_ENVIRONMENT
-    "ROCKET_MACOS_SDK_ROOT=${ROCKET_MACOS_SDK_ROOT}")
+    "ROCKET_MACOS_SDK_ROOT=${ROCKET_MACOS_SDK_ROOT}"
+    "ROCKET_CXX_STANDARD_INCLUDE=${ROCKET_CXX_STANDARD_INCLUDE}"
+    "ROCKET_CXX_STANDARD_LIBRARY=${ROCKET_CXX_STANDARD_LIBRARY}")
 endif()
 set_tests_properties(${ROCKET_CONFIGURED_TESTS} PROPERTIES
   ENVIRONMENT "${ROCKET_CONFIGURED_TEST_ENVIRONMENT}")
