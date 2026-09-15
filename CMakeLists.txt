@@ -45,7 +45,7 @@ if(APPLE)
       "macOS libc++ runtime stub is missing: ${ROCKET_CXX_STANDARD_LIBRARY}")
   endif()
   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>")
-  include_directories(SYSTEM BEFORE "${ROCKET_CXX_STANDARD_INCLUDE}")
+  include_directories(BEFORE SYSTEM "${ROCKET_CXX_STANDARD_INCLUDE}")
   # Phase 19 rewrites packaged Mach-O dependency paths with install_name_tool.
   # Reserve deterministic load-command space in every CMake-linked product.
   add_link_options("-Wl,-headerpad_max_install_names")
@@ -245,7 +245,7 @@ target_compile_definitions(rocketc_core PRIVATE
 if(WIN32)
   target_link_libraries(rocketc_core PRIVATE bcrypt advapi32)
 else()
-  target_link_libraries(rocketc_core PRIVATE ${ROCKET_POSIX_PLATFORM_LIBRARIES})
+  target_link_libraries(rocketc_core PUBLIC ${ROCKET_POSIX_PLATFORM_LIBRARIES})
   target_compile_definitions(rocketc_core PUBLIC
     ROCKET_HAS_CURL=1 ROCKET_HAS_ICU=1)
 endif()
@@ -455,6 +455,8 @@ add_test(NAME rocket3_named_arguments_stage0
     "-DROCKETC=$<TARGET_FILE:rocketc>"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp10/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_arguments_test.cmake")
 set_tests_properties(rocket3_named_arguments_stage0 PROPERTIES
   LABELS "rocket3;wp10;named-arguments;stage0"
@@ -466,6 +468,8 @@ add_test(NAME rocket3_default_arguments_stage0
     "-DROCKETC=$<TARGET_FILE:rocketc>"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp11/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_default_arguments_test.cmake")
 set_tests_properties(rocket3_default_arguments_stage0 PROPERTIES
   LABELS "rocket3;wp11;default-arguments;stage0"
@@ -477,6 +481,8 @@ add_test(NAME rocket3_named_callable_parity_stage0
     "-DROCKETC=$<TARGET_FILE:rocketc>"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp11a/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_callable_parity_test.cmake")
 set_tests_properties(rocket3_named_callable_parity_stage0 PROPERTIES
   LABELS "rocket3;wp11a;named-callable-parity;stage0"
@@ -488,6 +494,8 @@ add_test(NAME rocket3_std_math_stage0
     "-DROCKETC=$<TARGET_FILE:rocketc>"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp12/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_std_math_test.cmake")
 set_tests_properties(rocket3_std_math_stage0 PROPERTIES
   LABELS "rocket3;wp12;stdmath;numeric;tolerance;stage0"
@@ -499,6 +507,8 @@ add_test(NAME rocket3_motion_stage0
     "-DROCKETC=$<TARGET_FILE:rocketc>"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp13/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_motion_test.cmake")
 set_tests_properties(rocket3_motion_stage0 PROPERTIES
   LABELS "rocket3;wp13;motion;easing;stage0"
@@ -510,6 +520,8 @@ add_test(NAME rocket3_graphics_core_stage0
     "-DROCKETC=$<TARGET_FILE:rocketc>"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp19/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_graphics_core_test.cmake")
 set_tests_properties(rocket3_graphics_core_stage0 PROPERTIES
   LABELS "rocket3;wp19;graphics;color;stage0"
@@ -1084,6 +1096,8 @@ add_test(NAME rocket3_named_arguments_self_hosted
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp10/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_arguments_test.cmake")
 set_tests_properties(rocket3_named_arguments_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
@@ -1095,6 +1109,8 @@ add_test(NAME rocket3_default_arguments_self_hosted
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp11/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_default_arguments_test.cmake")
 set_tests_properties(rocket3_default_arguments_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
@@ -1106,6 +1122,8 @@ add_test(NAME rocket3_named_callable_parity_self_hosted
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp11a/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_named_callable_parity_test.cmake")
 set_tests_properties(rocket3_named_callable_parity_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
@@ -1117,6 +1135,8 @@ add_test(NAME rocket3_std_math_self_hosted
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp12/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_std_math_test.cmake")
 set_tests_properties(rocket3_std_math_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
@@ -1128,6 +1148,8 @@ add_test(NAME rocket3_motion_self_hosted
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp13/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_motion_test.cmake")
 set_tests_properties(rocket3_motion_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
@@ -1139,6 +1161,8 @@ add_test(NAME rocket3_graphics_core_self_hosted
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket3-provisional/wp19/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_graphics_core_test.cmake")
 set_tests_properties(rocket3_graphics_core_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler

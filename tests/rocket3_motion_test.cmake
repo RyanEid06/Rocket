@@ -1,4 +1,5 @@
-if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK)
+if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
+   NOT DEFINED NATIVE_TARGET OR NOT DEFINED EXECUTABLE_SUFFIX)
   message(FATAL_ERROR "WP13 motion test is missing required arguments")
 endif()
 
@@ -33,7 +34,7 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -E env "ROCKET_ARTIFACT_ROOT=${WORK}/
 if(NOT build_result EQUAL 0)
   message(FATAL_ERROR "WP13 motion build failed:\n${build_output}${build_error}")
 endif()
-set(executable "${WORK}/artifacts/rocket3_motion/.rocketc/targets/windows-x64/rocket3_motion.exe")
+set(executable "${WORK}/artifacts/rocket3_motion/.rocketc/targets/${NATIVE_TARGET}/rocket3_motion${EXECUTABLE_SUFFIX}")
 execute_process(COMMAND "${executable}" WORKING_DIRECTORY "${SOURCE_DIR}"
   RESULT_VARIABLE run_result OUTPUT_VARIABLE run_output ERROR_VARIABLE run_error)
 string(REPLACE "\r\n" "\n" normalized_output "${run_output}")

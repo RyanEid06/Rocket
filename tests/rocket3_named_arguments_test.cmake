@@ -1,4 +1,5 @@
-if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK)
+if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
+   NOT DEFINED NATIVE_TARGET OR NOT DEFINED EXECUTABLE_SUFFIX)
   message(FATAL_ERROR "WP10 named-argument test is missing required arguments")
 endif()
 
@@ -19,10 +20,10 @@ function(run_success input expected)
   endif()
   if(IS_DIRECTORY "${input}")
     set(executable
-      "${WORK}/artifacts/rocket3_named_arguments/.rocketc/targets/windows-x64/main.exe")
+      "${WORK}/artifacts/rocket3_named_arguments/.rocketc/targets/${NATIVE_TARGET}/main${EXECUTABLE_SUFFIX}")
   else()
     set(executable
-      "${WORK}/artifacts/rocket3_named_arguments/.rocketc/targets/windows-x64/rocket3_named_arguments.exe")
+      "${WORK}/artifacts/rocket3_named_arguments/.rocketc/targets/${NATIVE_TARGET}/rocket3_named_arguments${EXECUTABLE_SUFFIX}")
   endif()
   execute_process(
     COMMAND "${executable}"

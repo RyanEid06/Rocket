@@ -1,4 +1,5 @@
-if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK)
+if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
+   NOT DEFINED NATIVE_TARGET OR NOT DEFINED EXECUTABLE_SUFFIX)
   message(FATAL_ERROR "WP19 graphics core test is missing required arguments")
 endif()
 
@@ -51,7 +52,7 @@ execute_process(
 if(NOT build_result EQUAL 0)
   message(FATAL_ERROR "WP19 graphics build failed:\n${build_output}${build_error}")
 endif()
-set(executable "${WORK}/artifacts/rocket3_graphics_core/.rocketc/targets/windows-x64/rocket3_graphics_core.exe")
+set(executable "${WORK}/artifacts/rocket3_graphics_core/.rocketc/targets/${NATIVE_TARGET}/rocket3_graphics_core${EXECUTABLE_SUFFIX}")
 execute_process(COMMAND "${executable}" WORKING_DIRECTORY "${SOURCE_DIR}"
   RESULT_VARIABLE run_result OUTPUT_VARIABLE run_output ERROR_VARIABLE run_error)
 string(REPLACE "\r\n" "\n" normalized_output "${run_output}")

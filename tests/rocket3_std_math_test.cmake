@@ -1,4 +1,5 @@
-if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK)
+if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
+   NOT DEFINED NATIVE_TARGET OR NOT DEFINED EXECUTABLE_SUFFIX)
   message(FATAL_ERROR "WP12 std.math test is missing required arguments")
 endif()
 
@@ -93,7 +94,7 @@ execute_process(
 if(NOT build_result EQUAL 0)
   message(FATAL_ERROR "WP12 std.math build failed:\n${build_output}${build_error}")
 endif()
-set(executable "${WORK}/artifacts/rocket3_std_math/.rocketc/targets/windows-x64/rocket3_std_math.exe")
+set(executable "${WORK}/artifacts/rocket3_std_math/.rocketc/targets/${NATIVE_TARGET}/rocket3_std_math${EXECUTABLE_SUFFIX}")
 execute_process(COMMAND "${executable}" WORKING_DIRECTORY "${SOURCE_DIR}"
   RESULT_VARIABLE run_result OUTPUT_VARIABLE run_output ERROR_VARIABLE run_error)
 string(REPLACE "\r\n" "\n" normalized_output "${run_output}")

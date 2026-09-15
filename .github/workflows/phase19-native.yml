@@ -35,7 +35,7 @@ jobs:
           - target: linux-arm64
             runner: ubuntu-24.04-arm
           - target: macos-arm64
-            runner: macos-15
+            runner: macos-15-xlarge
     runs-on: ${{ matrix.runner }}
 
     steps:
@@ -56,8 +56,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake git libasound2-dev libcurl4-openssl-dev \
-            libgl1-mesa-dev libicu-dev libssl-dev libx11-dev libxcursor-dev \
-            libxi-dev libxinerama-dev libxrandr-dev
+            libgl1-mesa-dev libgl1-mesa-dri libicu-dev libssl-dev libx11-dev \
+            libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev xauth xvfb
 
       - name: Install macOS native SDK prerequisites
         if: matrix.target == 'macos-arm64'
@@ -81,6 +81,29 @@ jobs:
       - name: Install checksum-pinned LLVM, Ninja, and raylib
         shell: bash
         run: python dependencies/bootstrap.py --host "${{ matrix.target }}"
+
+      - name: Configure Windows build directories for software OpenGL
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          . ./dependencies/activate.ps1
+          foreach ($configuration in 'debug', 'release') {
+            cmake --preset "phase19-windows-x64-$configuration"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            cmake --preset "phase19-windows-x64-stage0-$configuration"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Install checksum-pinned Mesa software OpenGL on Windows
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          ./scripts/install_windows_mesa.ps1 -Destination @(
+            'out/phase19/build/phase19-windows-x64-debug',
+            'out/phase19/build/phase19-windows-x64-release',
+            'out/phase19/build/phase19-windows-x64-stage0-debug',
+            'out/phase19/build/phase19-windows-x64-stage0-release'
+          )
 
       - name: Export POSIX toolchain paths
         if: matrix.target != 'windows-x64'
@@ -210,7 +233,11 @@ jobs:
             preset="phase19-${{ matrix.target }}-$configuration"
             cmake --preset "$preset"
             cmake --build --preset "$preset"
-            ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-$configuration.xml"
+            if [[ "${{ matrix.target }}" == linux-* ]]; then
+              xvfb-run -a ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-$configuration.xml"
+            else
+              ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-$configuration.xml"
+            fi
           done
 
       - name: Prove LLVM-disabled C++ stage0 Debug and Release on Windows
@@ -236,7 +263,11 @@ jobs:
             preset="phase19-${{ matrix.target }}-stage0-$configuration"
             cmake --preset "$preset"
             cmake --build --preset "$preset"
-            ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-stage0-$configuration.xml"
+            if [[ "${{ matrix.target }}" == linux-* ]]; then
+              xvfb-run -a ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-stage0-$configuration.xml"
+            else
+              ctest --preset "$preset" --output-junit "out/phase19/evidence/${{ matrix.target }}/ctest-stage0-$configuration.xml"
+            fi
           done
 
       - name: Prepare Windows target inputs for supported cross builds

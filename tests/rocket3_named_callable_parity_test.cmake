@@ -1,4 +1,5 @@
-if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK)
+if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
+   NOT DEFINED NATIVE_TARGET OR NOT DEFINED EXECUTABLE_SUFFIX)
   message(FATAL_ERROR "WP11A named-callable-parity test is missing required arguments")
 endif()
 
@@ -18,7 +19,7 @@ function(run_success input expected executable_name)
     message(FATAL_ERROR "named-callable-parity build failed for ${input}:\n${build_output}${build_error}")
   endif()
   set(executable
-    "${WORK}/artifacts/rocket3_named_callable_parity/.rocketc/targets/windows-x64/${executable_name}.exe")
+    "${WORK}/artifacts/rocket3_named_callable_parity/.rocketc/targets/${NATIVE_TARGET}/${executable_name}${EXECUTABLE_SUFFIX}")
   execute_process(
     COMMAND "${executable}"
     WORKING_DIRECTORY "${SOURCE_DIR}"
