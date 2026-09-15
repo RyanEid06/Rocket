@@ -61,6 +61,9 @@
         "CMAKE_CXX_COMPILER": "$env{ROCKET_HOST_CXX_COMPILER}",
         "CMAKE_AR": "$env{ROCKET_HOST_AR}",
         "CMAKE_LINKER": "$env{ROCKET_HOST_LINKER}",
+        "CMAKE_EXE_LINKER_FLAGS": "-fuse-ld=lld",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fuse-ld=lld",
+        "CMAKE_MODULE_LINKER_FLAGS": "-fuse-ld=lld",
         "LLVM_DIR": "$env{LLVM_DIR}",
         "ROCKETC_ENABLE_LLVM": "ON"
       }
