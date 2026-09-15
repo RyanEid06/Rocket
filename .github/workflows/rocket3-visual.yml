@@ -54,6 +54,8 @@ jobs:
         if: matrix.target == 'macos-arm64'
         shell: bash
         run: |
+          sudo xcode-select --switch /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
           brew install cmake icu4c openssl@3
           echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
           echo "ICU_ROOT=$(brew --prefix icu4c)" >> "$GITHUB_ENV"
