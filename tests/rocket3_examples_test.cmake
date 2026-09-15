@@ -1,5 +1,6 @@
 if(NOT DEFINED ROCKETC OR NOT DEFINED EXAMPLE_ROOT OR
    NOT DEFINED NATIVE_LIBRARY_ROOT OR NOT DEFINED NATIVE_TARGET OR
+   NOT DEFINED EXECUTABLE_SUFFIX OR NOT DEFINED SOFTWARE_OPENGL_ROOT OR
    NOT DEFINED VISUAL_TEST OR NOT DEFINED GOLDEN_ROOT OR
    NOT DEFINED ARTIFACT_ROOT)
   message(FATAL_ERROR "WP33 example acceptance is missing arguments")
@@ -139,10 +140,28 @@ foreach(relative IN LISTS example_files)
      NOT NATIVE_TARGET STREQUAL "windows-x64")
     continue()
   endif()
+  set(run_artifact_root "${ARTIFACT_ROOT}/run/${example_name}")
   execute_process(COMMAND "${CMAKE_COMMAND}" -E env
       "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_LIBRARY_ROOT}"
-      "ROCKET_ARTIFACT_ROOT=${ARTIFACT_ROOT}/run/${example_name}"
-      "${ROCKETC}" run "${relocated}"
+      "ROCKET_ARTIFACT_ROOT=${run_artifact_root}"
+      "${ROCKETC}" build "${relocated}"
+    WORKING_DIRECTORY "${relocated}"
+    RESULT_VARIABLE build_result OUTPUT_VARIABLE build_output
+    ERROR_VARIABLE build_error)
+  if(NOT build_result EQUAL 0)
+    message(FATAL_ERROR
+      "WP33 runnable example build failed for ${relative}:\n${build_output}${build_error}")
+  endif()
+  set(executable
+    "${run_artifact_root}/rocket3_graphics_ui/.rocketc/targets/${NATIVE_TARGET}/rocket3-graphics-ui-showcase${EXECUTABLE_SUFFIX}")
+  if(NATIVE_TARGET STREQUAL "windows-x64" AND
+     EXISTS "${SOFTWARE_OPENGL_ROOT}/opengl32.dll")
+    file(COPY "${SOFTWARE_OPENGL_ROOT}/opengl32.dll"
+      "${SOFTWARE_OPENGL_ROOT}/libgallium_wgl.dll"
+      DESTINATION
+        "${run_artifact_root}/rocket3_graphics_ui/.rocketc/targets/${NATIVE_TARGET}")
+  endif()
+  execute_process(COMMAND "${executable}"
     WORKING_DIRECTORY "${relocated}"
     RESULT_VARIABLE run_result OUTPUT_VARIABLE run_output
     ERROR_VARIABLE run_error)
