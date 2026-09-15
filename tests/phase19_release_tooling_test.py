@@ -66,7 +66,7 @@ def main() -> int:
     workflow = (root / ".github" / "workflows" / "phase19-native.yml").read_text()
     for value in (
         "windows-2025-vs2026", "ubuntu-24.04", "ubuntu-24.04-arm",
-        "macos-15", "phase19_bootstrap.py", "phase19_cross_sdk.py",
+        "macos-14", "phase19_bootstrap.py", "phase19_cross_sdk.py",
         "phase19_package.py",
     ):
         check(value in workflow, f"native workflow omits {value}")
