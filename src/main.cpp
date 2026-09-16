@@ -337,6 +337,7 @@ int compileBootstrap(const fs::path& source, const fs::path& output,
 #else
   if (!assembly && outputKind != rocket::PackageOutputKind::StaticLibrary) {
 #if defined(__APPLE__)
+    arguments.push_back("-fuse-ld=lld");
     arguments.push_back("-Wl,-headerpad_max_install_names");
     arguments.push_back(ROCKETC_CXX_STANDARD_LIBRARY);
     for (const char* library : {"-lcurl", "-lcrypto", "-licuuc",

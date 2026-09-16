@@ -490,8 +490,9 @@ def main() -> int:
         '"-nostdinc++", "-isystem", ROCKETC_CXX_STANDARD_INCLUDE'
         in stage0_compile_source
         and '"-isysroot", ROCKETC_MACOS_SDK_ROOT' in stage0_compile_source
+        and 'arguments.push_back("-fuse-ld=lld")' in stage0_compile_source
         and "arguments.push_back(ROCKETC_CXX_STANDARD_LIBRARY)" in stage0_compile_source,
-        "macOS C++ stage0 does not compile and link with CMake's SDK libc++ selection",
+        "macOS C++ stage0 does not compile and link with the pinned SDK toolchain",
     )
     macos_link_sources = {
         "workflow": workflow,
