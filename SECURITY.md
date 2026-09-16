@@ -2,17 +2,15 @@
 
 ## Supported release
 
-The latest completed Rocket 2.1 portability release is the supported line.
-Rocket 1.x and 2.0 remain source-compatibility inputs, and the frozen Rocket
-2.0 Windows x64 SDK remains available to consumers such as Scroll2Roll. The
-accepted Rocket 2.1 target rows are Windows x64, Linux x64, Linux ARM64, and
-macOS ARM64; security fixes are released against the current 2.1 line.
+Rocket 3.0.0 is the supported source release. Rocket 1.x, 2.0, and 2.1 remain
+source-compatibility inputs, and the frozen Rocket 2.0 Windows x64 SDK remains
+available to consumers such as Scroll2Roll. The accepted Rocket 3.0 target rows
+are Windows x64, Linux x64, Linux ARM64, and macOS ARM64; security fixes are
+released against the current 3.0 line.
 
-Rocket 3.0 is still in development. Waves A through C are accepted on the
-Windows integration baseline; Wave D and the final non-Windows Rocket 3 target
-laboratory work remain in progress. Do not treat the accepted development
-baseline or provisional graphics/UI modules as a released security-support
-promise.
+The official release identity is the annotated repository source tag. No official
+binary distribution is published until a release signing certificate is
+explicitly configured and the artifact requirements below are satisfied.
 
 ## Reporting a vulnerability
 

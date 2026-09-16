@@ -141,7 +141,7 @@ try {
     $reportPath = Join-Path $work 'application-validation.json'
     [pscustomobject]@{
         schema = 'rocket-application-validation-1'
-        version = '2.1.0'
+        version = '3.0.0'
         target = $TargetAlias
         configuration = $Configuration
         package_count = $PackageCount + 1
@@ -151,7 +151,7 @@ try {
         ownership_concurrency_application = 'passed'
         compiler_sha256 = Get-Sha256 -Path $Compiler
     } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $reportPath -Encoding utf8
-    Write-Output "Rocket 2.1 application validation passed: $reportPath"
+    Write-Output "Rocket 3.0 application validation passed: $reportPath"
 } finally {
     $env:ROCKET_STAGE0 = $savedStage0
 }

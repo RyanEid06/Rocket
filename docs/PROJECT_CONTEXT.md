@@ -9,10 +9,9 @@ other repository documentation, see `DOCUMENTATION_STATUS.md`.
 - **Language:** Rocket
 - **Compiler:** `rocketc`
 - **Source extension:** `.rocket`
-- **Primary target:** Windows x64 integration baseline; Rocket 2.1 also accepts
-  Linux x64, Linux ARM64, and macOS ARM64 target rows.
+- **Primary targets:** Windows x64, Linux x64, Linux ARM64, and macOS ARM64.
 - **Goal:** Maintain the completed, beginner-friendly, statically typed,
-  LLVM-native Rocket 2.1 language and the additive Rocket 3.0 Wave D surface
+  LLVM-native Rocket 3.0.0 language and its additive graphics/UI surface
   across the accepted target contract without changing ABI v1.
 - **Possible casino goal:** A separate local, single-player, play-money desktop
   application may be planned independently of Rocket language work.
@@ -47,7 +46,9 @@ Rocket 3 WP34/F29 is accepted on implementation tree
 `a9e7ea261f25c4438eb3594312a79e88da99eda0`. It includes the accepted Wave D
 surface plus direct Windows x64, Linux x64, Linux ARM64, and macOS ARM64 native
 acceptance, supported cross builds with native destination execution, and the
-four-target visual matrix. WP35 release/documentation closure has not started.
+four-target visual matrix. WP35 closes the release identity, synchronized
+documentation, migration guide, and 167-requirement traceability matrix as the
+Rocket 3.0.0 source release tagged `v3.0.0`.
 
 Implemented:
 
@@ -1262,11 +1263,11 @@ Known limitations remain those in the implementation-state list above; no langua
 
 ## Current next task
 
-**No further Rocket packet is currently authorized. WP34/F29 is complete.
-WP35 documentation, release, and traceability closure is the next planned
-packet, but it must not start without separate authorization. Visual Studio
-extension 2.0.3, its reproducible CMake/script fallbacks, and the preserved
-owner demo edit remain baseline state.**
+**Rocket 3.0.0 is released. WP34/F29 platform acceptance and WP35 release,
+documentation, migration, and traceability closure are complete; no Rocket 3.0
+work packet remains open. Visual Studio extension 2.0.3, its reproducible
+CMake/script fallbacks, and the preserved owner demo edit remain baseline
+state.**
 
 ## New-chat prompt
 

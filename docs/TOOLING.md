@@ -1,4 +1,4 @@
-# Rocket Tooling and Packages 2.1 + Rocket 3.0 Wave C
+# Rocket Tooling and Packages 3.0
 
 Rocket 2.0 retains the Rocket 1.6 package ecosystem and Rocket 1.7
 language-server and developer-tooling contracts. Its ownership, concurrency,
@@ -13,11 +13,10 @@ host/target information. Package artifacts default to
 host/target with `R6004`. `TARGETS.md` defines supported cross paths and SDK
 discovery.
 
-The accepted Rocket 3 Wave C callable and UI surface is editor-neutral:
+The Rocket 3.0 callable and UI surface is editor-neutral:
 named/default arguments, labeled enum payloads, and the bundled graphics/UI
 modules use the same formatter, LSP metadata, signature help, and coded
-diagnostics. Wave C is accepted on the Windows integration baseline but is not
-yet a released Rocket 3.0 tooling contract. Use
+diagnostics. This is the released Rocket 3.0 tooling contract. Use
 `ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current syntax index and
 `DOCUMENTATION_STATUS.md` for the live/historical document boundary.
 

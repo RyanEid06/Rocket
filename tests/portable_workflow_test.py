@@ -143,13 +143,13 @@ def compatibility(args: argparse.Namespace) -> None:
     for release, name, command, pattern in cases:
         compiler_case(compiler, command, pattern, name)
         results.append({"release": release, "name": name, "status": "passed"})
-    report = work / f"rocket-2.1-{args.configuration.lower()}.json"
+    report = work / f"rocket-3.0-{args.configuration.lower()}.json"
     write_json(report, {
-        "schema": "rocket-compatibility-1", "version": "2.1.0",
+        "schema": "rocket-compatibility-1", "version": "3.0.0",
         "target": args.target, "configuration": args.configuration,
         "compiler_sha256": sha256_file(compiler), "cases": results,
     })
-    print(f"Rocket 2.1 compatibility passed: {len(results)} release-line cases ({report})")
+    print(f"Rocket 3.0 compatibility passed: {len(results)} release-line cases ({report})")
 
 
 def application(args: argparse.Namespace) -> None:
@@ -177,7 +177,7 @@ def application(args: argparse.Namespace) -> None:
     app = work / "application"
     (app / "src").mkdir(parents=True)
     (app / "rocket.toml").write_text(
-        '[package]\nname = "phase20_application"\nversion = "2.1.0"\n'
+        '[package]\nname = "phase20_application"\nversion = "3.0.0"\n'
         'license = "MIT"\nentry = "src/main.rocket"\n\n'
         f'[dependencies]\n{last} = "path:../{last}"\n',
         encoding="utf-8", newline="\n")
@@ -194,7 +194,7 @@ def application(args: argparse.Namespace) -> None:
         root = work / f"parallel_{suffix}"
         (root / "src").mkdir(parents=True)
         (root / "rocket.toml").write_text(
-            f'[package]\nname = "parallel_{suffix}"\nversion = "2.1.0"\n'
+            f'[package]\nname = "parallel_{suffix}"\nversion = "3.0.0"\n'
             'entry = "src/main.rocket"\n', encoding="utf-8", newline="\n")
         (root / "src" / "main.rocket").write_text(
             "fn main() -> Int:\n    return 0\n", encoding="utf-8", newline="\n")
@@ -213,7 +213,7 @@ def application(args: argparse.Namespace) -> None:
                   r"41[\r\n]+3[\r\n]+42", "ownership application")
     report = work / "application-validation.json"
     write_json(report, {
-        "schema": "rocket-application-validation-1", "version": "2.1.0",
+        "schema": "rocket-application-validation-1", "version": "3.0.0",
         "target": args.target, "configuration": args.configuration,
         "package_count": args.package_count + 1,
         "repeated_runs": args.iterations, "parallel_package_builds": 2,
@@ -221,7 +221,7 @@ def application(args: argparse.Namespace) -> None:
         "ownership_concurrency_application": "passed",
         "compiler_sha256": sha256_file(compiler),
     })
-    print(f"Rocket 2.1 application validation passed: {report}")
+    print(f"Rocket 3.0 application validation passed: {report}")
 
 
 def json_lines(text: str, label: str) -> list[dict[str, object]]:

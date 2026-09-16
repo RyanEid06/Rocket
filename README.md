@@ -16,7 +16,7 @@ This page is the current public summary. The complete documentation inventory
 and historical/current boundary are in
 [`DOCUMENTATION_STATUS.md`](docs/DOCUMENTATION_STATUS.md).
 
-## Rocket 3.0 WP34 status
+## Rocket 3.0.0 release status
 
 Wave D is accepted on implementation tree
 `4c06d544e457541b09acb92aeb37565f065c15f9`. WP29 `d115832`, WP31
@@ -41,16 +41,22 @@ stage2/stage3 IR SHA-256
 `ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
 Visual run
 [`35079104860`](https://github.com/RyanEid06/Rocket/actions/runs/35079104860)
-passed on Windows x64, Linux x64, Linux ARM64, and macOS ARM64. WP35 release
-documentation and traceability closure has not started.
+passed on Windows x64, Linux x64, Linux ARM64, and macOS ARM64.
+
+Rocket 3.0.0 is released from this accepted implementation through the
+`v3.0.0` source tag. WP35 closes the release identity, documentation, migration,
+and all 167 atomic requirement records without repeating WP34's full matrices.
+See [`RELEASE_3_0.md`](docs/RELEASE_3_0.md),
+[`MIGRATION_3_0.md`](docs/MIGRATION_3_0.md), and
+[`ROCKET_3_0_TRACEABILITY.md`](docs/ROCKET_3_0_TRACEABILITY.md).
 
 The accepted asset-store implementation is the reference-package module
 `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. The planned `rocket.assets` namespace is not a module in
 this checkout yet.
 
-WP34 full compatibility/platform acceptance is complete. WP35 is the next
-planned Rocket 3 packet and requires separate authorization.
+WP34 full compatibility/platform acceptance and WP35 release closure are
+complete. No Rocket 3.0 work packet remains open.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for

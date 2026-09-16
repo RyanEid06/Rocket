@@ -1,7 +1,7 @@
 # Rocket 2.0 Syntax Dictionary
 
 > Historical compatibility reference: this document records the frozen 2.0
-> syntax. The current accepted Rocket 3 Wave C surface is in
+> syntax. The released Rocket 3.0 surface is in
 > [ROCKET_3_0_SYNTAX_DICTIONARY.md](ROCKET_3_0_SYNTAX_DICTIONARY.md), and the
 > live/historical boundary is indexed by
 > [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md).

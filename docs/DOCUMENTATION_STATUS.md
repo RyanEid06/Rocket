@@ -1,11 +1,13 @@
 # Rocket Documentation Status
 
 **Audit date:** 2026-09-16
-**Baseline:** Rocket 3 WP34/F29 accepted implementation tree
+**Baseline:** Rocket 3.0.0 source release over WP34/F29 accepted implementation tree
 `a9e7ea261f25c4438eb3594312a79e88da99eda0`. Full native, cross-target,
 destination-execution, package/relocation, bootstrap, and visual acceptance is
-green. WP35 release documentation and traceability closure has not started.
-**Baseline inventory:** 61 Markdown, text, RST, ADOC, or configuration-like explanatory files before this ledger and the implementation plan were added.
+green. WP35 release documentation, migration, version identity, and atomic
+traceability closure is complete.
+**Current tracked explanatory inventory:** 68 Markdown, text, RST, or ADOC
+files, including the three Rocket 3.0 release-closure documents.
 
 This ledger is the index for the documentation consistency pass. It separates live
 guidance from versioned contracts and historical evidence so an old sentence can
@@ -23,6 +25,10 @@ For current status, use the documents in this order:
 4. [The Rocket 3 requirements](ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md) and
    [implementation plan](ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md) for
    packet-level scope and maturity.
+5. [The Rocket 3.0 release](RELEASE_3_0.md),
+   [migration guide](MIGRATION_3_0.md), and
+   [atomic traceability matrix](ROCKET_3_0_TRACEABILITY.md) for the released
+   contract and evidence closure.
 
 The current implemented syntax and API destination is
 [`ROCKET_3_0_SYNTAX_DICTIONARY.md`](ROCKET_3_0_SYNTAX_DICTIONARY.md). The
@@ -34,10 +40,11 @@ below retain their recorded facts; a historical banner points readers here.
 - Rocket 2.1 portability (Phase 19) is complete on the four documented
   production target rows. The frozen Rocket 2.0 Windows SDK remains available
   for Scroll2Roll compatibility.
-- Rocket 3 WP34/F29 is accepted on the implementation SHA above. GitHub
+- Rocket 3.0.0 is released from the WP34/F29 implementation SHA above. GitHub
   Actions native run `35079104907` passed four native hosts, four supported
   cross builds, and four destination-execution jobs; visual run `35079104860`
-  passed all four target rows. WP35 remains unstarted.
+  passed all four target rows. WP35 maps all 167 atomic requirements and closes
+  the release documentation without rerunning those immutable matrices.
 - The production compiler is `compiler/src/main.rocket`. C++ is the permanent
   reproducible stage0 plus runtime, native-adapter, language-server, and test
   infrastructure.
@@ -66,6 +73,7 @@ below retain their recorded facts; a historical banner points readers here.
 | `docs/MIGRATION_1_8.md` | HISTORICAL | Banner added | Versioned migration instructions |
 | `docs/MIGRATION_2_0.md` | HISTORICAL | Banner added | Versioned migration instructions |
 | `docs/MIGRATION_2_1.md` | VERSIONED/CURRENT | Banner added | Portability migration remains valid |
+| `docs/MIGRATION_3_0.md` | VERSIONED/CURRENT | Added | Additive Rocket 2.1-to-3.0 migration guidance |
 | `docs/PACKAGE_AUTHOR_GUIDE.md` | CURRENT | Updated | Current package author workflow |
 | `docs/PACKAGES.md` | VERSIONED/CURRENT | Updated | 2.1 package contract and Rocket 3 note |
 | `docs/PHASE_18_AUDIT.md` | HISTORICAL | Banner added | Frozen audit evidence |
@@ -83,6 +91,7 @@ below retain their recorded facts; a historical banner points readers here.
 | `docs/RELEASE_1_8.md` | HISTORICAL | Banner added | Old Phase 19-forward wording preserved |
 | `docs/RELEASE_2_0.md` | HISTORICAL | Banner added | Old “did not perform Phase 19” wording preserved |
 | `docs/RELEASE_2_1.md` | VERSIONED/CURRENT | Banner added | Portability release contract |
+| `docs/RELEASE_3_0.md` | VERSIONED/CURRENT | Added | Rocket 3.0.0 release evidence and limitations |
 | `docs/REPL.md` | EXPERIMENT | Updated | Explicitly non-guaranteed REPL experiment |
 | `docs/ROADMAP.md` | CURRENT | Updated | Current milestone authority |
 | `docs/ROCKET_1_0_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner/link updated | Frozen 1.0 compatibility reference |
@@ -93,14 +102,15 @@ below retain their recorded facts; a historical banner points readers here.
 | `docs/ROCKET_1_5_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner added | Frozen 1.5 compatibility reference |
 | `docs/ROCKET_1_8_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner added | Frozen 1.8 compatibility reference |
 | `docs/ROCKET_2_0_SYNTAX_DICTIONARY.md` | HISTORICAL | Banner/link updated | Frozen 2.0 syntax reference |
-| `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md` | CURRENT | Updated | Accepted Wave D barrier and WP34 handoff |
-| `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md` | CURRENT | Updated | Wave D status and intended namespace |
+| `docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md` | CURRENT | Updated | WP35 release closure and final packet status |
+| `docs/ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md` | CURRENT | Updated | Accepted release status and intended namespace |
+| `docs/ROCKET_3_0_TRACEABILITY.md` | VERSIONED/CURRENT | Added | All 167 atomic requirements mapped to accepted evidence |
 | `docs/ROCKET_3_0_WAVE_C_CALIBRATION.json` | EVIDENCE | Added | Machine-checked Wave C capacity/retention measurements and rationale |
 | `docs/SELF_HOSTING.md` | CURRENT | Updated | Production Rocket compiler and stage0 boundary |
 | `docs/SPEC.md` | VERSIONED/CURRENT | Updated | Normative grammar plus accepted Rocket 3 additions |
 | `docs/STDLIB.md` | VERSIONED/CURRENT | Updated | Stable modules plus accepted Rocket 3 modules |
 | `docs/TARGETS.md` | VERSIONED/CURRENT | Updated | Completed Phase 19 target contract |
-| `docs/TOOLING.md` | VERSIONED/CURRENT | Updated | 2.1 tooling plus Wave C syntax metadata |
+| `docs/TOOLING.md` | VERSIONED/CURRENT | Updated | Released 3.0 tooling and syntax metadata |
 | `editors/visualstudio/README.md` | CURRENT | Updated | Current client and LSP surface |
 | `editors/vscode/README.md` | CURRENT | Updated | Current client and LSP surface |
 | `examples/raylib_showcase/assets/about.txt` | EXAMPLE | Updated | Legacy compatibility label |
@@ -152,3 +162,24 @@ The documentation-only diff was reviewed on 2026-09-10.
   listed in the disposition table.
 
 Compiler, runtime, and test results are not claimed by this prose-only change.
+
+## WP35 release-closure verification
+
+The WP35 release closure was verified on 2026-09-16 without repeating WP34's
+full accepted matrices.
+
+- **Release identity:** the focused Windows Release configure/build completed,
+  the built compiler reported `rocketc 3.0.0`, and
+  `phase19_release_tooling|cli_version` passed `2/2`.
+- **Atomic traceability:** all 167 unique requirement IDs are present in
+  `ROCKET_3_0_TRACEABILITY.md`; no requirement is omitted.
+- **Documentation links:** the 36 changed/new Markdown files passed a local
+  path-target check with zero missing targets.
+- **Script syntax:** five changed Python files and two changed PowerShell files
+  passed parser-only syntax checks.
+- **Formatting:** `git diff --check` passed; line-ending notices are normal
+  Windows checkout warnings.
+- **Scope:** WP35 updates release identity, packaging/workflow metadata,
+  release-focused tests, and current-facing documentation. It reuses the
+  immutable WP34 native/visual acceptance evidence instead of rerunning the
+  full Debug/Release and cross-platform matrices.

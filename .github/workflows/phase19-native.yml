@@ -391,8 +391,8 @@ jobs:
             out/phase19/bootstrap/${{ matrix.target }}-release/bootstrap-report.json
             out/phase19/bootstrap/${{ matrix.target }}-release/SHA256SUMS.txt
             out/phase19/package/package-report-${{ matrix.target }}.json
-            out/phase19/package/rocket-2.1.0-${{ matrix.target }}.zip
-            out/phase19/package/rocket-2.1.0-${{ matrix.target }}.tar.xz
+            out/phase19/package/rocket-3.0.0-${{ matrix.target }}.zip
+            out/phase19/package/rocket-3.0.0-${{ matrix.target }}.tar.xz
 
   cross-acceptance:
     name: ${{ matrix.host }} to ${{ matrix.target }} cross acceptance

@@ -9546,7 +9546,7 @@ fn build_cache_key(package: PackageInfo, target_sdk: String) -> String:
         return ""
     let material = string.builder()
     string.builder_append(material, "rocket-build-cache-1\n")
-    string.builder_append(material, "compiler-version=2.1.0\n")
+    string.builder_append(material, "compiler-version=3.0.0\n")
     string.builder_append(material, string.concat("compiler-sha256=", string.concat(compiler_digest, "\n")))
     string.builder_append(material, string.concat("source-sha256=", string.concat(source_digest, "\n")))
     string.builder_append(material, string.concat("target=", string.concat(package.target_alias, "\n")))
@@ -10145,7 +10145,7 @@ fn verify_package_graph(input: String) -> Int:
             return 1
 
 fn print_help() -> Unit:
-    print("Rocket compiler 2.1.0")
+    print("Rocket compiler 3.0.0")
     print("usage: rocketc <check|build|run|test|fmt|new|resolve|tree|audit|doc|coverage|profile|benchmark|login|logout|publish|registry|emit-ir|emit-asm|emit-header|bind|target> [arguments]")
     print("  check <path>        parse and type-check a source file or package")
     print("  build <path> [--target alias-or-triple] [--target-sdk directory] build a target-qualified artifact")
@@ -10202,7 +10202,7 @@ fn main() -> Int:
         print_help()
         return 0
     if collections.length(arguments) == 1 and arguments[0] == "--version":
-        print("rocketc 2.1.0")
+        print("rocketc 3.0.0")
         return 0
     if collections.length(arguments) > 0 and contains_string(["coverage", "profile", "benchmark"], arguments[0]):
         return forward_package_command(arguments)

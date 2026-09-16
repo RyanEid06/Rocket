@@ -1,2 +1,2 @@
-Rocket 1.4 compatibility showcase: safe graphics, input, resources, callbacks,
-timing, audio, and the Wave C typed asset-store reference package.
+Rocket compatibility showcase: legacy raylib coverage plus the Rocket 3.0
+typed asset-store reference package.

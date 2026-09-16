@@ -1,7 +1,7 @@
 # Rocket 3.0 Graphics, UI, and Language-Ergonomics Requirements
 
-**Status:** Approved requirements baseline for integrated Rocket 3.0 development
-on the accepted Rocket 2.1 portability baseline.
+**Status:** Accepted Rocket 3.0.0 release requirements on the Rocket 2.1
+portability baseline.
 
 **Release identity:** The work defined here targets Rocket 3.0.0. Its predecessor
 is the accepted Rocket 2.1 portability baseline at
@@ -13,12 +13,13 @@ is the accepted Rocket 2.1 portability baseline at
 indexed by `docs/DOCUMENTATION_STATUS.md`; the accepted syntax/API surface is
 summarized in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
 
-**WP34 status (2026-09-16):** F02-F29 reached final `ACCEPTED` maturity on
+**Release status (2026-09-16):** F02-F29 reached final `ACCEPTED` maturity on
 implementation tree `a9e7ea261f25c4438eb3594312a79e88da99eda0`.
 Native Actions run `35079104907` passed Windows x64, Linux x64, Linux ARM64,
 and macOS ARM64; all supported cross builds and native destination execution;
 bootstrap; and package/relocation. Visual run `35079104860` passed the same
-four target rows. WP35 release and traceability work remains unstarted.
+four target rows. WP35 accepted GOV, F01, and F30 and closed all 167 atomic
+requirements in `ROCKET_3_0_TRACEABILITY.md`.
 
 ## 1. Purpose
 

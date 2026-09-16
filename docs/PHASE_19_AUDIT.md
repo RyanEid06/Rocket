@@ -4,7 +4,8 @@
 > portability evidence. Current status is maintained in
 > [DOCUMENTATION_STATUS.md](DOCUMENTATION_STATUS.md), [ROADMAP.md](ROADMAP.md),
 > [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md), and the
-> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md).
+> [Rocket 3.0 dictionary](ROCKET_3_0_SYNTAX_DICTIONARY.md), and
+> [Rocket 3.0 release](RELEASE_3_0.md).
 
 Phase 19 was completed by owner direction on 2026-08-29. This document is the
 authoritative portability requirement map and completion record. It starts from

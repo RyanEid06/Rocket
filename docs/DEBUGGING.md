@@ -10,10 +10,10 @@ retains optimized debug locations. The adjacent `*.rocket.map.json` file uses
 schema `rocket-source-map-1` and records the optimization mode, native Rocket
 symbol, declaration, and executable source locations.
 
-This debugging contract is current for Rocket 2.1 and the accepted Rocket 3
-Wave C. The production compiler remains Rocket source, while CodeView/DWARF,
+This debugging contract is current for Rocket 3.0.0. The production compiler
+remains Rocket source, while CodeView/DWARF,
 coverage, profile, and host-process integration remain explicit native tooling
-services. Wave C does not introduce a separate debugger protocol.
+services. Rocket 3.0 does not introduce a separate debugger protocol.
 
 The workflow is editor neutral:
 

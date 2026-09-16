@@ -98,16 +98,16 @@ try {
 
     $reportDirectory = $OutputDirectory
     New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
-    $reportPath = Join-Path $reportDirectory "rocket-2.1-$configurationName.json"
+    $reportPath = Join-Path $reportDirectory "rocket-3.0-$configurationName.json"
     [pscustomobject]@{
         schema = 'rocket-compatibility-1'
-        version = '2.1.0'
+        version = '3.0.0'
         target = $TargetAlias
         configuration = $Configuration
         compiler_sha256 = Get-Sha256 -Path $Compiler
         cases = $results
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $reportPath -Encoding utf8
-    Write-Output "Rocket 2.1 compatibility passed: $($results.Count) release-line cases ($reportPath)"
+    Write-Output "Rocket 3.0 compatibility passed: $($results.Count) release-line cases ($reportPath)"
 } finally {
     $env:ROCKET_STAGE0 = $savedStage0
 }

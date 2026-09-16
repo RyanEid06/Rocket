@@ -607,3 +607,18 @@ than suppressing it. This preserves reproducibility while satisfying Apple
 dynamic-library, debugger, and crash-symbol identity requirements. Rocket-owned
 Mach-O links reserve install-name header padding for deterministic SDK
 relocation rewrites.
+
+## D035 - Rocket 3.0.0 source release and binary-signing boundary
+
+**Accepted 2026-09-16.** Rocket 3.0.0 is released from the accepted WP34/F29
+implementation tree after WP35 synchronizes the public documentation,
+migration guidance, release identity, and all 167 atomic requirement records.
+The `v3.0.0` annotated tag is the durable source-release identity. WP34 native
+run `35079104907` and visual run `35079104860` remain the implementation and
+platform acceptance evidence; WP35 does not rerun those full matrices.
+
+No official binary release is claimed without a configured signing
+certificate. The four WP34 package archives and their SHA-256 values are
+acceptance candidates and short-lived CI evidence, not signed permanent
+downloads. This preserves the existing security policy instead of fabricating
+signatures or weakening the artifact gate for the source release.

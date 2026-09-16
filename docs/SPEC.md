@@ -1,8 +1,8 @@
-# Rocket Language Specification 2.1 + Rocket 3.0 Wave C
+# Rocket Language Specification 3.0
 
-This document is normative for the completed Rocket 2.1 baseline plus the
-accepted Rocket 3 Wave C additions. Rocket 3.0 is still in development; the
-current copyable surface is indexed by `ROCKET_3_0_SYNTAX_DICTIONARY.md`.
+This document is normative for Rocket 3.0.0, including the completed Rocket 2.1
+baseline and the additive Rocket 3 language and library surface. The copyable
+surface is indexed by `ROCKET_3_0_SYNTAX_DICTIONARY.md`.
 
 Rocket 1.0 syntax and semantics remain frozen. Compatible 1.x releases
 may clarify wording or add APIs without changing valid 1.0 program behavior;
@@ -13,9 +13,9 @@ the Rocket 1.6 package metadata and source-selection contract. Rocket 1.4 and
 Rocket 2.1 adds the target and portability contract in `TARGETS.md` without
 changing the frozen grammar or runtime ABI v1.
 
-Wave B added named/default callable ergonomics and labeled enum payloads. Wave C
-adds the bundled graphics/UI source modules described below without changing
-runtime ABI v1.
+Rocket 3 adds named/default callable ergonomics, labeled enum payloads, and the
+bundled graphics/UI source modules described below without changing runtime ABI
+v1.
 
 ## Layout and comments
 

@@ -3,8 +3,8 @@
 Rocket accepts focused compiler, runtime, standard-library, package, tooling,
 test, and documentation changes. Read `docs/DOCUMENTATION_STATUS.md`,
 `docs/PROJECT_CONTEXT.md`, the relevant specification, and `docs/CHARTER.md`
-before editing. Current Rocket 3.0 work is additive Wave C work on the accepted
-Wave B `master` baseline.
+before editing. Rocket 3.0.0 is the current released source line on `master`;
+new work must preserve its additive Rocket 2.1 and runtime ABI v1 contracts.
 
 ## Change contract
 

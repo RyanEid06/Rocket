@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and verify a relocatable, reproducible native Rocket 2.1 SDK."""
+"""Build and verify a relocatable, reproducible native Rocket SDK."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 PHASE19_ROOT = (ROOT / "out" / "phase19").resolve()
-VERSION = "2.1.0"
+VERSION = "3.0.0"
 TARGETS = {
     "windows-x64": ("x86_64-pc-windows-msvc", ".exe", ".lib"),
     "linux-x64": ("x86_64-unknown-linux-gnu", "", ".a"),

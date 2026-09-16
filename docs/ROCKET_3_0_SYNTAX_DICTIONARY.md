@@ -1,10 +1,9 @@
 # Rocket 3.0 Syntax and API Dictionary
 
-> **Current development reference:** This dictionary describes the accepted Rocket
-> 3 Wave C surface on the completed Rocket 2.1 baseline. Wave D is ready but
-> Rocket 3.0 is not a final release contract. Current repository status is in
-> DOCUMENTATION_STATUS.md, and packet scope is in the Rocket 3 requirements and
-> implementation plan.
+> **Current release reference:** This dictionary describes the Rocket 3.0.0
+> syntax and API surface on the completed Rocket 2.1 baseline. Current
+> repository status is in DOCUMENTATION_STATUS.md, and the complete release
+> traceability is in ROCKET_3_0_TRACEABILITY.md.
 
 The normative grammar and semantics remain in docs/SPEC.md, and stable library
 signatures remain in docs/STDLIB.md. The older 1.0-1.8 and 2.0 dictionaries are
@@ -361,15 +360,9 @@ The Rocket 3 design's rocket.assets / stdlib/rocket/assets names are an
 intended future namespace, not an import that exists in this checkout. Use the
 reference package path above until a later packet promotes a standard module.
 
-## 5. Wave D boundary
+## 5. Release boundary
 
-Wave C is accepted on the integrated Windows baseline. Wave D starts from the
-published master status commit and continues the next dependency-safe queues:
-
-- Ryan WP29: unified errors and lifetime hardening; and
-- Eddy WP31 -> WP32 -> WP33: performance budgets, visual regression, and
-  examples/showcase.
-
-WP34/F29 final cross-target acceptance completed on 2026-09-16. This dictionary
-documents the accepted implemented surface; WP35 release/documentation closure
-remains a separate, unstarted packet.
+WP34/F29 final cross-target acceptance completed on 2026-09-16, and WP35
+released this accepted surface as Rocket 3.0.0. The package-local typed asset
+store remains the intentional namespace limitation described above; it was not
+silently promoted to a standard-library import.

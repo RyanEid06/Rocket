@@ -360,7 +360,7 @@ section 5A assigns it to the current owner/wave.
 | WP32 | F27 | Visual scenes, image I/O, goldens, CI | COMPLETE / WAVE-GREEN (`29e843f`) | Eddy | D |
 | WP33 | F28 | Focused examples and premium showcase | COMPLETE / WAVE-GREEN (`f1363ba`) | Eddy | D |
 | WP34 | F29 | Full compiler/platform/compatibility acceptance | COMPLETE / ACCEPTED (`a9e7ea2`; runs `35079104907`, `35079104860`) | Ryan + Eddy | FINAL |
-| WP35 | F30 | Documentation, release, traceability closure | READY / RED; not started | release owner after WP34 | post-parallel |
+| WP35 | F30 | Documentation, release, traceability closure | COMPLETE / RELEASED | release owner after WP34 | post-parallel |
 
 ## 5A. Ryan/Eddy dependency-safe execution schedule
 
@@ -1511,7 +1511,7 @@ gates.
   [`35079104860`](https://github.com/RyanEid06/Rocket/actions/runs/35079104860)
   passed all four native target rows.
 - The fixes preserved every gate: no required test was skipped, weakened, or
-  replaced. WP35 remains separate and unstarted.
+  replaced. WP35 later reused this immutable acceptance evidence for release.
 
 ### WP35 - Documentation and Rocket 3.0 release
 
@@ -1522,6 +1522,16 @@ and tag only after a clean accepted release state.
 
 **Checkpoint:** `release: complete Rocket 3.0`
 
+**Accepted 2026-09-16.** Release identity is 3.0.0; current documentation,
+migration guidance, roadmap/context, examples, requirements, and this plan are
+synchronized. `ROCKET_3_0_TRACEABILITY.md` maps all 167 atomic requirements to
+implementation, tests, documentation, target evidence, ownership, and accepted
+state. `RELEASE_3_0.md` records the WP34 run IDs, exact counts, canonical IR and
+package hashes, timings, commands, and limitations. The annotated source tag is
+`v3.0.0`; no signed binary distribution is claimed without a configured
+certificate. Focused release/version checks passed without repeating WP34's
+full implementation matrices.
+
 ## 8. Atomic traceability summary
 
 This table is the group-level index. Each packet expands its atomic IDs with
@@ -1529,7 +1539,7 @@ file/test/doc/evidence links when executed.
 
 | Feature | Owning packet(s) | Foundation state | Final acceptance packet |
 | --- | --- | --- | --- |
-| F01 Governance | WP00, WP09 | WP09 INTEGRATION-READY baseline: accepted Rocket 2.1 ancestry, target/toolchain/ABI/SDK/package/raylib layout, frozen-package hashes, and focused compatibility evidence recorded above | WP35 |
+| F01 Governance | WP00, WP09, WP35 | ACCEPTED: Rocket 2.1 ancestry, target/toolchain/ABI/SDK/package/raylib layout, additive language policy, release identity, migration, and release limitations are recorded in the requirements, decisions, and release documents | WP35 complete |
 | F02 Named arguments | WP10, WP11A | GREEN: all function/method/extern/struct, closure/IIFE, registered standard-intrinsic, built-in, and labeled-enum named calls; public and compiler-owned names, cross-module enum labels, deterministic diagnostics, written evaluation order, pre-MIR positional ABI normalization, formatter/LSP/docs/editor parity, Debug/Release `228/228`, LLVM-disabled `19/19`, and matching stage2/stage3 IR `d6a8e980c386837045a0e84ad997ac3024149663e697ed76593d16be968c632f` | WP34 |
 | F03 Default arguments | WP11 | GREEN: ordinary function/method defaults in stage0 and self-host; declaration-context and earlier-parameter binding, generic specialization, written-before-default evaluation, pre-MIR ABI normalization, cross-module metadata, stable diagnostics/exclusions, formatter/LSP/docs parity, Debug/Release `226/226`, LLVM-disabled `18/18`, and matching stage2/stage3 IR `4aa87fe969ff42d8806c938a24106d2a14bad91a76f23cbda063ae27ed8eb210` | WP34 |
 | F04 `std.math` | WP12 | LOCAL-GREEN: final Float/Int standard-module surface, source-stable parameter names, stage0/self-host/runtime/LLVM parity, LSP/docs metadata, documented IEEE-754 and range semantics, 76-vector Windows stage0/self-host matrices, Debug/Release `231/231`, LLVM-disabled predecessor `4/4`, target source/lowering evidence `2/2`, and matching stage2/stage3 IR `bac28a1ae6bb945ae92686e0d6aea9441bc86f58e8e06c5b316f187cbd669ef7`; native Linux/macOS numeric confirmation of R3-F04-008 is pending WP34/F29 target-lab acceptance | WP34 |
@@ -1558,7 +1568,7 @@ file/test/doc/evidence links when executed.
 | F27 Visual regression | WP07, WP08, WP32 | WAVE-GREEN: canonical scenes, PNG I/O/capture, strict Windows goldens, portability metrics, guarded golden updates, artifacts, and CI passed the combined Wave D gates | WP34 |
 | F28 Examples/showcase | WP33 | WAVE-GREEN: focused public-API examples and the neutral premium showcase passed compile, runtime, package, relocation, and visual checks | WP34 |
 | F29 Platform/compatibility | WP09, WP34 | ACCEPTED: all four native hosts passed Debug/Release `288/288`, LLVM-disabled stage0 Debug/Release `209/209`, deterministic bootstrap (184 Windows/Linux, 185 macOS), package/relocation, and visual acceptance; four supported cross builds passed with native destination execution in runs `35079104907` and `35079104860` | WP34 complete |
-| F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
+| F30 Docs/release/traceability | WP00, WP35 | ACCEPTED: current documentation synchronized, release and migration guides published, all 167 atomic IDs mapped, version set to 3.0.0, and annotated source tag defined | WP35 complete |
 
 ## 9. Current parallel handoff
 
@@ -1566,26 +1576,27 @@ This section replaces the former single mutable next-packet slot. It is updated
 only by Ryan during a successful full wave barrier, after both lane branches have
 been integrated and verified. Ordinary packet chats never rotate this section.
 
-**Current common baseline:** WP34/F29 is accepted on implementation tree
+**Current common baseline:** Rocket 3.0.0 is released from WP34/F29 accepted implementation tree
 `a9e7ea261f25c4438eb3594312a79e88da99eda0`. Native run `35079104907` and
 visual run `35079104860` satisfy the full platform/compatibility contract while
-preserving the accepted Wave D ancestry.
+preserving the accepted Wave D ancestry; WP35 adds release/documentation closure.
 
-**Current wave:** WP34 COMPLETE; WP35 not started
+**Current wave:** WP34 COMPLETE; WP35 COMPLETE / RELEASED
 
 **Current shared lane:**
 
 1. **COMPLETE: WP34 - Full compatibility and platform acceptance - ACCEPTED**
-2. No additional Rocket packet is authorized by this handoff.
-3. WP35 is the next planned packet but requires separate authorization.
+2. **COMPLETE: WP35 - Documentation, release, and traceability - RELEASED**
+3. No Rocket 3.0 packet remains open.
 
 **Wave D barrier:** COMPLETE. The integrated Windows Debug/Release,
 LLVM-disabled predecessor, native bootstrap, conformance, compatibility,
 application, hardening, package/relocation, performance, visual, and example
 gates are recorded in the Wave D acceptance block above.
 
-**WP34 acceptance:** complete on the exact pushed implementation SHA above.
-Do not start WP35 from this handoff.
+**Rocket 3.0 acceptance:** complete. WP34 supplies immutable implementation and
+platform evidence; WP35 supplies version, release, migration, and traceability
+closure.
 
 When a barrier succeeds, Ryan replaces only the current baseline/wave/lane block
 above with the next wave's exact queues from section 5A and records the new master

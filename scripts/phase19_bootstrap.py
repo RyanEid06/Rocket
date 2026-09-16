@@ -248,7 +248,7 @@ def validate_stages(
                 pattern="parser tests passed", label=f"stage{index}-parser"
             )
             validations += 2
-    if len(set(versions)) != 1 or versions[0] != "rocketc 2.1.0":
+    if len(set(versions)) != 1 or versions[0] != "rocketc 3.0.0":
         raise BootstrapFailure(f"bootstrap version mismatch: {versions}")
     if len(set(target_outputs)) != 1:
         raise BootstrapFailure("stage0-stage3 target --verbose output differs")
@@ -453,7 +453,7 @@ def main() -> int:
 
     report: dict[str, object] = {
         "schema": "rocket-bootstrap-report-2",
-        "version": "2.1.0",
+        "version": "3.0.0",
         "configuration": arguments.configuration,
         "host": detected,
         "target": arguments.target,
@@ -540,7 +540,7 @@ def main() -> int:
     )
     checksum_lines = [
         "schema  rocket-bootstrap-report-2",
-        "version  rocketc 2.1.0",
+        "version  rocketc 3.0.0",
         f"host  {detected}",
         f"target  {arguments.target}",
         f"stage1{executable_suffix}  {stage_hashes['stage1']}",

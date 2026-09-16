@@ -1,4 +1,4 @@
-# Rocket Standard Library 2.1 + Rocket 3.0 Wave C
+# Rocket Standard Library 3.0
 
 The stable library combines typed host-backed modules with bundled ordinary
 Rocket source modules, including the Rocket 1.2 dot-call additions, the
@@ -8,7 +8,7 @@ these signatures and their runtime ABI v1 mappings. Import a module by
 its stable name; no downloaded dependency is
 required:
 
-Rocket 3 Wave C includes the callable ergonomics and bundled graphics/UI modules
+Rocket 3.0 includes the callable ergonomics and bundled graphics/UI modules
 described below without changing runtime ABI v1. The current copyable index is
 `ROCKET_3_0_SYNTAX_DICTIONARY.md`; the complete file disposition is in
 `DOCUMENTATION_STATUS.md`.
@@ -44,7 +44,7 @@ compiler, signature help, and generated documentation use one matching metadata
 inventory. Changing a public standard-library parameter name is therefore a
 source-versioning event even though runtime ABI v1 remains unchanged.
 
-## `std.math` (Rocket 3 Wave C)
+## `std.math` (Rocket 3.0)
 
 `std.math` is a compiler-owned module with no graphics policy. The accepted
 surface includes `pi()`, `tau()`, `e()`; Float `abs`, `min`, `max`, `clamp`, and

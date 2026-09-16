@@ -254,7 +254,7 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
     )
     report: dict[str, object] = {
         "schema": "rocket-cross-sdk-report-1",
-        "version": "2.1.0",
+        "version": "3.0.0",
         "host": host,
         "target": target,
         "triple": triple,

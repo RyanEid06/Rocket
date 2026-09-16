@@ -3,8 +3,8 @@
 This directory describes the tools needed to build the compiler. Large archives and extracted programs are deliberately ignored by Git.
 
 The current product status is documented in `../README.md` and
-`../docs/DOCUMENTATION_STATUS.md`. Rocket 2.1 portability is complete and the
-Rocket 3 Wave B work uses the same pinned toolchain; this file remains focused
+`../docs/DOCUMENTATION_STATUS.md`. Rocket 3.0.0 uses the same accepted portable
+target contract and pinned toolchain as Rocket 2.1; this file remains focused
 on reproducible dependency setup rather than milestone history.
 
 ## One-time setup

@@ -1,9 +1,9 @@
 # The Rocket Book
 
-This compact book is the supported learning path for the completed Rocket 2.1
-baseline and the accepted Rocket 3 Wave C surface. Rocket 3.0 is not a final
-release; the linked specifications remain normative when a
-tutorial explanation is abbreviated. The current-surface index is
+This compact book is the supported learning path for Rocket 3.0.0. The release
+is additive to the completed Rocket 2.1 baseline; the linked specifications
+remain normative when a tutorial explanation is abbreviated. The current-
+surface index is
 `ROCKET_3_0_SYNTAX_DICTIONARY.md` and the complete disposition of repository
 documentation is in `DOCUMENTATION_STATUS.md`.
 
@@ -56,7 +56,7 @@ small `unsafe:` regions, and expose safe `Result`-returning wrappers. Resource
 tokens need exactly-one cleanup. Start with `FFI_GUIDE.md`; the raylib adapter
 and Orbital Workshop example demonstrate a substantial wrapper and application.
 
-## 7. Graphics and UI (Rocket 3 Wave C)
+## 7. Graphics and UI (Rocket 3.0)
 
 Use `rocket.graphics` for value-owned `Vec2`, `Rect`, `Color`, typography, and
 `VirtualCanvas` data. `rocket.graphics.shapes`, `rocket.graphics.input`, and
@@ -88,7 +88,8 @@ default), deterministic exhaustion, and explicit cleanup. The planned
 Use `TOOLING.md` for the LSP, formatter, debugger, coverage, profiles, and
 benchmarks; `STDLIB.md` for stable APIs; `DIAGNOSTICS.md` for stable codes;
 `SPEC.md` for the language; and
-`ROCKET_3_0_SYNTAX_DICTIONARY.md` for the accepted Wave C additions. The
+`ROCKET_3_0_SYNTAX_DICTIONARY.md` for the released Rocket 3 additions. The
 completed Rocket 2.1 target contract is in `TARGETS.md`, with its evidence in
-`PHASE_19_AUDIT.md`; versioned release and migration files are historical
-contracts and are indexed by `DOCUMENTATION_STATUS.md`.
+`PHASE_19_AUDIT.md`. The current release and migration guides are
+`RELEASE_3_0.md` and `MIGRATION_3_0.md`; older versioned contracts are indexed
+by `DOCUMENTATION_STATUS.md`.

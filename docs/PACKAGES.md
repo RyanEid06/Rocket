@@ -8,11 +8,11 @@ bounded input processing and the local artifact cache described below.
 Rocket 2.1 adds deterministic target-conditioned source and native-input
 sections under the unchanged security and reproducibility boundary.
 
-Rocket 3 Wave C does not change package identity, lockfile, registry, or native
-input rules. Its accepted graphics/UI source modules are bundled or package
+Rocket 3.0 does not change package identity, lockfile, registry, or native
+input rules. Its graphics/UI source modules are bundled or package
 sources under the existing graph rules; the typed asset store currently lives
-in the reference package as `src.rocket_assets`. Wave C is additive to this
-contract and is accepted on the Windows integration baseline. See
+in the reference package as `src.rocket_assets`. Rocket 3.0 is additive to this
+contract and accepted on all four production targets. See
 `ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current API
 index and `DOCUMENTATION_STATUS.md` for document ownership.
 

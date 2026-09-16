@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import inspect
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -38,6 +39,84 @@ def main() -> int:
         shutil.rmtree(work)
     work.mkdir(parents=True)
 
+    release_version = "3.0.0"
+    release_markers = {
+        "CMake project": (root / "CMakeLists.txt", f"project(Rocket VERSION {release_version}"),
+        "self-host compiler": (root / "compiler" / "src" / "main.rocket", f"rocketc {release_version}"),
+        "compiler package": (root / "compiler" / "rocket.toml", f'version = "{release_version}"'),
+        "native package": (root / "scripts" / "phase19_package.py", f'VERSION = "{release_version}"'),
+        "bootstrap report": (root / "scripts" / "phase19_bootstrap.py", f'"version": "{release_version}"'),
+        "cross SDK report": (root / "scripts" / "phase19_cross_sdk.py", f'"version": "{release_version}"'),
+    }
+    for label, (path, marker) in release_markers.items():
+        check(marker in path.read_text(), f"{label} is not versioned as Rocket {release_version}")
+
+    requirements_source = (
+        root / "docs" / "ROCKET_3_0_GRAPHICS_UI_REQUIREMENTS.md"
+    ).read_text()
+    traceability_source = (root / "docs" / "ROCKET_3_0_TRACEABILITY.md").read_text()
+    atomic_ids = set(
+        re.findall(r"R3-(?:GOV|ISO|F\d{2})-\d{3}", requirements_source)
+    )
+    check(
+        len(atomic_ids) == 167,
+        f"Rocket 3 requirements contain {len(atomic_ids)} atomic IDs, expected 167",
+    )
+    missing_atomic_ids = sorted(
+        atomic_id for atomic_id in atomic_ids if atomic_id not in traceability_source
+    )
+    check(not missing_atomic_ids, f"Rocket 3 traceability omits {missing_atomic_ids}")
+    for relative, marker in (
+        ("docs/RELEASE_3_0.md", "Rocket 3.0.0 release"),
+        ("docs/MIGRATION_3_0.md", "Migrating from Rocket 2.1 to Rocket 3.0"),
+        ("docs/ROCKET_3_0_TRACEABILITY.md", "167 atomic requirements"),
+        ("README.md", "Rocket 3.0.0 is released"),
+        (
+            "docs/ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md",
+            "WP35 | F30 | Documentation, release, traceability closure | COMPLETE / RELEASED",
+        ),
+    ):
+        check(marker in (root / relative).read_text(), f"{relative} omits {marker}")
+    current_release_files = (
+        "README.md",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+        "dependencies/README.md",
+        "docs/BOOK.md",
+        "docs/CHARTER.md",
+        "docs/COMPILER_ARCHITECTURE.md",
+        "docs/CONCURRENCY.md",
+        "docs/DEBUGGING.md",
+        "docs/DIAGNOSTICS.md",
+        "docs/FFI_GUIDE.md",
+        "docs/LANGUAGE_SERVER.md",
+        "docs/PACKAGE_AUTHOR_GUIDE.md",
+        "docs/PACKAGES.md",
+        "docs/PROJECT_CONTEXT.md",
+        "docs/RAYLIB_TUTORIAL.md",
+        "docs/REPL.md",
+        "docs/ROADMAP.md",
+        "docs/ROCKET_3_0_SYNTAX_DICTIONARY.md",
+        "docs/SELF_HOSTING.md",
+        "docs/SPEC.md",
+        "docs/STDLIB.md",
+        "docs/TARGETS.md",
+        "docs/TOOLING.md",
+    )
+    stale_release_markers = (
+        "Rocket 3.0 is still in development",
+        "Rocket 3.0 is not a final release",
+        "WP35 remains unstarted",
+        "WP35 release/documentation closure has not started",
+        "WP35 release documentation and traceability closure has not started",
+        "requires separate authorization",
+        "Wave D remains development work",
+    )
+    for relative in current_release_files:
+        source = (root / relative).read_text()
+        for marker in stale_release_markers:
+            check(marker not in source, f"{relative} retains stale status: {marker}")
+
     dependency = json.loads((root / "dependencies" / "manifest.json").read_text())
     check(dependency["schemaVersion"] == 2, "dependency schema is not version 2")
     expected_targets = {"windows-x64", "linux-x64", "linux-arm64", "macos-arm64"}
@@ -67,7 +146,7 @@ def main() -> int:
     for value in (
         "windows-2025-vs2026", "ubuntu-24.04", "ubuntu-24.04-arm",
         "macos-14", "phase19_bootstrap.py", "phase19_cross_sdk.py",
-        "phase19_package.py",
+        "phase19_package.py", "rocket-3.0.0-${{ matrix.target }}",
     ):
         check(value in workflow, f"native workflow omits {value}")
     check(
