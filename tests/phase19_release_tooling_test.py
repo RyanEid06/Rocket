@@ -420,6 +420,44 @@ def main() -> int:
         "marker_path.chmod(marker_path.stat().st_mode | 0o111)" in dependency_bootstrap_source,
         "POSIX Ninja executable-mode restoration is not deterministic",
     )
+    dependency_bootstrap = load(
+        "dependency_bootstrap", root / "dependencies" / "bootstrap.py"
+    )
+    fake_installed = work / "dependency-installed"
+    fake_nsgl = (
+        fake_installed
+        / "raylib-6.0"
+        / "src"
+        / "external"
+        / "glfw"
+        / "src"
+        / "nsgl_context.m"
+    )
+    fake_nsgl.parent.mkdir(parents=True)
+    fake_nsgl.write_text(
+        "    window->context.nsgl.pixelFormat =\n"
+        "        [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];\n"
+        "    if (window->context.nsgl.pixelFormat == nil)\n"
+        "    {\n"
+        "        _glfwInputError(GLFW_FORMAT_UNAVAILABLE,\n"
+        '                        "NSGL: Failed to find a suitable pixel format");\n'
+        "        return GLFW_FALSE;\n"
+        "    }\n",
+        encoding="utf-8",
+    )
+    dependency_bootstrap.INSTALLED = fake_installed
+    dependency_bootstrap.apply_raylib_macos_nsgl_fallback()
+    patched_nsgl = fake_nsgl.read_text(encoding="utf-8")
+    check(
+        "Rocket: retry with the macOS software renderer" in patched_nsgl
+        and "NSOpenGLPFAAllowOfflineRenderers" in patched_nsgl,
+        "macOS raylib install does not fall back to a native software pixel format",
+    )
+    dependency_bootstrap.apply_raylib_macos_nsgl_fallback()
+    check(
+        fake_nsgl.read_text(encoding="utf-8") == patched_nsgl,
+        "macOS raylib renderer patch is not idempotent",
+    )
     sample = work / "sample-sdk"
     (sample / "bin").mkdir(parents=True)
     (sample / "bin" / "rocketc").write_text("compiler\n", encoding="utf-8")

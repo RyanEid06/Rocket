@@ -140,6 +140,68 @@ def ensure_executable_marker(marker_path: Path, marker: str) -> None:
     marker_path.chmod(marker_path.stat().st_mode | 0o111)
 
 
+def apply_raylib_macos_nsgl_fallback() -> None:
+    """Let GLFW use macOS's native software OpenGL renderer as a fallback.
+
+    Standard hosted macOS ARM64 environments expose a conforming OpenGL 3.2
+    software pixel format but no accelerated format.  GLFW 3.4 hard-requires
+    acceleration, so raylib cannot create even a hidden native window there.
+    Keep acceleration preferred and retry the identical format without that
+    single constraint only when the accelerated selection is unavailable.
+    """
+    source = (
+        INSTALLED
+        / "raylib-6.0"
+        / "src"
+        / "external"
+        / "glfw"
+        / "src"
+        / "nsgl_context.m"
+    )
+    text = source.read_text(encoding="utf-8")
+    marker = "Rocket: retry with the macOS software renderer"
+    if marker in text:
+        return
+    original = (
+        "    window->context.nsgl.pixelFormat =\n"
+        "        [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];\n"
+        "    if (window->context.nsgl.pixelFormat == nil)\n"
+        "    {\n"
+        "        _glfwInputError(GLFW_FORMAT_UNAVAILABLE,\n"
+        '                        "NSGL: Failed to find a suitable pixel format");\n'
+        "        return GLFW_FALSE;\n"
+        "    }\n"
+    )
+    replacement = (
+        "    window->context.nsgl.pixelFormat =\n"
+        "        [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];\n"
+        "    if (window->context.nsgl.pixelFormat == nil)\n"
+        "    {\n"
+        "        // Rocket: retry with the macOS software renderer when a\n"
+        "        // headless native host exposes no accelerated pixel format.\n"
+        "        for (int attributeIndex = 0; attributeIndex < index; attributeIndex++)\n"
+        "        {\n"
+        "            if (attribs[attributeIndex] != NSOpenGLPFAAccelerated)\n"
+        "                continue;\n"
+        "            attribs[attributeIndex] = NSOpenGLPFAAllowOfflineRenderers;\n"
+        "            break;\n"
+        "        }\n"
+        "        window->context.nsgl.pixelFormat =\n"
+        "            [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];\n"
+        "    }\n"
+        "    if (window->context.nsgl.pixelFormat == nil)\n"
+        "    {\n"
+        "        _glfwInputError(GLFW_FORMAT_UNAVAILABLE,\n"
+        '                        "NSGL: Failed to find a suitable pixel format");\n'
+        "        return GLFW_FALSE;\n"
+        "    }\n"
+    )
+    if original not in text:
+        raise SystemExit("raylib 6.0 NSGL pixel-format selection changed")
+    source.write_text(text.replace(original, replacement, 1), encoding="utf-8")
+    print("patched raylib 6.0 macOS software-renderer fallback")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", choices=("windows-x64", "linux-x64", "linux-arm64", "macos-arm64"))
@@ -164,6 +226,8 @@ def main() -> int:
     install(packages["ninja"], "ninja" + executable)
     install(packages["llvm"], "bin/llvm-config" + executable)
     install(manifest["shared"]["raylib"], "src/raylib.h")
+    if selected == "macos-arm64":
+        apply_raylib_macos_nsgl_fallback()
     print(f"pinned dependencies installed for {selected}")
     return 0
 
