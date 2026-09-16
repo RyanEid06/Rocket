@@ -1,9 +1,10 @@
 # Rocket Documentation Status
 
-**Audit date:** 2026-09-15
-**Baseline:** Rocket 3 Wave D accepted implementation tree
-`4c06d544e457541b09acb92aeb37565f065c15f9`. WP34/F29 full native-target
-acceptance is the only current Rocket 3 work.
+**Audit date:** 2026-09-16
+**Baseline:** Rocket 3 WP34/F29 accepted implementation tree
+`a9e7ea261f25c4438eb3594312a79e88da99eda0`. Full native, cross-target,
+destination-execution, package/relocation, bootstrap, and visual acceptance is
+green. WP35 release documentation and traceability closure has not started.
 **Baseline inventory:** 61 Markdown, text, RST, ADOC, or configuration-like explanatory files before this ledger and the implementation plan were added.
 
 This ledger is the index for the documentation consistency pass. It separates live
@@ -33,10 +34,10 @@ below retain their recorded facts; a historical banner points readers here.
 - Rocket 2.1 portability (Phase 19) is complete on the four documented
   production target rows. The frozen Rocket 2.0 Windows SDK remains available
   for Scroll2Roll compatibility.
-- Rocket 3 Wave D is accepted on the integrated Windows baseline at the
-  implementation SHA above. It completes unified error/lifetime hardening,
-  performance budgets, visual regression, and focused examples/showcase.
-  WP34/F29 remains the full native-target acceptance gate.
+- Rocket 3 WP34/F29 is accepted on the implementation SHA above. GitHub
+  Actions native run `35079104907` passed four native hosts, four supported
+  cross builds, and four destination-execution jobs; visual run `35079104860`
+  passed all four target rows. WP35 remains unstarted.
 - The production compiler is `compiler/src/main.rocket`. C++ is the permanent
   reproducible stage0 plus runtime, native-adapter, language-server, and test
   infrastructure.

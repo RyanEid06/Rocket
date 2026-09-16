@@ -13,14 +13,12 @@ is the accepted Rocket 2.1 portability baseline at
 indexed by `docs/DOCUMENTATION_STATUS.md`; the accepted syntax/API surface is
 summarized in `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`.
 
-**Wave D status (2026-09-15):** F24 error/lifetime hardening, F26 performance
-budgets, F27 visual regression, and F28 focused examples/showcase have reached
-`WAVE-GREEN` on implementation tree
-`4c06d544e457541b09acb92aeb37565f065c15f9`. Full Windows Debug/Release,
-LLVM-disabled predecessor, bootstrap, package/relocation, target-surface,
-native, application, and hardening evidence passes. Final `ACCEPTED` maturity
-and native Linux x64, Linux ARM64, and macOS ARM64 target-laboratory coverage
-remain governed by WP34/F29.
+**WP34 status (2026-09-16):** F02-F29 reached final `ACCEPTED` maturity on
+implementation tree `a9e7ea261f25c4438eb3594312a79e88da99eda0`.
+Native Actions run `35079104907` passed Windows x64, Linux x64, Linux ARM64,
+and macOS ARM64; all supported cross builds and native destination execution;
+bootstrap; and package/relocation. Visual run `35079104860` passed the same
+four target rows. WP35 release and traceability work remains unstarted.
 
 ## 1. Purpose
 

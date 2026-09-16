@@ -370,6 +370,6 @@ published master status commit and continues the next dependency-safe queues:
 - Eddy WP31 -> WP32 -> WP33: performance budgets, visual regression, and
   examples/showcase.
 
-WP34/F29 final cross-target acceptance remains a later gate. This dictionary
-therefore documents the accepted Wave C surface, not a claim that
-Rocket 3.0 is complete.
+WP34/F29 final cross-target acceptance completed on 2026-09-16. This dictionary
+documents the accepted implemented surface; WP35 release/documentation closure
+remains a separate, unstarted packet.

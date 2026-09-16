@@ -43,11 +43,11 @@ bootstraps deterministically through stage3, emits canonical LLVM IR, and links
 against the statically linked runtime ABI v1. The C++20 compiler remains the
 reproducible `stage0` implementation.
 
-Rocket 3 Wave D is accepted on implementation tree
-`4c06d544e457541b09acb92aeb37565f065c15f9`. It adds unified error/lifetime
-hardening, enforced performance budgets, visual regression, and focused public
-examples/showcase to the accepted Wave C surface. WP34/F29 full native-target
-acceptance is the only current Rocket 3 work.
+Rocket 3 WP34/F29 is accepted on implementation tree
+`a9e7ea261f25c4438eb3594312a79e88da99eda0`. It includes the accepted Wave D
+surface plus direct Windows x64, Linux x64, Linux ARM64, and macOS ARM64 native
+acceptance, supported cross builds with native destination execution, and the
+four-target visual matrix. WP35 release/documentation closure has not started.
 
 Implemented:
 
@@ -1238,16 +1238,35 @@ Known limitations remain those in the implementation-state list above; no langua
   sanitized-path relocation verification with archive SHA-256
   `e1e141f08b2bb3dcec35dd2abaf1af9a20dc5a3bb114d60120e1dad6c434085f`.
 
+**Rocket 3 WP34/F29 - accepted full platform and compatibility matrix**
+
+- Implementation tree `a9e7ea261f25c4438eb3594312a79e88da99eda0`
+  passed native Actions run `35079104907` and visual Actions run `35079104860`
+  on 2026-09-16.
+- Windows x64, Linux x64, Linux ARM64, and macOS ARM64 each passed LLVM Debug
+  and Release `288/288` plus LLVM-disabled stage0 Debug and Release `209/209`.
+- Stage0 -> stage3 bootstrap passed 184 validation cases on Windows x64,
+  Linux x64, and Linux ARM64 and 185 on macOS ARM64. Every host produced the
+  same stage2/stage3 IR SHA-256
+  `ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
+- All four supported cross builds passed, followed by native destination
+  execution: Windows x64 -> Linux x64/Linux ARM64 and Linux x64 -> Windows
+  x64/Linux ARM64.
+- Relocated packages passed with 982 Windows files (SHA-256
+  `8a0f6d29e3aa76e32b7b47a9bf8bb207f888bb922d0963446633635994706287`),
+  540 Linux x64 files (`4182b53ce91eb7a337ddf2062033ff3577a68724ce46f6669db3cf8f0ccaead1`),
+  524 Linux ARM64 files (`9fb2ca05e9e23c7a0d3ddc4cc19d2f94d9b3d399bf1cdbcf036e3914dee45a26`),
+  and 483 macOS ARM64 files (`08e7ad7467bd560f0540e42c736eded5700471b43981fd5d71260a3ad0ea4c25`).
+- The independent visual workflow passed all four target rows without skipping
+  or weakening the required renderer gates.
+
 ## Current next task
 
-**Execute only WP34/F29 full compatibility/platform acceptance from accepted
-Wave D implementation tree `4c06d544e457541b09acb92aeb37565f065c15f9`.
-Windows local acceptance is green; collect direct native Linux x64, Linux ARM64,
-and macOS ARM64 evidence, fix only verified WP34 defects without weakening any
-gate, and integrate the combined evidence. The exact packet scope is in
-`ROCKET_3_0_GRAPHICS_UI_IMPLEMENTATION_PLAN.md`. Visual Studio extension 2.0.3,
-its reproducible CMake/script fallbacks, and the preserved owner demo edit
-remain baseline state.**
+**No further Rocket packet is currently authorized. WP34/F29 is complete.
+WP35 documentation, release, and traceability closure is the next planned
+packet, but it must not start without separate authorization. Visual Studio
+extension 2.0.3, its reproducible CMake/script fallbacks, and the preserved
+owner demo edit remain baseline state.**
 
 ## New-chat prompt
 

@@ -359,8 +359,8 @@ section 5A assigns it to the current owner/wave.
 | WP31 | F26 | Performance instrumentation and budgets | COMPLETE / WAVE-GREEN (`2f8a73e`) | Eddy | D |
 | WP32 | F27 | Visual scenes, image I/O, goldens, CI | COMPLETE / WAVE-GREEN (`29e843f`) | Eddy | D |
 | WP33 | F28 | Focused examples and premium showcase | COMPLETE / WAVE-GREEN (`f1363ba`) | Eddy | D |
-| WP34 | F29 | Full compiler/platform/compatibility acceptance | READY / RED; Wave D accepted | Ryan + Eddy | FINAL |
-| WP35 | F30 | Documentation, release, traceability closure | WAIT FOR WP34 / RED | release owner after WP34 | post-parallel |
+| WP34 | F29 | Full compiler/platform/compatibility acceptance | COMPLETE / ACCEPTED (`a9e7ea2`; runs `35079104907`, `35079104860`) | Ryan + Eddy | FINAL |
+| WP35 | F30 | Documentation, release, traceability closure | READY / RED; not started | release owner after WP34 | post-parallel |
 
 ## 5A. Ryan/Eddy dependency-safe execution schedule
 
@@ -1486,6 +1486,33 @@ gates.
 
 **Checkpoint:** `test: accept Rocket 3 across supported targets`
 
+**Accepted 2026-09-16 on implementation tree
+`a9e7ea261f25c4438eb3594312a79e88da99eda0`:**
+
+- Native workflow run
+  [`35079104907`](https://github.com/RyanEid06/Rocket/actions/runs/35079104907)
+  passed Windows x64, Linux x64, Linux ARM64, and macOS ARM64, all four
+  supported cross builds, and all four native destination-execution jobs.
+- Each native host passed LLVM Debug and Release `288/288` and LLVM-disabled
+  stage0 Debug and Release `209/209`.
+- Stage0 -> stage3 bootstrap passed 184 validation cases on Windows and both
+  Linux hosts and 185 on macOS. All four hosts produced identical stage2/stage3
+  IR SHA-256
+  `ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
+- Native relocated packages passed: Windows 982 files
+  (`8a0f6d29e3aa76e32b7b47a9bf8bb207f888bb922d0963446633635994706287`),
+  Linux x64 540 files
+  (`4182b53ce91eb7a337ddf2062033ff3577a68724ce46f6669db3cf8f0ccaead1`),
+  Linux ARM64 524 files
+  (`9fb2ca05e9e23c7a0d3ddc4cc19d2f94d9b3d399bf1cdbcf036e3914dee45a26`),
+  and macOS ARM64 483 files
+  (`08e7ad7467bd560f0540e42c736eded5700471b43981fd5d71260a3ad0ea4c25`).
+- Visual workflow run
+  [`35079104860`](https://github.com/RyanEid06/Rocket/actions/runs/35079104860)
+  passed all four native target rows.
+- The fixes preserved every gate: no required test was skipped, weakened, or
+  replaced. WP35 remains separate and unstarted.
+
 ### WP35 - Documentation and Rocket 3.0 release
 
 **Feature:** F30. Complete every required specification/reference/migration/
@@ -1530,7 +1557,7 @@ file/test/doc/evidence links when executed.
 | F26 Performance | WP08, WP31 | WAVE-GREEN: calibrated warm-up/steady-state instrumentation, versioned environment evidence, and enforced budgets passed the combined Wave D gates | WP34 |
 | F27 Visual regression | WP07, WP08, WP32 | WAVE-GREEN: canonical scenes, PNG I/O/capture, strict Windows goldens, portability metrics, guarded golden updates, artifacts, and CI passed the combined Wave D gates | WP34 |
 | F28 Examples/showcase | WP33 | WAVE-GREEN: focused public-API examples and the neutral premium showcase passed compile, runtime, package, relocation, and visual checks | WP34 |
-| F29 Platform/compatibility | WP09, WP34 | WAVE-GREEN Windows evidence: Wave D Debug/Release `288/288`, LLVM-disabled predecessor `209/209`, native bootstrap `184` with matching stage2/stage3 IR, Rocket 2.1 conformance `90`, compatibility `11`, application validation, hardening `17/17`, and 976-file package/relocation all passed; native non-Windows target-lab acceptance remains WP34 | WP34 |
+| F29 Platform/compatibility | WP09, WP34 | ACCEPTED: all four native hosts passed Debug/Release `288/288`, LLVM-disabled stage0 Debug/Release `209/209`, deterministic bootstrap (184 Windows/Linux, 185 macOS), package/relocation, and visual acceptance; four supported cross builds passed with native destination execution in runs `35079104907` and `35079104860` | WP34 complete |
 | F30 Docs/release/traceability | WP00, WP35 | planning only | WP35 |
 
 ## 9. Current parallel handoff
@@ -1539,29 +1566,26 @@ This section replaces the former single mutable next-packet slot. It is updated
 only by Ryan during a successful full wave barrier, after both lane branches have
 been integrated and verified. Ordinary packet chats never rotate this section.
 
-**Current common baseline:** Wave D is accepted on implementation tree
-`4c06d544e457541b09acb92aeb37565f065c15f9`, preserving Ryan WP29 `d115832`
-and Eddy WP31 `2f8a73e`, WP32 `29e843f`, and WP33 `f1363ba` behind non-squash
-integration merges `0cf9910` and `4c06d54`.
+**Current common baseline:** WP34/F29 is accepted on implementation tree
+`a9e7ea261f25c4438eb3594312a79e88da99eda0`. Native run `35079104907` and
+visual run `35079104860` satisfy the full platform/compatibility contract while
+preserving the accepted Wave D ancestry.
 
-**Current wave:** FINAL - WP34
+**Current wave:** WP34 COMPLETE; WP35 not started
 
 **Current shared lane:**
 
-1. **NEXT: WP34 - Full compatibility and platform acceptance - READY / RED**
-2. Run the complete F29 contract; reduced packet verification is not permitted.
-3. Require direct native evidence for Windows x64, Linux x64, Linux ARM64, and
-   macOS ARM64; never count cross-compilation or workflow configuration alone.
-4. Fix only verified WP34 defects without weakening or skipping a gate.
-5. Stop after WP34 acceptance.
+1. **COMPLETE: WP34 - Full compatibility and platform acceptance - ACCEPTED**
+2. No additional Rocket packet is authorized by this handoff.
+3. WP35 is the next planned packet but requires separate authorization.
 
 **Wave D barrier:** COMPLETE. The integrated Windows Debug/Release,
 LLVM-disabled predecessor, native bootstrap, conformance, compatibility,
 application, hardening, package/relocation, performance, visual, and example
 gates are recorded in the Wave D acceptance block above.
 
-**WP34 launch condition:** satisfied by the accepted Wave D barrier. Execute
-only WP34/F29 from the exact accepted and pushed `origin/master` SHA.
+**WP34 acceptance:** complete on the exact pushed implementation SHA above.
+Do not start WP35 from this handoff.
 
 When a barrier succeeds, Ryan replaces only the current baseline/wave/lane block
 above with the next wave's exact queues from section 5A and records the new master

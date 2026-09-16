@@ -1,10 +1,12 @@
 # Rocket Master Roadmap
 
-**Current status (updated 2026-09-15):** Rocket 2.1 portability is complete and
-Rocket 3 Wave D is accepted on implementation tree `4c06d54`. WP34/F29 full
-compatibility/platform acceptance is the only current Rocket 3 work. The Rocket
-2.0 Windows x64 SDK remains available as the stable compatibility archive. The
-complete documentation disposition is indexed in `DOCUMENTATION_STATUS.md`.
+**Current status (updated 2026-09-16):** Rocket 2.1 portability is complete and
+Rocket 3 WP34/F29 full compatibility/platform acceptance is complete on
+implementation tree `a9e7ea2`. Native run `35079104907` and visual run
+`35079104860` are green across the required matrices. WP35 is the next planned
+packet and has not started. The Rocket 2.0 Windows x64 SDK remains available as
+the stable compatibility archive. The complete documentation disposition is
+indexed in `DOCUMENTATION_STATUS.md`.
 
 ## Long-term objective
 
@@ -655,8 +657,14 @@ non-squash integration merges `0cf9910` and `4c06d54`.
   and sanitized-path relocation verification; archive SHA-256 is
   `e1e141f08b2bb3dcec35dd2abaf1af9a20dc5a3bb114d60120e1dad6c434085f`.
 
-**Next:** Execute WP34/F29 full native compatibility/platform acceptance from
-the accepted Wave D baseline.
+**Completed 2026-09-16:** WP34/F29 full native compatibility/platform
+acceptance on implementation tree `a9e7ea261f25c4438eb3594312a79e88da99eda0`.
+The required native, cross-build, native destination-execution, bootstrap,
+package/relocation, and visual matrices are green in runs `35079104907` and
+`35079104860`.
+
+**Next planned, not started:** WP35 documentation, release, and traceability
+closure. Starting WP35 requires separate authorization.
 
 ## Post-roadmap tooling maintenance
 

@@ -6,9 +6,9 @@ This contract is additive to the frozen Rocket 2.0 language and runtime ABI v1:
 valid Rocket 2.0 source remains valid, the C++20 compiler remains permanent
 `stage0`, and the Rocket-written compiler must make the same target decisions.
 
-Rocket 3 Wave C consumes this completed target contract. Its final non-Windows
-target-laboratory acceptance remains a Rocket 3 WP34/F29 gate, not a reason to
-reopen the completed Phase 19 contract.
+Rocket 3 consumes this completed target contract. WP34/F29 direct native and
+cross-target acceptance completed on 2026-09-16 without reopening or weakening
+the completed Phase 19 contract.
 
 The word **host** means the machine on which `rocketc` is executing. The word
 **target** means the platform for which it emits an artifact. A compiler must

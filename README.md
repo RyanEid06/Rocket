@@ -16,7 +16,7 @@ This page is the current public summary. The complete documentation inventory
 and historical/current boundary are in
 [`DOCUMENTATION_STATUS.md`](docs/DOCUMENTATION_STATUS.md).
 
-## Rocket 3.0 Wave D status
+## Rocket 3.0 WP34 status
 
 Wave D is accepted on implementation tree
 `4c06d544e457541b09acb92aeb37565f065c15f9`. WP29 `d115832`, WP31
@@ -28,16 +28,29 @@ matching IR SHA-256
 `ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
 Rocket 2.1 conformance (`90` cases), compatibility (`11` cases), application
 validation (`32` packages and `11` raylib checks), hardening (`17/17`), and the
-976-file Windows SDK package/relocation gate also pass. Native Linux x64, Linux
-ARM64, and macOS ARM64 Rocket 3 target-laboratory acceptance is the remaining
-WP34/F29 work.
+976-file Windows SDK package/relocation gate also pass.
+
+WP34/F29 is accepted on implementation tree
+`a9e7ea261f25c4438eb3594312a79e88da99eda0`. Native acceptance run
+[`35079104907`](https://github.com/RyanEid06/Rocket/actions/runs/35079104907)
+passed all four native hosts, all four supported cross builds, and all four
+native destination-execution jobs. Every native host passed Debug and Release
+`288/288` plus LLVM-disabled stage0 Debug and Release `209/209`; bootstrap
+passed 184 cases on Windows and Linux and 185 on macOS with matching
+stage2/stage3 IR SHA-256
+`ef3f6bae64cf43965693cfd43ddf9c28b8e22eaed28f878669990329bafe42af`.
+Visual run
+[`35079104860`](https://github.com/RyanEid06/Rocket/actions/runs/35079104860)
+passed on Windows x64, Linux x64, Linux ARM64, and macOS ARM64. WP35 release
+documentation and traceability closure has not started.
 
 The accepted asset-store implementation is the reference-package module
 `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
 `src.rocket_assets`. The planned `rocket.assets` namespace is not a module in
 this checkout yet.
 
-WP34 full compatibility/platform acceptance is the only current Rocket 3 work.
+WP34 full compatibility/platform acceptance is complete. WP35 is the next
+planned Rocket 3 packet and requires separate authorization.
 
 This repository contains an indentation-aware frontend, resolved and typed HIR,
 verified control-flow MIR, diagnostics, and a genuine LLVM 22 backend for
