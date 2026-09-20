@@ -1,16 +1,211 @@
-# Reviewed primitive-only declarations for the production raylib adapter.
-# Application code uses rocket.raylib.safe instead of importing this module.
-
+# Generated deterministically by rocketc bind.
+pub extern const RLV_OK: Int = 0
+pub extern const RLV_ERR_INVALID_ARGUMENT: Int = -1
+pub extern const RLV_ERR_INVALID_STATE: Int = -2
+pub extern const RLV_ERR_NOT_FOUND: Int = -3
+pub extern const RLV_ERR_RESOURCE_LIVE: Int = -4
+pub extern const RLV_ERR_UNAVAILABLE: Int = -5
+pub extern const RLV_ERR_STALE_HANDLE: Int = -6
+pub extern const RLV_ERR_INVALID_SHADER: Int = -7
+pub extern const RLV_ERR_SHADER_TYPE: Int = -8
+pub extern const RLV_ERR_DUPLICATE_ASSET: Int = -9
+pub extern const RLV_ERR_ASSET_TYPE: Int = -10
+pub extern const RLV_ERR_PATH_ESCAPE: Int = -11
+pub extern const RLV_ERR_CAPACITY: Int = -12
+pub extern const RLV_KEY_SPACE: Int = 32
+pub extern const RLV_KEY_ESCAPE: Int = 256
+pub extern const RLV_KEY_RIGHT: Int = 262
+pub extern const RLV_KEY_LEFT: Int = 263
+pub extern const RLV_KEY_DOWN: Int = 264
+pub extern const RLV_KEY_UP: Int = 265
+pub extern const RLV_MOUSE_LEFT: Int = 0
+pub extern const RLV_TEXTURE_FILTER_POINT: Int = 0
+pub extern const RLV_TEXTURE_FILTER_BILINEAR: Int = 1
+pub extern const RLV_TEXTURE_FILTER_TRILINEAR: Int = 2
+pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_4X: Int = 3
+pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_8X: Int = 4
+pub extern const RLV_TEXTURE_FILTER_ANISOTROPIC_16X: Int = 5
+pub extern const RLV_BLEND_ALPHA: Int = 0
+pub extern const RLV_BLEND_ADDITIVE: Int = 1
+pub extern const RLV_BLEND_MULTIPLIED: Int = 2
+pub extern const RLV_BLEND_ADD_COLORS: Int = 3
+pub extern const RLV_BLEND_SUBTRACT_COLORS: Int = 4
+pub extern const RLV_BLEND_ALPHA_PREMULTIPLIED: Int = 5
+pub extern const RLV_SHADER_UNIFORM_FLOAT: Int = 0
+pub extern const RLV_SHADER_UNIFORM_INT: Int = 1
+pub extern const RLV_SHADER_UNIFORM_VEC2: Int = 2
+pub extern const RLV_SHADER_UNIFORM_COLOR: Int = 3
+pub extern const RLV_TEXT_ALIGN_LEFT: Int = 0
+pub extern const RLV_TEXT_ALIGN_CENTER: Int = 1
+pub extern const RLV_TEXT_ALIGN_RIGHT: Int = 2
+pub extern const RLV_TEXT_ALIGN_TOP: Int = 0
+pub extern const RLV_TEXT_ALIGN_MIDDLE: Int = 1
+pub extern const RLV_TEXT_ALIGN_BASELINE: Int = 2
+pub extern const RLV_TEXT_ALIGN_BOTTOM: Int = 3
+pub extern const RLV_TEXT_OVERFLOW_CLIP: Int = 0
+pub extern const RLV_TEXT_OVERFLOW_ELLIPSIS: Int = 1
+pub extern callback RlvIntCallback(value: Int) -> Int
+pub extern fn rlv_version_major() -> Int
+pub extern fn rlv_version_minor() -> Int
+pub extern fn rlv_enable_test_mode(enabled: Bool) -> Int
+pub extern fn rlv_test_reset() -> Int
+pub extern fn rlv_performance_reset() -> Int
+pub extern fn rlv_performance_native_allocations() -> Int
+pub extern fn rlv_performance_temporary_strings() -> Int
+pub extern fn rlv_performance_layout_allocations() -> Int
+pub extern fn rlv_performance_layout_recomputations() -> Int
+pub extern fn rlv_performance_text_measurements() -> Int
+pub extern fn rlv_performance_asset_lookups() -> Int
+pub extern fn rlv_performance_ffi_calls() -> Int
+pub extern fn rlv_performance_texture_uploads() -> Int
+pub extern fn rlv_performance_state_entries() -> Int
+pub extern fn rlv_performance_peak_state_growth() -> Int
+pub extern fn rlv_performance_cache_entries() -> Int
+pub extern fn rlv_performance_peak_cache_growth() -> Int
 pub extern fn rlv_buffer_create() -> Int
 pub extern fn rlv_buffer_push(buffer_id: Int, byte_value: Char) -> Int
 pub extern fn rlv_buffer_destroy(buffer_id: Int) -> Int
+pub extern fn rlv_buffer_live_count() -> Int
+pub extern fn rlv_point_buffer_create() -> Int
+pub extern fn rlv_point_buffer_push(buffer_id: Int, x: Float, y: Float) -> Int
+pub extern fn rlv_point_buffer_destroy(buffer_id: Int) -> Int
+pub extern fn rlv_point_buffer_live_count() -> Int
 pub extern fn rlv_window_open(width: Int, height: Int, title_buffer_id: Int) -> Int
+pub extern fn rlv_window_open_quality(width: Int, height: Int, title_buffer_id: Int, resizable: Bool, high_dpi: Bool, msaa4x: Bool) -> Int
 pub extern fn rlv_window_close(window_id: Int) -> Int
+pub extern fn rlv_window_ready(window_id: Int) -> Bool
+pub extern fn rlv_window_should_close(window_id: Int) -> Bool
+pub extern fn rlv_window_resizable(window_id: Int) -> Bool
+pub extern fn rlv_window_high_dpi(window_id: Int) -> Bool
+pub extern fn rlv_window_msaa4x(window_id: Int) -> Bool
+pub extern fn rlv_window_logical_width(window_id: Int) -> Int
+pub extern fn rlv_window_logical_height(window_id: Int) -> Int
+pub extern fn rlv_window_framebuffer_width(window_id: Int) -> Int
+pub extern fn rlv_window_framebuffer_height(window_id: Int) -> Int
+pub extern fn rlv_window_framebuffer_width_f64(window_id: Int) -> Float
+pub extern fn rlv_window_framebuffer_height_f64(window_id: Int) -> Float
+pub extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
+pub extern fn rlv_window_dpi_scale_y(window_id: Int) -> Float
+pub extern fn rlv_window_display_revision(window_id: Int) -> Int
+pub extern fn rlv_window_resized(window_id: Int) -> Bool
+pub extern fn rlv_window_monitor_count(window_id: Int) -> Int
+pub extern fn rlv_window_current_monitor(window_id: Int) -> Int
+pub extern fn rlv_monitor_valid(window_id: Int, monitor: Int) -> Bool
+pub extern fn rlv_monitor_x(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_y(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_width(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_height(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_physical_width(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_physical_height(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_monitor_refresh_rate(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_window_resize_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_fullscreen_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_borderless_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_monitor_selection_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_screenshot_supported(window_id: Int) -> Bool
+pub extern fn rlv_window_fullscreen(window_id: Int) -> Bool
+pub extern fn rlv_window_borderless(window_id: Int) -> Bool
+pub extern fn rlv_window_set_size(window_id: Int, width: Int, height: Int) -> Int
+pub extern fn rlv_window_set_monitor(window_id: Int, monitor: Int) -> Int
+pub extern fn rlv_window_set_fullscreen(window_id: Int, enabled: Bool) -> Int
+pub extern fn rlv_window_set_borderless(window_id: Int, enabled: Bool) -> Int
+pub extern fn rlv_window_screenshot(window_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_set_target_fps(window_id: Int, fps: Int) -> Int
+pub extern fn rlv_frame_time(window_id: Int) -> Float
+pub extern fn rlv_time(window_id: Int) -> Float
 pub extern fn rlv_begin_drawing(window_id: Int) -> Int
 pub extern fn rlv_end_drawing(frame_id: Int) -> Int
 pub extern fn rlv_abort_drawing(frame_id: Int) -> Int
+pub extern fn rlv_clear_background(frame_id: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle(frame_id: Int, x: Int, y: Int, width: Int, height: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle(frame_id: Int, x: Int, y: Int, radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rounded_rectangle(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rounded_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_gradient_vertical(frame_id: Int, x: Float, y: Float, width: Float, height: Float, top_red: Int, top_green: Int, top_blue: Int, top_alpha: Int, bottom_red: Int, bottom_green: Int, bottom_blue: Int, bottom_alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_gradient_horizontal(frame_id: Int, x: Float, y: Float, width: Float, height: Float, left_red: Int, left_green: Int, left_blue: Int, left_alpha: Int, right_red: Int, right_green: Int, right_blue: Int, right_alpha: Int) -> Int
+pub extern fn rlv_draw_rectangle_gradient_four(frame_id: Int, x: Float, y: Float, width: Float, height: Float, top_left_red: Int, top_left_green: Int, top_left_blue: Int, top_left_alpha: Int, bottom_left_red: Int, bottom_left_green: Int, bottom_left_blue: Int, bottom_left_alpha: Int, bottom_right_red: Int, bottom_right_green: Int, bottom_right_blue: Int, bottom_right_alpha: Int, top_right_red: Int, top_right_green: Int, top_right_blue: Int, top_right_alpha: Int) -> Int
+pub extern fn rlv_draw_circle_outline(frame_id: Int, x: Float, y: Float, radius: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ellipse(frame_id: Int, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ellipse_outline(frame_id: Int, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ring(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ring_outline(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_ring_sector(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle_sector(frame_id: Int, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle_sector_outline(frame_id: Int, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_circle_gradient(frame_id: Int, x: Float, y: Float, radius: Float, inner_red: Int, inner_green: Int, inner_blue: Int, inner_alpha: Int, outer_red: Int, outer_green: Int, outer_blue: Int, outer_alpha: Int) -> Int
+pub extern fn rlv_draw_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_thick_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_triangle(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_triangle_outline(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_polygon(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_polygon_outline(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_bezier_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_bezier_quadratic(frame_id: Int, point_buffer_id: Int, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_bezier_cubic(frame_id: Int, point_buffer_id: Int, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_geometry_call_count() -> Int
+pub extern fn rlv_draw_text(frame_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_draw_count() -> Int
+pub extern fn rlv_key_pressed(window_id: Int, key: Int) -> Bool
+pub extern fn rlv_key_down(window_id: Int, key: Int) -> Bool
+pub extern fn rlv_mouse_pressed(window_id: Int, button: Int) -> Bool
+pub extern fn rlv_mouse_down(window_id: Int, button: Int) -> Bool
+pub extern fn rlv_mouse_released(window_id: Int, button: Int) -> Bool
+pub extern fn rlv_mouse_x(window_id: Int) -> Int
+pub extern fn rlv_mouse_y(window_id: Int) -> Int
+pub extern fn rlv_mouse_framebuffer_x(window_id: Int) -> Float
+pub extern fn rlv_mouse_framebuffer_y(window_id: Int) -> Float
+pub extern fn rlv_texture_load(window_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_texture_width(texture_id: Int) -> Int
+pub extern fn rlv_texture_height(texture_id: Int) -> Int
+pub extern fn rlv_texture_draw(frame_id: Int, texture_id: Int, x: Int, y: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_texture_draw_scaled(frame_id: Int, texture_id: Int, x: Int, y: Int, scale: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_texture_draw_pro(frame_id: Int, texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_texture_set_filter(window_id: Int, texture_id: Int, filter_mode: Int) -> Int
+pub extern fn rlv_texture_get_filter(texture_id: Int) -> Int
+pub extern fn rlv_texture_filter_supported(filter_mode: Int) -> Bool
+pub extern fn rlv_texture_max_anisotropy() -> Float
+pub extern fn rlv_texture_unload(texture_id: Int) -> Int
+pub extern fn rlv_texture_live_count() -> Int
+pub extern fn rlv_render_texture_load(window_id: Int, width: Int, height: Int) -> Int
+pub extern fn rlv_render_texture_width(render_texture_id: Int) -> Int
+pub extern fn rlv_render_texture_height(render_texture_id: Int) -> Int
+pub extern fn rlv_render_texture_width_f64(render_texture_id: Int) -> Float
+pub extern fn rlv_render_texture_height_f64(render_texture_id: Int) -> Float
+pub extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
+pub extern fn rlv_render_texture_live_count() -> Int
+pub extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int
+pub extern fn rlv_render_target_end(scope_id: Int) -> Int
+pub extern fn rlv_render_texture_draw(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_render_texture_draw_framebuffer(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_render_texture_save_png(window_id: Int, render_texture_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_scissor_begin(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+pub extern fn rlv_scissor_begin_framebuffer(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+pub extern fn rlv_scissor_end(scope_id: Int) -> Int
+pub extern fn rlv_blend_begin(frame_id: Int, blend_mode: Int) -> Int
+pub extern fn rlv_blend_end(scope_id: Int) -> Int
+pub extern fn rlv_scope_depth() -> Int
+pub extern fn rlv_render_target_switch_count() -> Int
+pub extern fn rlv_scissor_switch_count() -> Int
+pub extern fn rlv_blend_switch_count() -> Int
+pub extern fn rlv_screenshot_count() -> Int
+pub extern fn rlv_shader_supported(window_id: Int) -> Bool
+pub extern fn rlv_shader_load_files(window_id: Int, vertex_path_buffer_id: Int, fragment_path_buffer_id: Int) -> Int
+pub extern fn rlv_shader_load_memory(window_id: Int, vertex_source_buffer_id: Int, fragment_source_buffer_id: Int) -> Int
+pub extern fn rlv_shader_unload(shader_id: Int) -> Int
+pub extern fn rlv_shader_live_count() -> Int
+pub extern fn rlv_shader_uniform_live_count() -> Int
+pub extern fn rlv_shader_uniform(shader_id: Int, name_buffer_id: Int, uniform_type: Int) -> Int
+pub extern fn rlv_shader_set_float(shader_id: Int, uniform_id: Int, value: Float) -> Int
+pub extern fn rlv_shader_set_int(shader_id: Int, uniform_id: Int, value: Int) -> Int
+pub extern fn rlv_shader_set_vec2(shader_id: Int, uniform_id: Int, x: Float, y: Float) -> Int
+pub extern fn rlv_shader_set_color(shader_id: Int, uniform_id: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
+pub extern fn rlv_shader_begin(frame_id: Int, shader_id: Int) -> Int
+pub extern fn rlv_shader_end(scope_id: Int) -> Int
+pub extern fn rlv_shader_switch_count() -> Int
 pub extern fn rlv_font_load(window_id: Int, path_buffer_id: Int) -> Int
 pub extern fn rlv_font_default(window_id: Int) -> Int
+pub extern fn rlv_font_draw(frame_id: Int, font_id: Int, text_buffer_id: Int, x: Int, y: Int, size: Float, spacing: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_font_measure(font_id: Int, text_buffer_id: Int, size: Float, spacing: Float, line_height: Float, max_width: Float, max_height: Float, wrap: Bool, overflow: Int) -> Int
 pub extern fn rlv_text_layout_width(layout_id: Int) -> Float
 pub extern fn rlv_text_layout_height(layout_id: Int) -> Float
@@ -20,6 +215,62 @@ pub extern fn rlv_text_layout_line_count(layout_id: Int) -> Int
 pub extern fn rlv_text_layout_clipped(layout_id: Int) -> Bool
 pub extern fn rlv_text_layout_ellipsized(layout_id: Int) -> Bool
 pub extern fn rlv_text_layout_destroy(layout_id: Int) -> Int
+pub extern fn rlv_text_layout_live_count() -> Int
 pub extern fn rlv_font_draw_layout(frame_id: Int, font_id: Int, text_buffer_id: Int, bounds_x: Float, bounds_y: Float, bounds_width: Float, bounds_height: Float, size: Float, spacing: Float, line_height: Float, horizontal_align: Int, vertical_align: Int, wrap: Bool, clip: Bool, overflow: Int, red: Int, green: Int, blue: Int, alpha: Int) -> Int
 pub extern fn rlv_font_invalidate_measurements(font_id: Int) -> Int
+pub extern fn rlv_font_measurement_cache_size() -> Int
+pub extern fn rlv_font_measurement_cache_capacity() -> Int
+pub extern fn rlv_font_measurement_cache_hits() -> Int
+pub extern fn rlv_font_measurement_cache_misses() -> Int
 pub extern fn rlv_font_unload(font_id: Int) -> Int
+pub extern fn rlv_font_live_count() -> Int
+pub extern fn rlv_audio_open() -> Int
+pub extern fn rlv_audio_close(audio_id: Int) -> Int
+pub extern fn rlv_audio_ready(audio_id: Int) -> Bool
+pub extern fn rlv_sound_load(audio_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_sound_tone(audio_id: Int, frequency: Float, seconds: Float) -> Int
+pub extern fn rlv_sound_play(sound_id: Int) -> Int
+pub extern fn rlv_sound_stop(sound_id: Int) -> Int
+pub extern fn rlv_sound_set_volume(sound_id: Int, volume: Float) -> Int
+pub extern fn rlv_sound_unload(sound_id: Int) -> Int
+pub extern fn rlv_sound_live_count() -> Int
+pub extern fn rlv_music_live_count() -> Int
+pub extern fn rlv_asset_store_create(window_id: Int, audio_id: Int, package_root_buffer_id: Int) -> Int
+pub extern fn rlv_asset_store_create_bounded(window_id: Int, audio_id: Int, package_root_buffer_id: Int, capacity: Int) -> Int
+pub extern fn rlv_asset_store_cleanup(store_id: Int) -> Int
+pub extern fn rlv_asset_store_live_count() -> Int
+pub extern fn rlv_asset_store_capacity(store_id: Int) -> Int
+pub extern fn rlv_asset_store_asset_count(store_id: Int) -> Int
+pub extern fn rlv_asset_store_physical_count(store_id: Int) -> Int
+pub extern fn rlv_asset_texture_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_font_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_sound_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_music_load(store_id: Int, name_buffer_id: Int, path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_shader_load(store_id: Int, name_buffer_id: Int, vertex_path_buffer_id: Int, fragment_path_buffer_id: Int) -> Int
+pub extern fn rlv_asset_texture_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_font_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_sound_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_music_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_shader_lookup(store_id: Int, name_buffer_id: Int) -> Int
+pub extern fn rlv_asset_texture_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_font_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_sound_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_music_borrow(reference_id: Int) -> Int
+pub extern fn rlv_asset_shader_borrow(reference_id: Int) -> Int
+pub extern fn rlv_apply_callback(callback: RlvIntCallback, value: Int) -> Int
+pub extern fn rlv_test_set_key(key: Int, pressed: Bool, down: Bool) -> Int
+pub extern fn rlv_test_set_mouse(x: Int, y: Int, pressed: Bool) -> Int
+pub extern fn rlv_test_set_mouse_state(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Int
+pub extern fn rlv_test_request_close(requested: Bool) -> Int
+pub extern fn rlv_test_set_anisotropy(level: Int) -> Int
+pub extern fn rlv_test_set_shader_supported(supported: Bool) -> Int
+pub extern fn rlv_test_set_display_metrics(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_scale_x: Float, dpi_scale_y: Float, monitor_count: Int, current_monitor: Int) -> Int
+pub extern fn rlv_test_set_display_capabilities(resize: Bool, fullscreen: Bool, borderless: Bool, monitor_selection: Bool, screenshot: Bool) -> Int
+pub extern fn rlv_test_scissor_x() -> Int
+pub extern fn rlv_test_scissor_y() -> Int
+pub extern fn rlv_test_scissor_width() -> Int
+pub extern fn rlv_test_scissor_height() -> Int
+pub extern fn rlv_test_blend_mode() -> Int
+pub extern fn rlv_test_text_draw_x() -> Float
+pub extern fn rlv_test_text_draw_y() -> Float
+pub extern fn rlv_test_asset_store_retired_count() -> Int

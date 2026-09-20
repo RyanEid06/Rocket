@@ -3313,7 +3313,7 @@ fn mapped_local_callable(module: AstModule, prefix_name: String, name: String) -
         if module.functions[index].name == name:
             return mapped_declaration_name(prefix_name, name, module.functions[index].public_declaration)
     if string.contains(name, "."):
-        return name
+        return mapped_imported_type_base(module, name)
     for index in 0..collections.length(module.structs):
         if module.structs[index].name == name:
             return mapped_declaration_name(prefix_name, name, module.structs[index].public_declaration)
@@ -3346,7 +3346,7 @@ fn map_module_expression(module: AstModule, prefix_name: String, expression: Ast
             let callee = AstExpr(expr_name(), mapped_constant, [], expression.line, expression.column)
             return AstExpr(expr_call(), "", [callee], expression.line, expression.column)
         if module_qualified_callable(module, raw_constant):
-            return AstExpr(expr_name(), raw_constant, [], expression.line, expression.column)
+            return AstExpr(expr_name(), mapped_local_callable(module, prefix_name, raw_constant), [], expression.line, expression.column)
     if expression.kind == expr_call() and collections.length(expression.children) > 0:
         if expression.children[0].kind == expr_lambda():
             var lambda_children: Array[AstExpr] = [map_module_expression(module, prefix_name, expression.children[0])]
@@ -8984,11 +8984,9 @@ fn installed_target_toolchain(root: String, selected: TargetInfo, require_metada
         librarian_name = "bin/llvm-lib"
     let librarian = std.path.join(normalized, string.concat(librarian_name, suffix))
     let runtime_path = std.path.join(normalized, string.concat("lib/rocket_runtime", target_static_library_suffix(selected)))
-    var library_directories: Array[String] = []
+    var library_directories: Array[String] = existing_directories([std.path.join(normalized, "lib")])
     if selected.os == "windows":
-        library_directories = existing_directories([std.path.join(normalized, "lib/msvc"), std.path.join(normalized, "lib/ucrt"), std.path.join(normalized, "lib/um")])
-    else:
-        library_directories = existing_directories([std.path.join(normalized, "lib")])
+        library_directories = collections.concat(library_directories, existing_directories([std.path.join(normalized, "lib/msvc"), std.path.join(normalized, "lib/ucrt"), std.path.join(normalized, "lib/um")]))
     var sysroot = ""
     let possible_sysroot = std.path.join(normalized, "sysroot")
     if file.exists(possible_sysroot):
@@ -8998,7 +8996,7 @@ fn installed_target_toolchain(root: String, selected: TargetInfo, require_metada
     var complete = file.exists(clang_path) and file.exists(librarian) and file.exists(runtime_path)
     if cross and selected.os == "linux" and sysroot == "":
         complete = false
-    if cross and selected.os == "windows" and collections.length(library_directories) != 3:
+    if cross and selected.os == "windows" and collections.length(library_directories) != 4:
         complete = false
     if not complete:
         return ToolchainInfo(false, clang_path, runtime_path, librarian, library_directories, sysroot, "R6003", string.concat("configured target SDK for '", string.concat(selected.alias, "' is incomplete or has mismatched target metadata")))
@@ -9055,7 +9053,7 @@ fn locate_toolchain_target(selected: TargetInfo, target_sdk: String) -> Toolchai
         if selected.os == "windows":
             librarian_name = "llvm-lib"
         librarian = std.path.join(source_parent(std.path.normalize(clang_path)), string.concat(librarian_name, suffix))
-    let library_directories = existing_directories([std.path.join(install_root, "lib/msvc"), std.path.join(install_root, "lib/ucrt"), std.path.join(install_root, "lib/um")])
+    let library_directories = existing_directories([std.path.join(install_root, "lib"), std.path.join(install_root, "lib/msvc"), std.path.join(install_root, "lib/ucrt"), std.path.join(install_root, "lib/um")])
     if clang_path == "" or runtime_path == "" or librarian == "" or not file.exists(librarian):
         return ToolchainInfo(false, clang_path, runtime_path, librarian, library_directories, "", "R6003", string.concat("native toolchain for '", string.concat(selected.alias, "' is incomplete; install the Rocket SDK or configure its compiler, librarian, and runtime")))
     return apply_native_macos_sysroot(ToolchainInfo(true, std.path.normalize(clang_path), std.path.normalize(runtime_path), std.path.normalize(librarian), library_directories, "", "", ""), selected)

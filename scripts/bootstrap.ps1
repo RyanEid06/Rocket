@@ -251,7 +251,7 @@ if ((Get-FileHash -LiteralPath $header1 -Algorithm SHA256).Hash -ne
 $raylibBindings1 = Join-Path $generationDirectory 'raylib-bindings-stage2.rocket'
 $raylibBindings2 = Join-Path $generationDirectory 'raylib-bindings-stage3.rocket'
 $raylibBindings3 = Join-Path $generationDirectory 'raylib-bindings-stage3-repeat.rocket'
-$raylibHeader = Join-Path $raylibReference 'native\rocket_raylib_adapter.h'
+$raylibHeader = Join-Path $projectRoot 'src\raylib\rocket_raylib_adapter.h'
 & $stage2 bind $raylibHeader --output $raylibBindings1
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $stage3 bind $raylibHeader --output $raylibBindings2

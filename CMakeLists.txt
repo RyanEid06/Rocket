@@ -188,6 +188,9 @@ set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
 add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
 set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
+set(ROCKET_RAYLIB_SOURCE_DIRECTORY "${CMAKE_SOURCE_DIR}/src/raylib")
+set(ROCKET_RAYLIB_HEADER
+  "${ROCKET_RAYLIB_SOURCE_DIRECTORY}/rocket_raylib_adapter.h")
 set(ROCKET_WP33_EXAMPLE_PACKAGE
   "${CMAKE_SOURCE_DIR}/examples/rocket3_graphics_ui")
 set(ROCKET_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/native/${ROCKET_NATIVE_TARGET}")
@@ -218,9 +221,9 @@ if(TARGET glfw)
 endif()
 
 add_library(rocket_raylib_adapter STATIC
-  examples/raylib_showcase/native/rocket_raylib_adapter.cpp)
+  src/raylib/rocket_raylib_adapter.cpp)
 target_include_directories(rocket_raylib_adapter PUBLIC
-  examples/raylib_showcase/native)
+  src/raylib)
 target_link_libraries(rocket_raylib_adapter PUBLIC raylib)
 set_target_properties(rocket_raylib_adapter PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_RAYLIB_NATIVE_OUTPUT}"
@@ -359,8 +362,6 @@ if(LLVM_FOUND)
   add_dependencies(rocketc rocket_runtime)
 endif()
 
-set(ROCKET_RAYLIB_HEADER
-  "${ROCKET_RAYLIB_PACKAGE}/native/rocket_raylib_adapter.h")
 set(ROCKET_RAYLIB_BINDINGS
   "${CMAKE_BINARY_DIR}/generated/raylib/rocket_raylib_adapter.rocket")
 add_custom_command(
@@ -444,6 +445,12 @@ add_test(NAME phase19_release_tooling
     --work "${CMAKE_SOURCE_DIR}/out/phase19/release-tooling-unit")
 set_tests_properties(phase19_release_tooling PROPERTIES
   LABELS "phase19;release;packaging;relocation;determinism;portable")
+add_test(NAME rocket35_runtime_foundation_policy
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/rocket35_runtime_foundation_policy_test.py"
+    --source-dir "${CMAKE_SOURCE_DIR}")
+set_tests_properties(rocket35_runtime_foundation_policy PROPERTIES
+  LABELS "rocket35;wp1;raylib;native;packaging;policy")
 function(add_rocketc_test name)
   add_executable(rocketc_${name}_tests tests/${name}_tests.cpp)
   target_link_libraries(rocketc_${name}_tests PRIVATE rocketc_core)
@@ -1934,7 +1941,7 @@ if(LLVM_FOUND)
       "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
       "-DHEADER=${ROCKET_RAYLIB_HEADER}"
       "-DGENERATED=${ROCKET_RAYLIB_BINDINGS}"
-      "-DVENDORED=${ROCKET_RAYLIB_PACKAGE}/src/rocket_raylib_adapter.rocket"
+      "-DVENDORED=${CMAKE_SOURCE_DIR}/stdlib/rocket/raylib/native.rocket"
       "-DWORK=${CMAKE_BINARY_DIR}/phase14-generation"
       -P "${CMAKE_SOURCE_DIR}/tests/native/phase14_generation_test.cmake")
   set_tests_properties(cli_phase14_raylib_generation_parity PROPERTIES

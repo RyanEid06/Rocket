@@ -1,7 +1,9 @@
 # Rocket raylib compatibility showcase
 
 > **Historical compatibility example:** This package remains version 1.4 and
-> validates the legacy `src.rocket_raylib` boundary against pinned raylib 6.0.
+> validates the deprecated `src.rocket_raylib` boundary against the single
+> production-owned Rocket 3.5 adapter and pinned raylib 6.0. It does not own or
+> compile an adapter copy. New applications use `rocket.raylib.safe`.
 > The Rocket 3.0 modules are documented in
 > `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`; the repository-wide status split is in
 > `docs/DOCUMENTATION_STATUS.md`.
@@ -44,7 +46,7 @@ Create a distributable static Windows bundle under `out/package` with:
 .\scripts\package-raylib-showcase.ps1 -Configuration Release
 ```
 
-Create an editable application scaffold with the same safe boundary and tests:
+Create an editable compatibility scaffold with the same legacy boundary and tests:
 
 ```powershell
 .\scripts\new-raylib-app.ps1 -Destination .\examples\my_raylib_app -Name my_raylib_app
@@ -55,7 +57,8 @@ cmake -S .\examples\my_raylib_app -B .\out\my-raylib-app `
 cmake --build .\out\my-raylib-app
 ```
 
-The generated low-level binding and native build outputs remain ignored.
+The scaffold consumes the production backend from the repository build or a
+packaged SDK. It does not receive a low-level binding or native adapter copy.
 
 ## Ownership and lifetime contract
 

@@ -127,7 +127,7 @@ def compatibility(args: argparse.Namespace) -> None:
                     packages, ignore=shutil.ignore_patterns(".rocketc"))
     fixtures = source_dir / "tests" / "fixtures"
     cases = [
-        ("2.1", "compiler-version", ["--version"], r"^rocketc 2\.1\.0$"),
+        ("3.0", "compiler-version", ["--version"], r"^rocketc 3\.0\.0$"),
         ("1.0", "hello-source", ["run", str(source_dir / "examples" / "hello.rocket")], r"Hello from Rocket"),
         ("1.1", "collections-source", ["check", str(fixtures / "phase11_map_set_tuple.rocket")], r"check succeeded"),
         ("1.2", "traits-source", ["check", str(fixtures / "phase12_traits.rocket")], r"check succeeded"),

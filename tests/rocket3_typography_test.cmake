@@ -51,7 +51,7 @@ foreach(source IN ITEMS
     "${SOURCE_DIR}/stdlib/rocket/raylib/native.rocket"
     "${SOURCE_DIR}/stdlib/rocket/raylib/safe.rocket"
     "${package}/src/rocket_raylib.rocket"
-    "${package}/src/rocket_raylib_adapter.rocket"
+    "${SOURCE_DIR}/stdlib/rocket/raylib/native.rocket"
     "${package}/src/rocket_raylib_testing.rocket"
     "${package}/tests/typography_test.rocket"
     "${public_package}/src/main.rocket"

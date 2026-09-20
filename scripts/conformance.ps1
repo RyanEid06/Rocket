@@ -50,7 +50,7 @@ function Invoke-ConformanceCase {
     $results.Add("PASS  $Name  status=$status")
 }
 
-Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 2\.1\.0$'
+Invoke-ConformanceCase 'version' @('--version') 0 '^rocketc 3\.0\.0$'
 Invoke-ConformanceCase 'lexer-self-test' @('--self-test-lexer') 0 'lexer tests passed'
 Invoke-ConformanceCase 'parser-self-test' @('--self-test-parser') 0 'parser tests passed'
 Invoke-ConformanceCase 'hello-check' @('check', (Join-Path $projectRoot 'examples\hello.rocket')) 0 'check succeeded'
@@ -107,8 +107,8 @@ if ((Get-FileHash -LiteralPath $nativeHeader1 -Algorithm SHA256).Hash -ne
 }
 $raylibBindings1 = Join-Path $reportDirectory 'phase14-raylib-bindings-1.rocket'
 $raylibBindings2 = Join-Path $reportDirectory 'phase14-raylib-bindings-2.rocket'
-Invoke-ConformanceCase 'raylib-bindings-generate' @('bind', (Join-Path $projectRoot 'examples\raylib_showcase\native\rocket_raylib_adapter.h'), '--output', $raylibBindings1)
-Invoke-ConformanceCase 'raylib-bindings-repeat' @('bind', (Join-Path $projectRoot 'examples\raylib_showcase\native\rocket_raylib_adapter.h'), '--output', $raylibBindings2)
+Invoke-ConformanceCase 'raylib-bindings-generate' @('bind', (Join-Path $projectRoot 'src\raylib\rocket_raylib_adapter.h'), '--output', $raylibBindings1)
+Invoke-ConformanceCase 'raylib-bindings-repeat' @('bind', (Join-Path $projectRoot 'src\raylib\rocket_raylib_adapter.h'), '--output', $raylibBindings2)
 if ((Get-FileHash -LiteralPath $raylibBindings1 -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $raylibBindings2 -Algorithm SHA256).Hash) {
     throw 'Phase 14 raylib bindings are not deterministic.'

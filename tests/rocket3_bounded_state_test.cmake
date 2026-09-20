@@ -13,7 +13,7 @@ foreach(source IN ITEMS
     "stdlib/rocket/raylib/safe.rocket"
     "examples/raylib_showcase/src/rocket_assets.rocket"
     "examples/raylib_showcase/src/rocket_raylib.rocket"
-    "examples/raylib_showcase/src/rocket_raylib_adapter.rocket"
+    "stdlib/rocket/raylib/native.rocket"
     "examples/raylib_showcase/tests/asset_store_test.rocket"
     "tests/fixtures/rocket3_bounded_state_surface.rocket"
     "tests/fixtures/rocket3_bounded_state_package/src/main.rocket"

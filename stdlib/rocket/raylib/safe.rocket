@@ -6,54 +6,6 @@ import rocket.graphics
 import rocket.raylib.native
 import std.string
 
-extern fn rlv_draw_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_rounded_rectangle(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_rounded_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_rectangle_gradient_vertical(frame_id: Int, x: Float, y: Float, width: Float, height: Float, top_red: Int, top_green: Int, top_blue: Int, top_alpha: Int, bottom_red: Int, bottom_green: Int, bottom_blue: Int, bottom_alpha: Int) -> Int
-extern fn rlv_draw_rectangle_gradient_horizontal(frame_id: Int, x: Float, y: Float, width: Float, height: Float, left_red: Int, left_green: Int, left_blue: Int, left_alpha: Int, right_red: Int, right_green: Int, right_blue: Int, right_alpha: Int) -> Int
-extern fn rlv_draw_circle_outline(frame_id: Int, x: Float, y: Float, radius: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_ellipse(frame_id: Int, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_ring(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_ring_sector(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_circle_sector(frame_id: Int, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_circle_gradient(frame_id: Int, x: Float, y: Float, radius: Float, inner_red: Int, inner_green: Int, inner_blue: Int, inner_alpha: Int, outer_red: Int, outer_green: Int, outer_blue: Int, outer_alpha: Int) -> Int
-extern fn rlv_draw_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_thick_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_triangle(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_triangle_outline(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_polygon(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_polygon_outline(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_bezier_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_mouse_pressed(window_id: Int, button: Int) -> Bool
-extern fn rlv_mouse_down(window_id: Int, button: Int) -> Bool
-extern fn rlv_mouse_released(window_id: Int, button: Int) -> Bool
-extern fn rlv_mouse_framebuffer_x(window_id: Int) -> Float
-extern fn rlv_mouse_framebuffer_y(window_id: Int) -> Float
-extern fn rlv_key_pressed(window_id: Int, key: Int) -> Bool
-extern fn rlv_key_down(window_id: Int, key: Int) -> Bool
-extern fn rlv_window_framebuffer_width_f64(window_id: Int) -> Float
-extern fn rlv_window_framebuffer_height_f64(window_id: Int) -> Float
-extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
-extern fn rlv_window_dpi_scale_y(window_id: Int) -> Float
-extern fn rlv_window_display_revision(window_id: Int) -> Int
-extern fn rlv_window_logical_width(window_id: Int) -> Int
-extern fn rlv_window_set_size(window_id: Int, width: Int, height: Int) -> Int
-extern fn rlv_window_set_fullscreen(window_id: Int, enabled: Bool) -> Int
-extern fn rlv_window_set_borderless(window_id: Int, enabled: Bool) -> Int
-extern fn rlv_render_texture_load(window_id: Int, width: Int, height: Int) -> Int
-extern fn rlv_render_texture_width_f64(render_texture_id: Int) -> Float
-extern fn rlv_render_texture_height_f64(render_texture_id: Int) -> Float
-extern fn rlv_render_texture_width(render_texture_id: Int) -> Int
-extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
-extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int
-extern fn rlv_render_target_end(scope_id: Int) -> Int
-extern fn rlv_render_texture_draw(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_render_texture_draw_framebuffer(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_render_texture_save_png(window_id: Int, render_texture_id: Int, path_buffer_id: Int) -> Int
-extern fn rlv_scissor_begin(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
-extern fn rlv_scissor_begin_framebuffer(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
-extern fn rlv_scissor_end(scope_id: Int) -> Int
-
 pub struct Window:
     id: Int
 
@@ -124,11 +76,11 @@ fn invalid_geometry() -> Result[Bool, String]:
 
 fn window_is_valid(window: Window) -> Bool:
     unsafe:
-        return rlv_window_logical_width(window.id) > 0
+        return native.rlv_window_logical_width(window.id) > 0
 
 fn render_texture_is_valid(target: RenderTexture) -> Bool:
     unsafe:
-        return rlv_render_texture_width(target.id) > 0
+        return native.rlv_render_texture_width(target.id) > 0
 
 fn valid_input_code(value: Int) -> Bool:
     return value >= 0 and value <= 2147483647
@@ -189,117 +141,117 @@ pub fn draw_rect(frame: Frame, x: Float, y: Float, width: Float, height: Float, 
     if not valid_rect(x, y, width, height) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, red, green, blue, alpha, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, red, green, blue, alpha, red, green, blue, alpha))
 
 pub fn draw_rect_outline(frame: Frame, x: Float, y: Float, width: Float, height: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rectangle_outline(frame.id, x, y, width, height, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rectangle_outline(frame.id, x, y, width, height, thickness, red, green, blue, alpha))
 
 pub fn draw_rounded_rect(frame: Frame, x: Float, y: Float, width: Float, height: Float, roundness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not finite(roundness) or roundness < 0.0 or roundness > 1.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rounded_rectangle(frame.id, x, y, width, height, roundness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rounded_rectangle(frame.id, x, y, width, height, roundness, red, green, blue, alpha))
 
 pub fn draw_rounded_rect_outline(frame: Frame, x: Float, y: Float, width: Float, height: Float, roundness: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not finite(roundness) or roundness < 0.0 or roundness > 1.0 or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rounded_rectangle_outline(frame.id, x, y, width, height, roundness, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rounded_rectangle_outline(frame.id, x, y, width, height, roundness, thickness, red, green, blue, alpha))
 
 pub fn draw_circle(frame: Frame, x: Float, y: Float, radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_gradient(frame.id, x, y, radius, red, green, blue, alpha, red, green, blue, alpha))
+        return status_result(native.rlv_draw_circle_gradient(frame.id, x, y, radius, red, green, blue, alpha, red, green, blue, alpha))
 
 pub fn draw_circle_outline(frame: Frame, x: Float, y: Float, radius: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_outline(frame.id, x, y, radius, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_circle_outline(frame.id, x, y, radius, thickness, red, green, blue, alpha))
 
 pub fn draw_ellipse(frame: Frame, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(x) or not finite(y) or not finite(radius_x) or not finite(radius_y) or radius_x < 0.0 or radius_y < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_ellipse(frame.id, x, y, radius_x, radius_y, red, green, blue, alpha))
+        return status_result(native.rlv_draw_ellipse(frame.id, x, y, radius_x, radius_y, red, green, blue, alpha))
 
 pub fn draw_ring(frame: Frame, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(x) or not finite(y) or not finite(inner_radius) or not finite(outer_radius) or inner_radius < 0.0 or outer_radius < inner_radius or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_ring(frame.id, x, y, inner_radius, outer_radius, red, green, blue, alpha))
+        return status_result(native.rlv_draw_ring(frame.id, x, y, inner_radius, outer_radius, red, green, blue, alpha))
 
 pub fn draw_ring_sector(frame: Frame, x: Float, y: Float, inner_radius: Float, outer_radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(x) or not finite(y) or not finite(inner_radius) or not finite(outer_radius) or inner_radius < 0.0 or outer_radius < inner_radius or not finite(start_angle) or not finite(end_angle) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_ring_sector(frame.id, x, y, inner_radius, outer_radius, start_angle, end_angle, red, green, blue, alpha))
+        return status_result(native.rlv_draw_ring_sector(frame.id, x, y, inner_radius, outer_radius, start_angle, end_angle, red, green, blue, alpha))
 
 pub fn draw_sector(frame: Frame, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not finite(start_angle) or not finite(end_angle) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_sector(frame.id, x, y, radius, start_angle, end_angle, red, green, blue, alpha))
+        return status_result(native.rlv_draw_circle_sector(frame.id, x, y, radius, start_angle, end_angle, red, green, blue, alpha))
 
 pub fn draw_line(frame: Frame, start_x: Float, start_y: Float, end_x: Float, end_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(start_x) or not finite(start_y) or not finite(end_x) or not finite(end_y) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_line(frame.id, start_x, start_y, end_x, end_y, red, green, blue, alpha))
+        return status_result(native.rlv_draw_line(frame.id, start_x, start_y, end_x, end_y, red, green, blue, alpha))
 
 pub fn draw_thick_line(frame: Frame, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(start_x) or not finite(start_y) or not finite(end_x) or not finite(end_y) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_thick_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_thick_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
 
 pub fn draw_triangle(frame: Frame, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(first_x) or not finite(first_y) or not finite(second_x) or not finite(second_y) or not finite(third_x) or not finite(third_y) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_triangle(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, red, green, blue, alpha))
+        return status_result(native.rlv_draw_triangle(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, red, green, blue, alpha))
 
 pub fn draw_triangle_outline(frame: Frame, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(first_x) or not finite(first_y) or not finite(second_x) or not finite(second_y) or not finite(third_x) or not finite(third_y) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_triangle_outline(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_triangle_outline(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, thickness, red, green, blue, alpha))
 
 pub fn draw_polygon(frame: Frame, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or sides < 3 or not finite(rotation) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_polygon(frame.id, x, y, sides, radius, rotation, red, green, blue, alpha))
+        return status_result(native.rlv_draw_polygon(frame.id, x, y, sides, radius, rotation, red, green, blue, alpha))
 
 pub fn draw_polygon_outline(frame: Frame, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or sides < 3 or not finite(rotation) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_polygon_outline(frame.id, x, y, sides, radius, rotation, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_polygon_outline(frame.id, x, y, sides, radius, rotation, thickness, red, green, blue, alpha))
 
 pub fn draw_bezier(frame: Frame, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(start_x) or not finite(start_y) or not finite(end_x) or not finite(end_y) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_bezier_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_bezier_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
 
 pub fn draw_gradient_rect(frame: Frame, x: Float, y: Float, width: Float, height: Float, start_red: Int, start_green: Int, start_blue: Int, start_alpha: Int, end_red: Int, end_green: Int, end_blue: Int, end_alpha: Int, vertical: Bool) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not valid_color(start_red, start_green, start_blue, start_alpha) or not valid_color(end_red, end_green, end_blue, end_alpha):
         return invalid_geometry()
     unsafe:
         if vertical:
-            return status_result(rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
-        return status_result(rlv_draw_rectangle_gradient_horizontal(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
+            return status_result(native.rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
+        return status_result(native.rlv_draw_rectangle_gradient_horizontal(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
 
 pub fn draw_gradient_circle(frame: Frame, x: Float, y: Float, radius: Float, inner_red: Int, inner_green: Int, inner_blue: Int, inner_alpha: Int, outer_red: Int, outer_green: Int, outer_blue: Int, outer_alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not valid_color(inner_red, inner_green, inner_blue, inner_alpha) or not valid_color(outer_red, outer_green, outer_blue, outer_alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_gradient(frame.id, x, y, radius, inner_red, inner_green, inner_blue, inner_alpha, outer_red, outer_green, outer_blue, outer_alpha))
+        return status_result(native.rlv_draw_circle_gradient(frame.id, x, y, radius, inner_red, inner_green, inner_blue, inner_alpha, outer_red, outer_green, outer_blue, outer_alpha))
 
 pub fn pointer_pressed(window: Window, button: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -307,7 +259,7 @@ pub fn pointer_pressed(window: Window, button: Int) -> Result[Bool, String]:
     if not valid_input_code(button):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_mouse_pressed(window.id, button))
+        return Ok(native.rlv_mouse_pressed(window.id, button))
 
 pub fn pointer_down(window: Window, button: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -315,7 +267,7 @@ pub fn pointer_down(window: Window, button: Int) -> Result[Bool, String]:
     if not valid_input_code(button):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_mouse_down(window.id, button))
+        return Ok(native.rlv_mouse_down(window.id, button))
 
 pub fn pointer_released(window: Window, button: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -323,7 +275,7 @@ pub fn pointer_released(window: Window, button: Int) -> Result[Bool, String]:
     if not valid_input_code(button):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_mouse_released(window.id, button))
+        return Ok(native.rlv_mouse_released(window.id, button))
 
 pub fn key_pressed(window: Window, key: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -331,7 +283,7 @@ pub fn key_pressed(window: Window, key: Int) -> Result[Bool, String]:
     if not valid_input_code(key):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_key_pressed(window.id, key))
+        return Ok(native.rlv_key_pressed(window.id, key))
 
 pub fn key_down(window: Window, key: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -339,70 +291,70 @@ pub fn key_down(window: Window, key: Int) -> Result[Bool, String]:
     if not valid_input_code(key):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_key_down(window.id, key))
+        return Ok(native.rlv_key_down(window.id, key))
 
 pub fn pointer_framebuffer_x(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_mouse_framebuffer_x(window.id))
+        return Ok(native.rlv_mouse_framebuffer_x(window.id))
 
 pub fn pointer_framebuffer_y(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_mouse_framebuffer_y(window.id))
+        return Ok(native.rlv_mouse_framebuffer_y(window.id))
 
 # F17 display/render-target primitives used by rocket.graphics.canvas.
 pub fn framebuffer_width(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_framebuffer_width_f64(window.id))
+        return Ok(native.rlv_window_framebuffer_width_f64(window.id))
 
 pub fn framebuffer_height(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_framebuffer_height_f64(window.id))
+        return Ok(native.rlv_window_framebuffer_height_f64(window.id))
 
 pub fn dpi_scale_x(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_dpi_scale_x(window.id))
+        return Ok(native.rlv_window_dpi_scale_x(window.id))
 
 pub fn dpi_scale_y(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_dpi_scale_y(window.id))
+        return Ok(native.rlv_window_dpi_scale_y(window.id))
 
 pub fn display_revision(window: Window) -> Result[Int, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_display_revision(window.id))
+        return Ok(native.rlv_window_display_revision(window.id))
 
 pub fn set_window_size(window: Window, width: Int, height: Int) -> Result[Bool, String]:
     if width <= 0 or height <= 0:
         return Err("raylib: invalid argument")
     unsafe:
-        return status_result(rlv_window_set_size(window.id, width, height))
+        return status_result(native.rlv_window_set_size(window.id, width, height))
 
 pub fn set_window_fullscreen(window: Window, enabled: Bool) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_window_set_fullscreen(window.id, enabled))
+        return status_result(native.rlv_window_set_fullscreen(window.id, enabled))
 
 pub fn set_window_borderless(window: Window, enabled: Bool) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_window_set_borderless(window.id, enabled))
+        return status_result(native.rlv_window_set_borderless(window.id, enabled))
 
 pub fn create_render_texture(window: Window, width: Int, height: Int) -> Result[RenderTexture, String]:
     if width <= 0 or height <= 0:
         return Err("raylib: invalid argument")
     unsafe:
-        let target_id = rlv_render_texture_load(window.id, width, height)
+        let target_id = native.rlv_render_texture_load(window.id, width, height)
         if target_id > 0:
             return Ok(RenderTexture(target_id))
         return Err(status_message(target_id))
@@ -411,40 +363,40 @@ pub fn render_texture_width(target: RenderTexture) -> Result[Float, String]:
     if not render_texture_is_valid(target):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_render_texture_width_f64(target.id))
+        return Ok(native.rlv_render_texture_width_f64(target.id))
 
 pub fn render_texture_height(target: RenderTexture) -> Result[Float, String]:
     if not render_texture_is_valid(target):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_render_texture_height_f64(target.id))
+        return Ok(native.rlv_render_texture_height_f64(target.id))
 
 pub fn unload_render_texture(target: RenderTexture) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_render_texture_unload(target.id))
+        return status_result(native.rlv_render_texture_unload(target.id))
 
 pub fn begin_render_target(frame: Frame, target: RenderTexture) -> Result[RenderTargetScope, String]:
     unsafe:
-        let scope_id = rlv_render_target_begin(frame.id, target.id)
+        let scope_id = native.rlv_render_target_begin(frame.id, target.id)
         if scope_id > 0:
             return Ok(RenderTargetScope(scope_id))
         return Err(status_message(scope_id))
 
 pub fn end_render_target(scope: RenderTargetScope) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_render_target_end(scope.id))
+        return status_result(native.rlv_render_target_end(scope.id))
 
 pub fn draw_render_texture(frame: Frame, target: RenderTexture, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float) -> Result[Bool, String]:
     if not finite(source_x) or not finite(source_y) or not finite(source_width) or not finite(source_height) or not finite(dest_x) or not finite(dest_y) or not finite(dest_width) or not finite(dest_height):
         return Err("raylib: invalid argument")
     unsafe:
-        return status_result(rlv_render_texture_draw(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+        return status_result(native.rlv_render_texture_draw(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
 
 pub fn draw_render_texture_framebuffer(frame: Frame, target: RenderTexture, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float) -> Result[Bool, String]:
     if not finite(source_x) or not finite(source_y) or not finite(source_width) or not finite(source_height) or not finite(dest_x) or not finite(dest_y) or not finite(dest_width) or not finite(dest_height):
         return Err("raylib: invalid argument")
     unsafe:
-        return status_result(rlv_render_texture_draw_framebuffer(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+        return status_result(native.rlv_render_texture_draw_framebuffer(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
 
 pub fn save_render_texture_png(window: Window, target: RenderTexture, path: String) -> Result[Bool, String]:
     match encode_text(path):
@@ -453,7 +405,7 @@ pub fn save_render_texture_png(window: Window, target: RenderTexture, path: Stri
         case Ok(buffer_id):
             var status = -2
             unsafe:
-                status = rlv_render_texture_save_png(window.id, target.id, buffer_id)
+                status = native.rlv_render_texture_save_png(window.id, target.id, buffer_id)
             let released = release_text(buffer_id)
             if status != 0:
                 return Err(status_message(status))
@@ -463,7 +415,7 @@ pub fn begin_scissor(frame: Frame, x: Float, y: Float, width: Float, height: Flo
     if not valid_rect(x, y, width, height):
         return Err("raylib: invalid argument")
     unsafe:
-        let scope_id = rlv_scissor_begin(frame.id, x, y, width, height)
+        let scope_id = native.rlv_scissor_begin(frame.id, x, y, width, height)
         if scope_id > 0:
             return Ok(ScissorScope(scope_id))
         return Err(status_message(scope_id))
@@ -472,14 +424,14 @@ pub fn begin_framebuffer_scissor(frame: Frame, x: Float, y: Float, width: Float,
     if not valid_rect(x, y, width, height):
         return Err("raylib: invalid argument")
     unsafe:
-        let scope_id = rlv_scissor_begin_framebuffer(frame.id, x, y, width, height)
+        let scope_id = native.rlv_scissor_begin_framebuffer(frame.id, x, y, width, height)
         if scope_id > 0:
             return Ok(ScissorScope(scope_id))
         return Err(status_message(scope_id))
 
 pub fn end_scissor(scope: ScissorScope) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_scissor_end(scope.id))
+        return status_result(native.rlv_scissor_end(scope.id))
 
 # Typography stays behind the same checked boundary as the legacy drawing
 # helpers above. Layout tokens are consumed and destroyed before they escape

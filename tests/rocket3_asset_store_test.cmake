@@ -29,7 +29,7 @@ endif()
 foreach(source IN ITEMS
     "${package}/src/rocket_assets.rocket"
     "${package}/src/rocket_raylib.rocket"
-    "${package}/src/rocket_raylib_adapter.rocket"
+    "${SOURCE_DIR}/stdlib/rocket/raylib/native.rocket"
     "${package}/src/rocket_raylib_testing.rocket"
     "${package}/tests/asset_store_test.rocket")
   execute_process(COMMAND "${ROCKETC}" fmt "${source}" --check
