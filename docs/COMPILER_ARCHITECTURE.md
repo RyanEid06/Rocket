@@ -329,11 +329,11 @@ and disconnect native debug/crash-symbol identity. Every Rocket-controlled
 Mach-O link reserves maximum install-name header padding for the relocation
 rewrites performed by the native SDK packager.
 
-## Rocket 1.4 raylib validation architecture
+## Rocket 3.5 production Raylib runtime architecture
 
-Phase 14 validates the Phase 13 pipeline instead of adding a raylib-specific
+The runtime remains ordinary native interop rather than a raylib-specific
 compiler intrinsic. The pinned raylib 6.0 C target is statically linked behind
-`rocket_raylib_adapter.lib`. That adapter owns all raylib by-value structures
+the adapter built from `src/raylib/rocket_raylib_adapter.cpp`. That adapter owns all raylib by-value structures
 and exposes a generated-header subset containing only `int64_t`, `double`,
 `rocket_bool`, `uint8_t`, `void`, and one synchronous callback type. The package
 manifest supplies the adapter, raylib, and Windows system libraries in

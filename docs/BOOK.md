@@ -7,6 +7,9 @@ surface index is
 `ROCKET_3_0_SYNTAX_DICTIONARY.md` and the complete disposition of repository
 documentation is in `DOCUMENTATION_STATUS.md`.
 
+The in-progress Rocket 3.5 game-runtime consolidation is documented in
+`ROCKET_3_5_RUNTIME_FOUNDATION.md`.
+
 ## 1. Build and run
 
 Create a package with `rocketc new hello`, then use `rocketc check hello`,
