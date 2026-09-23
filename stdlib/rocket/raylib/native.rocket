@@ -194,6 +194,8 @@ pub extern fn rlv_screenshot_count() -> Int
 pub extern fn rlv_shader_supported(window_id: Int) -> Bool
 pub extern fn rlv_shader_load_files(window_id: Int, vertex_path_buffer_id: Int, fragment_path_buffer_id: Int) -> Int
 pub extern fn rlv_shader_load_memory(window_id: Int, vertex_source_buffer_id: Int, fragment_source_buffer_id: Int) -> Int
+pub extern fn rlv_shader_diagnostic_length() -> Int
+pub extern fn rlv_shader_diagnostic_byte(index: Int) -> Int
 pub extern fn rlv_shader_unload(shader_id: Int) -> Int
 pub extern fn rlv_shader_live_count() -> Int
 pub extern fn rlv_shader_uniform_live_count() -> Int

@@ -8,8 +8,10 @@
 
 #include <cfloat>
 #include <cmath>
+#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <initializer_list>
 #include <limits>
@@ -208,6 +210,7 @@ struct AdapterState {
   double testTime = 0.0;
   int64_t testMaxAnisotropy = 16;
   bool testShaderSupported = true;
+  std::string shaderDiagnostic;
   double lastTextDrawX = 0.0;
   double lastTextDrawY = 0.0;
   std::unordered_map<int64_t, std::string> buffers;
@@ -231,6 +234,26 @@ struct AdapterState {
 
 AdapterState state;
 unsigned int nativeQualityFlags = 0;
+
+void captureShaderLog(int level, const char* format, va_list arguments) {
+  char message[4096];
+  va_list copy;
+  va_copy(copy, arguments);
+  std::vsnprintf(message, sizeof(message), format, copy);
+  va_end(copy);
+  if (level >= LOG_WARNING && state.shaderDiagnostic.size() < 8192) {
+    if (!state.shaderDiagnostic.empty()) state.shaderDiagnostic += "\n";
+    state.shaderDiagnostic += message;
+  }
+  std::fprintf(stderr, "raylib shader: %s\n", message);
+}
+
+Shader loadShaderWithDiagnostics(const char* vertex, const char* fragment) {
+  SetTraceLogCallback(captureShaderLog);
+  Shader shader = LoadShaderFromMemory(vertex, fragment);
+  SetTraceLogCallback(nullptr);
+  return shader;
+}
 
 int64_t performanceStateEntries() {
   return (state.windowOpen ? 1 : 0) + (state.audioOpen ? 1 : 0) +
@@ -2450,6 +2473,7 @@ extern "C" int64_t rlv_window_screenshot(int64_t windowId,
 extern "C" int64_t rlv_shader_load_files(int64_t windowId,
                                            int64_t vertexPathBufferId,
                                            int64_t fragmentPathBufferId) {
+  state.shaderDiagnostic.clear();
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   const std::string* vertexPath = buffer(vertexPathBufferId);
   const std::string* fragmentPath = buffer(fragmentPathBufferId);
@@ -2467,6 +2491,8 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
            error;
   };
   if (missingShaderFile(*vertexPath) || missingShaderFile(*fragmentPath)) {
+    state.shaderDiagnostic = "shader file not found: " +
+        (missingShaderFile(*vertexPath) ? *vertexPath : *fragmentPath);
     return RLV_ERR_NOT_FOUND;
   }
 
@@ -2489,12 +2515,14 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
     if (vertexSource) parseTestShaderUniformTypes(record, vertexSource);
     if (fragmentSource) parseTestShaderUniformTypes(record, fragmentSource);
   } else {
-    record.value = LoadShaderFromMemory(vertexSource, fragmentSource);
+    record.value = loadShaderWithDiagnostics(vertexSource, fragmentSource);
     if (!IsShaderValid(record.value) ||
         record.value.id == rlGetShaderIdDefault()) {
       UnloadShader(record.value);
       if (vertexSource) UnloadFileText(vertexSource);
       if (fragmentSource) UnloadFileText(fragmentSource);
+      if (state.shaderDiagnostic.empty())
+        state.shaderDiagnostic = "shader compilation or link failed (backend returned default shader)";
       return RLV_ERR_INVALID_SHADER;
     }
     record.native = true;
@@ -2511,6 +2539,7 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
 extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
                                             int64_t vertexSourceBufferId,
                                             int64_t fragmentSourceBufferId) {
+  state.shaderDiagnostic.clear();
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   const std::string* vertexSource = buffer(vertexSourceBufferId);
   const std::string* fragmentSource = buffer(fragmentSourceBufferId);
@@ -2522,6 +2551,7 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
   if (state.testMode &&
       (*vertexSource == "invalid_shader" ||
        *fragmentSource == "invalid_shader")) {
+    state.shaderDiagnostic = "test backend: invalid shader source";
     return RLV_ERR_INVALID_SHADER;
   }
 
@@ -2531,12 +2561,14 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
     parseTestShaderUniformTypes(record, *vertexSource);
     parseTestShaderUniformTypes(record, *fragmentSource);
   } else {
-    record.value = LoadShaderFromMemory(
+    record.value = loadShaderWithDiagnostics(
         vertexSource->empty() ? nullptr : vertexSource->c_str(),
         fragmentSource->empty() ? nullptr : fragmentSource->c_str());
     if (!IsShaderValid(record.value) ||
         record.value.id == rlGetShaderIdDefault()) {
       UnloadShader(record.value);
+      if (state.shaderDiagnostic.empty())
+        state.shaderDiagnostic = "shader compilation or link failed (backend returned default shader)";
       return RLV_ERR_INVALID_SHADER;
     }
     record.native = true;
@@ -2546,6 +2578,16 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
   state.shaders.emplace(id, record);
   recordPerformanceAllocation();
   return id;
+}
+
+extern "C" int64_t rlv_shader_diagnostic_length(void) {
+  return static_cast<int64_t>(state.shaderDiagnostic.size());
+}
+
+extern "C" int64_t rlv_shader_diagnostic_byte(int64_t index) {
+  if (index < 0 || static_cast<size_t>(index) >= state.shaderDiagnostic.size())
+    return RLV_ERR_INVALID_ARGUMENT;
+  return static_cast<unsigned char>(state.shaderDiagnostic[static_cast<size_t>(index)]);
 }
 
 extern "C" int64_t rlv_shader_unload(int64_t shaderId) {

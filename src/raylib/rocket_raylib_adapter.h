@@ -225,6 +225,9 @@ ROCKET_API int64_t rlv_screenshot_count(void);
 ROCKET_API rocket_bool rlv_shader_supported(int64_t window_id);
 ROCKET_API int64_t rlv_shader_load_files(int64_t window_id, int64_t vertex_path_buffer_id, int64_t fragment_path_buffer_id);
 ROCKET_API int64_t rlv_shader_load_memory(int64_t window_id, int64_t vertex_source_buffer_id, int64_t fragment_source_buffer_id);
+/* UTF-8 diagnostic from the most recent shader load on this adapter instance. */
+ROCKET_API int64_t rlv_shader_diagnostic_length(void);
+ROCKET_API int64_t rlv_shader_diagnostic_byte(int64_t index);
 ROCKET_API int64_t rlv_shader_unload(int64_t shader_id);
 ROCKET_API int64_t rlv_shader_live_count(void);
 ROCKET_API int64_t rlv_shader_uniform_live_count(void);

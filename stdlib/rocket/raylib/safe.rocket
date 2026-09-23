@@ -4,6 +4,7 @@
 
 import rocket.graphics
 import rocket.raylib.native
+import std.binary
 import std.string
 
 pub struct Window:
@@ -25,6 +26,24 @@ pub struct RenderTargetScope:
     id: Int
 
 pub struct ScissorScope:
+    id: Int
+
+pub struct BlendMode:
+    mode: Int
+
+pub struct BlendScope:
+    id: Int
+
+pub struct Shader:
+    id: Int
+
+pub struct ShaderUniformType:
+    kind: Int
+
+pub struct ShaderUniform:
+    id: Int
+
+pub struct ShaderScope:
     id: Int
 
 pub struct Font:
@@ -56,6 +75,36 @@ pub fn anisotropic_8x_filter() -> TextureFilter:
 
 pub fn anisotropic_16x_filter() -> TextureFilter:
     return TextureFilter(5)
+
+pub fn alpha_blend() -> BlendMode:
+    return BlendMode(0)
+
+pub fn additive_blend() -> BlendMode:
+    return BlendMode(1)
+
+pub fn multiplied_blend() -> BlendMode:
+    return BlendMode(2)
+
+pub fn add_colors_blend() -> BlendMode:
+    return BlendMode(3)
+
+pub fn subtract_colors_blend() -> BlendMode:
+    return BlendMode(4)
+
+pub fn premultiplied_alpha_blend() -> BlendMode:
+    return BlendMode(5)
+
+pub fn float_uniform() -> ShaderUniformType:
+    return ShaderUniformType(0)
+
+pub fn int_uniform() -> ShaderUniformType:
+    return ShaderUniformType(1)
+
+pub fn vec2_uniform() -> ShaderUniformType:
+    return ShaderUniformType(2)
+
+pub fn color_uniform() -> ShaderUniformType:
+    return ShaderUniformType(3)
 
 fn status_message(status: Int) -> String:
     if status == -1:
@@ -673,6 +722,134 @@ pub fn begin_framebuffer_scissor(frame: Frame, x: Float, y: Float, width: Float,
 pub fn end_scissor(scope: ScissorScope) -> Result[Bool, String]:
     unsafe:
         return status_result(native.rlv_scissor_end(scope.id))
+
+pub fn begin_blend(frame: Frame, mode: BlendMode) -> Result[BlendScope, String]:
+    if mode.mode < 0 or mode.mode > 5:
+        return Err("raylib: invalid argument")
+    unsafe:
+        let scope_id = native.rlv_blend_begin(frame.id, mode.mode)
+        if scope_id > 0:
+            return Ok(BlendScope(scope_id))
+        return Err(status_message(scope_id))
+
+pub fn end_blend(scope: BlendScope) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_blend_end(scope.id))
+
+pub fn shader_supported(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_shader_supported(window.id))
+
+fn shader_load_error(status: Int) -> String:
+    if status != -7:
+        return status_message(status)
+    var bytes = binary.from_string("")
+    var length = 0
+    unsafe:
+        length = native.rlv_shader_diagnostic_length()
+    var index = 0
+    while index < length and index < 16384:
+        var byte_value = 0
+        unsafe:
+            byte_value = native.rlv_shader_diagnostic_byte(index)
+        match binary.write_u8(byte_value):
+            case Err(error):
+                return status_message(status)
+            case Ok(part):
+                bytes = binary.concat(bytes, part)
+        index = index + 1
+    match binary.to_string(bytes):
+        case Err(error):
+            return status_message(status)
+        case Ok(diagnostic):
+            if string.byte_length(diagnostic) == 0:
+                return status_message(status)
+            return string.concat("raylib: invalid shader program: ", diagnostic)
+
+fn load_shader_buffers(window: Window, vertex: String, fragment: String, from_source: Bool) -> Result[Shader, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    match encode_text(vertex):
+        case Err(error):
+            return Err(error)
+        case Ok(vertex_buffer):
+            match encode_text(fragment):
+                case Err(error):
+                    let released = release_text(vertex_buffer)
+                    return Err(error)
+                case Ok(fragment_buffer):
+                    var shader_id = -2
+                    unsafe:
+                        if from_source:
+                            shader_id = native.rlv_shader_load_memory(window.id, vertex_buffer, fragment_buffer)
+                        else:
+                            shader_id = native.rlv_shader_load_files(window.id, vertex_buffer, fragment_buffer)
+                    let released_vertex = release_text(vertex_buffer)
+                    let released_fragment = release_text(fragment_buffer)
+                    if shader_id <= 0:
+                        return Err(shader_load_error(shader_id))
+                    return Ok(Shader(shader_id))
+
+# Pass "" for a stage that should use the backend's default shader stage.
+pub fn load_shader(window: Window, vertex_path: String, fragment_path: String) -> Result[Shader, String]:
+    return load_shader_buffers(window, vertex_path, fragment_path, false)
+
+pub fn load_shader_from_source(window: Window, vertex_source: String, fragment_source: String) -> Result[Shader, String]:
+    return load_shader_buffers(window, vertex_source, fragment_source, true)
+
+pub fn unload_shader(shader: Shader) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_shader_unload(shader.id))
+
+pub fn shader_uniform(shader: Shader, name: String, uniform_type: ShaderUniformType) -> Result[ShaderUniform, String]:
+    if string.byte_length(name) == 0 or uniform_type.kind < 0 or uniform_type.kind > 3:
+        return Err("raylib: invalid argument")
+    match encode_text(name):
+        case Err(error):
+            return Err(error)
+        case Ok(name_buffer):
+            var uniform_id = -2
+            unsafe:
+                uniform_id = native.rlv_shader_uniform(shader.id, name_buffer, uniform_type.kind)
+            let released = release_text(name_buffer)
+            if uniform_id <= 0:
+                return Err(status_message(uniform_id))
+            return Ok(ShaderUniform(uniform_id))
+
+pub fn set_shader_float(shader: Shader, uniform: ShaderUniform, value: Float) -> Result[Bool, String]:
+    if not finite(value):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_shader_set_float(shader.id, uniform.id, value))
+
+pub fn set_shader_int(shader: Shader, uniform: ShaderUniform, value: Int) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_shader_set_int(shader.id, uniform.id, value))
+
+pub fn set_shader_vec2(shader: Shader, uniform: ShaderUniform, value: graphics.Vec2) -> Result[Bool, String]:
+    if not finite(value.x) or not finite(value.y):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_shader_set_vec2(shader.id, uniform.id, value.x, value.y))
+
+pub fn set_shader_color(shader: Shader, uniform: ShaderUniform, value: Color) -> Result[Bool, String]:
+    if not valid_color(value.red, value.green, value.blue, value.alpha):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_shader_set_color(shader.id, uniform.id, value.red, value.green, value.blue, value.alpha))
+
+pub fn begin_shader(frame: Frame, shader: Shader) -> Result[ShaderScope, String]:
+    unsafe:
+        let scope_id = native.rlv_shader_begin(frame.id, shader.id)
+        if scope_id > 0:
+            return Ok(ShaderScope(scope_id))
+        return Err(status_message(scope_id))
+
+pub fn end_shader(scope: ShaderScope) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_shader_end(scope.id))
 
 # Typography stays behind the same checked boundary as the legacy drawing
 # helpers above. Layout tokens are consumed and destroyed before they escape
