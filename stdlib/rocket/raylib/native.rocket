@@ -172,6 +172,8 @@ pub extern fn rlv_render_texture_width(render_texture_id: Int) -> Int
 pub extern fn rlv_render_texture_height(render_texture_id: Int) -> Int
 pub extern fn rlv_render_texture_width_f64(render_texture_id: Int) -> Float
 pub extern fn rlv_render_texture_height_f64(render_texture_id: Int) -> Float
+pub extern fn rlv_render_texture_set_filter(window_id: Int, render_texture_id: Int, filter_mode: Int) -> Int
+pub extern fn rlv_render_texture_get_filter(render_texture_id: Int) -> Int
 pub extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
 pub extern fn rlv_render_texture_live_count() -> Int
 pub extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int

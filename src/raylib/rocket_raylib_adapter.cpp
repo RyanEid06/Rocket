@@ -37,6 +37,7 @@ struct RenderTextureRecord {
   int64_t windowId = 0;
   int64_t width = 0;
   int64_t height = 0;
+  int64_t filter = RLV_TEXTURE_FILTER_POINT;
   bool native = false;
 };
 
@@ -1851,6 +1852,31 @@ extern "C" double rlv_render_texture_height_f64(int64_t renderTextureId) {
   return found == state.renderTextures.end()
       ? 0.0
       : static_cast<double>(found->second.height);
+}
+
+extern "C" int64_t rlv_render_texture_set_filter(int64_t windowId,
+                                                    int64_t renderTextureId,
+                                                    int64_t filterMode) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.renderTextures.find(renderTextureId);
+  if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != windowId) return RLV_ERR_INVALID_ARGUMENT;
+  if (state.drawing || renderTargetActive(renderTextureId)) return RLV_ERR_INVALID_STATE;
+  if (filterMode != RLV_TEXTURE_FILTER_POINT &&
+      filterMode != RLV_TEXTURE_FILTER_BILINEAR) return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) {
+    SetTextureFilter(found->second.value.texture,
+                     filterMode == RLV_TEXTURE_FILTER_POINT
+                         ? TEXTURE_FILTER_POINT : TEXTURE_FILTER_BILINEAR);
+  }
+  found->second.filter = filterMode;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_render_texture_get_filter(int64_t renderTextureId) {
+  const auto found = state.renderTextures.find(renderTextureId);
+  return found == state.renderTextures.end() ? RLV_ERR_STALE_HANDLE
+                                             : found->second.filter;
 }
 
 extern "C" int64_t rlv_render_texture_unload(int64_t renderTextureId) {

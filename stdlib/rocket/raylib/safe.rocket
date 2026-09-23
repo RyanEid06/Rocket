@@ -15,6 +15,12 @@ pub struct Frame:
 pub struct RenderTexture:
     id: Int
 
+pub struct Texture:
+    id: Int
+
+pub struct TextureFilter:
+    mode: Int
+
 pub struct RenderTargetScope:
     id: Int
 
@@ -32,6 +38,24 @@ pub struct Color:
 
 pub fn color(red: Int, green: Int, blue: Int, alpha: Int = 255) -> Color:
     return Color(red, green, blue, alpha)
+
+pub fn point_filter() -> TextureFilter:
+    return TextureFilter(0)
+
+pub fn bilinear_filter() -> TextureFilter:
+    return TextureFilter(1)
+
+pub fn trilinear_filter() -> TextureFilter:
+    return TextureFilter(2)
+
+pub fn anisotropic_4x_filter() -> TextureFilter:
+    return TextureFilter(3)
+
+pub fn anisotropic_8x_filter() -> TextureFilter:
+    return TextureFilter(4)
+
+pub fn anisotropic_16x_filter() -> TextureFilter:
+    return TextureFilter(5)
 
 fn status_message(status: Int) -> String:
     if status == -1:
@@ -82,6 +106,13 @@ fn render_texture_is_valid(target: RenderTexture) -> Bool:
     unsafe:
         return native.rlv_render_texture_width(target.id) > 0
 
+fn texture_is_valid(texture: Texture) -> Bool:
+    unsafe:
+        return native.rlv_texture_width(texture.id) > 0
+
+fn filter_is_valid(value: TextureFilter) -> Bool:
+    return value.mode >= 0 and value.mode <= 5
+
 fn valid_input_code(value: Int) -> Bool:
     return value >= 0 and value <= 2147483647
 
@@ -118,9 +149,48 @@ pub fn open_window(width: Int, height: Int, title: String) -> Result[Window, Str
                 return Ok(Window(window_id))
             return Err(status_message(window_id))
 
+pub fn open_window_quality(width: Int, height: Int, title: String, resizable: Bool = true, high_dpi: Bool = true, msaa4x: Bool = true) -> Result[Window, String]:
+    if width <= 0 or height <= 0:
+        return Err("raylib: invalid argument")
+    match encode_text(title):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var window_id = 0
+            unsafe:
+                window_id = native.rlv_window_open_quality(width, height, buffer_id, resizable, high_dpi, msaa4x)
+            let released = release_text(buffer_id)
+            if window_id > 0:
+                return Ok(Window(window_id))
+            return Err(status_message(window_id))
+
 pub fn close_window(window: Window) -> Result[Bool, String]:
     unsafe:
         return status_result(native.rlv_window_close(window.id))
+
+pub fn window_should_close(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_should_close(window.id))
+
+pub fn set_target_fps(window: Window, fps: Int) -> Result[Bool, String]:
+    if fps < 0:
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_set_target_fps(window.id, fps))
+
+pub fn frame_time(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_frame_time(window.id))
+
+pub fn elapsed_time(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_time(window.id))
 
 pub fn begin_frame(window: Window) -> Result[Frame, String]:
     unsafe:
@@ -136,6 +206,12 @@ pub fn end_frame(frame: Frame) -> Result[Bool, String]:
 pub fn abort_frame(frame: Frame) -> Result[Bool, String]:
     unsafe:
         return status_result(native.rlv_abort_drawing(frame.id))
+
+pub fn clear_background(frame: Frame, value: Color) -> Result[Bool, String]:
+    if not valid_color(value.red, value.green, value.blue, value.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_clear_background(frame.id, value.red, value.green, value.blue, value.alpha))
 
 pub fn draw_rect(frame: Frame, x: Float, y: Float, width: Float, height: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not valid_color(red, green, blue, alpha):
@@ -306,6 +382,55 @@ pub fn pointer_framebuffer_y(window: Window) -> Result[Float, String]:
         return Ok(native.rlv_mouse_framebuffer_y(window.id))
 
 # F17 display/render-target primitives used by rocket.graphics.canvas.
+pub fn window_width(window: Window) -> Result[Int, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_logical_width(window.id))
+
+pub fn window_height(window: Window) -> Result[Int, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_logical_height(window.id))
+
+pub fn window_resized(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_resized(window.id))
+
+pub fn window_fullscreen(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_fullscreen(window.id))
+
+pub fn window_borderless(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_borderless(window.id))
+
+pub fn screenshot_supported(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_screenshot_supported(window.id))
+
+pub fn save_screenshot(window: Window, path: String) -> Result[Bool, String]:
+    match encode_text(path):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var status = -2
+            unsafe:
+                status = native.rlv_window_screenshot(window.id, buffer_id)
+            let released = release_text(buffer_id)
+            if status != 0:
+                return Err(status_message(status))
+            return released
+
 pub fn framebuffer_width(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
@@ -350,6 +475,101 @@ pub fn set_window_borderless(window: Window, enabled: Bool) -> Result[Bool, Stri
     unsafe:
         return status_result(native.rlv_window_set_borderless(window.id, enabled))
 
+pub fn load_texture(window: Window, path: String) -> Result[Texture, String]:
+    match encode_text(path):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var texture_id = 0
+            unsafe:
+                texture_id = native.rlv_texture_load(window.id, buffer_id)
+            let released = release_text(buffer_id)
+            if texture_id > 0:
+                return Ok(Texture(texture_id))
+            return Err(status_message(texture_id))
+
+pub fn texture_width(texture: Texture) -> Result[Int, String]:
+    unsafe:
+        let width = native.rlv_texture_width(texture.id)
+        if width < 0:
+            return Err(status_message(width))
+        return Ok(width)
+
+pub fn texture_height(texture: Texture) -> Result[Int, String]:
+    unsafe:
+        let height = native.rlv_texture_height(texture.id)
+        if height < 0:
+            return Err(status_message(height))
+        return Ok(height)
+
+pub fn unload_texture(texture: Texture) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_texture_unload(texture.id))
+
+pub fn draw_texture(frame: Frame, texture: Texture, x: Int, y: Int, tint: Color) -> Result[Bool, String]:
+    if not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_texture_draw(frame.id, texture.id, x, y, tint.red, tint.green, tint.blue, tint.alpha))
+
+pub fn draw_texture_scaled(frame: Frame, texture: Texture, x: Int, y: Int, scale: Float, tint: Color) -> Result[Bool, String]:
+    if not finite(scale) or scale <= 0.0 or not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_texture_draw_scaled(frame.id, texture.id, x, y, scale, tint.red, tint.green, tint.blue, tint.alpha))
+
+# Negative source width or height flips artwork within the selected atlas region.
+pub fn draw_texture_pro(frame: Frame, texture: Texture, source: graphics.Rect, dest: graphics.Rect, origin: graphics.Vec2, rotation: Float, tint: Color) -> Result[Bool, String]:
+    if not finite(source.x) or not finite(source.y) or not finite(source.width) or not finite(source.height) or source.width == 0.0 or source.height == 0.0 or source.x < 0.0 or source.y < 0.0:
+        return invalid_geometry()
+    if not valid_rect(dest.x, dest.y, dest.width, dest.height) or not finite(origin.x) or not finite(origin.y) or not finite(rotation) or not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_texture_draw_pro(frame.id, texture.id, source.x, source.y, source.width, source.height, dest.x, dest.y, dest.width, dest.height, origin.x, origin.y, rotation, tint.red, tint.green, tint.blue, tint.alpha))
+
+pub fn texture_filter_supported(value: TextureFilter) -> Bool:
+    if not filter_is_valid(value):
+        return false
+    unsafe:
+        return native.rlv_texture_filter_supported(value.mode)
+
+pub fn texture_max_anisotropy() -> Float:
+    unsafe:
+        return native.rlv_texture_max_anisotropy()
+
+pub fn get_texture_filter(texture: Texture) -> Result[TextureFilter, String]:
+    unsafe:
+        let mode = native.rlv_texture_get_filter(texture.id)
+        if mode < 0:
+            return Err(status_message(mode))
+        return Ok(TextureFilter(mode))
+
+pub fn set_texture_filter(window: Window, texture: Texture, value: TextureFilter) -> Result[Bool, String]:
+    if not filter_is_valid(value):
+        return Err("raylib: invalid argument")
+    if not texture_is_valid(texture):
+        return Err("raylib: stale or already released handle")
+    if not texture_filter_supported(value):
+        return Err("raylib: device or backend unavailable")
+    unsafe:
+        return status_result(native.rlv_texture_set_filter(window.id, texture.id, value.mode))
+
+pub fn set_texture_filter_with_fallback(window: Window, texture: Texture, preferred: TextureFilter, fallback: TextureFilter) -> Result[TextureFilter, String]:
+    if not filter_is_valid(preferred) or not filter_is_valid(fallback):
+        return Err("raylib: invalid argument")
+    if texture_filter_supported(preferred):
+        match set_texture_filter(window, texture, preferred):
+            case Ok(success):
+                return Ok(preferred)
+            case Err(error):
+                if error != "raylib: device or backend unavailable":
+                    return Err(error)
+    match set_texture_filter(window, texture, fallback):
+        case Ok(success):
+            return Ok(fallback)
+        case Err(error):
+            return Err(error)
+
 pub fn create_render_texture(window: Window, width: Int, height: Int) -> Result[RenderTexture, String]:
     if width <= 0 or height <= 0:
         return Err("raylib: invalid argument")
@@ -371,6 +591,19 @@ pub fn render_texture_height(target: RenderTexture) -> Result[Float, String]:
     unsafe:
         return Ok(native.rlv_render_texture_height_f64(target.id))
 
+pub fn set_render_texture_filter(window: Window, target: RenderTexture, value: TextureFilter) -> Result[Bool, String]:
+    if value.mode != 0 and value.mode != 1:
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_render_texture_set_filter(window.id, target.id, value.mode))
+
+pub fn get_render_texture_filter(target: RenderTexture) -> Result[TextureFilter, String]:
+    unsafe:
+        let mode = native.rlv_render_texture_get_filter(target.id)
+        if mode < 0:
+            return Err(status_message(mode))
+        return Ok(TextureFilter(mode))
+
 pub fn unload_render_texture(target: RenderTexture) -> Result[Bool, String]:
     unsafe:
         return status_result(native.rlv_render_texture_unload(target.id))
@@ -391,6 +624,14 @@ pub fn draw_render_texture(frame: Frame, target: RenderTexture, source_x: Float,
         return Err("raylib: invalid argument")
     unsafe:
         return status_result(native.rlv_render_texture_draw(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+
+pub fn draw_render_texture_pro(frame: Frame, target: RenderTexture, source: graphics.Rect, dest: graphics.Rect, origin: graphics.Vec2, rotation: Float, tint: Color) -> Result[Bool, String]:
+    if not finite(source.x) or not finite(source.y) or not finite(source.width) or not finite(source.height) or source.width == 0.0 or source.height == 0.0 or source.x < 0.0 or source.y < 0.0:
+        return invalid_geometry()
+    if not valid_rect(dest.x, dest.y, dest.width, dest.height) or not finite(origin.x) or not finite(origin.y) or not finite(rotation) or not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_render_texture_draw(frame.id, target.id, source.x, source.y, source.width, source.height, dest.x, dest.y, dest.width, dest.height, origin.x, origin.y, rotation, tint.red, tint.green, tint.blue, tint.alpha))
 
 pub fn draw_render_texture_framebuffer(frame: Frame, target: RenderTexture, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float) -> Result[Bool, String]:
     if not finite(source_x) or not finite(source_y) or not finite(source_width) or not finite(source_height) or not finite(dest_x) or not finite(dest_y) or not finite(dest_width) or not finite(dest_height):

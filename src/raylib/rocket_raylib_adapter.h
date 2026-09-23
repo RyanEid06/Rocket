@@ -202,6 +202,8 @@ ROCKET_API int64_t rlv_render_texture_width(int64_t render_texture_id);
 ROCKET_API int64_t rlv_render_texture_height(int64_t render_texture_id);
 ROCKET_API double rlv_render_texture_width_f64(int64_t render_texture_id);
 ROCKET_API double rlv_render_texture_height_f64(int64_t render_texture_id);
+ROCKET_API int64_t rlv_render_texture_set_filter(int64_t window_id, int64_t render_texture_id, int64_t filter_mode);
+ROCKET_API int64_t rlv_render_texture_get_filter(int64_t render_texture_id);
 ROCKET_API int64_t rlv_render_texture_unload(int64_t render_texture_id);
 ROCKET_API int64_t rlv_render_texture_live_count(void);
 ROCKET_API int64_t rlv_render_target_begin(int64_t frame_id, int64_t render_texture_id);
