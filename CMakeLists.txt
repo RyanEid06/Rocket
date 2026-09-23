@@ -603,6 +603,9 @@ add_test(NAME rocket35_texture_table_native
     "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
     "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp2/${CMAKE_BUILD_TYPE}/table"
     "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket35_texture_table_test.cmake")
 set_tests_properties(rocket35_texture_table_native PROPERTIES
   LABELS "rocket35;wp2;texture;canvas;display;native;visual"

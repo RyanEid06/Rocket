@@ -1,4 +1,6 @@
-if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR NOT DEFINED NATIVE_ROOT)
+if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
+   NOT DEFINED NATIVE_ROOT OR NOT DEFINED NATIVE_TARGET OR
+   NOT DEFINED EXECUTABLE_SUFFIX OR NOT DEFINED SOFTWARE_OPENGL_ROOT)
   message(FATAL_ERROR "WP2 image-backed table test is missing required arguments")
 endif()
 
@@ -20,7 +22,21 @@ endif()
 execute_process(COMMAND "${CMAKE_COMMAND}" -E env
   "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_ROOT}"
   "ROCKET_ARTIFACT_ROOT=${WORK}/artifacts"
-  "${ROCKETC}" run "${package}"
+  "${ROCKETC}" build "${package}"
+  WORKING_DIRECTORY "${WORK}" RESULT_VARIABLE build_result
+  OUTPUT_VARIABLE build_output ERROR_VARIABLE build_error)
+if(NOT build_result EQUAL 0)
+  message(FATAL_ERROR "WP2 image-backed table failed to build:\n${build_output}${build_error}")
+endif()
+set(executable_directory "${WORK}/artifacts/rocket35_texture_table/.rocketc/targets/${NATIVE_TARGET}")
+set(executable "${executable_directory}/main${EXECUTABLE_SUFFIX}")
+if(NATIVE_TARGET STREQUAL "windows-x64" AND
+   EXISTS "${SOFTWARE_OPENGL_ROOT}/opengl32.dll")
+  file(COPY "${SOFTWARE_OPENGL_ROOT}/opengl32.dll"
+            "${SOFTWARE_OPENGL_ROOT}/libgallium_wgl.dll"
+       DESTINATION "${executable_directory}")
+endif()
+execute_process(COMMAND "${executable}"
   WORKING_DIRECTORY "${WORK}" RESULT_VARIABLE run_result
   OUTPUT_VARIABLE run_output ERROR_VARIABLE run_error)
 if(NOT run_result EQUAL 0)
@@ -38,10 +54,7 @@ if(screenshot_size LESS 10000 OR NOT png_header MATCHES "^89504e470d0a1a0a000000
 endif()
 
 file(SHA256 "${screenshot}" first_capture)
-execute_process(COMMAND "${CMAKE_COMMAND}" -E env
-  "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_ROOT}"
-  "ROCKET_ARTIFACT_ROOT=${WORK}/artifacts"
-  "${ROCKETC}" run "${package}"
+execute_process(COMMAND "${executable}"
   WORKING_DIRECTORY "${WORK}" RESULT_VARIABLE repeat_result
   OUTPUT_VARIABLE repeat_output ERROR_VARIABLE repeat_error)
 if(NOT repeat_result EQUAL 0)
