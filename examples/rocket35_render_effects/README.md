@@ -14,5 +14,10 @@ normal package, runs it with repository-owned assets, and validates both
 captures. The application imports only documented standard-library modules;
 it contains no showcase wrapper or private adapter calls.
 
+Some headless Linux displays accept a logical resize request but keep the
+physical framebuffer at its original size. The native scene reports this
+case explicitly and verifies that composition remains valid; the deterministic
+WP3 fixture exercises a changed framebuffer and DPI mapping on every target.
+
 See [the WP3 rendering guide](../../docs/ROCKET_3_5_RENDER_EFFECTS.md) for the
 scope, shader, uniform, post-processing, and fallback APIs.

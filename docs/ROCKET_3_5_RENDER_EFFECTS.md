@@ -93,3 +93,7 @@ size. Apply `canvas.set_output_filter(window, target, true)` for smooth scaling,
 or `false` for point sampling. The WP3 scene saves captures before and after a
 resize; the fixture also verifies this sequence with a deterministic backend
 and checks the no-shader fallback.
+On a headless display that does not change its physical framebuffer after a
+resize request, the native scene reports that limitation and still verifies
+the shader composition path; the deterministic fixture tests resized
+framebuffer mapping on every platform.

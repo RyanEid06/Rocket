@@ -10,6 +10,14 @@ fn succeeded(value: Result[Bool, String]) -> Bool:
             print(message)
             return false
 
+fn physical_width(window: safe.Window) -> Float:
+    match safe.framebuffer_width(window):
+        case Err(message):
+            print(message)
+            return 0.0
+        case Ok(width):
+            return width
+
 fn draw_table(frame: safe.Frame, felt: safe.Texture, cards: safe.Texture, chips: safe.Texture) -> Bool:
     let white = safe.color(255, 255, 255)
     if not succeeded(safe.draw_texture(frame, felt, 0, 0, white)):
@@ -130,6 +138,7 @@ fn run(window: safe.Window) -> Int:
                                         status = 11
                                     if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-before.png")):
                                         status = 12
+                                    let before_width = physical_width(window)
                                     if status == 0 and not succeeded(safe.set_window_size(window, 1000, 600)):
                                         status = 13
                                     # X11 applies resize requests while later frames pump window events.
@@ -138,6 +147,11 @@ fn run(window: safe.Window) -> Int:
                                         if not render(window, felt, cards, chips, target, shader):
                                             status = 14
                                         resize_frame = resize_frame + 1
+                                    if status == 0:
+                                        if physical_width(window) == before_width:
+                                            print("wp3-resize-unavailable")
+                                        else:
+                                            print("wp3-resize-applied")
                                     if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-resized.png")):
                                         status = 15
                                     match shader:
