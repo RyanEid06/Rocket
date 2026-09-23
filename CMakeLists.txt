@@ -651,6 +651,42 @@ set_tests_properties(rocket35_render_effects_scene_native PROPERTIES
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket35_audio_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp4/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_audio_test.cmake")
+set_tests_properties(rocket35_audio_stage0 PROPERTIES
+  LABELS "rocket35;wp4;audio;stage0"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rocket35_audio_adapter_tests tests/native/rocket35_audio_adapter_tests.cpp)
+target_link_libraries(rocket35_audio_adapter_tests PRIVATE rocket_raylib_adapter)
+set_target_properties(rocket35_audio_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket35_audio_adapter COMMAND rocket35_audio_adapter_tests)
+set_tests_properties(rocket35_audio_adapter PROPERTIES
+  LABELS "rocket35;wp4;audio;native")
+
+add_test(NAME rocket35_audio_scene_native
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp4/${CMAKE_BUILD_TYPE}/scene"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_audio_scene_test.cmake")
+set_tests_properties(rocket35_audio_scene_native PROPERTIES
+  LABELS "rocket35;wp4;audio;native;visual"
+  SKIP_REGULAR_EXPRESSION "SKIP: audio device unavailable"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_ui_context_stage0
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1316,6 +1352,18 @@ add_test(NAME rocket35_render_effects_self_hosted
 set_tests_properties(rocket35_render_effects_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket35;wp3;blend;shader;canvas;selfhost"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket35_audio_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp4/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_audio_test.cmake")
+set_tests_properties(rocket35_audio_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp4;audio;selfhost"
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME rocket3_ui_context_self_hosted

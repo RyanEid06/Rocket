@@ -74,6 +74,7 @@ struct ScopeRecord {
 struct SoundRecord {
   Sound value{};
   bool native = false;
+  bool playing = false;
   int64_t audioId = 0;
   int64_t assetStoreId = 0;
 };
@@ -88,6 +89,8 @@ struct FontRecord {
 struct MusicRecord {
   Music value{};
   bool native = false;
+  bool playing = false;
+  bool paused = false;
   int64_t audioId = 0;
   int64_t assetStoreId = 0;
 };
@@ -3053,8 +3056,8 @@ extern "C" int64_t rlv_audio_close(int64_t audioId) {
   return RLV_OK;
 }
 
-extern "C" rocket_bool rlv_audio_ready(int64_t audioId) {
-  if (!validAudio(audioId)) return 0;
+extern "C" int64_t rlv_audio_ready(int64_t audioId) {
+  if (!validAudio(audioId)) return RLV_ERR_STALE_HANDLE;
   return state.testMode || IsAudioDeviceReady() ? 1 : 0;
 }
 
@@ -3107,17 +3110,25 @@ extern "C" int64_t rlv_sound_tone(int64_t audioId, double frequency,
 }
 
 extern "C" int64_t rlv_sound_play(int64_t soundId) {
-  const auto found = state.sounds.find(soundId);
+  auto found = state.sounds.find(soundId);
   if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
   if (!state.testMode) PlaySound(found->second.value);
+  found->second.playing = true;
   return RLV_OK;
 }
 
 extern "C" int64_t rlv_sound_stop(int64_t soundId) {
-  const auto found = state.sounds.find(soundId);
+  auto found = state.sounds.find(soundId);
   if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
   if (!state.testMode) StopSound(found->second.value);
+  found->second.playing = false;
   return RLV_OK;
+}
+
+extern "C" int64_t rlv_sound_playing(int64_t soundId) {
+  const auto found = state.sounds.find(soundId);
+  if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
+  return state.testMode ? found->second.playing : IsSoundPlaying(found->second.value);
 }
 
 extern "C" int64_t rlv_sound_set_volume(int64_t soundId, double volume) {
@@ -3130,17 +3141,127 @@ extern "C" int64_t rlv_sound_set_volume(int64_t soundId, double volume) {
   return RLV_OK;
 }
 
+extern "C" int64_t rlv_sound_set_pitch(int64_t soundId, double pitch) {
+  const auto found = state.sounds.find(soundId);
+  if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
+  if (!std::isfinite(pitch) || pitch <= 0.0 || pitch > 4.0)
+    return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) SetSoundPitch(found->second.value, static_cast<float>(pitch));
+  return RLV_OK;
+}
+
 extern "C" int64_t rlv_sound_unload(int64_t soundId) {
   const auto found = state.sounds.find(soundId);
   if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
   if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
-  if (found->second.native) UnloadSound(found->second.value);
+  if (found->second.native) {
+    StopSound(found->second.value);
+    UnloadSound(found->second.value);
+  }
   state.sounds.erase(found);
   return RLV_OK;
 }
 
 extern "C" int64_t rlv_sound_live_count(void) {
   return static_cast<int64_t>(state.sounds.size());
+}
+
+extern "C" int64_t rlv_music_load(int64_t audioId, int64_t pathBufferId) {
+  if (!validAudio(audioId)) return RLV_ERR_STALE_HANDLE;
+  const std::string* path = buffer(pathBufferId);
+  if (!path || path->empty()) return RLV_ERR_INVALID_ARGUMENT;
+  MusicRecord record;
+  record.audioId = audioId;
+  if (state.testMode) {
+    if (simulatedMissing(*path)) return RLV_ERR_NOT_FOUND;
+  } else {
+    record.value = LoadMusicStream(path->c_str());
+    if (!IsMusicValid(record.value)) return RLV_ERR_NOT_FOUND;
+    record.native = true;
+  }
+  const int64_t id = nextId();
+  state.musics.emplace(id, record);
+  recordPerformanceAllocation();
+  return id;
+}
+
+extern "C" int64_t rlv_music_play(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!state.testMode) PlayMusicStream(found->second.value);
+  found->second.playing = true;
+  found->second.paused = false;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_update(int64_t musicId) {
+  const auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!found->second.playing || found->second.paused) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) UpdateMusicStream(found->second.value);
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_pause(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!found->second.playing || found->second.paused) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) PauseMusicStream(found->second.value);
+  found->second.paused = true;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_resume(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!found->second.playing || !found->second.paused) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) ResumeMusicStream(found->second.value);
+  found->second.paused = false;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_stop(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!state.testMode) StopMusicStream(found->second.value);
+  found->second.playing = false;
+  found->second.paused = false;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_playing(int64_t musicId) {
+  const auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  return state.testMode ? (found->second.playing && !found->second.paused)
+                        : IsMusicStreamPlaying(found->second.value);
+}
+
+extern "C" int64_t rlv_music_set_volume(int64_t musicId, double volume) {
+  const auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!std::isfinite(volume) || volume < 0.0 || volume > 1.0)
+    return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) SetMusicVolume(found->second.value, static_cast<float>(volume));
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_set_looping(int64_t musicId, rocket_bool looping) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  found->second.value.looping = looping != 0;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_unload(int64_t musicId) {
+  const auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
+  if (found->second.native) {
+    StopMusicStream(found->second.value);
+    UnloadMusicStream(found->second.value);
+  }
+  state.musics.erase(found);
+  return RLV_OK;
 }
 
 extern "C" int64_t rlv_music_live_count(void) {

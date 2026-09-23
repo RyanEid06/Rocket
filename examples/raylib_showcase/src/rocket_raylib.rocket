@@ -1143,7 +1143,7 @@ pub fn close_audio(audio: AudioDevice) -> Result[Bool, String]:
 
 pub fn audio_ready(audio: AudioDevice) -> Bool:
     unsafe:
-        return native.rlv_audio_ready(audio.id)
+        return native.rlv_audio_ready(audio.id) > 0
 
 pub fn load_sound(audio: AudioDevice, path: String) -> Result[Sound, String]:
     match encode_text(path):
