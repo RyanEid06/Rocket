@@ -593,6 +593,8 @@ add_executable(rocket35_texture_adapter_tests
   tests/native/rocket35_texture_adapter_tests.cpp)
 target_link_libraries(rocket35_texture_adapter_tests PRIVATE
   rocket_raylib_adapter)
+set_target_properties(rocket35_texture_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
 add_test(NAME rocket35_texture_adapter COMMAND rocket35_texture_adapter_tests)
 set_tests_properties(rocket35_texture_adapter PROPERTIES
   LABELS "rocket35;wp2;raylib;native;texture;canvas")
