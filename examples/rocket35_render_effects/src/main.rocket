@@ -132,8 +132,12 @@ fn run(window: safe.Window) -> Int:
                                         status = 12
                                     if status == 0 and not succeeded(safe.set_window_size(window, 1000, 600)):
                                         status = 13
-                                    if status == 0 and not render(window, felt, cards, chips, target, shader):
-                                        status = 14
+                                    # X11 applies resize requests while later frames pump window events.
+                                    var resize_frame = 0
+                                    while status == 0 and resize_frame < 8:
+                                        if not render(window, felt, cards, chips, target, shader):
+                                            status = 14
+                                        resize_frame = resize_frame + 1
                                     if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-resized.png")):
                                         status = 15
                                     match shader:
@@ -156,6 +160,9 @@ fn main() -> Int:
             print(message)
             return 1
         case Ok(window):
+            if not succeeded(safe.set_target_fps(window, 60)):
+                let closed = safe.close_window(window)
+                return 19
             let status = run(window)
             if not succeeded(safe.close_window(window)):
                 return 18
