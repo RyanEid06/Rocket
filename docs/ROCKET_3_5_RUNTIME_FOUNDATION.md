@@ -55,4 +55,5 @@ adapter builds, and imports from the showcase source tree in production or
 supported sample code. Existing native lifetime suites continue to prove
 window/frame/scope cleanup and deterministic stale-handle errors. Release
 packaging verification builds and runs a stdlib-only game package from a
-sanitized relocated SDK.
+sanitized relocated SDK, then exercises window, frame, drawing, resize, close,
+and duplicate-close/end behavior through its headless test harness.

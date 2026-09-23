@@ -764,6 +764,10 @@ def verify_relocation(package: Path, arguments: argparse.Namespace) -> dict[str,
         [compiler, "run", fixture], env=env, cwd=work,
         pattern=r"(?m)^rocket35-runtime-ok$"
     )
+    run(
+        [compiler, "test", fixture], env=env, cwd=work,
+        pattern=r"1 passed; 0 failed"
+    )
     return {
         "schema": "rocket-relocation-report-2",
         "version": VERSION,
