@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "analysis_control.h"
 
 #include <cctype>
 #include <sstream>
@@ -96,6 +97,7 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
 
   std::size_t i = start;
   while (i < text.size()) {
+    analysisCheckpoint();
     const int column = static_cast<int>(i + 1);
     const char c = text[i];
     if (c == ' ' || c == '\r') { ++i; continue; }
@@ -158,6 +160,7 @@ void Lexer::scanLine(const std::string& text, int lineNumber, std::size_t start)
       std::string value;
       bool closed = false;
       while (i < text.size()) {
+        analysisCheckpoint();
         if (text[i] == '"') { ++i; closed = true; break; }
         if (text[i] == '\\' && i + 1 < text.size()) {
           const char escaped = text[++i];
@@ -241,6 +244,7 @@ std::vector<Token> Lexer::lex() {
   std::string lineText;
   int lineNumber = 1;
   while (std::getline(input, lineText)) {
+    analysisCheckpoint();
     if (!lineText.empty() && lineText.back() == '\r') lineText.pop_back();
     std::size_t first = 0;
     while (first < lineText.size() && lineText[first] == ' ') ++first;

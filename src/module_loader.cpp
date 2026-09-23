@@ -1,4 +1,5 @@
 #include "module_loader.h"
+#include "analysis_control.h"
 
 #include "lexer.h"
 #include "parser.h"
@@ -138,7 +139,10 @@ public:
                  targetSourceRoot_, "", rootDependencies_, 0))
       return std::nullopt;
     buildIndexes();
-    for (auto& [name, module] : modules_) rewrite(module);
+    for (auto &[name, module] : modules_) {
+      analysisCheckpoint();
+      rewrite(module);
+    }
     if (diagnostics_.hasErrors()) return std::nullopt;
 
     Module merged;
@@ -232,6 +236,9 @@ private:
       states_[name] = 2;
       return false;
     }
+    analysisCheckpoint();
+    if (activeAnalysis)
+      activeAnalysis->loadedFiles.insert(path.string());
     sourceBytes_ += source.size();
     Lexer lexer(path.string(), std::move(source), diagnostics_);
     auto tokens = lexer.lex();
@@ -336,6 +343,7 @@ private:
 
   void buildIndexes() {
     for (auto& [name, module] : modules_) {
+      analysisCheckpoint();
       for (const auto& function : module.ast.functions) {
         const std::string callable = localFunctionName(function);
         module.functions.insert(callable);
@@ -482,6 +490,7 @@ private:
 
   void rewriteExpression(LoadedModule& module, std::unique_ptr<Expr>& expression,
                          const std::unordered_set<std::string>& typeParameters) {
+    analysisCheckpoint();
     switch (expression->kind) {
     case ExprKind::Await:
       rewriteExpression(module, static_cast<AwaitExpr&>(*expression).value,
@@ -566,6 +575,7 @@ private:
   void rewriteBlock(LoadedModule& module,
                     std::vector<std::unique_ptr<Stmt>>& statements,
                     const std::unordered_set<std::string>& typeParameters) {
+    analysisCheckpoint();
     for (auto& statement : statements) {
       switch (statement->kind) {
       case StmtKind::Binding: {
@@ -640,6 +650,7 @@ private:
   }
 
   void rewrite(LoadedModule& module) {
+    analysisCheckpoint();
     for (auto& structure : module.ast.structs) {
       const std::unordered_set<std::string> parameters(structure.typeParameters.begin(),
                                                         structure.typeParameters.end());

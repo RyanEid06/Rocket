@@ -1,4 +1,7 @@
 #include "language_server.h"
+#include "analysis_control.h"
+#include "analysis_queue.h"
+#include "lsp_output_queue.h"
 
 #include "diagnostic.h"
 #include "formatter.h"
@@ -728,6 +731,8 @@ struct SemanticSnapshot {
   std::size_t filesAnalyzed = 0;
   std::size_t bytesAnalyzed = 0;
   std::size_t invalidatedFiles = 0;
+  std::size_t reparsedFiles = 0, semanticallyAnalyzedFiles = 0;
+  long long discoveryCacheHits = 0, discoveryCacheMisses = 0;
   long long generation = 0;
   long long elapsedMilliseconds = 0;
 };
@@ -1575,8 +1580,23 @@ private:
 
 class ServerSession {
 public:
-  ServerSession(std::istream& input, std::ostream& output, std::ostream& log)
-      : input_(input), output_(output), log_(log) {}
+  ServerSession(std::istream &input, std::ostream &output, std::ostream &log,
+                AnalysisQueue::Executor executor)
+      : input_(input), output_(output, log),
+        queue_(std::move(executor), [this](std::exception_ptr failure) {
+          try {
+            std::rethrow_exception(failure);
+          } catch (const std::exception &error) {
+            writeLog(std::string("rocket-lsp: analysis failed: ") +
+                     error.what() + "\n");
+          } catch (...) {
+            writeLog("rocket-lsp: analysis failed with an unknown exception\n");
+          }
+          for (const auto &[token, pending] : pendingRequests_)
+            sendError(*field(asObject(&pending), "id"), -32603,
+                      "analysis failed");
+          pendingRequests_.clear();
+        }) {}
 
   int run() {
     while (!exitReceived_) {
@@ -1594,9 +1614,14 @@ public:
         sendError(Json(), -32700, parseError);
         continue;
       }
-      handle(*message);
+      queue_.synchronize([&] { handle(*message); });
     }
-    return exitReceived_ && !cleanExit_ ? 1 : 0;
+    const bool joined = queue_.shutdown();
+    if (!joined)
+      writeLog("rocket-lsp: analysis worker exceeded 2000 ms shutdown "
+               "deadline; publication disabled\n");
+    const bool drained = output_.shutdown();
+    return !joined || !drained || (exitReceived_ && !cleanExit_) ? 1 : 0;
   }
 
 private:
@@ -1612,10 +1637,41 @@ private:
     bool telemetry = true;
   };
 
+  struct Discovery {
+    long long epoch = -1;
+    std::filesystem::path packageRoot, packageEntry;
+    std::vector<PackageDependencyRoot> dependencies;
+    std::vector<std::filesystem::path> files;
+    std::string error;
+  };
+  struct AnalysisInput {
+    std::map<std::string, Document> documents;
+    Configuration configuration;
+    std::filesystem::path workspaceRoot;
+    long long discoveryEpoch;
+    // The selected inventory and dependency roots are immutable shared values.
+    std::shared_ptr<const Discovery> discovery;
+  };
+  struct DiscoveryCache {
+    // Accessed exclusively by the single analysis worker.
+    std::shared_ptr<const Discovery> state;
+    long long hits = 0, misses = 0;
+  };
+  struct AnalysisResult {
+    SemanticSnapshot snapshot;
+    std::shared_ptr<const Discovery> discovery;
+  };
+
   void send(const Json& message) {
     const std::string body = serialize(message);
-    output_ << "Content-Length: " << body.size() << "\r\n\r\n" << body;
-    output_.flush();
+    if (!output_.send("Content-Length: " + std::to_string(body.size()) +
+                      "\r\n\r\n" + body))
+      queue_.cancel();
+  }
+
+  void writeLog(std::string text) {
+    if (!output_.send(std::move(text), true))
+      queue_.cancel();
   }
 
   void sendResult(const Json& id, Json result) {
@@ -1638,7 +1694,7 @@ private:
   }
 
   void invalidNotification(const std::string& method) {
-    log_ << "rocket-lsp: ignored invalid " << method << " notification\n";
+    writeLog("rocket-lsp: ignored invalid " + method + " notification\n");
   }
 
   static bool readSourceFile(const std::filesystem::path& path,
@@ -1662,31 +1718,10 @@ private:
     if (rootUri != nullptr) {
       if (const auto path = pathFromUri(*rootUri)) workspaceRoot_ = *path;
     }
-    if (workspaceRoot_.empty()) {
-      packageRoot_.clear();
-      packageEntry_.clear();
-      dependencyRoots_.clear();
-      return;
-    }
-    if (std::filesystem::is_regular_file(workspaceRoot_))
+    if (!workspaceRoot_.empty() &&
+        std::filesystem::is_regular_file(workspaceRoot_))
       workspaceRoot_ = workspaceRoot_.parent_path();
-    packageRoot_ = workspaceRoot_;
-    packageEntry_.clear();
-    dependencyRoots_.clear();
-    std::string error;
-    auto package = loadPackage(workspaceRoot_, error);
-    if (!package) return;
-    packageRoot_ = package->root;
-    packageEntry_ = package->entry;
-    PackageLock lock;
-    if (!prepareLockedPackageDependencies(*package, true, dependencyRoots_,
-                                          lock, error)) {
-      // Opening a workspace remains offline and side-effect free. Missing or
-      // poisoned cache state is reported through normal source analysis/logs;
-      // the server never attempts a transport refill.
-      log_ << "rocket-lsp: locked dependency graph unavailable: " << error << '\n';
-      dependencyRoots_.clear();
-    }
+    ++discoveryEpoch_;
   }
 
   void applyConfiguration(const Json* params) {
@@ -1707,8 +1742,8 @@ private:
       configuration_.telemetry = enabled;
   }
 
-  void mergeDiagnostics(const Diagnostics& diagnostics,
-                        SemanticSnapshot& snapshot) {
+  static void mergeDiagnostics(const Diagnostics &diagnostics,
+                               SemanticSnapshot &snapshot) {
     for (const auto& diagnostic : diagnostics.all()) {
       const std::string uri = uriFromPath(diagnostic.location.file);
       auto found = snapshot.analyses.find(uri);
@@ -1724,9 +1759,10 @@ private:
     }
   }
 
-  void addSnapshotSource(SemanticSnapshot& snapshot,
-                         const std::filesystem::path& path,
-                         std::string source) {
+  static void addSnapshotSource(const Configuration &configuration_,
+                                SemanticSnapshot &snapshot,
+                                const std::filesystem::path &path,
+                                std::string source) {
     const auto normalized = std::filesystem::absolute(path).lexically_normal();
     const std::string key = normalized.generic_string();
     if (snapshot.sources.contains(key) ||
@@ -1739,22 +1775,167 @@ private:
     snapshot.sources.emplace(key, std::move(source));
   }
 
+  static bool projectFile(const std::filesystem::path &path) {
+    return path.filename() == "rocket.toml" || path.filename() == "rocket.lock";
+  }
+
+  void watchedFiles(const Json *params) {
+    const auto *changes = asArray(field(asObject(params), "changes"));
+    if (changes == nullptr) {
+      invalidNotification("workspace/didChangeWatchedFiles");
+      return;
+    }
+    bool analyze = false, invalidate = false;
+    for (const auto &change : *changes) {
+      const auto *object = asObject(&change);
+      const auto *uri = asString(field(object, "uri"));
+      long long type = 0;
+      if (uri == nullptr || !integerValue(field(object, "type"), type) ||
+          type < 1 || type > 3)
+        continue;
+      const auto path = pathFromUri(*uri);
+      if (!path || (path->extension() != ".rocket" && !projectFile(*path)))
+        continue;
+      analyze = true;
+      invalidate = invalidate || type == 1 || type == 3 || projectFile(*path);
+    }
+    if (invalidate)
+      ++discoveryEpoch_;
+    if (analyze)
+      rebuildSnapshot();
+  }
+
+  void workspaceFolders(const Json *params) {
+    const auto *event = asObject(field(asObject(params), "event"));
+    if (event == nullptr) {
+      invalidNotification("workspace/didChangeWorkspaceFolders");
+      return;
+    }
+    bool changed = false;
+    if (const auto *removed = asArray(field(event, "removed"))) {
+      for (const auto &folder : *removed) {
+        const auto *uri = asString(field(asObject(&folder), "uri"));
+        if (uri == nullptr)
+          continue;
+        if (const auto path = pathFromUri(*uri)) {
+          if (*path == workspaceRoot_)
+            workspaceRoot_.clear();
+          changed = true;
+        }
+      }
+    }
+    if (const auto *added = asArray(field(event, "added"))) {
+      for (const auto &folder : *added) {
+        const auto *uri = asString(field(asObject(&folder), "uri"));
+        if (uri == nullptr)
+          continue;
+        if (const auto path = pathFromUri(*uri)) {
+          if (workspaceRoot_.empty())
+            workspaceRoot_ = *path;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      ++discoveryEpoch_;
+      rebuildSnapshot();
+    }
+  }
+
   void rebuildSnapshot() {
+    for (const auto &[token, request] : pendingRequests_)
+      sendError(*field(asObject(&request), "id"), -32801,
+                "document changed during analysis");
+    pendingRequests_.clear();
+    AnalysisInput input{documents_, configuration_, workspaceRoot_,
+                        discoveryEpoch_, publishedDiscovery_};
+    auto discovery = discovery_;
+    queue_.submit([input = std::move(input), discovery,
+                   this](std::stop_token stop,
+                         long long generation) -> AnalysisQueue::Publish {
+      // Only the returned publication accesses this. All analysis inputs and
+      // compiler owners survive independently of the protocol session.
+      auto next = analyzeSnapshot(input, *discovery, stop, generation);
+      return [this, next = std::make_shared<AnalysisResult>(std::move(next))] {
+        snapshot_ = std::move(next->snapshot);
+        publishedDiscovery_ = next->discovery;
+        publishAllDiagnostics();
+        if (configuration_.telemetry && initialized_)
+          notify("rocket/analysisStatus", analysisStatus());
+        for (const auto &[token, request] : pendingRequests_) {
+          if (!queue_.post([this, token] {
+                const auto pending = pendingRequests_.find(token);
+                if (pending == pendingRequests_.end())
+                  return;
+                auto request = std::move(pending->second);
+                pendingRequests_.erase(pending);
+                handle(request);
+              }))
+            throw std::runtime_error("pending request capacity exceeded");
+        }
+      };
+    });
+  }
+
+  static AnalysisResult analyzeSnapshot(const AnalysisInput &input,
+                                        DiscoveryCache &cache,
+                                        std::stop_token stop,
+                                        long long generation) {
     const auto started = std::chrono::steady_clock::now();
     SemanticSnapshot next;
-    next.generation = ++analysisGeneration_;
+    next.generation = generation;
+    AnalysisControl control{stop};
+    AnalysisScope scope(control);
+    const auto &documents_ = input.documents;
+    const auto &configuration_ = input.configuration;
+    const auto &workspaceRoot_ = input.workspaceRoot;
+    auto discovery = input.discovery;
+    if (!discovery || discovery->epoch != input.discoveryEpoch)
+      discovery = cache.state;
+    if (!discovery || discovery->epoch != input.discoveryEpoch) {
+      ++cache.misses;
+      Discovery refreshed;
+      refreshed.epoch = input.discoveryEpoch;
+      refreshed.packageRoot = workspaceRoot_;
+      if (!workspaceRoot_.empty()) {
+        if (auto package = loadPackage(workspaceRoot_, refreshed.error)) {
+          refreshed.packageRoot = package->root;
+          refreshed.packageEntry = package->entry;
+          PackageLock lock;
+          if (!prepareLockedPackageDependencies(*package, true,
+                                                refreshed.dependencies, lock,
+                                                refreshed.error))
+            refreshed.dependencies.clear();
+        }
+        refreshed.files = rocketSources(workspaceRoot_, refreshed.error);
+        for (const auto &dependency : refreshed.dependencies) {
+          analysisCheckpoint();
+          auto files = rocketSources(dependency.root, refreshed.error);
+          refreshed.files.insert(refreshed.files.end(), files.begin(),
+                                 files.end());
+        }
+      }
+      analysisCheckpoint();
+      discovery = std::make_shared<const Discovery>(std::move(refreshed));
+      cache.state = discovery;
+    } else
+      ++cache.hits;
+    const auto &packageRoot_ = discovery->packageRoot;
+    const auto &packageEntry_ = discovery->packageEntry;
+    const auto &dependencyRoots_ = discovery->dependencies;
+    next.discoveryCacheHits = cache.hits;
+    next.discoveryCacheMisses = cache.misses;
     SourceOverlays overlays;
     for (const auto& [uri, document] : documents_) {
-      if (document.path.empty()) continue;
+      if (document.path.empty() || document.path.extension() != ".rocket")
+        continue;
       overlays.emplace(document.path, document.text);
-      addSnapshotSource(next, document.path, document.text);
+      addSnapshotSource(configuration_, next, document.path, document.text);
     }
 
-    std::string discoveryError;
-    const auto files = workspaceRoot_.empty()
-                           ? std::vector<std::filesystem::path>{}
-                           : rocketSources(workspaceRoot_, discoveryError);
+    const auto &files = discovery->files;
     for (const auto& file : files) {
+      analysisCheckpoint();
       if (next.filesAnalyzed >= configuration_.maximumProjectFiles ||
           next.bytesAnalyzed >= configuration_.maximumProjectBytes)
         break;
@@ -1766,28 +1947,14 @@ private:
           next.bytesAnalyzed + size > configuration_.maximumProjectBytes)
         continue;
       std::string source;
-      if (readSourceFile(file, source)) addSnapshotSource(next, file, std::move(source));
+      if (readSourceFile(file, source))
+        addSnapshotSource(configuration_, next, file, std::move(source));
     }
-    for (const auto& dependency : dependencyRoots_) {
-      std::string dependencyDiscoveryError;
-      for (const auto& file : rocketSources(dependency.root,
-                                             dependencyDiscoveryError)) {
-        if (next.filesAnalyzed >= configuration_.maximumProjectFiles ||
-            next.bytesAnalyzed >= configuration_.maximumProjectBytes)
-          break;
-        const auto normalized = std::filesystem::absolute(file).lexically_normal();
-        if (overlays.contains(normalized)) continue;
-        std::error_code sizeError;
-        const std::uintmax_t size = std::filesystem::file_size(file, sizeError);
-        if (sizeError || size > MaximumDocumentBytes ||
-            next.bytesAnalyzed + size > configuration_.maximumProjectBytes)
-          continue;
-        std::string source;
-        if (readSourceFile(file, source)) addSnapshotSource(next, file, std::move(source));
-      }
-    }
-
+    // Every root sees the same captured source contents during this generation.
+    for (const auto &[path, source] : next.sources)
+      overlays.insert_or_assign(std::filesystem::path(path), source);
     for (const auto& [path, source] : next.sources) {
+      analysisCheckpoint();
       Analysis analysis;
       analysis.tokens = Lexer(path, source, analysis.diagnostics).lex();
       Module module;
@@ -1802,9 +1969,12 @@ private:
     if (!packageEntry_.empty() && std::filesystem::is_regular_file(packageEntry_))
       roots.insert(std::filesystem::absolute(packageEntry_).lexically_normal());
     for (const auto& [uri, document] : documents_)
-      if (!document.path.empty()) roots.insert(document.path);
+      if (!document.path.empty() && document.path.extension() == ".rocket")
+        roots.insert(document.path);
 
     for (const auto& root : roots) {
+      analysisCheckpoint();
+      control.loadedFiles.clear();
       Diagnostics diagnostics;
       const auto analysisRoot = packageRoot_.empty() ? root.parent_path()
                                                      : packageRoot_;
@@ -1812,27 +1982,49 @@ private:
                                     diagnostics);
       if (module) {
         module->library = true;
+        control.semanticallyAnalyzedFiles += control.loadedFiles.size();
         SemanticAnalyzer analyzer(*module, diagnostics);
         if (auto hir = analyzer.analyzeToHir()) mergeHir(*hir, *module, next);
       }
       mergeDiagnostics(diagnostics, next);
     }
     resolveFallbackOccurrences(next);
-    next.invalidatedFiles = std::max<std::size_t>(1, roots.size());
+    next.invalidatedFiles = control.invalidatedFiles.size();
+    next.reparsedFiles = control.reparsedFiles;
+    next.semanticallyAnalyzedFiles = control.semanticallyAnalyzedFiles;
     next.elapsedMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
                                    std::chrono::steady_clock::now() - started)
                                    .count();
-    snapshot_ = std::move(next);
-    publishAllDiagnostics();
-    if (configuration_.telemetry && initialized_) {
-      notify("rocket/analysisStatus", Json(Json::Object{
-          {"bytes", Json::integer(static_cast<long long>(snapshot_.bytesAnalyzed))},
-          {"elapsedMilliseconds", Json::integer(snapshot_.elapsedMilliseconds)},
-          {"files", Json::integer(static_cast<long long>(snapshot_.filesAnalyzed))},
-          {"generation", Json::integer(snapshot_.generation)},
-          {"invalidatedFiles",
-           Json::integer(static_cast<long long>(snapshot_.invalidatedFiles))}}));
-    }
+    analysisCheckpoint();
+    return {std::move(next), std::move(discovery)};
+  }
+
+  Json analysisStatus() const {
+    const auto status = queue_.status();
+    return Json(Json::Object{
+        {"bytes",
+         Json::integer(static_cast<long long>(snapshot_.bytesAnalyzed))},
+        {"elapsedMilliseconds", Json::integer(snapshot_.elapsedMilliseconds)},
+        {"files",
+         Json::integer(static_cast<long long>(snapshot_.filesAnalyzed))},
+        {"generation", Json::integer(snapshot_.generation)},
+        {"requestedGeneration", Json::integer(status.generation)},
+        {"analysisPending", Json(status.pending || status.running)},
+        {"reparsedFiles",
+         Json::integer(static_cast<long long>(snapshot_.reparsedFiles))},
+        {"semanticallyAnalyzedFiles",
+         Json::integer(
+             static_cast<long long>(snapshot_.semanticallyAnalyzedFiles))},
+        {"invalidatedFiles",
+         Json::integer(static_cast<long long>(snapshot_.invalidatedFiles))},
+        {"discoveryCacheHits", Json::integer(snapshot_.discoveryCacheHits)},
+        {"discoveryCacheMisses", Json::integer(snapshot_.discoveryCacheMisses)},
+        {"startedGenerations", Json::integer(status.started)},
+        {"completedGenerations", Json::integer(status.completed)},
+        {"staleGenerations", Json::integer(status.stale)},
+        {"cancelledGenerations", Json::integer(status.cancelled)},
+        {"coalescedGenerations", Json::integer(status.coalesced)},
+        {"failedGenerations", Json::integer(status.failed)}});
   }
 
   void publishAllDiagnostics() {
@@ -1932,8 +2124,19 @@ private:
         return;
       }
       const Json* canceled = field(asObject(params), "id");
-      if (canceled != nullptr && !requestKey(*canceled).empty())
-        canceledRequests_.insert(requestKey(*canceled));
+      if (canceled != nullptr && !requestKey(*canceled).empty()) {
+        const auto key = requestKey(*canceled);
+        const auto pending = std::find_if(
+            pendingRequests_.begin(), pendingRequests_.end(),
+            [&](const auto &item) {
+              return requestKey(*field(asObject(&item.second), "id")) == key;
+            });
+        if (pending != pendingRequests_.end()) {
+          sendError(*canceled, -32800, "request cancelled");
+          pendingRequests_.erase(pending);
+        } else
+          canceledRequests_.insert(key);
+      }
       return;
     }
     if (*method == "exit") {
@@ -1965,6 +2168,11 @@ private:
         return;
       }
       shutdownRequested_ = true;
+      queue_.cancel();
+      for (const auto &[token, pending] : pendingRequests_)
+        sendError(*field(asObject(&pending), "id"), -32800,
+                  "server is shutting down");
+      pendingRequests_.clear();
       sendResult(id, Json());
       return;
     }
@@ -1987,13 +2195,34 @@ private:
     }
     if (*method == "workspace/didChangeConfiguration") {
       if (request) sendError(id, -32600, "configuration change must be a notification");
-      else { applyConfiguration(params); rebuildSnapshot(); }
+      else {
+        applyConfiguration(params);
+        ++discoveryEpoch_;
+        rebuildSnapshot();
+      }
       return;
     }
-    if (*method == "workspace/didChangeWatchedFiles" ||
-        *method == "workspace/didChangeWorkspaceFolders") {
+    if (*method == "workspace/didChangeWatchedFiles") {
       if (request) sendError(id, -32600, "workspace change must be a notification");
-      else rebuildSnapshot();
+      else
+        watchedFiles(params);
+      return;
+    }
+    if (*method == "workspace/didRenameFiles") {
+      if (request)
+        sendError(id, -32600, "file rename must be a notification");
+      else if (const auto *files = asArray(field(asObject(params), "files"));
+               files != nullptr && !files->empty()) {
+        ++discoveryEpoch_;
+        rebuildSnapshot();
+      }
+      return;
+    }
+    if (*method == "workspace/didChangeWorkspaceFolders") {
+      if (request)
+        sendError(id, -32600, "workspace change must be a notification");
+      else
+        workspaceFolders(params);
       return;
     }
     if (*method == "textDocument/didOpen") {
@@ -2018,6 +2247,20 @@ private:
     }
 
     if (!request) return;
+    const auto analysis = queue_.status();
+    const bool semanticRequest =
+        method->starts_with("textDocument/") || *method == "workspace/symbol";
+    if (semanticRequest && (analysis.running || analysis.pending)) {
+      if (pendingRequests_.size() >= 256)
+        sendError(id, -32800, "too many pending analysis requests");
+      else
+        pendingRequests_.emplace(++nextRequestToken_, message);
+      return;
+    }
+    if (semanticRequest && snapshot_.generation != analysis.generation) {
+      sendError(id, -32603, "current analysis is unavailable");
+      return;
+    }
     if (*method == "textDocument/completion") completion(id, params);
     else if (*method == "textDocument/hover") hover(id, params);
     else if (*method == "textDocument/signatureHelp") signatureHelp(id, params);
@@ -2047,6 +2290,8 @@ private:
     }
     const auto path = pathFromUri(*uri);
     documents_[*uri] = {*text, version, path.value_or(std::filesystem::path{})};
+    if (path && projectFile(*path))
+      ++discoveryEpoch_;
     rebuildSnapshot();
   }
 
@@ -2649,16 +2894,16 @@ private:
   }
 
   void projectStatus(const Json& id) {
-    sendResult(id, Json(Json::Object{
-        {"bytes", Json::integer(static_cast<long long>(snapshot_.bytesAnalyzed))},
-        {"elapsedMilliseconds", Json::integer(snapshot_.elapsedMilliseconds)},
-        {"files", Json::integer(static_cast<long long>(snapshot_.filesAnalyzed))},
-        {"generation", Json::integer(snapshot_.generation)},
-        {"maximumProjectBytes",
-         Json::integer(static_cast<long long>(configuration_.maximumProjectBytes))},
-        {"maximumProjectFiles",
-         Json::integer(static_cast<long long>(configuration_.maximumProjectFiles))},
-        {"symbols", Json::integer(static_cast<long long>(snapshot_.symbols.size()))}}));
+    auto result = std::get<Json::Object>(analysisStatus().value);
+    result.emplace("maximumProjectBytes",
+                   Json::integer(static_cast<long long>(
+                       configuration_.maximumProjectBytes)));
+    result.emplace("maximumProjectFiles",
+                   Json::integer(static_cast<long long>(
+                       configuration_.maximumProjectFiles)));
+    result.emplace("symbols", Json::integer(static_cast<long long>(
+                                  snapshot_.symbols.size())));
+    sendResult(id, Json(std::move(result)));
   }
 
   bool applyChange(std::string& text, const Json::Object& change) {
@@ -2713,6 +2958,8 @@ private:
     }
     found->second.text = std::move(updated);
     found->second.version = version;
+    if (projectFile(found->second.path))
+      ++discoveryEpoch_;
     rebuildSnapshot();
   }
 
@@ -2723,11 +2970,19 @@ private:
     if (uri == nullptr) { invalidNotification(method); return; }
     const auto found = documents_.find(*uri);
     if (found == documents_.end()) return;
+    bool changed = false;
     if (const auto* text = asString(field(paramsObject, "text")); text != nullptr) {
       if (text->size() > MaximumDocumentBytes) { invalidNotification(method); return; }
+      changed = found->second.text != *text;
       found->second.text = *text;
     }
-    rebuildSnapshot();
+    // A manifest save changes disk-backed package/dependency discovery even
+    // when its overlay was already current. Ordinary source saves are no-ops.
+    const bool project = projectFile(found->second.path);
+    if (project)
+      ++discoveryEpoch_;
+    if (changed || project)
+      rebuildSnapshot();
   }
 
   void didClose(const Json* params, const std::string& method) {
@@ -2749,18 +3004,20 @@ private:
   };
 
   std::istream& input_;
-  std::ostream& output_;
-  std::ostream& log_;
+  LspOutputQueue output_;
   std::map<std::string, Document> documents_;
   std::filesystem::path workspaceRoot_;
-  std::filesystem::path packageRoot_;
-  std::filesystem::path packageEntry_;
-  std::vector<PackageDependencyRoot> dependencyRoots_;
   Configuration configuration_;
   SemanticSnapshot snapshot_;
   std::map<std::string, SemanticTokenCache> semanticTokens_;
   std::unordered_set<std::string> canceledRequests_;
-  long long analysisGeneration_ = 0;
+  long long discoveryEpoch_ = 0;
+  std::shared_ptr<DiscoveryCache> discovery_ =
+      std::make_shared<DiscoveryCache>();
+  std::shared_ptr<const Discovery> publishedDiscovery_;
+  std::map<unsigned long long, Json> pendingRequests_;
+  unsigned long long nextRequestToken_ = 0;
+  AnalysisQueue queue_;
   bool initialized_ = false;
   bool shutdownRequested_ = false;
   bool exitReceived_ = false;
@@ -2770,7 +3027,7 @@ private:
 } // namespace
 
 int LanguageServer::run() {
-  return ServerSession(input_, output_, log_).run();
+  return ServerSession(input_, output_, log_, executor_).run();
 }
 
 } // namespace rocket

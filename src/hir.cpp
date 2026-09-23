@@ -1,4 +1,5 @@
 #include "hir.h"
+#include "analysis_control.h"
 
 #include <algorithm>
 #include <charconv>
@@ -1299,6 +1300,7 @@ bool HirLowerer::typeImplementsTrait(const Type& type, const std::string& trait,
   };
   std::unordered_set<std::string> matchingImplementations;
   for (const auto& implementation : traitImplementations_) {
+    analysisCheckpoint();
     if (implementation.traitName != trait) continue;
     std::unordered_map<std::string, Type> substitutions;
     if (matches(implementation.ownerPattern, type, matches, substitutions))
@@ -1330,6 +1332,7 @@ std::string HirLowerer::traitMethodTarget(const Type& type, const std::string& m
   };
   const Function* selected = nullptr;
   for (const auto& implementation : traitImplementations_) {
+    analysisCheckpoint();
     if (implementation.member != member) continue;
     std::unordered_map<std::string, Type> substitutions;
     if (!matches(implementation.ownerPattern, type, matches, substitutions)) continue;
@@ -1344,6 +1347,7 @@ std::string HirLowerer::traitMethodTarget(const Type& type, const std::string& m
 }
 
 std::optional<HirModule> HirLowerer::lower() {
+  analysisCheckpoint();
   hir_ = {};
   functions_.clear();
   functionDeclarations_.clear();
@@ -1375,6 +1379,7 @@ std::optional<HirModule> HirLowerer::lower() {
   functions_.emplace("print", print);
 
   for (const auto& function : ast_.functions) {
+    analysisCheckpoint();
     if (function.associatedConstant) associatedConstants_.insert(function.name);
     if (function.nativeConstant) {
       if (!nativeConstants_.emplace(function.name, &function).second)
@@ -1531,6 +1536,7 @@ std::optional<HirModule> HirLowerer::lower() {
   }
 
   for (const auto& implementation : traitImplementations_) {
+    analysisCheckpoint();
     const auto trait = traits_.find(implementation.traitName);
     if (trait == traits_.end()) continue;
     const auto& declaration = hir_.traitDeclarations[trait->second];
@@ -1561,6 +1567,7 @@ std::optional<HirModule> HirLowerer::lower() {
   }
 
   for (std::size_t index = 0; index < ast_.functions.size(); ++index) {
+    analysisCheckpoint();
     if (functionSymbols_[index] != InvalidSymbol)
       hir_.functions.push_back(lowerFunction(ast_.functions[index], functionSymbols_[index]));
   }
@@ -1712,6 +1719,7 @@ std::uint32_t HirLowerer::findTypeDeclaration(const Type& type) const {
 }
 
 HirFunction HirLowerer::lowerFunction(const Function& function, SymbolId symbol) {
+  analysisCheckpoint();
   currentSubstitutions_.clear();
   const HirSymbol signature = hir_.symbol(symbol);
   currentReturnType_ = signature.type;
@@ -1819,6 +1827,7 @@ HirBlock HirLowerer::lowerBlock(const std::vector<std::unique_ptr<Stmt>>& body,
 
 std::unique_ptr<HirStmt> HirLowerer::lowerStatement(const Stmt& statement,
                                                     Type returnType) {
+  analysisCheckpoint();
   switch (statement.kind) {
   case StmtKind::Binding: {
     const auto& binding = static_cast<const BindingStmt&>(statement);
@@ -2754,6 +2763,7 @@ std::unique_ptr<HirExpr> HirLowerer::lowerNamedUserCall(
 
 std::unique_ptr<HirExpr> HirLowerer::lowerExpression(const Expr& expression,
                                                      std::optional<Type> expected) {
+  analysisCheckpoint();
   switch (expression.kind) {
   case ExprKind::Integer: {
     const auto& literal = static_cast<const LiteralExpr&>(expression).value;
