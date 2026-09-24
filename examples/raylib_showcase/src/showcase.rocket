@@ -1,3 +1,5 @@
+import rocket.assets
+import rocket.raylib.safe
 import src.rocket_raylib
 import std.collections
 import std.file
@@ -70,41 +72,56 @@ fn scene(window: rocket_raylib.Window, texture: rocket_raylib.Texture, sound: ro
         frame_number = frame_number + 1
     return 0
 
-fn run_silent(window: rocket_raylib.Window, texture: rocket_raylib.Texture) -> Int:
+fn run_silent(window: rocket_raylib.Window, texture: rocket_raylib.Texture, store: assets.AssetStore) -> Int:
     let invalid_sound = rocket_raylib.Sound(0)
     let status = scene(window, texture, invalid_sound, false)
-    let texture_closed = rocket_raylib.unload_texture(texture)
+    let texture_closed = assets.cleanup(store)
     let window_closed = rocket_raylib.close_window(window)
     return status
 
-fn run_with_audio(window: rocket_raylib.Window, texture: rocket_raylib.Texture, audio: rocket_raylib.AudioDevice, sound: rocket_raylib.Sound) -> Int:
+fn run_with_audio(window: rocket_raylib.Window, texture: rocket_raylib.Texture, store: assets.AssetStore, audio: rocket_raylib.AudioDevice, sound: rocket_raylib.Sound) -> Int:
     let volume = rocket_raylib.set_sound_volume(sound, 0.35)
     let status = scene(window, texture, sound, true)
     let stopped = rocket_raylib.stop_sound(sound)
     let sound_closed = rocket_raylib.unload_sound(sound)
     let audio_closed = rocket_raylib.close_audio(audio)
-    let texture_closed = rocket_raylib.unload_texture(texture)
+    let texture_closed = assets.cleanup(store)
     let window_closed = rocket_raylib.close_window(window)
     return status
+
+fn load_cached_texture(store: assets.AssetStore) -> Result[rocket_raylib.Texture, String]:
+    match assets.load_texture(store, "orbiter", "assets/orbit.ppm"):
+        case Err(message):
+            return Err(message)
+        case Ok(reference):
+            match assets.borrow_texture(reference):
+                case Err(message):
+                    return Err(message)
+                case Ok(texture):
+                    match safe.texture_width(texture):
+                        case Err(message):
+                            return Err(message)
+                        case Ok(width):
+                            match safe.texture_height(texture):
+                                case Err(message):
+                                    return Err(message)
+                                case Ok(height):
+                                    return Ok(rocket_raylib.Texture(texture.id, width, height))
 
 pub fn run() -> Int:
     match rocket_raylib.open_window(960, 600, "Rocket 1.4 raylib validation"):
         case Ok(window):
             let target = rocket_raylib.set_target_fps(window, 60)
-            match rocket_raylib.load_texture(window, "assets/orbit.ppm"):
-                case Ok(texture):
-                    match rocket_raylib.open_audio():
-                        case Ok(audio):
-                            match rocket_raylib.create_tone(audio, 523.25, 0.12):
-                                case Ok(sound):
-                                    return run_with_audio(window, texture, audio, sound)
-                                case Err(error):
-                                    print("Audio tone unavailable; continuing silently")
-                                    let audio_closed = rocket_raylib.close_audio(audio)
-                                    return run_silent(window, texture)
+            match assets.open_graphics(safe.Window(window.id), "."):
+                case Ok(store):
+                    match load_cached_texture(store):
                         case Err(error):
-                            print("Audio device unavailable; continuing silently")
-                            return run_silent(window, texture)
+                            print(error)
+                            let cleaned = assets.cleanup(store)
+                            let closed = rocket_raylib.close_window(window)
+                            return 12
+                        case Ok(texture):
+                            return run_loaded(window, texture, store)
                 case Err(error):
                     print(error)
                     let closed = rocket_raylib.close_window(window)
@@ -112,3 +129,17 @@ pub fn run() -> Int:
         case Err(error):
             print(error)
             return 11
+
+fn run_loaded(window: rocket_raylib.Window, texture: rocket_raylib.Texture, store: assets.AssetStore) -> Int:
+    match rocket_raylib.open_audio():
+        case Ok(audio):
+            match rocket_raylib.create_tone(audio, 523.25, 0.12):
+                case Ok(sound):
+                    return run_with_audio(window, texture, store, audio, sound)
+                case Err(error):
+                    print("Audio tone unavailable; continuing silently")
+                    let audio_closed = rocket_raylib.close_audio(audio)
+                    return run_silent(window, texture, store)
+        case Err(error):
+            print("Audio device unavailable; continuing silently")
+            return run_silent(window, texture, store)

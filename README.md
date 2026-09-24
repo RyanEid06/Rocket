@@ -50,10 +50,10 @@ See [`RELEASE_3_0.md`](docs/RELEASE_3_0.md),
 [`MIGRATION_3_0.md`](docs/MIGRATION_3_0.md), and
 [`ROCKET_3_0_TRACEABILITY.md`](docs/ROCKET_3_0_TRACEABILITY.md).
 
-The accepted asset-store implementation is the reference-package module
-`examples/raylib_showcase/src/rocket_assets.rocket`, imported as
-`src.rocket_assets`. The planned `rocket.assets` namespace is not a module in
-this checkout yet.
+Rocket 3.5 adds the bundled `rocket.assets` module for package-rooted texture,
+font, sound, music, and shader ownership. See
+[`ROCKET_3_5_ASSETS.md`](docs/ROCKET_3_5_ASSETS.md). Rocket 3.0's historical
+reference implementation remains in `examples/raylib_showcase` for compatibility.
 
 WP34 full compatibility/platform acceptance and WP35 release closure are
 complete. No Rocket 3.0 work packet remains open.

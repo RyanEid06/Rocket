@@ -62,3 +62,8 @@ if(store_found EQUAL -1 OR load_texture_found EQUAL -1 OR
 endif()
 
 message(STATUS "WP28 asset-store stage/compiler surface passed")
+
+# Keep the historical showcase contract green while exercising the bundled
+# WP5 module through the same stage0/self-hosted entry point.
+set(WORK "${WORK}/canonical")
+include("${SOURCE_DIR}/tests/rocket35_assets_test.cmake")

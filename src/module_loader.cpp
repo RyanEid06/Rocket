@@ -66,6 +66,8 @@ std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) 
        {std::filesystem::path{"std"} / "testing.rocket", "std"}},
       {"rocket.motion",
        {std::filesystem::path{"rocket"} / "motion.rocket", "std"}},
+      {"rocket.assets",
+       {std::filesystem::path{"rocket"} / "assets.rocket", "rocket"}},
       {"rocket.graphics",
        {std::filesystem::path{"rocket"} / "graphics.rocket", "rocket"}},
       {"rocket.graphics.shapes",

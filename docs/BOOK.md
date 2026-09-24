@@ -79,12 +79,10 @@ explicit stack order, modal capture, and nested child clipping.
 motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.
 
-The accepted typed asset store is currently the reference-package module
-`examples/raylib_showcase/src/rocket_assets.rocket`, imported as
-`src.rocket_assets`. It owns typed texture, font, sound, music, and shader
-references with package-rooted paths, an explicit bounded capacity (256 by
-default), deterministic exhaustion, and explicit cleanup. The planned
-`rocket.assets` namespace is not available in this checkout.
+Rocket 3.5 bundles `rocket.assets` for typed texture, font, sound, music, and
+shader references with package-rooted paths, bounded capacity, and explicit
+cleanup. See `ROCKET_3_5_ASSETS.md`. The older `src.rocket_assets` reference
+package remains for Rocket 3.0 compatibility.
 
 ## 8. Tools and reference
 

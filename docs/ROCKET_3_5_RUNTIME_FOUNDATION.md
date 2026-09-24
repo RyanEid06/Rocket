@@ -33,9 +33,9 @@ SDK `lib/` directory, so a relocated SDK does not need the repository build
 tree or an example-local native manifest.
 
 Package-relative asset paths remain an application/package concern. The native
-runtime never assumes that the process working directory is the repository;
-callers pass resolved paths. The canonical `rocket.assets` root resolver is
-scheduled for WP5.
+runtime never assumes that the process working directory is the repository.
+WP5's bundled `rocket.assets` resolves relative paths against an explicit
+package root; see `ROCKET_3_5_ASSETS.md`.
 
 ## Compatibility policy
 

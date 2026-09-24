@@ -12,7 +12,9 @@ only public `std.*` and `rocket.*` modules.
   showcase. It
   composes dark surfaces, rounded panels, borders, typography, gradients,
   neutral card-like artwork, buttons, chips, hover state, motion policy, and
-  virtual-resolution clipping.
+  virtual-resolution clipping. It loads the card accent through the
+  bundled `rocket.assets` graphics-only store and releases that store before
+  closing the window.
 
 The premium gallery contains no game or wagering rules and is not evidence of
 Scroll2Roll visual fidelity.

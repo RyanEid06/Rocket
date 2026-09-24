@@ -765,7 +765,7 @@ add_test(NAME rocket3_asset_store_stage0
     "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_test.cmake")
 set_tests_properties(rocket3_asset_store_stage0 PROPERTIES
-  LABELS "rocket3;wp28;assets;stage0;raylib;native;docs;formatter"
+  LABELS "rocket3;wp28;rocket35;wp5;assets;stage0;raylib;native;docs;formatter"
   TIMEOUT 360
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
@@ -1450,7 +1450,7 @@ add_test(NAME rocket3_asset_store_self_hosted
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_test.cmake")
 set_tests_properties(rocket3_asset_store_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
-  LABELS "rocket3;wp28;assets;selfhost;raylib;native;docs;formatter"
+  LABELS "rocket3;wp28;rocket35;wp5;assets;selfhost;raylib;native;docs;formatter"
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
@@ -1629,7 +1629,7 @@ add_test(NAME rocket3_asset_store_target_surface
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_target_surface_test.cmake")
 set_tests_properties(rocket3_asset_store_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
-  LABELS "rocket3;wp28;assets;target;surface;selfhost;raylib"
+  LABELS "rocket3;wp28;rocket35;wp5;assets;target;surface;selfhost;raylib"
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 

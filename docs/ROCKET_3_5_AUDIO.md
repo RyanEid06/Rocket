@@ -26,6 +26,12 @@ after an earlier stop. `music_playing` is false during pause and after stop.
 `set_music_looping(music, true)` requests continuous playback. Sound effects
 can play at the same time as music; separate sound handles can overlap.
 
+With `rocket.assets`, load sounds and music through a full graphics/audio
+`AssetStore`, then use `assets.borrow_sound` and `assets.borrow_music` to obtain
+these same `safe` handles. The store owns their lifetime: call
+`assets.cleanup(store)` before `close_audio(audio)` instead of unloading each
+borrowed handle. See `ROCKET_3_5_ASSETS.md`.
+
 ## Normal game-loop pattern
 
 This excerpt assumes `window`, `audio`, `music`, `click`, and `chip` were

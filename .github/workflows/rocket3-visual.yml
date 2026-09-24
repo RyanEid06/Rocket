@@ -3,7 +3,7 @@ name: Rocket visual regression and examples
 on:
   workflow_dispatch:
   push:
-    branches: [master, main]
+    branches: [master, main, rocket35/eddie]
   pull_request:
 
 permissions:
@@ -106,7 +106,7 @@ jobs:
             echo "ROCKET_HOST_LINKER=$llvm/bin/ld.lld" >> "$GITHUB_ENV"
           fi
 
-      - name: Configure, build, and test Windows visual, WP3 effects, and WP4 audio surface
+      - name: Configure, build, and test Windows visual, effects, audio, and WP5 assets
         if: matrix.target == 'windows-x64'
         shell: pwsh
         run: |
@@ -114,22 +114,22 @@ jobs:
           $preset = 'phase19-windows-x64-release'
           cmake --preset $preset
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests rocket35_texture_adapter_tests rocket35_render_effects_adapter_tests rocket35_audio_adapter_tests rocket_phase17_raylib_adapter_tests comparator_tests evidence_schema_tests
+          cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests rocket35_texture_adapter_tests rocket35_render_effects_adapter_tests rocket35_audio_adapter_tests rocket_phase17_raylib_adapter_tests rocket_phase28_raylib_adapter_tests rocket_phase30_raylib_adapter_tests comparator_tests evidence_schema_tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|phase17_raylib_adapter.*|comparator_tests|evidence_schema_tests)$' --output-on-failure
+          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Configure, build, and test POSIX visual, WP3 effects, and WP4 audio surface
+      - name: Configure, build, and test POSIX visual, effects, audio, and WP5 assets
         if: matrix.target != 'windows-x64'
         shell: bash
         run: |
           preset="phase19-${{ matrix.target }}-release"
           cmake --preset "$preset"
-          cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests rocket35_texture_adapter_tests rocket35_render_effects_adapter_tests rocket35_audio_adapter_tests rocket_phase17_raylib_adapter_tests comparator_tests evidence_schema_tests
+          cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests rocket35_texture_adapter_tests rocket35_render_effects_adapter_tests rocket35_audio_adapter_tests rocket_phase17_raylib_adapter_tests rocket_phase28_raylib_adapter_tests rocket_phase30_raylib_adapter_tests comparator_tests evidence_schema_tests
           if [[ "${{ matrix.target }}" == linux-* ]]; then
-            xvfb-run -a ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|phase17_raylib_adapter.*|comparator_tests|evidence_schema_tests)$' --output-on-failure
+            xvfb-run -a ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
           else
-            ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|phase17_raylib_adapter.*|comparator_tests|evidence_schema_tests)$' --output-on-failure
+            ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
           fi
 
       - name: Upload visual evidence

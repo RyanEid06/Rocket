@@ -768,6 +768,17 @@ def verify_relocation(package: Path, arguments: argparse.Namespace) -> dict[str,
         [compiler, "test", fixture], env=env, cwd=work,
         pattern=r"1 passed; 0 failed"
     )
+    assets_fixture = work / "asset-package-fixture"
+    shutil.copytree(
+        ROOT / "tests" / "fixtures" / "rocket35_assets_package", assets_fixture
+    )
+    asset_env = dict(env, ROCKET_ASSET_PACKAGE_ROOT=str(assets_fixture))
+    run([compiler, "check", assets_fixture], env=asset_env, cwd=work,
+        pattern=r"check succeeded")
+    run([compiler, "build", assets_fixture], env=asset_env, cwd=work,
+        pattern=r"built ")
+    run([compiler, "test", assets_fixture], env=asset_env, cwd=work,
+        pattern=r"2 passed; 0 failed")
     return {
         "schema": "rocket-relocation-report-2",
         "version": VERSION,

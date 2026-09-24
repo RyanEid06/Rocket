@@ -236,8 +236,10 @@ tokens stay inside the safe wrapper and are destroyed before it returns.
 
 ## Typed asset store
 
-`src.rocket_assets` loads textures, fonts, sounds, music streams, and file-backed
-shaders under one namespace of unique logical names. `load_texture`,
+`src.rocket_assets` is a deprecated compatibility shim over the bundled
+`rocket.assets` module. The showcase itself loads its orbiter texture through
+`rocket.assets`; new packages should import that module directly. See
+`docs/ROCKET_3_5_ASSETS.md` for the supported contract. The shim's `load_texture`,
 `load_font`, `load_sound`, `load_music`, and `load_shader` return distinct typed
 reference values. The matching typed lookup functions (`texture`, `font`,
 `sound`, `music`, and `shader`) return the stable reference for a logical name;
