@@ -15,10 +15,10 @@ int main() {
       R"({"jsonrpc":"2.0","id":"status","method":"rocket/projectStatus"})");
   const auto status = session.response("status");
   rocket::test::expect(
-      status.find("\"reparsedFiles\":2") != std::string::npos &&
+      status.find("\"reparsedFiles\":1") != std::string::npos &&
           status.find("\"semanticallyAnalyzedFiles\":1") != std::string::npos &&
           status.find("\"invalidatedFiles\":1") != std::string::npos,
-      "telemetry counts source parse plus module parse and actual semantic "
+      "telemetry counts one owned source parse and actual semantic "
       "file: " +
           status,
       failures);
@@ -170,12 +170,13 @@ int main() {
       R"({"jsonrpc":"2.0","id":"graph","method":"rocket/projectStatus"})");
   const auto graphStatus = graph.response("graph");
   rocket::test::expect(
-      graphStatus.find("\"reparsedFiles\":5") != std::string::npos &&
-          graphStatus.find("\"semanticallyAnalyzedFiles\":3") !=
+      graphStatus.find("\"reparsedFiles\":1") != std::string::npos &&
+          graphStatus.find("\"semanticallyAnalyzedFiles\":2") !=
               std::string::npos &&
-          graphStatus.find("\"invalidatedFiles\":2") != std::string::npos,
-      "multi-root telemetry includes repeated imported module work, not root "
-      "estimates",
+          graphStatus.find("\"invalidatedFiles\":1") != std::string::npos,
+      "multi-root telemetry reuses parsed imports while recording actual "
+      "semantic graph contributions: " +
+          graphStatus,
       failures);
   graph.send(R"({"jsonrpc":"2.0","id":"shutdown","method":"shutdown"})");
   graph.response("shutdown");

@@ -16,6 +16,7 @@ namespace rocket {
 // writing editor buffers to disk. The loader never executes package code or
 // performs transport while consulting this map.
 using SourceOverlays = std::map<std::filesystem::path, std::string>;
+class WorkspaceState;
 
 void setStandardLibraryRoot(std::filesystem::path root);
 
@@ -42,5 +43,13 @@ std::optional<Module> loadModuleGraph(
     const std::filesystem::path& packageRoot,
     const std::vector<PackageDependencyRoot>& dependencyRoots,
     const SourceOverlays& overlays, Diagnostics& diagnostics);
+// Tooling-only path: parser owners are retained in WorkspaceState and copied
+// before the loader's namespacing rewrite. CLI overloads remain full analyses.
+std::optional<Module>
+loadModuleGraphCached(const std::filesystem::path &rootPath,
+                      const std::filesystem::path &packageRoot,
+                      const std::vector<PackageDependencyRoot> &dependencyRoots,
+                      const SourceOverlays &overlays, WorkspaceState &state,
+                      Diagnostics &diagnostics);
 
 } // namespace rocket

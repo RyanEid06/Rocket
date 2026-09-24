@@ -1,7 +1,10 @@
 #include "language_server.h"
 #include "analysis_control.h"
 #include "analysis_queue.h"
+#include "dependency_graph.h"
+#include "document_structure.h"
 #include "lsp_output_queue.h"
+#include "workspace_state.h"
 
 #include "diagnostic.h"
 #include "formatter.h"
@@ -727,6 +730,7 @@ struct SemanticSnapshot {
   std::map<std::string, SemanticSymbol> symbols;
   std::vector<SemanticOccurrence> occurrences;
   std::map<std::string, Analysis> analyses;
+  std::map<std::string, DocumentStructure> structures;
   std::map<std::string, std::string> sources;
   std::size_t filesAnalyzed = 0;
   std::size_t bytesAnalyzed = 0;
@@ -797,6 +801,7 @@ void indexExpression(const HirExpr& expression, SemanticSnapshot& snapshot,
 void indexBlock(const HirBlock& block, SemanticSnapshot& snapshot,
                 const std::vector<std::string>& symbolKeys) {
   for (const auto& statementPointer : block) {
+    analysisCheckpoint();
     const HirStmt& statement = *statementPointer;
     switch (statement.kind) {
     case HirStmtKind::Binding: {
@@ -818,8 +823,9 @@ void indexBlock(const HirBlock& block, SemanticSnapshot& snapshot,
       break;
     }
     case HirStmtKind::Return:
-      indexExpression(*static_cast<const HirReturnStmt&>(statement).value,
-                      snapshot, symbolKeys);
+      if (const auto &value =
+              static_cast<const HirReturnStmt &>(statement).value)
+        indexExpression(*value, snapshot, symbolKeys);
       break;
     case HirStmtKind::Expression:
       indexExpression(*static_cast<const HirExprStmt&>(statement).expression,
@@ -874,6 +880,7 @@ void indexBlock(const HirBlock& block, SemanticSnapshot& snapshot,
 
 void indexExpression(const HirExpr& expression, SemanticSnapshot& snapshot,
                      const std::vector<std::string>& symbolKeys) {
+  analysisCheckpoint();
   switch (expression.kind) {
   case HirExprKind::Name:
     addOccurrence(snapshot, symbolKeys,
@@ -979,9 +986,11 @@ Location declarationNameLocation(const SemanticSnapshot& snapshot,
 void mergeHir(const HirModule& hir, const Module& ast,
               SemanticSnapshot& snapshot) {
   std::set<std::string> publicDeclarations;
-  for (const auto& function : ast.functions)
+  for (const auto &function : ast.functions) {
+    analysisCheckpoint();
     if (function.publicDeclaration)
       publicDeclarations.insert(symbolKey(function.location, function.name, "function"));
+  }
   for (const auto& structure : ast.structs)
     if (structure.publicDeclaration)
       publicDeclarations.insert(symbolKey(structure.location, structure.name, "type"));
@@ -994,6 +1003,7 @@ void mergeHir(const HirModule& hir, const Module& ast,
 
   std::vector<std::string> keys(hir.symbols.size());
   for (const auto& symbol : hir.symbols) {
+    analysisCheckpoint();
     if (symbol.id >= keys.size() || symbol.location.file.empty())
       continue;
     const std::string kind = symbolKindName(symbol.kind);
@@ -1072,6 +1082,7 @@ void mergeHir(const HirModule& hir, const Module& ast,
   }
 
   for (const auto& declaration : hir.typeDeclarations) {
+    analysisCheckpoint();
     if (declaration.builtin || declaration.location.file.empty()) continue;
     const std::string key = symbolKey(declaration.location, declaration.name, "type");
     const Location nameLocation = declarationNameLocation(
@@ -1141,6 +1152,7 @@ void mergeHir(const HirModule& hir, const Module& ast,
     }
   }
   for (const auto& declaration : hir.traitDeclarations) {
+    analysisCheckpoint();
     if (declaration.location.file.empty()) continue;
     const std::string key = symbolKey(declaration.location, declaration.name, "trait");
     const Location nameLocation = declarationNameLocation(
@@ -1158,13 +1170,15 @@ void mergeHir(const HirModule& hir, const Module& ast,
   }
 
   for (const auto& symbol : hir.symbols) {
+    analysisCheckpoint();
     if (symbol.id < keys.size() && !keys[symbol.id].empty()) {
       const auto found = snapshot.symbols.find(keys[symbol.id]);
       if (found != snapshot.symbols.end())
         addOccurrence(snapshot, keys, symbol.id, found->second.location, true);
     }
   }
-  for (const auto& function : hir.functions) indexBlock(function.body, snapshot, keys);
+  for (const auto &function : hir.functions)
+    indexBlock(function.body, snapshot, keys);
 }
 
 void mergeIncompleteAst(const Module& module, SemanticSnapshot& snapshot) {
@@ -1183,6 +1197,7 @@ void mergeIncompleteAst(const Module& module, SemanticSnapshot& snapshot) {
                                     identifierLength(indexed.shortName), true});
   };
   for (const auto& function : module.functions) {
+    analysisCheckpoint();
     std::ostringstream detail;
     detail << "fn " << shortSymbolName(function.name) << '(';
     for (std::size_t parameter = 0; parameter < function.parameters.size(); ++parameter) {
@@ -1196,20 +1211,27 @@ void mergeIncompleteAst(const Module& module, SemanticSnapshot& snapshot) {
     add(function.name, "function", detail.str(), function.location,
         function.publicDeclaration);
   }
-  for (const auto& structure : module.structs)
+  for (const auto &structure : module.structs) {
+    analysisCheckpoint();
     add(structure.name, "type", "struct " + shortSymbolName(structure.name),
         structure.location, structure.publicDeclaration);
-  for (const auto& enumeration : module.enums)
+  }
+  for (const auto &enumeration : module.enums) {
+    analysisCheckpoint();
     add(enumeration.name, "type", "enum " + shortSymbolName(enumeration.name),
         enumeration.location, enumeration.publicDeclaration);
-  for (const auto& trait : module.traits)
+  }
+  for (const auto &trait : module.traits) {
+    analysisCheckpoint();
     add(trait.name, "trait", "trait " + shortSymbolName(trait.name),
         trait.location, trait.publicDeclaration);
+  }
 }
 
 void resolveFallbackOccurrences(SemanticSnapshot& snapshot) {
   std::map<std::string, std::vector<std::string>> byName;
   for (const auto& [key, symbol] : snapshot.symbols) {
+    analysisCheckpoint();
     auto& matches = byName[symbol.shortName];
     const auto sameDefinition = std::find_if(
         matches.begin(), matches.end(), [&](const std::string& existingKey) {
@@ -1230,7 +1252,9 @@ void resolveFallbackOccurrences(SemanticSnapshot& snapshot) {
                     std::to_string(occurrence.location.line) + ":" +
                     std::to_string(occurrence.location.column));
   for (const auto& [uri, analysis] : snapshot.analyses) {
+    analysisCheckpoint();
     for (const auto& token : analysis.tokens) {
+      analysisCheckpoint();
       if (token.kind != TokenKind::Identifier) continue;
       const std::string locationKey =
           std::filesystem::absolute(token.location.file)
@@ -1639,6 +1663,7 @@ private:
 
   struct Discovery {
     long long epoch = -1;
+    bool complete = true;
     std::filesystem::path packageRoot, packageEntry;
     std::vector<PackageDependencyRoot> dependencies;
     std::vector<std::filesystem::path> files;
@@ -1656,6 +1681,30 @@ private:
     // Accessed exclusively by the single analysis worker.
     std::shared_ptr<const Discovery> state;
     long long hits = 0, misses = 0;
+    long long semanticEpoch = -1;
+    WorkspaceState workspace;
+    DependencyGraph graph;
+    struct RootResult {
+      std::map<std::string, SemanticSymbol> symbols;
+      std::vector<SemanticOccurrence> occurrences;
+      Diagnostics diagnostics;
+    };
+    struct SourceResult {
+      std::map<std::string, SemanticSymbol> symbols;
+      std::vector<SemanticOccurrence> occurrences;
+    };
+    std::map<std::filesystem::path, RootResult> roots;
+    std::map<std::string, SourceResult> incomplete;
+    std::map<std::string, std::string> sources;
+
+    void clearSemantic() {
+      semanticEpoch = -1;
+      workspace.clear();
+      graph.clear();
+      roots.clear();
+      incomplete.clear();
+      sources.clear();
+    }
   };
   struct AnalysisResult {
     SemanticSnapshot snapshot;
@@ -1855,7 +1904,15 @@ private:
                          long long generation) -> AnalysisQueue::Publish {
       // Only the returned publication accesses this. All analysis inputs and
       // compiler owners survive independently of the protocol session.
-      auto next = analyzeSnapshot(input, *discovery, stop, generation);
+      AnalysisResult next;
+      try {
+        next = analyzeSnapshot(input, *discovery, stop, generation);
+      } catch (...) {
+        // A cancelled pass can have rewritten only part of the worker cache.
+        // The next generation must start from a coherent empty state.
+        discovery->clearSemantic();
+        throw;
+      }
       return [this, next = std::make_shared<AnalysisResult>(std::move(next))] {
         snapshot_ = std::move(next->snapshot);
         publishedDiscovery_ = next->discovery;
@@ -1898,19 +1955,30 @@ private:
       refreshed.epoch = input.discoveryEpoch;
       refreshed.packageRoot = workspaceRoot_;
       if (!workspaceRoot_.empty()) {
-        if (auto package = loadPackage(workspaceRoot_, refreshed.error)) {
+        std::string packageError;
+        if (auto package = loadPackage(workspaceRoot_, packageError)) {
           refreshed.packageRoot = package->root;
           refreshed.packageEntry = package->entry;
           PackageLock lock;
           if (!prepareLockedPackageDependencies(*package, true,
                                                 refreshed.dependencies, lock,
-                                                refreshed.error))
+                                                refreshed.error)) {
             refreshed.dependencies.clear();
+            refreshed.complete = false;
+          }
+        } else if (std::filesystem::is_regular_file(workspaceRoot_ /
+                                                    "rocket.toml")) {
+          refreshed.error = std::move(packageError);
+          refreshed.complete = false;
         }
         refreshed.files = rocketSources(workspaceRoot_, refreshed.error);
+        if (!refreshed.error.empty())
+          refreshed.complete = false;
         for (const auto &dependency : refreshed.dependencies) {
           analysisCheckpoint();
           auto files = rocketSources(dependency.root, refreshed.error);
+          if (!refreshed.error.empty())
+            refreshed.complete = false;
           refreshed.files.insert(refreshed.files.end(), files.begin(),
                                  files.end());
         }
@@ -1926,43 +1994,93 @@ private:
     next.discoveryCacheHits = cache.hits;
     next.discoveryCacheMisses = cache.misses;
     SourceOverlays overlays;
+    bool capturedInventoryComplete = true;
+    std::map<std::filesystem::path, long long> sourceVersions;
     for (const auto& [uri, document] : documents_) {
       if (document.path.empty() || document.path.extension() != ".rocket")
         continue;
       overlays.emplace(document.path, document.text);
+      sourceVersions.emplace(document.path, document.version);
       addSnapshotSource(configuration_, next, document.path, document.text);
+      if (!next.sources.contains(document.path.generic_string()))
+        capturedInventoryComplete = false;
     }
 
     const auto &files = discovery->files;
     for (const auto& file : files) {
       analysisCheckpoint();
       if (next.filesAnalyzed >= configuration_.maximumProjectFiles ||
-          next.bytesAnalyzed >= configuration_.maximumProjectBytes)
+          next.bytesAnalyzed >= configuration_.maximumProjectBytes) {
+        capturedInventoryComplete = false;
         break;
+      }
       if (overlays.contains(std::filesystem::absolute(file).lexically_normal()))
         continue;
       std::error_code sizeError;
       const std::uintmax_t size = std::filesystem::file_size(file, sizeError);
       if (sizeError || size > MaximumDocumentBytes ||
-          next.bytesAnalyzed + size > configuration_.maximumProjectBytes)
+          next.bytesAnalyzed + size > configuration_.maximumProjectBytes) {
+        capturedInventoryComplete = false;
         continue;
+      }
       std::string source;
       if (readSourceFile(file, source))
         addSnapshotSource(configuration_, next, file, std::move(source));
+      else
+        capturedInventoryComplete = false;
     }
     // Every root sees the same captured source contents during this generation.
     for (const auto &[path, source] : next.sources)
       overlays.insert_or_assign(std::filesystem::path(path), source);
+    // A truncated or failed discovery cannot establish a complete reverse
+    // closure. Keep the ordinary compiler path authoritative in that case.
+    const bool completeInventory =
+        discovery->complete && capturedInventoryComplete &&
+        next.filesAnalyzed < configuration_.maximumProjectFiles &&
+        next.bytesAnalyzed < configuration_.maximumProjectBytes;
+    if (cache.semanticEpoch != input.discoveryEpoch || !completeInventory) {
+      cache.clearSemantic();
+      cache.semanticEpoch = input.discoveryEpoch;
+    }
+    std::set<std::filesystem::path> changed;
+    for (const auto &[path, source] : next.sources) {
+      const auto prior = cache.sources.find(path);
+      if (prior == cache.sources.end() || prior->second != source)
+        changed.insert(std::filesystem::path(path));
+    }
+    for (const auto &[path, source] : cache.sources)
+      if (!next.sources.contains(path))
+        changed.insert(std::filesystem::path(path));
+    const auto affected = cache.graph.affectedRoots(changed);
     for (const auto& [path, source] : next.sources) {
       analysisCheckpoint();
-      Analysis analysis;
-      analysis.tokens = Lexer(path, source, analysis.diagnostics).lex();
-      Module module;
-      if (!analysis.diagnostics.hasErrors())
-        module = Parser(analysis.tokens, analysis.diagnostics).parseModule();
+      if (const auto version = sourceVersions.find(std::filesystem::path(path));
+          version != sourceVersions.end())
+        cache.workspace.noteVersion(path, version->second);
+      const auto &parsed = cache.workspace.parse(path, source);
+      Analysis analysis{parsed.tokens, parsed.diagnostics};
       const std::string uri = uriFromPath(path);
       next.analyses.emplace(uri, std::move(analysis));
-      mergeIncompleteAst(module, next);
+      next.structures.emplace(uri, parsed.structure);
+      if (changed.contains(std::filesystem::path(path)) ||
+          !cache.incomplete.contains(path)) {
+        SemanticSnapshot fragment;
+        fragment.sources.emplace(path, source);
+        mergeIncompleteAst(parsed.module, fragment);
+        cache.incomplete[path] = {std::move(fragment.symbols),
+                                  std::move(fragment.occurrences)};
+      }
+      const auto &incomplete = cache.incomplete.at(path);
+      next.symbols.insert(incomplete.symbols.begin(), incomplete.symbols.end());
+      next.occurrences.insert(next.occurrences.end(),
+                              incomplete.occurrences.begin(),
+                              incomplete.occurrences.end());
+    }
+    for (auto it = cache.incomplete.begin(); it != cache.incomplete.end();) {
+      if (!next.sources.contains(it->first))
+        it = cache.incomplete.erase(it);
+      else
+        ++it;
     }
 
     std::set<std::filesystem::path> roots;
@@ -1974,19 +2092,46 @@ private:
 
     for (const auto& root : roots) {
       analysisCheckpoint();
-      control.loadedFiles.clear();
-      Diagnostics diagnostics;
-      const auto analysisRoot = packageRoot_.empty() ? root.parent_path()
-                                                     : packageRoot_;
-      auto module = loadModuleGraph(root, analysisRoot, dependencyRoots_, overlays,
-                                    diagnostics);
-      if (module) {
-        module->library = true;
-        control.semanticallyAnalyzedFiles += control.loadedFiles.size();
-        SemanticAnalyzer analyzer(*module, diagnostics);
-        if (auto hir = analyzer.analyzeToHir()) mergeHir(*hir, *module, next);
+      if (!cache.roots.contains(root) || affected.contains(root)) {
+        control.loadedFiles.clear();
+        Diagnostics diagnostics;
+        const auto analysisRoot =
+            packageRoot_.empty() ? root.parent_path() : packageRoot_;
+        auto module =
+            completeInventory
+                ? loadModuleGraphCached(root, analysisRoot, dependencyRoots_,
+                                        overlays, cache.workspace, diagnostics)
+                : loadModuleGraph(root, analysisRoot, dependencyRoots_,
+                                  overlays, diagnostics);
+        SemanticSnapshot fragment;
+        fragment.sources.swap(next.sources);
+        if (module) {
+          module->library = true;
+          control.semanticallyAnalyzedFiles += control.loadedFiles.size();
+          SemanticAnalyzer analyzer(*module, diagnostics);
+          if (auto hir = analyzer.analyzeToHir()) {
+            mergeHir(*hir, *module, fragment);
+          }
+        }
+        fragment.sources.swap(next.sources);
+        cache.roots[root] = {std::move(fragment.symbols),
+                             std::move(fragment.occurrences),
+                             std::move(diagnostics)};
+        cache.graph.recordRoot(root, control.loadedFiles);
       }
-      mergeDiagnostics(diagnostics, next);
+      const auto &result = cache.roots.at(root);
+      next.symbols.insert(result.symbols.begin(), result.symbols.end());
+      next.occurrences.insert(next.occurrences.end(),
+                              result.occurrences.begin(),
+                              result.occurrences.end());
+      mergeDiagnostics(result.diagnostics, next);
+    }
+    for (auto it = cache.roots.begin(); it != cache.roots.end();) {
+      if (!roots.contains(it->first)) {
+        cache.graph.removeRoot(it->first);
+        it = cache.roots.erase(it);
+      } else
+        ++it;
     }
     resolveFallbackOccurrences(next);
     next.invalidatedFiles = control.invalidatedFiles.size();
@@ -1996,6 +2141,7 @@ private:
                                    std::chrono::steady_clock::now() - started)
                                    .count();
     analysisCheckpoint();
+    cache.sources = next.sources;
     return {std::move(next), std::move(discovery)};
   }
 
@@ -2094,8 +2240,12 @@ private:
     return Json(Json::Object{
         {"codeActionProvider", Json(std::move(codeActions))},
         {"completionProvider", Json(std::move(completion))},
-        {"definitionProvider", Json(true)}, {"hoverProvider", Json(true)},
-        {"positionEncoding", Json("utf-16")}, {"referencesProvider", Json(true)},
+        {"definitionProvider", Json(true)},
+        {"hoverProvider", Json(true)},
+        {"documentSymbolProvider", Json(true)},
+        {"foldingRangeProvider", Json(true)},
+        {"positionEncoding", Json("utf-16")},
+        {"referencesProvider", Json(true)},
         {"renameProvider", Json(std::move(rename))},
         {"semanticTokensProvider", Json(std::move(semanticTokens))},
         {"signatureHelpProvider", Json(std::move(signature))},
@@ -2273,6 +2423,10 @@ private:
     else if (*method == "textDocument/semanticTokens/full/delta")
       semanticTokens(id, params, true);
     else if (*method == "textDocument/codeAction") codeActions(id, params);
+    else if (*method == "textDocument/documentSymbol")
+      documentSymbols(id, params);
+    else if (*method == "textDocument/foldingRange")
+      foldingRanges(id, params);
     else if (*method == "workspace/symbol") workspaceSymbols(id, params);
     else if (*method == "rocket/projectStatus") projectStatus(id);
     else sendError(id, -32601, "method not found: " + *method);
@@ -2885,12 +3039,89 @@ private:
       std::transform(candidate.begin(), candidate.end(), candidate.begin(),
                      [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
       if (!query.empty() && candidate.find(query) == std::string::npos) continue;
-      symbols.emplace_back(Json(Json::Object{
-          {"kind", Json::integer(completionKind(symbol.kind))},
-          {"location", symbolLocation(symbol)}, {"name", Json(symbol.name)}}));
+      symbols.emplace_back(
+          Json(Json::Object{{"kind", Json::integer(lspSymbolKind(symbol))},
+                            {"location", symbolLocation(symbol)},
+                            {"name", Json(symbol.name)}}));
       if (symbols.size() >= 1024) break;
     }
     sendResult(id, Json(std::move(symbols)));
+  }
+
+  static long long lspSymbolKind(const SemanticSymbol &symbol) {
+    const auto &kind = symbol.kind;
+    if (kind == "function")
+      return 12;
+    if (kind == "method")
+      return 6;
+    if (kind == "field")
+      return 8;
+    if (kind == "trait")
+      return 11;
+    if (kind == "type" && symbol.detail.starts_with("enum "))
+      return 10;
+    if (kind == "type")
+      return 23;
+    if (kind == "parameter")
+      return 26;
+    return 13;
+  }
+
+  Json structureRange(const StructureRange &range,
+                      const std::string &source) const {
+    auto position = [&](const Location &location) {
+      return Json(Json::Object{
+          {"line", Json::integer(std::max(0, location.line - 1))},
+          {"character", Json::integer(lspCharacter(source, location.line,
+                                                   location.column))}});
+    };
+    return Json(Json::Object{{"start", position(range.start)},
+                             {"end", position(range.end)}});
+  }
+
+  Json structureSymbol(const StructureSymbol &symbol,
+                       const std::string &source) const {
+    Json::Array children;
+    for (const auto &child : symbol.children)
+      children.push_back(structureSymbol(child, source));
+    return Json(Json::Object{
+        {"name", Json(symbol.name)},
+        {"kind", Json::integer(symbol.kind)},
+        {"range", structureRange(symbol.range, source)},
+        {"selectionRange", structureRange(symbol.selection, source)},
+        {"children", Json(std::move(children))}});
+  }
+
+  void documentSymbols(const Json &id, const Json *params) {
+    const auto *uri = asString(
+        field(asObject(field(asObject(params), "textDocument")), "uri"));
+    if (uri == nullptr || sourceForUri(*uri) == nullptr) {
+      sendError(id, -32602, "document symbols require a Rocket document");
+      return;
+    }
+    Json::Array result;
+    if (const auto found = snapshot_.structures.find(*uri);
+        found != snapshot_.structures.end())
+      for (const auto &symbol : found->second.symbols)
+        result.push_back(structureSymbol(symbol, *sourceForUri(*uri)));
+    sendResult(id, Json(std::move(result)));
+  }
+
+  void foldingRanges(const Json &id, const Json *params) {
+    const auto *uri = asString(
+        field(asObject(field(asObject(params), "textDocument")), "uri"));
+    if (uri == nullptr || sourceForUri(*uri) == nullptr) {
+      sendError(id, -32602, "folding ranges require a Rocket document");
+      return;
+    }
+    Json::Array result;
+    if (const auto found = snapshot_.structures.find(*uri);
+        found != snapshot_.structures.end())
+      for (const auto &fold : found->second.folds)
+        result.push_back(
+            Json(Json::Object{{"startLine", Json::integer(fold.startLine)},
+                              {"endLine", Json::integer(fold.endLine)}}));
+    sendResult(id, Json(std::move(result)));
   }
 
   void projectStatus(const Json& id) {
