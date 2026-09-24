@@ -7,17 +7,21 @@ std::filesystem::path normalized(const std::filesystem::path &path) {
 }
 } // namespace
 
-void DependencyGraph::recordRoot(const std::filesystem::path &root,
+bool DependencyGraph::recordRoot(const std::filesystem::path &root,
                                  const std::set<std::string> &loaded) {
   const auto key = normalized(root);
-  removeRoot(key);
-  auto &dependencies = roots_[key];
-  dependencies.clear();
+  std::set<std::filesystem::path> dependencies;
   dependencies.insert(key);
   for (const auto &path : loaded)
     dependencies.insert(normalized(path));
+  const auto prior = roots_.find(key);
+  if (prior != roots_.end() && prior->second == dependencies)
+    return false;
+  removeRoot(key);
+  roots_[key] = dependencies;
   for (const auto &dependency : dependencies)
     reverse_[dependency].insert(key);
+  return true;
 }
 
 void DependencyGraph::removeRoot(const std::filesystem::path &root) {
@@ -47,6 +51,13 @@ std::set<std::filesystem::path> DependencyGraph::affectedRoots(
       affected.insert(key);
   }
   return affected;
+}
+
+std::set<std::filesystem::path> DependencyGraph::loadedSources() const {
+  std::set<std::filesystem::path> sources;
+  for (const auto &[source, roots] : reverse_)
+    sources.insert(source);
+  return sources;
 }
 
 } // namespace rocket

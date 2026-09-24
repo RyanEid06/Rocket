@@ -102,9 +102,24 @@ std::string exportedInterface(const Module &module) {
 }
 } // namespace
 
-void WorkspaceState::noteVersion(const std::filesystem::path &path,
-                                 long long version) {
-  versions_[std::filesystem::absolute(path).lexically_normal()] = version;
+void WorkspaceState::erase(const std::filesystem::path &path) {
+  parsed_.erase(std::filesystem::absolute(path).lexically_normal());
+}
+
+void WorkspaceState::retain(const std::set<std::filesystem::path> &sources) {
+  for (auto it = parsed_.begin(); it != parsed_.end();) {
+    if (!sources.contains(it->first))
+      it = parsed_.erase(it);
+    else
+      ++it;
+  }
+}
+
+const ParsedSource *
+WorkspaceState::find(const std::filesystem::path &path) const {
+  const auto found =
+      parsed_.find(std::filesystem::absolute(path).lexically_normal());
+  return found == parsed_.end() ? nullptr : found->second.get();
 }
 
 const ParsedSource &WorkspaceState::parse(const std::filesystem::path &path,

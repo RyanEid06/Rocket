@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <sstream>
 #include <stdexcept>
@@ -1568,7 +1569,12 @@ std::optional<HirModule> HirLowerer::lower() {
 
   for (std::size_t index = 0; index < ast_.functions.size(); ++index) {
     analysisCheckpoint();
-    if (functionSymbols_[index] != InvalidSymbol)
+    if (functionSymbols_[index] != InvalidSymbol &&
+        (bodySources_ == nullptr ||
+         bodySources_->contains(
+             std::filesystem::path(ast_.functions[index].location.file)
+                 .lexically_normal()
+                 .generic_string())))
       hir_.functions.push_back(lowerFunction(ast_.functions[index], functionSymbols_[index]));
   }
   std::size_t specializationIndex = 0;

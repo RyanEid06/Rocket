@@ -16,12 +16,13 @@
 #include "type.h"
 
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <chrono>
-#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <optional>
@@ -29,6 +30,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -726,6 +728,48 @@ struct SemanticOccurrence {
   bool definition = false;
 };
 
+bool sameLocation(const Location &a, const Location &b) {
+  return a.file == b.file && a.line == b.line && a.column == b.column;
+}
+
+bool sameSymbol(const SemanticSymbol &a, const SemanticSymbol &b) {
+  return a.key == b.key && a.name == b.name && a.shortName == b.shortName &&
+         a.kind == b.kind && a.detail == b.detail &&
+         a.documentation == b.documentation &&
+         sameLocation(a.location, b.location) && a.parameters == b.parameters &&
+         a.publicDeclaration == b.publicDeclaration && a.native == b.native;
+}
+
+bool sameOccurrence(const SemanticOccurrence &a, const SemanticOccurrence &b) {
+  return a.symbol == b.symbol && a.name == b.name &&
+         sameLocation(a.location, b.location) && a.length == b.length &&
+         a.definition == b.definition;
+}
+
+bool sameDiagnostics(const Diagnostics &a, const Diagnostics &b) {
+  const auto &left = a.all();
+  const auto &right = b.all();
+  if (left.size() != right.size())
+    return false;
+  for (std::size_t index = 0; index < left.size(); ++index)
+    if (!sameLocation(left[index].location, right[index].location) ||
+        left[index].message != right[index].message ||
+        left[index].code != right[index].code)
+      return false;
+  return true;
+}
+
+bool hasContextSensitiveBody(const ParsedSource &parsed) {
+  // Exported generic bodies may be instantiated while lowering a consumer.
+  // Their signature alone cannot establish that consumer results are stable.
+  for (const auto &function : parsed.module.functions)
+    if (function.publicDeclaration &&
+        (!function.typeParameters.empty() || function.associatedConstant ||
+         function.nativeConstant))
+      return true;
+  return false;
+}
+
 struct SemanticSnapshot {
   std::map<std::string, SemanticSymbol> symbols;
   std::vector<SemanticOccurrence> occurrences;
@@ -735,6 +779,7 @@ struct SemanticSnapshot {
   std::size_t filesAnalyzed = 0;
   std::size_t bytesAnalyzed = 0;
   std::size_t invalidatedFiles = 0;
+  std::size_t parsedCacheEntries = 0;
   std::size_t reparsedFiles = 0, semanticallyAnalyzedFiles = 0;
   long long discoveryCacheHits = 0, discoveryCacheMisses = 0;
   long long generation = 0;
@@ -1688,6 +1733,111 @@ private:
       std::map<std::string, SemanticSymbol> symbols;
       std::vector<SemanticOccurrence> occurrences;
       Diagnostics diagnostics;
+
+      bool equivalentTo(const RootResult &other) const {
+        if (symbols.size() != other.symbols.size() ||
+            occurrences.size() != other.occurrences.size() ||
+            !sameDiagnostics(diagnostics, other.diagnostics))
+          return false;
+        for (const auto &[key, value] : symbols) {
+          const auto found = other.symbols.find(key);
+          if (found == other.symbols.end() || !sameSymbol(value, found->second))
+            return false;
+        }
+        for (std::size_t index = 0; index < occurrences.size(); ++index)
+          if (!sameOccurrence(occurrences[index], other.occurrences[index]))
+            return false;
+        return true;
+      }
+
+      static bool owns(const Location &location,
+                       const std::filesystem::path &source) {
+        return !location.file.empty() &&
+               std::filesystem::absolute(location.file).lexically_normal() ==
+                   source;
+      }
+
+      bool publicDeclarationsEqual(const RootResult &other,
+                                   const std::filesystem::path &source) const {
+        std::vector<const SemanticSymbol *> left, right;
+        for (const auto &[key, symbol] : symbols)
+          if (symbol.publicDeclaration && owns(symbol.location, source))
+            left.push_back(&symbol);
+        for (const auto &[key, symbol] : other.symbols)
+          if (symbol.publicDeclaration && owns(symbol.location, source))
+            right.push_back(&symbol);
+        if (left.size() != right.size())
+          return false;
+        for (std::size_t index = 0; index < left.size(); ++index)
+          if (!sameSymbol(*left[index], *right[index]))
+            return false;
+        return true;
+      }
+
+      RootResult sourceProjection(const std::filesystem::path &source) const {
+        RootResult projection;
+        for (const auto &[key, symbol] : symbols)
+          if (owns(symbol.location, source))
+            projection.symbols.emplace(key, symbol);
+        for (const auto &item : occurrences)
+          if (owns(item.location, source))
+            projection.occurrences.push_back(item);
+        for (const auto &item : diagnostics.all())
+          if (owns(item.location, source))
+            projection.diagnostics.error(item.location, item.message,
+                                         item.code);
+        return projection;
+      }
+
+      void replaceSource(const std::filesystem::path &source,
+                         RootResult &&fresh) {
+        for (auto it = symbols.begin(); it != symbols.end();)
+          if (owns(it->second.location, source))
+            it = symbols.erase(it);
+          else
+            ++it;
+        for (auto &[key, symbol] : fresh.symbols)
+          if (owns(symbol.location, source))
+            symbols.insert_or_assign(key, std::move(symbol));
+
+        const auto oldOccurrence = std::find_if(
+            occurrences.begin(), occurrences.end(),
+            [&](const auto &item) { return owns(item.location, source); });
+        const auto insertion = static_cast<std::size_t>(
+            std::distance(occurrences.begin(), oldOccurrence));
+        std::erase_if(occurrences, [&](const auto &item) {
+          return owns(item.location, source);
+        });
+        std::vector<SemanticOccurrence> replacement;
+        for (auto &item : fresh.occurrences)
+          if (owns(item.location, source))
+            replacement.push_back(std::move(item));
+        occurrences.insert(occurrences.begin() +
+                               std::min(insertion, occurrences.size()),
+                           std::make_move_iterator(replacement.begin()),
+                           std::make_move_iterator(replacement.end()));
+
+        Diagnostics updated;
+        bool inserted = false;
+        const auto addFresh = [&]() {
+          for (const auto &item : fresh.diagnostics.all())
+            if (owns(item.location, source))
+              updated.error(item.location, item.message, item.code);
+        };
+        for (const auto &item : diagnostics.all()) {
+          if (owns(item.location, source)) {
+            if (!inserted) {
+              addFresh();
+              inserted = true;
+            }
+          } else {
+            updated.error(item.location, item.message, item.code);
+          }
+        }
+        if (!inserted)
+          addFresh();
+        diagnostics = std::move(updated);
+      }
     };
     struct SourceResult {
       std::map<std::string, SemanticSymbol> symbols;
@@ -1846,7 +1996,8 @@ private:
       if (!path || (path->extension() != ".rocket" && !projectFile(*path)))
         continue;
       analyze = true;
-      invalidate = invalidate || type == 1 || type == 3 || projectFile(*path);
+      invalidate = invalidate || type == 1 || type == 3 || projectFile(*path) ||
+                   workspaceRoot_.empty();
     }
     if (invalidate)
       ++discoveryEpoch_;
@@ -1995,12 +2146,10 @@ private:
     next.discoveryCacheMisses = cache.misses;
     SourceOverlays overlays;
     bool capturedInventoryComplete = true;
-    std::map<std::filesystem::path, long long> sourceVersions;
     for (const auto& [uri, document] : documents_) {
       if (document.path.empty() || document.path.extension() != ".rocket")
         continue;
       overlays.emplace(document.path, document.text);
-      sourceVersions.emplace(document.path, document.version);
       addSnapshotSource(configuration_, next, document.path, document.text);
       if (!next.sources.contains(document.path.generic_string()))
         capturedInventoryComplete = false;
@@ -2048,16 +2197,25 @@ private:
       if (prior == cache.sources.end() || prior->second != source)
         changed.insert(std::filesystem::path(path));
     }
+    bool removedSource = false;
     for (const auto &[path, source] : cache.sources)
-      if (!next.sources.contains(path))
+      if (!next.sources.contains(path)) {
         changed.insert(std::filesystem::path(path));
-    const auto affected = cache.graph.affectedRoots(changed);
+        cache.workspace.erase(path);
+        removedSource = true;
+      }
+    auto affected = cache.graph.affectedRoots(changed);
+    std::set<std::filesystem::path> interfaceStableChanges;
     for (const auto& [path, source] : next.sources) {
       analysisCheckpoint();
-      if (const auto version = sourceVersions.find(std::filesystem::path(path));
-          version != sourceVersions.end())
-        cache.workspace.noteVersion(path, version->second);
+      const auto *previous = cache.workspace.find(path);
+      const std::string previousInterface =
+          previous ? previous->exportedInterface : "";
       const auto &parsed = cache.workspace.parse(path, source);
+      if (changed.contains(std::filesystem::path(path)) && previous &&
+          previousInterface == parsed.exportedInterface &&
+          !hasContextSensitiveBody(parsed))
+        interfaceStableChanges.insert(std::filesystem::path(path));
       Analysis analysis{parsed.tokens, parsed.diagnostics};
       const std::string uri = uriFromPath(path);
       next.analyses.emplace(uri, std::move(analysis));
@@ -2090,9 +2248,15 @@ private:
       if (!document.path.empty() && document.path.extension() == ".rocket")
         roots.insert(document.path);
 
-    for (const auto& root : roots) {
-      analysisCheckpoint();
-      if (!cache.roots.contains(root) || affected.contains(root)) {
+    bool publicIndexStable = false;
+    bool ownershipChanged = false;
+    const auto analyzeRoot = [&](const std::filesystem::path &root,
+                                 std::optional<std::filesystem::path>
+                                     bodySource = std::nullopt,
+                                 bool *usedPartial = nullptr) {
+      if (usedPartial)
+        *usedPartial = false;
+      for (;;) {
         control.loadedFiles.clear();
         Diagnostics diagnostics;
         const auto analysisRoot =
@@ -2105,20 +2269,111 @@ private:
                                   overlays, diagnostics);
         SemanticSnapshot fragment;
         fragment.sources.swap(next.sources);
+        bool lowered = false;
         if (module) {
           module->library = true;
-          control.semanticallyAnalyzedFiles += control.loadedFiles.size();
+          control.semanticallyAnalyzedFiles +=
+              bodySource ? 1 : control.loadedFiles.size();
           SemanticAnalyzer analyzer(*module, diagnostics);
-          if (auto hir = analyzer.analyzeToHir()) {
+          std::set<std::string> bodySources;
+          if (bodySource)
+            bodySources.insert(bodySource->generic_string());
+          if (auto hir =
+                  analyzer.analyzeToHir(bodySource ? &bodySources : nullptr)) {
             mergeHir(*hir, *module, fragment);
+            lowered = true;
           }
         }
         fragment.sources.swap(next.sources);
-        cache.roots[root] = {std::move(fragment.symbols),
-                             std::move(fragment.occurrences),
-                             std::move(diagnostics)};
-        cache.graph.recordRoot(root, control.loadedFiles);
+        // An incomplete filtered pass cannot replace a source contribution.
+        // Re-run the ordinary compiler path for this root instead.
+        if (bodySource && (!lowered || diagnostics.hasErrors())) {
+          bodySource.reset();
+          continue;
+        }
+        DiscoveryCache::RootResult result{std::move(fragment.symbols),
+                                          std::move(fragment.occurrences),
+                                          std::move(diagnostics)};
+        const auto previous = cache.roots.find(root);
+        if (bodySource && previous != cache.roots.end()) {
+          if (!result.publicDeclarationsEqual(previous->second, *bodySource)) {
+            bodySource.reset();
+            continue;
+          }
+          previous->second.replaceSource(*bodySource, std::move(result));
+          ownershipChanged |= cache.graph.recordRoot(root, control.loadedFiles);
+          if (usedPartial)
+            *usedPartial = true;
+          return false;
+        }
+        const bool equivalent = previous != cache.roots.end() &&
+                                result.equivalentTo(previous->second);
+        if (previous != cache.roots.end() && changed.size() == 1 &&
+            root == *changed.begin())
+          publicIndexStable =
+              !previous->second.diagnostics.hasErrors() &&
+              !result.diagnostics.hasErrors() &&
+              result.publicDeclarationsEqual(previous->second, root);
+        cache.roots.insert_or_assign(root, std::move(result));
+        ownershipChanged |= cache.graph.recordRoot(root, control.loadedFiles);
+        return equivalent;
       }
+    };
+    // Analyze the edited module first. If the compiler's complete semantic
+    // output is identical and its exported interface did not change, cached
+    // consumer roots remain valid; no dependency body is lowered again.
+    std::set<std::filesystem::path> alreadyAnalyzed;
+    if (completeInventory && changed.size() == 1 &&
+        interfaceStableChanges.contains(*changed.begin()) &&
+        roots.contains(*changed.begin()) &&
+        cache.roots.contains(*changed.begin())) {
+      const auto &editedRoot = *changed.begin();
+      const bool sameOutput = analyzeRoot(editedRoot);
+      alreadyAnalyzed.insert(editedRoot);
+      if (sameOutput)
+        affected = {editedRoot};
+    }
+    const bool reuseConsumerBodies =
+        completeInventory && changed.size() == 1 &&
+        interfaceStableChanges.contains(*changed.begin()) &&
+        (alreadyAnalyzed.contains(*changed.begin())
+             ? publicIndexStable
+             : !roots.contains(*changed.begin()));
+    struct ReusedSource {
+      DiscoveryCache::RootResult prior;
+      DiscoveryCache::RootResult current;
+    };
+    std::vector<ReusedSource> sourceReuse;
+    for (const auto &root : roots) {
+      analysisCheckpoint();
+      if ((cache.roots.contains(root) && !affected.contains(root)) ||
+          alreadyAnalyzed.contains(root))
+        continue;
+      const bool partial = reuseConsumerBodies && cache.roots.contains(root) &&
+                           !cache.roots.at(root).diagnostics.hasErrors();
+      if (!partial) {
+        analyzeRoot(root);
+        continue;
+      }
+      const auto &source = *changed.begin();
+      auto prior = cache.roots.at(root).sourceProjection(source);
+      const auto reusable =
+          std::find_if(sourceReuse.begin(), sourceReuse.end(),
+                       [&](const ReusedSource &item) {
+                         return prior.equivalentTo(item.prior);
+                       });
+      if (reusable != sourceReuse.end()) {
+        cache.roots.at(root).replaceSource(
+            source, DiscoveryCache::RootResult(reusable->current));
+        continue;
+      }
+      bool usedPartial = false;
+      analyzeRoot(root, source, &usedPartial);
+      if (usedPartial)
+        sourceReuse.push_back(
+            {std::move(prior), cache.roots.at(root).sourceProjection(source)});
+    }
+    for (const auto &root : roots) {
       const auto &result = cache.roots.at(root);
       next.symbols.insert(result.symbols.begin(), result.symbols.end());
       next.occurrences.insert(next.occurrences.end(),
@@ -2129,12 +2384,20 @@ private:
     for (auto it = cache.roots.begin(); it != cache.roots.end();) {
       if (!roots.contains(it->first)) {
         cache.graph.removeRoot(it->first);
+        ownershipChanged = true;
         it = cache.roots.erase(it);
       } else
         ++it;
     }
+    if (removedSource || ownershipChanged) {
+      auto retainedSources = cache.graph.loadedSources();
+      for (const auto &[path, source] : next.sources)
+        retainedSources.insert(std::filesystem::path(path));
+      cache.workspace.retain(retainedSources);
+    }
     resolveFallbackOccurrences(next);
     next.invalidatedFiles = control.invalidatedFiles.size();
+    next.parsedCacheEntries = cache.workspace.parsedSourceCount();
     next.reparsedFiles = control.reparsedFiles;
     next.semanticallyAnalyzedFiles = control.semanticallyAnalyzedFiles;
     next.elapsedMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -2158,6 +2421,8 @@ private:
         {"analysisPending", Json(status.pending || status.running)},
         {"reparsedFiles",
          Json::integer(static_cast<long long>(snapshot_.reparsedFiles))},
+        {"parsedCacheEntries",
+         Json::integer(static_cast<long long>(snapshot_.parsedCacheEntries))},
         {"semanticallyAnalyzedFiles",
          Json::integer(
              static_cast<long long>(snapshot_.semanticallyAnalyzedFiles))},
@@ -2735,20 +3000,21 @@ private:
     bool includeDeclaration = true;
     booleanValue(field(asObject(field(asObject(params), "context")),
                        "includeDeclaration"), includeDeclaration);
-    Json::Array locations;
-    std::set<std::string> seen;
+    std::map<std::tuple<std::string, int, int>, Json> ordered;
     for (const auto& reference : snapshot_.occurrences) {
       if (reference.symbol != occurrence->symbol ||
           (!includeDeclaration && reference.definition))
         continue;
-      const std::string key = uriFromPath(reference.location.file) + ":" +
-                              std::to_string(reference.location.line) + ":" +
-                              std::to_string(reference.location.column);
-      if (!seen.insert(key).second) continue;
-      locations.emplace_back(Json(Json::Object{
-          {"uri", Json(uriFromPath(reference.location.file))},
-          {"range", occurrenceRange(reference)}}));
+      const std::string referenceUri = uriFromPath(reference.location.file);
+      const auto key = std::make_tuple(referenceUri, reference.location.line,
+                                       reference.location.column);
+      ordered.try_emplace(
+          key, Json(Json::Object{{"uri", Json(referenceUri)},
+                                 {"range", occurrenceRange(reference)}}));
     }
+    Json::Array locations;
+    for (auto &[position, location] : ordered)
+      locations.push_back(std::move(location));
     sendResult(id, Json(std::move(locations)));
   }
 
@@ -2819,23 +3085,25 @@ private:
         return;
       }
     }
-    std::map<std::string, Json::Array> edits;
-    std::set<std::string> seen;
+    std::map<std::string, std::map<std::pair<int, int>, Json>> edits;
     for (const auto& reference : snapshot_.occurrences) {
       if (reference.symbol != occurrence->symbol ||
           !pathInsideWorkspace(reference.location.file))
         continue;
       const std::string editUri = uriFromPath(reference.location.file);
-      const std::string key = editUri + ":" +
-                              std::to_string(reference.location.line) + ":" +
-                              std::to_string(reference.location.column);
-      if (!seen.insert(key).second) continue;
-      edits[editUri].emplace_back(Json(Json::Object{
-          {"newText", Json(*newName)}, {"range", occurrenceRange(reference)}}));
+      const auto position =
+          std::make_pair(reference.location.line, reference.location.column);
+      edits[editUri].try_emplace(
+          position, Json(Json::Object{{"newText", Json(*newName)},
+                                      {"range", occurrenceRange(reference)}}));
     }
     Json::Object changes;
-    for (auto& [editUri, values] : edits)
+    for (auto &[editUri, positions] : edits) {
+      Json::Array values;
+      for (auto &[position, edit] : positions)
+        values.push_back(std::move(edit));
       changes.emplace(editUri, Json(std::move(values)));
+    }
     sendResult(id, Json(Json::Object{{"changes", Json(std::move(changes))}}));
   }
 

@@ -11,11 +11,12 @@ namespace rocket {
 // reverse edges, including transitive imports observed by the loader.
 class DependencyGraph {
 public:
-  void recordRoot(const std::filesystem::path &root,
+  bool recordRoot(const std::filesystem::path &root,
                   const std::set<std::string> &loaded);
   void removeRoot(const std::filesystem::path &root);
   std::set<std::filesystem::path>
   affectedRoots(const std::set<std::filesystem::path> &changed) const;
+  std::set<std::filesystem::path> loadedSources() const;
   void clear() {
     reverse_.clear();
     roots_.clear();

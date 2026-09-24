@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -31,15 +32,14 @@ class WorkspaceState {
 public:
   const ParsedSource &parse(const std::filesystem::path &path,
                             const std::string &source);
-  void noteVersion(const std::filesystem::path &path, long long version);
-  void clear() {
-    parsed_.clear();
-    versions_.clear();
-  }
+  const ParsedSource *find(const std::filesystem::path &path) const;
+  void erase(const std::filesystem::path &path);
+  void retain(const std::set<std::filesystem::path> &sources);
+  std::size_t parsedSourceCount() const { return parsed_.size(); }
+  void clear() { parsed_.clear(); }
 
 private:
   std::map<std::filesystem::path, std::shared_ptr<const ParsedSource>> parsed_;
-  std::map<std::filesystem::path, long long> versions_;
 };
 
 } // namespace rocket
