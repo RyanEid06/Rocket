@@ -1,0 +1,108 @@
+import rocket.assets
+import rocket.graphics
+import rocket.raylib.safe
+import rocket.ui.containers
+import rocket.ui.controls
+import rocket.ui.render
+import rocket.ui.styles
+import rocket.ui.theme
+import testing
+import std.process
+
+fn package_root() -> String:
+    match process.environment("ROCKET_UI_PACKAGE_ROOT"):
+        case Some(value):
+            return value
+        case None:
+            return "."
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            print(message)
+            return false
+
+fn run(window: safe.Window, font: safe.Font, frame: safe.Frame) -> Int:
+    let palette = theme.dark_theme()
+    let states = styles.default_styles(palette)
+    let bounds = graphics.rect(10.0, 10.0, 130.0, 52.0)
+    match containers.panel(bounds, states.normal.panel, clip_children: true):
+        case Err(message):
+            return 10
+        case Ok(panel):
+            if not succeeded(render.draw_panel(frame, panel)):
+                return 11
+            match render.begin_panel_content_clip(frame, panel):
+                case Err(message):
+                    return 23
+                case Ok(scope):
+                    if not succeeded(render.end_panel_content_clip(scope)):
+                        return 24
+    let button = controls.Button("Continue", bounds, states.hovered.button)
+    if not succeeded(render.draw_button(frame, font, button)):
+        return 12
+    match render.draw_button(frame, font, controls.Button("Too small", graphics.rect(10.0, 10.0, 10.0, 10.0), states.normal.button)):
+        case Ok(value):
+            return 25
+        case Err(message):
+            let ignored = message
+    let label = controls.Text("Wrapped label", bounds, states.normal.text)
+    if not succeeded(render.draw_label(frame, font, label, graphics.text_align_right(), graphics.text_align_middle(), true)):
+        return 13
+    if not succeeded(render.draw_progress_bar(frame, bounds, 0.75, states.normal.panel, palette.colors.success)):
+        return 14
+    match assets.open_graphics(window, package_root()):
+        case Err(message):
+            return 16
+        case Ok(store):
+            match assets.load_texture(store, "art", "assets/card-accent.png"):
+                case Err(message):
+                    return 17
+                case Ok(texture):
+                    let image = controls.Image("art", graphics.rect(160.0, 10.0, 120.0, 90.0), states.normal.image)
+                    if not succeeded(render.draw_image_from_store(frame, image, store, render.image_contain())) or not succeeded(render.draw_image(frame, image, texture, render.image_cover())) or not succeeded(render.draw_image(frame, image, texture, render.image_stretch())):
+                        return 18
+                    match render.draw_image(frame, image, texture, render.ImageFit(9)):
+                        case Ok(value):
+                            return 19
+                        case Err(message):
+                            let ignored = message
+                    if not succeeded(safe.end_frame(frame)):
+                        return 22
+                    if not succeeded(assets.cleanup(store)):
+                        return 20
+                    match render.draw_image(frame, image, texture, render.image_contain()):
+                        case Ok(value):
+                            return 21
+                        case Err(message):
+                            let ignored = message
+    match render.draw_progress_bar(frame, bounds, 1.2, states.normal.panel, palette.colors.success):
+        case Ok(value):
+            return 15
+        case Err(message):
+            let ignored = message
+    return 0
+
+fn main() -> Int:
+    if not testing.start():
+        return 1
+    match safe.open_window(320, 180, "UI renderer"):
+        case Err(message):
+            return 2
+        case Ok(window):
+            match safe.default_font(window):
+                case Err(message):
+                    return 3
+                case Ok(font):
+                    match safe.begin_frame(window):
+                        case Err(message):
+                            return 4
+                        case Ok(frame):
+                            let status = run(window, font, frame)
+                            if not succeeded(safe.unload_font(font)):
+                                return 6
+                            if not succeeded(safe.close_window(window)):
+                                return 7
+                            return status

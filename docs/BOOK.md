@@ -75,6 +75,9 @@ and `rocket.ui.controls` supplies styled text, image, separator, badge, pill,
 button, and icon-button values over the centralized UI interaction contract.
 `rocket.ui.containers` adds panels, dialogs, overlays, tooltips, and toasts with
 explicit stack order, modal capture, and nested child clipping.
+Rocket 3.5 adds `rocket.ui.render` to draw those panels, styled buttons,
+labels, asset-backed images, and progress bars on a logical canvas. It consumes
+the existing UI response and style values; see `ROCKET_3_5_UI_RENDER.md`.
 `rocket.motion` supplies value-owned easing, tweens, timelines, and reduced
 motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.

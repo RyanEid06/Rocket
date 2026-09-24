@@ -7,7 +7,10 @@ import rocket.graphics.canvas
 import rocket.graphics.shapes
 import rocket.motion
 import rocket.raylib.safe
+import rocket.ui.containers
+import rocket.ui.controls
 import rocket.ui.layout
+import rocket.ui.render
 import rocket.ui.styles
 import rocket.ui.theme
 
@@ -43,8 +46,18 @@ pub fn draw_premium_showcase(frame: safe.Frame, font: safe.Font, card_back: safe
         case Ok(scope):
             let background = shapes.draw_gradient_rect(frame, logical, palette.colors.background, graphics.color_from_rgba(0.04, 0.10, 0.10), vertical: true)
             let table = graphics.rect(42.0, 56.0, 876.0, 428.0)
-            let table_surface = shapes.draw_rounded_rect(frame, table, palette.colors.table, roundness: 0.08)
-            let table_border = shapes.draw_rounded_rect_outline(frame, table, palette.colors.border, roundness: 0.08, thickness: 2.0)
+            let table_style = styles.panel_style(palette.colors.table, styles.border_style(palette.colors.border, 2.0, 17.12), styles.shadow_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.0), graphics.vec2(0.0, 0.0)), 0.0)
+            match containers.panel(table, table_style):
+                case Err(message):
+                    let closed = canvas.end_clip(scope)
+                    return Err(message)
+                case Ok(panel):
+                    match render.draw_panel(frame, panel):
+                        case Err(message):
+                            let closed = canvas.end_clip(scope)
+                            return Err(message)
+                        case Ok(drawn):
+                            let ignored = drawn
             let texture_accent = safe.draw_texture_pro(frame, card_back, graphics.rect(0.0, 0.0, 4.0, 4.0), graphics.rect(56.0, 68.0, 848.0, 12.0), graphics.vec2(0.0, 0.0), 0.0, safe.color(255, 255, 255, 180))
 
             let policy = motion.policy(reduced: reduced_motion, allow_essential: false)
@@ -65,11 +78,15 @@ pub fn draw_premium_showcase(frame: safe.Frame, font: safe.Font, card_back: safe
             let gold_chip = draw_chip(frame, graphics.vec2(378.0, 420.0), 24.0, palette.colors.warning)
 
             let style_states = styles.default_styles(palette)
-            let button_style = styles.resolve(style_states, styles.control_state(hovered: button_hovered))
+            let selected = styles.resolve(style_states, styles.control_state(hovered: button_hovered))
             let button_bounds = graphics.rect(708.0, 398.0, 164.0, 52.0)
-            let button = shapes.draw_rounded_rect(frame, button_bounds, button_style.button.background, roundness: 0.25)
-            let button_border = shapes.draw_rounded_rect_outline(frame, button_bounds, button_style.button.border.color, roundness: 0.25, thickness: button_style.button.border.width)
-            let button_text = safe.draw_text_layout(frame, font, "Continue", button_bounds, graphics.text_style("default", 18.0), safe.color(245, 248, 252), horizontal_align: graphics.text_align_center(), vertical_align: graphics.text_align_middle())
+            let button_style = styles.button_style(selected.button.background, styles.text_style(selected.button.text.color, 18.0), styles.border_style(selected.button.border.color, selected.button.border.width, 6.5), selected.button.shadow, selected.button.padding)
+            match render.draw_button(frame, font, controls.Button("Continue", button_bounds, button_style)):
+                case Err(message):
+                    let closed = canvas.end_clip(scope)
+                    return Err(message)
+                case Ok(drawn):
+                    let ignored = drawn
             return canvas.end_clip(scope)
 
 fn render_once(window: safe.Window, font: safe.Font, card_back: safe.Texture, target: safe.RenderTexture, mapping: graphics.VirtualCanvas) -> Result[Bool, String]:

@@ -1,0 +1,168 @@
+import std.path
+import std.process
+import rocket.assets
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.raylib.safe
+import rocket.ui.containers
+import rocket.ui.controls
+import rocket.ui.render
+import rocket.ui.styles
+import rocket.ui.theme
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            print(message)
+            return false
+
+fn panel(frame: safe.Frame, bounds: graphics.Rect, style: styles.PanelStyle) -> Bool:
+    match containers.panel(bounds, style):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(value):
+            return succeeded(render.draw_panel(frame, value))
+
+fn label(frame: safe.Frame, font: safe.Font, value: String, bounds: graphics.Rect, style: styles.TextStyle, horizontal: Int, vertical: Int, wrap: Bool) -> Bool:
+    return succeeded(render.draw_label(frame, font, controls.Text(value, bounds, style), horizontal, vertical, wrap))
+
+fn scene(frame: safe.Frame, font: safe.Font, texture: assets.TextureRef, number: Int) -> Bool:
+    let palette = theme.dark_theme()
+    let states = styles.default_styles(palette)
+    if not succeeded(safe.clear_background(frame, safe.color(12, 20, 30))):
+        return false
+    if number == 0:
+        let names: Array[String] = ["Idle", "Hover", "Pressed", "Disabled"]
+        let selected: Array[styles.ButtonStyle] = [states.normal.button, states.hovered.button, states.pressed.button, states.disabled.button]
+        var index = 0
+        while index < 4:
+            let bounds = graphics.rect(36.0 + 152.0 * index_float(index), 124.0, 132.0, 52.0)
+            if not succeeded(render.draw_button(frame, font, controls.Button(names[index], bounds, selected[index]))):
+                return false
+            index = index + 1
+        return succeeded(render.draw_button(frame, font, controls.Button("Focus", graphics.rect(254.0, 210.0, 132.0, 52.0), states.focused.button)))
+    if number == 1:
+        let shadow = styles.shadow_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.45), graphics.vec2(7.0, 9.0), 4.0)
+        let border = styles.border_style(palette.colors.focus, 3.0, 22.0)
+        let card = styles.panel_style(palette.colors.raised_surface, border, shadow, 18.0)
+        return panel(frame, graphics.rect(166.0, 64.0, 308.0, 228.0), card) and label(frame, font, "Panel / card", graphics.rect(194.0, 137.0, 252.0, 64.0), states.normal.text, graphics.text_align_center(), graphics.text_align_middle(), false)
+    if number == 2:
+        let long_text = "Rocket UI wraps text cleanly across multiple lines in a bounded label."
+        return panel(frame, graphics.rect(24.0, 28.0, 592.0, 304.0), states.normal.panel) and label(frame, font, long_text, graphics.rect(46.0, 56.0, 242.0, 108.0), states.normal.text, graphics.text_align_left(), graphics.text_align_top(), true) and label(frame, font, long_text, graphics.rect(352.0, 56.0, 242.0, 108.0), states.normal.text, graphics.text_align_right(), graphics.text_align_middle(), true) and label(frame, font, "Centered", graphics.rect(192.0, 216.0, 256.0, 70.0), states.focused.text, graphics.text_align_center(), graphics.text_align_bottom(), false)
+    if number == 3:
+        let fit: Array[render.ImageFit] = [render.image_contain(), render.image_cover(), render.image_stretch()]
+        let names: Array[String] = ["Contain", "Cover", "Stretch"]
+        var index = 0
+        while index < 3:
+            let x = 34.0 + 206.0 * index_float(index)
+            if not panel(frame, graphics.rect(x, 62.0, 186.0, 214.0), states.normal.panel):
+                return false
+            let picture = controls.Image("card-accent", graphics.rect(x + 16.0, 78.0, 154.0, 146.0), states.normal.image)
+            if not succeeded(render.draw_image(frame, picture, texture, fit[index])):
+                return false
+            if not label(frame, font, names[index], graphics.rect(x + 12.0, 230.0, 162.0, 32.0), states.normal.text, graphics.text_align_center(), graphics.text_align_middle(), false):
+                return false
+            index = index + 1
+        return true
+    if not panel(frame, graphics.rect(72.0, 44.0, 496.0, 272.0), states.normal.panel):
+        return false
+    if not label(frame, font, "Ready to play", graphics.rect(104.0, 72.0, 432.0, 40.0), styles.text_style(palette.colors.text, palette.typography.heading), graphics.text_align_center(), graphics.text_align_middle(), false):
+        return false
+    let picture = controls.Image("card-accent", graphics.rect(112.0, 126.0, 110.0, 112.0), states.normal.image)
+    if not succeeded(render.draw_image(frame, picture, texture, render.image_contain())):
+        return false
+    let progress_style = styles.panel_style(palette.colors.surface, styles.border_style(palette.colors.border, 1.0, 8.0), states.normal.panel.shadow, 2.0)
+    if not succeeded(render.draw_progress_bar(frame, graphics.rect(254.0, 132.0, 238.0, 26.0), 0.68, progress_style, palette.colors.success)):
+        return false
+    return label(frame, font, "Loading assets", graphics.rect(254.0, 166.0, 238.0, 30.0), states.normal.text, graphics.text_align_left(), graphics.text_align_middle(), false) and succeeded(render.draw_button(frame, font, controls.Button("Continue", graphics.rect(338.0, 230.0, 154.0, 54.0), states.hovered.button)))
+
+fn index_float(value: Int) -> Float:
+    if value == 0:
+        return 0.0
+    if value == 1:
+        return 1.0
+    if value == 2:
+        return 2.0
+    return 3.0
+
+fn scene_name(number: Int) -> String:
+    if number == 0:
+        return "button-states.png"
+    if number == 1:
+        return "panel-card.png"
+    if number == 2:
+        return "label-layout.png"
+    if number == 3:
+        return "image-fit.png"
+    return "composed-layout.png"
+
+fn capture_scene(window: safe.Window, font: safe.Font, texture: assets.TextureRef, target: safe.RenderTexture, output: String, number: Int) -> Bool:
+    match safe.begin_frame(window):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(frame):
+            match canvas.begin_target(frame, target):
+                case Err(message):
+                    print(message)
+                    let aborted = safe.abort_frame(frame)
+                    return false
+                case Ok(scope):
+                    let drawn = scene(frame, font, texture, number)
+                    let target_closed = succeeded(canvas.end_target(scope))
+                    let presented = succeeded(canvas.present_current(window, frame, target, graphics.size(640.0, 360.0)))
+                    let frame_closed = succeeded(safe.end_frame(frame))
+                    if not drawn or not target_closed or not presented or not frame_closed:
+                        return false
+                    return succeeded(canvas.save_logical_screenshot(window, target, path.join(output, scene_name(number))))
+
+fn capture_all(window: safe.Window, font: safe.Font, output: String) -> Int:
+    match canvas.create_target(window, 640, 360):
+        case Err(message):
+            print(message)
+            return 4
+        case Ok(target):
+            var status = 0
+            match assets.open_graphics(window, ".", capacity: 2):
+                case Err(message):
+                    print(message)
+                    status = 5
+                case Ok(store):
+                    match assets.load_texture(store, "card-accent", "assets/card-accent.png"):
+                        case Err(message):
+                            print(message)
+                            status = 6
+                        case Ok(texture):
+                            var number = 0
+                            while number < 5:
+                                if not capture_scene(window, font, texture, target, output, number):
+                                    status = 7
+                                    break
+                                number = number + 1
+                    let store_closed = assets.cleanup(store)
+            let target_closed = canvas.unload_target(target)
+            return status
+
+fn main() -> Int:
+    match process.environment("ROCKET_UI_VISUAL_OUTPUT"):
+        case None:
+            return 0
+        case Some(output):
+            match safe.open_window(960, 540, "Rocket 3.5 UI visuals"):
+                case Err(message):
+                    print(message)
+                    return 1
+                case Ok(window):
+                    match safe.default_font(window):
+                        case Err(message):
+                            print(message)
+                            let window_closed = safe.close_window(window)
+                            return 2
+                        case Ok(font):
+                            let status = capture_all(window, font, output)
+                            let font_closed = safe.unload_font(font)
+                            let window_closed = safe.close_window(window)
+                            return status

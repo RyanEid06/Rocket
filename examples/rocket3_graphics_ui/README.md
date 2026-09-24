@@ -7,14 +7,19 @@ only public `std.*` and `rocket.*` modules.
   `std.math`, color helpers, easing, motion sampling, and reduced motion.
 - `examples/layout_and_controls.rocket` demonstrates VirtualCanvas fitting,
   transforms, responsive rows, anchors, typography measurement, themed
-  controls, and a logical texture asset.
+  controls, a logical texture asset, and drawing a resolved button through
+  `rocket.ui.render`.
 - `examples/premium_card_table.rocket` is the runnable one-frame neutral
   showcase. It
   composes dark surfaces, rounded panels, borders, typography, gradients,
   neutral card-like artwork, buttons, chips, hover state, motion policy, and
   virtual-resolution clipping. It loads the card accent through the
   bundled `rocket.assets` graphics-only store and releases that store before
-  closing the window.
+  closing the window. Its reusable table panel and button use
+  `rocket.ui.render`; its cards, chips, and accent remain custom art.
+
+See `docs/ROCKET_3_5_UI_RENDER.md` for the rendered widget API and its logical
+canvas, image fit, clipping, and asset ownership rules.
 
 The premium gallery contains no game or wagering rules and is not evidence of
 Scroll2Roll visual fidelity.

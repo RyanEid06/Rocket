@@ -6,6 +6,7 @@ import rocket.raylib.safe
 import rocket.ui
 import rocket.ui.controls
 import rocket.ui.layout
+import rocket.ui.render
 import rocket.ui.styles
 import rocket.ui.theme
 
@@ -33,6 +34,9 @@ pub fn card_art(bounds: graphics.Rect) -> Result[controls.Image, String]:
 pub fn primary_button(frame: ui.UiFrame, id: ui.WidgetId, bounds: graphics.Rect, disabled: Bool = false) -> Result[controls.ButtonResult, String]:
     let states = styles.default_styles(theme.dark_theme())
     return controls.button(frame: frame, id: id, label: "Continue", bounds: bounds, states: states, disabled: disabled)
+
+pub fn draw_primary_button(frame: safe.Frame, font: safe.Font, result: controls.ButtonResult) -> Result[Bool, String]:
+    return render.draw_button(frame, font, result.control)
 
 pub fn title_layout(font: safe.Font, width: Float) -> Result[graphics.TextLayout, String]:
     let style = graphics.text_style(font_name: "default", size: 28.0)

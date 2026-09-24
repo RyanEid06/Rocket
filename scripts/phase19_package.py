@@ -779,6 +779,18 @@ def verify_relocation(package: Path, arguments: argparse.Namespace) -> dict[str,
         pattern=r"built ")
     run([compiler, "test", assets_fixture], env=asset_env, cwd=work,
         pattern=r"2 passed; 0 failed")
+    ui_fixture = work / "ui-render-package-fixture"
+    shutil.copytree(
+        ROOT / "tests" / "fixtures" / "rocket35_ui_render_package", ui_fixture
+    )
+    ui_env = dict(env, ROCKET_UI_PACKAGE_ROOT=str(ui_fixture))
+    run([compiler, "check", ui_fixture], env=ui_env, cwd=work,
+        pattern=r"check succeeded")
+    run([compiler, "build", ui_fixture], env=ui_env, cwd=work,
+        pattern=r"built ")
+    run([compiler, "run", ui_fixture], env=ui_env, cwd=work)
+    run([compiler, "test", ui_fixture], env=ui_env, cwd=work,
+        pattern=r"1 passed; 0 failed")
     return {
         "schema": "rocket-relocation-report-2",
         "version": VERSION,

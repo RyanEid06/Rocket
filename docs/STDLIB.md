@@ -707,6 +707,26 @@ scissor token. Nested panels therefore use the backend's deterministic
 intersection, strict LIFO restoration, and frame-end leak detection without
 exposing native handles or scope state.
 
+## `rocket.ui.render` (Rocket 3.5 WP6)
+
+`rocket.ui.render` draws the existing panel and button values, text labels,
+asset-backed images, and progress bars in logical coordinates. It consumes
+`controls.Button` after `controls.button` has selected its style from the
+current `ui.Response`; drawing adds no interaction state. Images accept a
+borrowed `assets.TextureRef` or resolve `controls.Image.asset_name` through a
+live `assets.AssetStore`, with contain, cover, and stretch fit policies, tint,
+opacity, and optional clipping. Labels use the canonical font layout backend
+for alignment, wrapping, clipping, and overflow.
+
+Draw into a logical render target and present it through
+`rocket.graphics.canvas` for resize and DPI scaling. When drawing children of
+a clipping panel on that target, use `begin_panel_content_clip` and
+`end_panel_content_clip` in order. `containers.begin_panel_clip` remains the
+screen-frame mapping variant. The supported shadow is an offset silhouette;
+the backend has no blurred-shadow primitive. The existing input/container
+model has no scroll position or wheel state, so WP6 does not add scrolling.
+See `ROCKET_3_5_UI_RENDER.md` for signatures and an example.
+
 ## Typed assets
 
 The bundled Rocket 3.5 module `rocket.assets` exposes `AssetStore`, `TextureRef`, `FontRef`,

@@ -769,6 +769,21 @@ set_tests_properties(rocket3_asset_store_stage0 PROPERTIES
   TIMEOUT 360
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket35_ui_render_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp6/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
+    "-DVISUAL=ON"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_ui_render_test.cmake")
+set_tests_properties(rocket35_ui_render_stage0 PROPERTIES
+  LABELS "rocket35;wp6;ui;render;stage0;native;visual;docs;formatter"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_error_lifetime_stage0
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1454,6 +1469,19 @@ set_tests_properties(rocket3_asset_store_self_hosted PROPERTIES
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket35_ui_render_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp6/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_ui_render_test.cmake")
+set_tests_properties(rocket35_ui_render_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp6;ui;render;selfhost;native;docs;formatter"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_error_lifetime_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -1631,6 +1659,18 @@ set_tests_properties(rocket3_asset_store_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
   LABELS "rocket3;wp28;rocket35;wp5;assets;target;surface;selfhost;raylib"
   TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_ui_render_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_ui_render_target_surface_test.cmake")
+set_tests_properties(rocket35_ui_render_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp6;ui;render;target;surface;selfhost"
+  TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_test(NAME rocket3_error_lifetime_target_surface
