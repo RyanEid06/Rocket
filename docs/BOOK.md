@@ -80,9 +80,9 @@ motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.
 
 Rocket 3.5 bundles `rocket.assets` for typed texture, font, sound, music, and
-shader references with package-rooted paths, bounded capacity, and explicit
-cleanup. See `ROCKET_3_5_ASSETS.md`. The older `src.rocket_assets` reference
-package remains for Rocket 3.0 compatibility.
+shader references with package-rooted paths, bounded capacity (256 logical names
+by default), and explicit cleanup. See `ROCKET_3_5_ASSETS.md`. The older
+`src.rocket_assets` reference package remains for Rocket 3.0 compatibility.
 
 ## 8. Tools and reference
 
