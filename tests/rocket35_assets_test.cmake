@@ -74,6 +74,15 @@ if(NOT doc_result EQUAL 0)
   message(FATAL_ERROR "WP5 docs failed:\n${doc_output}${doc_error}")
 endif()
 file(READ "${WORK}/docs/search.json" search_index)
+string(FIND "${search_index}"
+  [=["parameters": ["window", "audio", "package_root", "capacity"], "defaults": [null, null, null, "256"]]=]
+  explicit_audio_root)
+string(FIND "${search_index}"
+  [=["parameters": ["window", "package_root", "capacity"], "defaults": [null, null, "256"]]=]
+  explicit_graphics_root)
+if(explicit_audio_root EQUAL -1 OR explicit_graphics_root EQUAL -1)
+  message(FATAL_ERROR "WP5 public asset API must require an explicit package root")
+endif()
 foreach(symbol IN ITEMS AssetStore TextureRef FontRef SoundRef MusicRef ShaderRef
     load_texture load_music borrow_shader)
   if(NOT "${search_index}" MATCHES "\\\"name\\\": \\\"${symbol}\\\"")

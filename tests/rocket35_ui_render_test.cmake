@@ -82,8 +82,9 @@ if(VISUAL)
   endif()
   execute_process(COMMAND "${CMAKE_COMMAND}" -E env
       "ROCKET_UI_VISUAL_OUTPUT=${WORK}/visual"
+      "ROCKET_UI_PACKAGE_ROOT=${package}"
       "${executable_directory}/main${suffix}"
-    WORKING_DIRECTORY "${package}"
+    WORKING_DIRECTORY "${WORK}"
     RESULT_VARIABLE visual_result OUTPUT_VARIABLE visual_output ERROR_VARIABLE visual_error)
   if(NOT visual_result EQUAL 0)
     message(FATAL_ERROR "WP6 visual capture failed:\n${visual_output}${visual_error}")

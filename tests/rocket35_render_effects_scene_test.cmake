@@ -1,6 +1,7 @@
 if(NOT DEFINED ROCKETC OR NOT DEFINED SOURCE_DIR OR NOT DEFINED WORK OR
    NOT DEFINED NATIVE_ROOT OR NOT DEFINED NATIVE_TARGET OR
-   NOT DEFINED EXECUTABLE_SUFFIX OR NOT DEFINED SOFTWARE_OPENGL_ROOT)
+   NOT DEFINED EXECUTABLE_SUFFIX OR NOT DEFINED SOFTWARE_OPENGL_ROOT OR
+   NOT DEFINED PYTHON)
   message(FATAL_ERROR "WP3 render effects scene test is missing required arguments")
 endif()
 
@@ -46,7 +47,7 @@ execute_process(COMMAND "${executable}"
 if(NOT run_result EQUAL 0)
   message(FATAL_ERROR "WP3 scene failed to render:\n${run_output}${run_error}")
 endif()
-foreach(name IN ITEMS "casino-effects-before.png" "casino-effects-resized.png")
+foreach(name IN ITEMS "casino-effects-off.png" "casino-effects-before.png" "casino-effects-resized.png")
   set(screenshot "${WORK}/${name}")
   if(NOT EXISTS "${screenshot}")
     message(FATAL_ERROR "WP3 scene did not save ${name}")
@@ -57,6 +58,19 @@ foreach(name IN ITEMS "casino-effects-before.png" "casino-effects-resized.png")
     message(FATAL_ERROR "WP3 scene output ${name} is not a nontrivial PNG")
   endif()
 endforeach()
+if(NOT "${run_output}" MATCHES "wp3-shader-unavailable")
+  execute_process(COMMAND "${PYTHON}"
+      "${SOURCE_DIR}/tests/rocket35_shader_effect_compare.py"
+      "${WORK}/casino-effects-off.png"
+      "${WORK}/casino-effects-before.png"
+    RESULT_VARIABLE compare_result OUTPUT_VARIABLE compare_output ERROR_VARIABLE compare_error)
+  if(NOT compare_result EQUAL 0)
+    message(FATAL_ERROR "WP3 shader effect comparison failed:\n${compare_output}${compare_error}")
+  endif()
+  message(STATUS "${compare_output}")
+else()
+  message(STATUS "WP3 shader effect comparison skipped: shader capability unavailable")
+endif()
 file(SHA256 "${WORK}/casino-effects-before.png" before_capture)
 file(SHA256 "${WORK}/casino-effects-resized.png" resized_capture)
 if(before_capture STREQUAL resized_capture)

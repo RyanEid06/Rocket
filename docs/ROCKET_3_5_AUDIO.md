@@ -19,10 +19,12 @@ released handle, returns `raylib: stale or already released handle`.
 
 Music is streamed rather than decoded into one short sound buffer. Call
 `update_music(music)` **once each game-loop iteration while it is playing**.
-An update before play, after stop, or while paused returns
+An update before play, after stop or natural EOF, or while paused returns
 `raylib: invalid lifecycle state`. Pause requires playing music; resume
 requires paused music. `stop_music` is safe to call during cleanup, including
-after an earlier stop. `music_playing` is false during pause and after stop.
+after an earlier stop. `music_playing` is false during pause, after stop, and
+after a non-looping stream reaches natural EOF. Pause and resume after EOF
+return invalid-state errors; `play_music` can replay the same loaded stream.
 `set_music_looping(music, true)` requests continuous playback. Sound effects
 can play at the same time as music; separate sound handles can overlap.
 
@@ -84,5 +86,9 @@ be cut short, then `unload_sound` when it is no longer needed.
 
 The [WP4 casino scene](../examples/rocket35_audio/README.md) is a complete
 working example. Its render loop updates the stream every frame and starts two
-effects while the music is playing. The headless adapter and Rocket package
-fixtures exercise the same lifetime contract without an audio device.
+effects while the music is playing. Adapter test mode validates lifecycle and
+ownership without native playback. `ROCKET_AUDIO_NULL_BACKEND=1` selects the
+pinned Raylib/miniaudio null backend for real stream loading, updates, EOF,
+and shutdown without an output device. Ordinary runs leave that variable unset
+and select the system backend. A device-scene test that skips because no audio
+device exists is not evidence of audible playback.

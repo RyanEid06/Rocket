@@ -238,6 +238,16 @@ struct AdapterState {
 AdapterState state;
 unsigned int nativeQualityFlags = 0;
 
+void syncMusicPlayback(MusicRecord& record) {
+  // A paused stream is reported as not playing by Raylib. Only an active
+  // stream can have reached natural EOF between Rocket calls.
+  if (!state.testMode && record.playing && !record.paused &&
+      !IsMusicStreamPlaying(record.value)) {
+    record.playing = false;
+    record.paused = false;
+  }
+}
+
 void captureShaderLog(int level, const char* format, va_list arguments) {
   char message[4096];
   va_list copy;
@@ -252,6 +262,9 @@ void captureShaderLog(int level, const char* format, va_list arguments) {
 }
 
 Shader loadShaderWithDiagnostics(const char* vertex, const char* fragment) {
+  // Raylib 6.0 exposes only a void setter for its process-global callback.
+  // There is no getter, so a prior callback cannot be restored safely here.
+  // Capture only the synchronous shader compilation call, then release it.
   SetTraceLogCallback(captureShaderLog);
   Shader shader = LoadShaderFromMemory(vertex, fragment);
   SetTraceLogCallback(nullptr);
@@ -3195,16 +3208,21 @@ extern "C" int64_t rlv_music_play(int64_t musicId) {
 }
 
 extern "C" int64_t rlv_music_update(int64_t musicId) {
-  const auto found = state.musics.find(musicId);
+  auto found = state.musics.find(musicId);
   if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  syncMusicPlayback(found->second);
   if (!found->second.playing || found->second.paused) return RLV_ERR_INVALID_STATE;
-  if (!state.testMode) UpdateMusicStream(found->second.value);
+  if (!state.testMode) {
+    UpdateMusicStream(found->second.value);
+    syncMusicPlayback(found->second);
+  }
   return RLV_OK;
 }
 
 extern "C" int64_t rlv_music_pause(int64_t musicId) {
   auto found = state.musics.find(musicId);
   if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  syncMusicPlayback(found->second);
   if (!found->second.playing || found->second.paused) return RLV_ERR_INVALID_STATE;
   if (!state.testMode) PauseMusicStream(found->second.value);
   found->second.paused = true;
@@ -3214,6 +3232,7 @@ extern "C" int64_t rlv_music_pause(int64_t musicId) {
 extern "C" int64_t rlv_music_resume(int64_t musicId) {
   auto found = state.musics.find(musicId);
   if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  syncMusicPlayback(found->second);
   if (!found->second.playing || !found->second.paused) return RLV_ERR_INVALID_STATE;
   if (!state.testMode) ResumeMusicStream(found->second.value);
   found->second.paused = false;
@@ -3230,10 +3249,10 @@ extern "C" int64_t rlv_music_stop(int64_t musicId) {
 }
 
 extern "C" int64_t rlv_music_playing(int64_t musicId) {
-  const auto found = state.musics.find(musicId);
+  auto found = state.musics.find(musicId);
   if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
-  return state.testMode ? (found->second.playing && !found->second.paused)
-                        : IsMusicStreamPlaying(found->second.value);
+  syncMusicPlayback(found->second);
+  return found->second.playing && !found->second.paused;
 }
 
 extern "C" int64_t rlv_music_set_volume(int64_t musicId, double volume) {

@@ -60,6 +60,12 @@ diagnostic text when available, including compiler messages from a real OpenGL
 driver. The adapter's `rlv_shader_diagnostic_*` symbols are internal and are
 not application APIs.
 
+Raylib 6.0 has a setter for its process-global trace callback but no getter.
+The adapter installs its diagnostic callback only around the synchronous
+`LoadShaderFromMemory` call and then clears it. An application that installs
+its own Raylib callback outside Rocket cannot have that callback restored by
+Rocket shader loading; concurrent external callback installation is unsupported.
+
 ## Post-processing a logical canvas
 
 Keep the render texture at the chosen logical resolution. Recompute canvas
@@ -90,8 +96,9 @@ match shader:
 `canvas.present_current` reads the current framebuffer size and computes fresh
 letterboxing, so a fixed logical target composes correctly at a new window
 size. Apply `canvas.set_output_filter(window, target, true)` for smooth scaling,
-or `false` for point sampling. The WP3 scene saves captures before and after a
-resize; the fixture also verifies this sequence with a deterministic backend
+or `false` for point sampling. The WP3 scene compares effect-off and effect-on
+captures of the same scene against the tint formula, then saves a capture after
+resize. The fixture also verifies this sequence with a deterministic backend
 and checks the no-shader fallback.
 On a headless display that does not change its physical framebuffer after a
 resize request, the native scene reports that limitation and still verifies

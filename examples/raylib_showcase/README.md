@@ -24,11 +24,12 @@ From the repository root in PowerShell:
 . .\dependencies\activate.ps1
 cmake --preset windows-release
 cmake --build --preset windows-release --target rocket_raylib_build
+$env:ROCKET_SHOWCASE_PACKAGE_ROOT = (Resolve-Path .\examples\raylib_showcase).Path
 Set-Location .\examples\raylib_showcase
 .\.rocketc\rocket-raylib-showcase.exe
 ```
 
-The current directory must contain `assets/`. Use the arrow keys to steer the
+The explicit package root may differ from the current directory. Use the arrow keys to steer the
 orbiter, click to relocate it, press Space to play the procedural tone, and
 press Escape to exit. If audio initialization fails, the application prints a
 message and continues silently. Failure to create the graphics window is a hard
@@ -240,7 +241,10 @@ tokens stay inside the safe wrapper and are destroyed before it returns.
 `src.rocket_assets` is a deprecated compatibility shim over the bundled
 `rocket.assets` module. The showcase itself loads its orbiter texture through
 `rocket.assets`; new packages should import that module directly. See
-`docs/ROCKET_3_5_ASSETS.md` for the supported contract. The shim's `load_texture`,
+`docs/ROCKET_3_5_ASSETS.md` for the supported contract. The shim's old
+`package_root = "."` default remains only for copied compatibility code; new
+game code passes an explicit absolute root to `rocket.assets`. The shim's
+`load_texture`,
 `load_font`, `load_sound`, `load_music`, and `load_shader` return distinct typed
 reference values. The matching typed lookup functions (`texture`, `font`,
 `sound`, `music`, and `shader`) return the stable reference for a logical name;

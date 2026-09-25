@@ -50,6 +50,7 @@ endif()
 execute_process(COMMAND "${CMAKE_COMMAND}" -E env
   "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_ROOT}"
   "ROCKET_ARTIFACT_ROOT=${WORK}/asset-artifacts"
+  "ROCKET_SHOWCASE_PACKAGE_ROOT=${asset_package}"
   "${ROCKETC}" test "${asset_package}" --filter asset_store
   WORKING_DIRECTORY "${SOURCE_DIR}" RESULT_VARIABLE asset_test_result
   OUTPUT_VARIABLE asset_test_output ERROR_VARIABLE asset_test_error)

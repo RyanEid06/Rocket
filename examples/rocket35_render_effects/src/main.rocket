@@ -121,6 +121,8 @@ fn run(window: safe.Window) -> Int:
                                                         status = 7
                                                     case Ok(effect):
                                                         shader = Some(effect)
+                                            else:
+                                                print("wp3-shader-unavailable")
                                     match shader:
                                         case None:
                                             let ignored = status
@@ -134,8 +136,12 @@ fn run(window: safe.Window) -> Int:
                                                         status = 9
                                     if status == 0 and not succeeded(canvas.set_output_filter(window, target, true)):
                                         status = 10
-                                    if status == 0 and not render(window, felt, cards, chips, target, shader):
+                                    if status == 0 and not render(window, felt, cards, chips, target, None()):
                                         status = 11
+                                    if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-off.png")):
+                                        status = 20
+                                    if status == 0 and not render(window, felt, cards, chips, target, shader):
+                                        status = 21
                                     if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-before.png")):
                                         status = 12
                                     let before_width = physical_width(window)

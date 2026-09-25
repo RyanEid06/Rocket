@@ -18,6 +18,7 @@ execute_process(
   COMMAND "${CMAKE_COMMAND}" -E env
     "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_ROOT}"
     "ROCKET_ARTIFACT_ROOT=${WORK}/artifacts"
+    "ROCKET_SHOWCASE_PACKAGE_ROOT=${package}"
     "${ROCKETC}" test "${package}" --filter asset_store
   WORKING_DIRECTORY "${SOURCE_DIR}"
   RESULT_VARIABLE test_result OUTPUT_VARIABLE test_output ERROR_VARIABLE test_error)

@@ -431,6 +431,7 @@ add_custom_target(rocket_raylib_test
   COMMAND ${CMAKE_COMMAND} -E env
           "ROCKET_NATIVE_LIBRARY_ROOT=${ROCKET_NATIVE_OUTPUT}"
           "ROCKET_ARTIFACT_ROOT=${ROCKET_TEST_ARTIFACT_ROOT}"
+          "ROCKET_SHOWCASE_PACKAGE_ROOT=${ROCKET_RAYLIB_PACKAGE}"
           $<TARGET_FILE:rocketc> test "${ROCKET_RAYLIB_PACKAGE}"
   DEPENDS rocket_raylib_bindings
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}"
@@ -681,6 +682,7 @@ add_test(NAME rocket35_render_effects_scene_native
     "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
     "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket35_render_effects_scene_test.cmake")
 set_tests_properties(rocket35_render_effects_scene_native PROPERTIES
   LABELS "rocket35;wp3;blend;shader;canvas;native;visual"
@@ -706,6 +708,16 @@ set_target_properties(rocket35_audio_adapter_tests PROPERTIES
 add_test(NAME rocket35_audio_adapter COMMAND rocket35_audio_adapter_tests)
 set_tests_properties(rocket35_audio_adapter PROPERTIES
   LABELS "rocket35;wp4;audio;native")
+
+add_executable(rocket35_music_eof_tests tests/native/rocket35_music_eof_tests.cpp)
+target_link_libraries(rocket35_music_eof_tests PRIVATE rocket_raylib_adapter)
+set_target_properties(rocket35_music_eof_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket35_music_eof_null_backend
+  COMMAND rocket35_music_eof_tests
+    "${CMAKE_SOURCE_DIR}/examples/scroll2roll_vertical_slice/assets/click.wav")
+set_tests_properties(rocket35_music_eof_null_backend PROPERTIES
+  LABELS "rocket35;wp4;audio;native;null-backend;eof")
 
 add_test(NAME rocket35_audio_scene_native
   COMMAND ${CMAKE_COMMAND}
@@ -2507,3 +2519,11 @@ if(APPLE)
 endif()
 set_tests_properties(${ROCKET_CONFIGURED_TESTS} PROPERTIES
   ENVIRONMENT "${ROCKET_CONFIGURED_TEST_ENVIRONMENT}")
+set_property(TEST rocket35_music_eof_null_backend APPEND PROPERTY ENVIRONMENT
+  "ROCKET_AUDIO_NULL_BACKEND=1")
+set_property(TEST cli_test_phase14_raylib_reference APPEND PROPERTY ENVIRONMENT
+  "ROCKET_SHOWCASE_PACKAGE_ROOT=${ROCKET_RAYLIB_PACKAGE}")
+if(TEST cli_self_hosted_test_phase14_raylib_reference)
+  set_property(TEST cli_self_hosted_test_phase14_raylib_reference APPEND PROPERTY ENVIRONMENT
+    "ROCKET_SHOWCASE_PACKAGE_ROOT=${ROCKET_RAYLIB_PACKAGE}")
+endif()

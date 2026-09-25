@@ -20,6 +20,7 @@ int64_t textBuffer(std::string_view value) {
 }  // namespace
 
 int main() {
+  std::cout << "WP4 deterministic adapter test mode (no native playback)\n";
   expect(rlv_enable_test_mode(1) == RLV_OK && rlv_test_reset() == RLV_OK,
          "start headless adapter");
   const int64_t effectPath = textBuffer("effect.wav");

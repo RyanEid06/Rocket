@@ -13,6 +13,7 @@ import rocket.ui.layout
 import rocket.ui.render
 import rocket.ui.styles
 import rocket.ui.theme
+import std.process
 
 fn draw_card(frame: safe.Frame, font: safe.Font, bounds: graphics.Rect, label: String, hovered: Bool, lift: Float) -> Bool:
     let palette = theme.dark_theme()
@@ -128,7 +129,15 @@ fn run_showcase(window: safe.Window, font: safe.Font, card_back: safe.Texture, t
                             return 0
 
 fn with_assets(window: safe.Window, font: safe.Font, target: safe.RenderTexture) -> Int:
-    match assets.open_graphics(window, ".", capacity: 8):
+    match process.environment("ROCKET_PREMIUM_PACKAGE_ROOT"):
+        case None:
+            print("Set ROCKET_PREMIUM_PACKAGE_ROOT to the package directory")
+            return 7
+        case Some(package_root):
+            return with_assets_from_root(window, font, target, package_root)
+
+fn with_assets_from_root(window: safe.Window, font: safe.Font, target: safe.RenderTexture, package_root: String) -> Int:
+    match assets.open_graphics(window, package_root, capacity: 8):
         case Err(message):
             print(message)
             return 7

@@ -8,10 +8,9 @@ additive blending, a shader with an unshaded capability fallback, sound,
 looping music, and checked cleanup.
 
 From this package directory, run `rocketc check .` and `rocketc build .` using
-the Rocket SDK and its packaged native libraries. Run the resulting executable
-from this directory so the default asset root `.` resolves to these assets.
-For a launcher or relocated package running elsewhere, set
-`ROCKET_SLICE_PACKAGE_ROOT` to the absolute package directory.
+the Rocket SDK and its packaged native libraries. Before running the executable,
+set `ROCKET_SLICE_PACKAGE_ROOT` to the absolute package directory. This also
+works when the executable starts from another working directory.
 Move the pointer over **PLAY PREVIEW** or press it to hear the click. Close the
 window to save `scroll2roll-slice.png` (logical target) and
 `scroll2roll-presented.png` (physical framebuffer). Set the environment

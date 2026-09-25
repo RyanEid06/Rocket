@@ -339,12 +339,14 @@ fn loop(window: safe.Window, target: safe.RenderTexture, store: assets.AssetStor
                     return 0
 
 fn run(window: safe.Window, audio: safe.AudioDevice) -> Int:
-    var package_root = "."
     match process.environment("ROCKET_SLICE_PACKAGE_ROOT"):
         case None:
-            package_root = "."
+            print("Set ROCKET_SLICE_PACKAGE_ROOT to the package directory")
+            return 2
         case Some(root):
-            package_root = root
+            return run_with_root(window, audio, root)
+
+fn run_with_root(window: safe.Window, audio: safe.AudioDevice, package_root: String) -> Int:
     match assets.open(window, audio, package_root, capacity: 8):
         case Err(message):
             print(message)

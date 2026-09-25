@@ -20,9 +20,9 @@ class WorkflowError(RuntimeError):
 
 
 def run(arguments: list[str], *, cwd: Path | None = None,
-        expected: int = 0) -> subprocess.CompletedProcess[str]:
+        expected: int = 0, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(
-        arguments, cwd=cwd, env=os.environ.copy(), text=True,
+        arguments, cwd=cwd, env={**os.environ, **(env or {})}, text=True,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if completed.returncode != expected:
         command = " ".join(arguments)
@@ -61,8 +61,9 @@ def write_json(path: Path, value: object) -> None:
 
 
 def compiler_case(compiler: Path, arguments: list[str], pattern: str,
-                  label: str, *, cwd: Path | None = None) -> None:
-    completed = run([str(compiler), *arguments], cwd=cwd)
+                  label: str, *, cwd: Path | None = None,
+                  env: dict[str, str] | None = None) -> None:
+    completed = run([str(compiler), *arguments], cwd=cwd, env=env)
     require_pattern(completed.stdout + completed.stderr, pattern, label)
 
 
@@ -208,7 +209,8 @@ def application(args: argparse.Namespace) -> None:
     raylib_showcase = source_dir / "examples" / "raylib_showcase"
     compiler_case(compiler, ["test", str(raylib_showcase)],
                   r"11 passed; 0 failed", "raylib headless tests",
-                  cwd=raylib_showcase)
+                  cwd=raylib_showcase,
+                  env={"ROCKET_SHOWCASE_PACKAGE_ROOT": str(raylib_showcase)})
     compiler_case(compiler, ["run", str(source_dir / "examples" / "ownership_concurrency.rocket")],
                   r"41[\r\n]+3[\r\n]+42", "ownership application")
     report = work / "application-validation.json"

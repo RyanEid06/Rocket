@@ -120,13 +120,21 @@ fn capture_scene(window: safe.Window, font: safe.Font, texture: assets.TextureRe
                     return succeeded(canvas.save_logical_screenshot(window, target, path.join(output, scene_name(number))))
 
 fn capture_all(window: safe.Window, font: safe.Font, output: String) -> Int:
+    match process.environment("ROCKET_UI_PACKAGE_ROOT"):
+        case None:
+            print("Set ROCKET_UI_PACKAGE_ROOT to the fixture package directory")
+            return 5
+        case Some(package_root):
+            return capture_with_root(window, font, output, package_root)
+
+fn capture_with_root(window: safe.Window, font: safe.Font, output: String, package_root: String) -> Int:
     match canvas.create_target(window, 640, 360):
         case Err(message):
             print(message)
             return 4
         case Ok(target):
             var status = 0
-            match assets.open_graphics(window, ".", capacity: 2):
+            match assets.open_graphics(window, package_root, capacity: 2):
                 case Err(message):
                     print(message)
                     status = 5

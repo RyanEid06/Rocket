@@ -28,6 +28,7 @@ From the repository root after building the compiler and native adapter:
 
 ```powershell
 $env:ROCKET_NATIVE_LIBRARY_ROOT = "$PWD/out/build/windows-release/native/windows-x64"
+$env:ROCKET_PREMIUM_PACKAGE_ROOT = (Resolve-Path examples/rocket3_graphics_ui).Path
 out/build/windows-release/rocketc.exe check examples/rocket3_graphics_ui
 out/build/windows-release/rocketc.exe run examples/rocket3_graphics_ui
 ```

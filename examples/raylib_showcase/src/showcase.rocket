@@ -177,10 +177,12 @@ pub fn run() -> Int:
             if not succeeded(safe.set_target_fps(window, 60)):
                 let closed = safe.close_window(window)
                 return 15
-            var package_root = "."
+            var package_root = ""
             match process.environment("ROCKET_SHOWCASE_PACKAGE_ROOT"):
                 case None:
-                    package_root = "."
+                    print("Set ROCKET_SHOWCASE_PACKAGE_ROOT to the package directory")
+                    let closed = safe.close_window(window)
+                    return 12
                 case Some(root):
                     package_root = root
             match assets.open_graphics(window, package_root):

@@ -15,6 +15,8 @@ pinned Raylib libraries. From the package root, use `rocketc check .`,
 `rocketc build .`, and run the resulting target executable. The package root
 is also the explicit root passed to `rocket.assets`; do not depend on a
 process working directory chosen by a launcher.
+For the vertical slice executable, set `ROCKET_SLICE_PACKAGE_ROOT` to the
+absolute package directory before launch.
 
 Typical imports are:
 

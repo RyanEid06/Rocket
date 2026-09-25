@@ -69,4 +69,9 @@ draws a casino scene entirely through the canonical modules and writes
 Raylib rendering and checks that the screenshots are nontrivial 800×450 PNGs
 with identical hashes. The deterministic package and adapter tests cover
 filters, geometry, resize/DPI pointer mapping, resource cycles, and stale
-handles.
+handles. The adapter regression also covers repeated high-DPI resizes,
+logical versus physical dimensions, a delayed framebuffer observation,
+compositor-clamped dimensions, and drawing to a logical render target after
+resize. The delayed and clamped cases use the deterministic display seam;
+headless compositors do not guarantee that a requested native window size
+will take effect.

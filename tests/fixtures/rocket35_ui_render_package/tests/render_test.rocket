@@ -14,7 +14,7 @@ fn package_root() -> String:
         case Some(value):
             return value
         case None:
-            return "."
+            return ""
 
 fn succeeded(result: Result[Bool, String]) -> Bool:
     match result:

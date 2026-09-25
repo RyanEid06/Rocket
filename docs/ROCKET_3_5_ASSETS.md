@@ -15,8 +15,8 @@ without audio. For sounds and music, open a `safe.AudioDevice` first and call
 number of logical names, between 1 and 100,000. Graphics-only stores reject
 sound and music loads with `raylib: device or backend unavailable`.
 
-`package_root` is an explicit existing directory. Pass its absolute path when
-the process can start from another working directory. Paths passed to
+`package_root` is required and must name an existing directory. Pass its
+absolute path so launch location cannot change asset resolution. Paths passed to
 `load_texture`, `load_font`, `load_sound`, `load_music`, and `load_shader` are
 relative to that root. The native store normalizes paths, rejects absolute,
 traversal, and symlink escapes, and returns a controlled error for missing or
