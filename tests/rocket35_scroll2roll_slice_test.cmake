@@ -17,6 +17,8 @@ if("${showcase_source}" MATCHES "import src\\.rocket_raylib")
   message(FATAL_ERROR "Showcase application still imports the duplicate wrapper")
 endif()
 file(MAKE_DIRECTORY "${WORK}")
+set(executable_directory "${WORK}/artifacts/scroll2roll_vertical_slice/.rocketc/targets/${NATIVE_TARGET}")
+set(executable "${executable_directory}/scroll2roll-vertical-slice${EXECUTABLE_SUFFIX}")
 execute_process(COMMAND "${ROCKETC}" fmt "${package}/src/main.rocket" --check
   RESULT_VARIABLE format_result OUTPUT_VARIABLE format_output ERROR_VARIABLE format_error)
 if(NOT format_result EQUAL 0)
@@ -27,6 +29,7 @@ execute_process(COMMAND "${ROCKETC}" check "${package}"
 if(NOT check_result EQUAL 0)
   message(FATAL_ERROR "WP7 slice check failed:\n${check_output}${check_error}")
 endif()
+file(REMOVE "${executable}")
 execute_process(COMMAND "${CMAKE_COMMAND}" -E env
   "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_ROOT}"
   "ROCKET_ARTIFACT_ROOT=${WORK}/artifacts"
@@ -36,8 +39,6 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -E env
 if(NOT build_result EQUAL 0)
   message(FATAL_ERROR "WP7 slice build failed:\n${build_output}${build_error}")
 endif()
-set(executable_directory "${WORK}/artifacts/scroll2roll_vertical_slice/.rocketc/targets/${NATIVE_TARGET}")
-set(executable "${executable_directory}/scroll2roll-vertical-slice${EXECUTABLE_SUFFIX}")
 if(NATIVE_TARGET STREQUAL "windows-x64" AND DEFINED SOFTWARE_OPENGL_ROOT AND
    EXISTS "${SOFTWARE_OPENGL_ROOT}/opengl32.dll")
   file(COPY "${SOFTWARE_OPENGL_ROOT}/opengl32.dll"

@@ -187,6 +187,42 @@ endforeach()
 set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
 add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
+# Raylib's default miniaudio context selects a system backend even when a CI
+# host has no playback device. Build its pinned audio source with an opt-in
+# null backend so the same production library can exercise sound and music
+# ownership on headless hosts. Ordinary runs keep Raylib's default selection.
+set(ROCKET_RAUDIO_ORIGINAL
+  "ma_result result = ma_context_init(NULL, 0, &ctxConfig, &AUDIO.System.context);")
+string(CONCAT ROCKET_RAUDIO_REPLACEMENT
+  "const char *nullAudio = getenv(\"ROCKET_AUDIO_NULL_BACKEND\");\n"
+  "    ma_backend nullBackend = ma_backend_null;\n"
+  "    ma_result result = (nullAudio != NULL && nullAudio[0] == '1' && nullAudio[1] == '\\0')\n"
+  "        ? ma_context_init(&nullBackend, 1, &ctxConfig, &AUDIO.System.context)\n"
+  "        : ma_context_init(NULL, 0, &ctxConfig, &AUDIO.System.context);")
+file(READ "${ROCKET_RAYLIB_SOURCE}/src/raudio.c" ROCKET_RAUDIO_SOURCE)
+string(FIND "${ROCKET_RAUDIO_SOURCE}" "${ROCKET_RAUDIO_ORIGINAL}"
+  ROCKET_RAUDIO_PATCH_POSITION)
+if(ROCKET_RAUDIO_PATCH_POSITION EQUAL -1)
+  message(FATAL_ERROR "Pinned Raylib audio initialization changed; review the headless audio patch")
+endif()
+string(REPLACE "${ROCKET_RAUDIO_ORIGINAL}" "${ROCKET_RAUDIO_REPLACEMENT}"
+  ROCKET_RAUDIO_PATCHED "${ROCKET_RAUDIO_SOURCE}")
+set(ROCKET_RAUDIO_BUILD_COPY "${CMAKE_BINARY_DIR}/generated/raylib/raudio.c")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated/raylib")
+if(EXISTS "${ROCKET_RAUDIO_BUILD_COPY}")
+  file(READ "${ROCKET_RAUDIO_BUILD_COPY}" ROCKET_RAUDIO_BUILD_CONTENT)
+endif()
+if(NOT "${ROCKET_RAUDIO_BUILD_CONTENT}" STREQUAL "${ROCKET_RAUDIO_PATCHED}")
+  file(WRITE "${ROCKET_RAUDIO_BUILD_COPY}" "${ROCKET_RAUDIO_PATCHED}")
+endif()
+get_target_property(ROCKET_RAYLIB_SOURCES raylib SOURCES)
+if(NOT "raudio.c" IN_LIST ROCKET_RAYLIB_SOURCES)
+  message(FATAL_ERROR "Pinned Raylib target no longer lists raudio.c")
+endif()
+list(REMOVE_ITEM ROCKET_RAYLIB_SOURCES "raudio.c")
+list(APPEND ROCKET_RAYLIB_SOURCES "${ROCKET_RAUDIO_BUILD_COPY}")
+set_property(TARGET raylib PROPERTY SOURCES "${ROCKET_RAYLIB_SOURCES}")
+
 set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
 set(ROCKET_RAYLIB_SOURCE_DIRECTORY "${CMAKE_SOURCE_DIR}/src/raylib")
 set(ROCKET_RAYLIB_HEADER
@@ -1510,6 +1546,7 @@ add_test(NAME rocket35_scroll2roll_slice_self_hosted
     "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
     "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
     "-DPYTHON=${Python3_EXECUTABLE}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket35_scroll2roll_slice_test.cmake")
 set_tests_properties(rocket35_scroll2roll_slice_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler

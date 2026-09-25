@@ -92,6 +92,14 @@ captures WP7 logical and physical screenshots on the same four platforms.
 The workflow artifacts, tied to the pushed commit, are the authoritative
 evidence for these external gates.
 
+Headless Windows and Linux CI runners set `ROCKET_AUDIO_NULL_BACKEND=1` to use
+Raylib's miniaudio null sink while still exercising sound and streamed-music
+loading, updates, ownership, and shutdown. This is an opt-in native backend
+selection in Rocket's pinned Raylib build; regular runs use the operating
+system audio device. The local fresh-build probes confirmed both the null sink
+and the normal WASAPI path with successful cleanup. Windows self-hosted visual
+acceptance copies the same pinned Mesa OpenGL files used by stage0.
+
 The historical `src.rocket_raylib` and `src.rocket_assets` modules remain
 compatibility code because the showcase's 11 tests and existing tooling still
 consume them. The application itself and the WP7 slice use the canonical
