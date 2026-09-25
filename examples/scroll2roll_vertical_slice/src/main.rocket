@@ -1,0 +1,405 @@
+import std.process
+import rocket.assets
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.graphics.shapes
+import rocket.motion
+import rocket.raylib.safe
+import rocket.ui
+import rocket.ui.containers
+import rocket.ui.controls
+import rocket.ui.render
+import rocket.ui.styles
+import rocket.ui.theme
+
+# Acceptance scene, not a casino game. All assets are owned by one AssetStore.
+pub struct Scene:
+    felt: assets.TextureRef
+    cards: assets.TextureRef
+    back: assets.TextureRef
+    chips: assets.TextureRef
+    click: assets.SoundRef
+    music: assets.MusicRef
+    font: assets.FontRef
+    effect: Option[assets.ShaderRef]
+
+fn succeeded(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(message):
+            print(message)
+            return false
+
+fn casino_button_states() -> styles.StyleStates:
+    let base = styles.default_styles(theme.dark_theme())
+    let ink = graphics.color_from_rgba(0.09, 0.11, 0.10)
+    let border = styles.border_style(graphics.color_from_rgba(0.98, 0.83, 0.48), 1.0, 8.0)
+    let shadow = styles.shadow_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.48), graphics.vec2(3.0, 5.0))
+    let label = styles.text_style(ink, 18.0)
+    let normal_button = styles.button_style(graphics.color_from_rgba(0.82, 0.61, 0.27), label, border, shadow, 8.0)
+    let hovered_button = styles.button_style(graphics.color_from_rgba(0.98, 0.76, 0.37), label, border, shadow, 8.0)
+    let pressed_button = styles.button_style(graphics.color_from_rgba(0.63, 0.45, 0.18), label, border, shadow, 8.0)
+    let normal = styles.style_set(base.normal.text, base.normal.panel, normal_button, base.normal.image)
+    let hovered = styles.style_set(base.hovered.text, base.hovered.panel, hovered_button, base.hovered.image)
+    let pressed = styles.style_set(base.pressed.text, base.pressed.panel, pressed_button, base.pressed.image)
+    return styles.style_states(normal, hovered, pressed, base.disabled, hovered)
+
+fn load_scene(store: assets.AssetStore, window: safe.Window) -> Result[Scene, String]:
+    match assets.load_texture(store, "felt", "assets/table-background.png"):
+        case Err(message):
+            return Err(message)
+        case Ok(felt):
+            match assets.load_texture(store, "cards", "assets/card-atlas.png"):
+                case Err(message):
+                    return Err(message)
+                case Ok(cards):
+                    match assets.load_texture(store, "chips", "assets/chip-atlas.png"):
+                        case Err(message):
+                            return Err(message)
+                        case Ok(chips):
+                            match assets.load_sound(store, "click", "assets/click.wav"):
+                                case Err(message):
+                                    return Err(message)
+                                case Ok(click):
+                                    match assets.load_music(store, "music", "assets/casino-loop.wav"):
+                                        case Err(message):
+                                            return Err(message)
+                                        case Ok(music):
+                                            match assets.load_font(store, "typeface", "assets/Basic-Regular.ttf"):
+                                                case Err(message):
+                                                    return Err(message)
+                                                case Ok(font):
+                                                    match assets.load_texture(store, "back", "assets/card-back.png"):
+                                                        case Err(message):
+                                                            return Err(message)
+                                                        case Ok(back):
+                                                            var effect: Option[assets.ShaderRef] = None()
+                                                            match safe.shader_supported(window):
+                                                                case Err(message):
+                                                                    return Err(message)
+                                                                case Ok(supported):
+                                                                    if supported:
+                                                                        match assets.load_shader(store, "warmth", "", "assets/tint.fs"):
+                                                                            case Err(message):
+                                                                                return Err(message)
+                                                                            case Ok(shader):
+                                                                                effect = Some(shader)
+                                                            return Ok(Scene(felt, cards, back, chips, click, music, font, effect))
+
+fn draw_art(frame: safe.Frame, scene: Scene, font: safe.Font, elapsed: Float) -> Bool:
+    let white = safe.color(255, 255, 255)
+    let gold = graphics.color_from_rgba(0.94, 0.75, 0.35)
+    match assets.borrow_texture(scene.felt):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(felt):
+            if not succeeded(safe.draw_texture_pro(frame, felt, graphics.rect(0.0, 0.0, 1672.0, 941.0), graphics.rect(0.0, 0.0, 960.0, 540.0), graphics.vec2(0.0, 0.0), 0.0, white)):
+                return false
+    let panel_style = styles.panel_style(graphics.color_from_rgba(0.0, 0.09, 0.07, 0.75), styles.border_style(gold, 1.0, 12.0), styles.shadow_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.30), graphics.vec2(3.0, 4.0)))
+    match containers.panel(graphics.rect(280.0, 76.0, 400.0, 106.0), panel_style):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(panel):
+            if not succeeded(render.draw_panel(frame, panel)):
+                return false
+    let heading = graphics.text_style("default", 38.0, 2.0)
+    if not succeeded(safe.draw_text_layout(frame, font, "SCROLL 2 ROLL", graphics.rect(297.0, 85.0, 366.0, 58.0), heading, safe.color(242, 219, 164), graphics.text_align_center(), graphics.text_align_middle())):
+        return false
+    let caption = graphics.text_style("default", 18.0, 1.0)
+    if not succeeded(safe.draw_text_layout(frame, font, "A ROCKET 3.5 TABLE PREVIEW", graphics.rect(300.0, 145.0, 360.0, 30.0), caption, safe.color(226, 236, 222), graphics.text_align_center(), graphics.text_align_middle())):
+        return false
+    if not succeeded(shapes.draw_line(frame, graphics.vec2(392.0, 179.0), graphics.vec2(568.0, 179.0), gold)):
+        return false
+    let policy = motion.policy(false, false)
+    let card_tween = motion.pulse(0.0, 7.0, 1.6)
+    let lift = motion.sample_float(policy, card_tween, elapsed).value
+    let chip_tween = motion.rotate(-8.0, 8.0, 1.6)
+    let rotation = motion.sample_float(policy, chip_tween, elapsed).value
+    match assets.borrow_texture(scene.cards):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(cards):
+            if not succeeded(safe.draw_texture_pro(frame, cards, graphics.rect(0.0, 0.0, 80.0, 112.0), graphics.rect(302.0, 292.0 - lift, 100.0, 140.0), graphics.vec2(50.0, 70.0), -12.0, white)):
+                return false
+            if not succeeded(safe.draw_texture_pro(frame, cards, graphics.rect(80.0, 0.0, 80.0, 112.0), graphics.rect(406.0, 288.0 - lift, 100.0, 140.0), graphics.vec2(50.0, 70.0), 0.0, white)):
+                return false
+            if not succeeded(safe.draw_texture_pro(frame, cards, graphics.rect(160.0, 0.0, 80.0, 112.0), graphics.rect(510.0, 292.0 - lift, 100.0, 140.0), graphics.vec2(50.0, 70.0), 12.0, white)):
+                return false
+    match assets.borrow_texture(scene.back):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(back):
+            if not succeeded(safe.draw_texture_pro(frame, back, graphics.rect(0.0, 0.0, 1060.0, 1484.0), graphics.rect(613.0, 291.0 - lift, 100.0, 140.0), graphics.vec2(50.0, 70.0), 16.0, white)):
+                return false
+    match assets.borrow_texture(scene.chips):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(chips):
+            if not succeeded(safe.draw_texture_pro(frame, chips, graphics.rect(0.0, 0.0, 72.0, 72.0), graphics.rect(210.0, 346.0, 80.0, 80.0), graphics.vec2(40.0, 40.0), rotation, white)):
+                return false
+            if not succeeded(safe.draw_texture_pro(frame, chips, graphics.rect(72.0, 0.0, 72.0, 72.0), graphics.rect(272.0, 365.0, 80.0, 80.0), graphics.vec2(40.0, 40.0), -rotation, white)):
+                return false
+            match safe.begin_blend(frame, safe.additive_blend()):
+                case Err(message):
+                    print(message)
+                    return false
+                case Ok(scope):
+                    let glow = safe.draw_texture_pro(frame, chips, graphics.rect(144.0, 0.0, 72.0, 72.0), graphics.rect(744.0, 360.0, 86.0, 86.0), graphics.vec2(43.0, 43.0), rotation, safe.color(255, 205, 110, 120))
+                    let closed = safe.end_blend(scope)
+                    if not succeeded(glow) or not succeeded(closed):
+                        return false
+    let caption_color = safe.color(236, 222, 180)
+    let instructions = "HOVER OR PRESS PLAY  |  ESC TO CLOSE"
+    if not succeeded(safe.draw_text_layout(frame, font, instructions, graphics.rect(274.0, 457.0, 425.0, 24.0), graphics.text_style("default", 14.0), caption_color, graphics.text_align_center(), graphics.text_align_middle())):
+        return false
+    return true
+
+fn draw_frame(window: safe.Window, target: safe.RenderTexture, scene: Scene, font: safe.Font, button: controls.Button, elapsed: Float) -> Bool:
+    match safe.begin_frame(window):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(frame):
+            match canvas.begin_target(frame, target):
+                case Err(message):
+                    print(message)
+                    let aborted = safe.abort_frame(frame)
+                    return false
+                case Ok(scope):
+                    let cleared = safe.clear_background(frame, safe.color(4, 33, 29))
+                    let art = draw_art(frame, scene, font, elapsed)
+                    let ui_drawn = render.draw_button(frame, font, button)
+                    let target_closed = canvas.end_target(scope)
+                    if not succeeded(cleared) or not art or not succeeded(ui_drawn) or not succeeded(target_closed):
+                        let aborted = safe.abort_frame(frame)
+                        return false
+            if not succeeded(safe.clear_background(frame, safe.color(3, 14, 18))):
+                let aborted = safe.abort_frame(frame)
+                return false
+            var presented = false
+            match scene.effect:
+                case None:
+                    presented = succeeded(canvas.present_current(window, frame, target, graphics.size(960.0, 540.0)))
+                case Some(reference):
+                    match assets.borrow_shader(reference):
+                        case Err(message):
+                            print(message)
+                            let aborted = safe.abort_frame(frame)
+                            return false
+                        case Ok(effect):
+                            match safe.begin_shader(frame, effect):
+                                case Err(message):
+                                    print(message)
+                                    let aborted = safe.abort_frame(frame)
+                                    return false
+                                case Ok(scope):
+                                    let drawn = canvas.present_current(window, frame, target, graphics.size(960.0, 540.0))
+                                    let ended = safe.end_shader(scope)
+                                    presented = succeeded(drawn) and succeeded(ended)
+            if not presented:
+                let aborted = safe.abort_frame(frame)
+                return false
+            return succeeded(safe.end_frame(frame))
+
+fn loop(window: safe.Window, target: safe.RenderTexture, store: assets.AssetStore, scene: Scene, font: safe.Font) -> Int:
+    match assets.borrow_music(scene.music):
+        case Err(message):
+            print(message)
+            return 10
+        case Ok(music):
+            if not succeeded(safe.set_music_volume(music, 0.22)) or not succeeded(safe.set_music_looping(music, true)) or not succeeded(safe.play_music(music)):
+                return 11
+            match scene.effect:
+                case None:
+                    print("shader fallback: unshaded presentation")
+                case Some(reference):
+                    match assets.borrow_shader(reference):
+                        case Err(message):
+                            print(message)
+                            return 27
+                        case Ok(effect):
+                            match safe.shader_uniform(effect, "warmth", safe.float_uniform()):
+                                case Err(message):
+                                    print(message)
+                                    return 28
+                                case Ok(uniform):
+                                    if not succeeded(safe.set_shader_float(effect, uniform, 0.22)):
+                                        return 29
+            match ui.new_context("scroll2roll-slice"):
+                case Err(message):
+                    print(message)
+                    return 12
+                case Ok(initial_context):
+                    var context = initial_context
+                    var frames = 0
+                    var frame_samples = 0.0
+                    var total_ms = 0.0
+                    var worst_ms = 0.0
+                    var max_frames = 0
+                    match process.environment("ROCKET_SLICE_BENCHMARK"):
+                        case None:
+                            max_frames = 0
+                        case Some(value):
+                            max_frames = 440
+                    while max_frames == 0 or frames < max_frames:
+                        if max_frames > 0:
+                            if frames == 40 and not succeeded(safe.set_window_size(window, 1000, 700)):
+                                return 32
+                            if frames == 80 and not succeeded(safe.set_window_size(window, 1280, 720)):
+                                return 33
+                            if frames == 120 and not succeeded(safe.set_window_fullscreen(window, true)):
+                                return 34
+                            if frames == 160 and not succeeded(safe.set_window_fullscreen(window, false)):
+                                return 35
+                        var frame_started = 0.0
+                        match safe.elapsed_time(window):
+                            case Err(message):
+                                print(message)
+                                return 30
+                            case Ok(value):
+                                frame_started = value
+                        match safe.window_should_close(window):
+                            case Err(message):
+                                print(message)
+                                return 13
+                            case Ok(closing):
+                                if closing:
+                                    break
+                        if not succeeded(safe.update_music(music)):
+                            return 14
+                        match canvas.from_window(window, graphics.size(960.0, 540.0)):
+                            case Err(message):
+                                print(message)
+                                return 15
+                            case Ok(mapping):
+                                match ui.begin_frame(context, window, mapping):
+                                    case Err(message):
+                                        print(message)
+                                        return 16
+                                    case Ok(ui_frame):
+                                        let states = casino_button_states()
+                                        match controls.button(ui_frame, ui.widget_id("play"), "PLAY PREVIEW", graphics.rect(650.0, 381.0, 190.0, 58.0), states):
+                                            case Err(message):
+                                                print(message)
+                                                return 17
+                                            case Ok(result):
+                                                match ui.end_frame(result.frame):
+                                                    case Err(message):
+                                                        print(message)
+                                                        return 18
+                                                    case Ok(next_context):
+                                                        context = next_context
+                                                if result.response.clicked:
+                                                    match assets.borrow_sound(scene.click):
+                                                        case Err(message):
+                                                            print(message)
+                                                            return 19
+                                                        case Ok(click):
+                                                            if not succeeded(safe.play_sound(click)):
+                                                                return 20
+                                                match safe.elapsed_time(window):
+                                                    case Err(message):
+                                                        print(message)
+                                                        return 21
+                                                    case Ok(elapsed):
+                                                        var motion_time = elapsed
+                                                        if max_frames > 0:
+                                                            motion_time = 0.6
+                                                        if not draw_frame(window, target, scene, font, result.control, motion_time):
+                                                            return 22
+                        match safe.elapsed_time(window):
+                            case Err(message):
+                                print(message)
+                                return 23
+                            case Ok(frame_finished):
+                                let ms =(frame_finished - frame_started) * 1000.0
+                                if max_frames == 0 or frames >= 200:
+                                    total_ms = total_ms + ms
+                                    if ms > worst_ms:
+                                        worst_ms = ms
+                                    frame_samples = frame_samples + 1.0
+                        frames = frames + 1
+                    if frames > 0:
+                        print("measured frames")
+                        print(frame_samples)
+                        print("average ms")
+                        print(total_ms / frame_samples)
+                        print("worst ms")
+                        print(worst_ms)
+                    if not succeeded(canvas.save_logical_screenshot(window, target, "scroll2roll-slice.png")):
+                        return 24
+                    if not succeeded(safe.save_screenshot(window, "scroll2roll-presented.png")):
+                        return 36
+                    return 0
+
+fn run(window: safe.Window, audio: safe.AudioDevice) -> Int:
+    var package_root = "."
+    match process.environment("ROCKET_SLICE_PACKAGE_ROOT"):
+        case None:
+            package_root = "."
+        case Some(root):
+            package_root = root
+    match assets.open(window, audio, package_root, capacity: 8):
+        case Err(message):
+            print(message)
+            return 2
+        case Ok(store):
+            var status = 0
+            match load_scene(store, window):
+                case Err(message):
+                    print(message)
+                    status = 3
+                case Ok(scene):
+                    match assets.borrow_font(scene.font):
+                        case Err(message):
+                            print(message)
+                            status = 4
+                        case Ok(font):
+                            match canvas.create_target(window, 960, 540):
+                                case Err(message):
+                                    print(message)
+                                    status = 5
+                                case Ok(target):
+                                    if not succeeded(canvas.set_output_filter(window, target, true)):
+                                        status = 6
+                                    else:
+                                        status = loop(window, target, store, scene, font)
+                                    if not succeeded(canvas.unload_target(target)):
+                                        status = 7
+            if not succeeded(assets.cleanup(store)):
+                status = 9
+            return status
+
+fn main() -> Int:
+    match safe.open_window_quality(1280, 720, "Scroll2Roll | Rocket 3.5 vertical slice"):
+        case Err(message):
+            print(message)
+            return 1
+        case Ok(window):
+            var target_fps = 60
+            match process.environment("ROCKET_SLICE_BENCHMARK"):
+                case None:
+                    target_fps = 60
+                case Some(value):
+                    target_fps = 1000
+            if not succeeded(safe.set_target_fps(window, target_fps)):
+                let closed = safe.close_window(window)
+                return 31
+            match safe.open_audio():
+                case Err(message):
+                    print(message)
+                    let closed = safe.close_window(window)
+                    return 25
+                case Ok(audio):
+                    let status = run(window, audio)
+                    let audio_closed = safe.close_audio(audio)
+                    let window_closed = safe.close_window(window)
+                    if not succeeded(audio_closed) or not succeeded(window_closed):
+                        return 26
+                    return status

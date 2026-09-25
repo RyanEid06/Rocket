@@ -67,6 +67,26 @@ pub struct Color:
 pub fn color(red: Int, green: Int, blue: Int, alpha: Int = 255) -> Color:
     return Color(red, green, blue, alpha)
 
+# Stable game-facing key names for the checked key_pressed/key_down queries.
+# Host constants stay in rocket.raylib.native.
+pub fn key_space() -> Int:
+    return native.RLV_KEY_SPACE
+
+pub fn key_escape() -> Int:
+    return native.RLV_KEY_ESCAPE
+
+pub fn key_right() -> Int:
+    return native.RLV_KEY_RIGHT
+
+pub fn key_left() -> Int:
+    return native.RLV_KEY_LEFT
+
+pub fn key_down_arrow() -> Int:
+    return native.RLV_KEY_DOWN
+
+pub fn key_up_arrow() -> Int:
+    return native.RLV_KEY_UP
+
 pub fn point_filter() -> TextureFilter:
     return TextureFilter(0)
 

@@ -1,18 +1,19 @@
 # Rocket raylib compatibility showcase
 
-> **Historical compatibility example:** This package remains version 1.4 and
-> validates the deprecated `src.rocket_raylib` boundary against the single
-> production-owned Rocket 3.5 adapter and pinned raylib 6.0. It does not own or
-> compile an adapter copy. New applications use `rocket.raylib.safe`.
+> **Historical compatibility example:** This package remains version 1.4. Its
+> application now uses `rocket.raylib.safe`, `rocket.assets`, and other canonical
+> Rocket 3.5 modules. Its 11 historical tests still validate the deprecated
+> `src.rocket_raylib` boundary against the single production-owned adapter and
+> pinned raylib 6.0. The package does not own or compile an adapter copy.
 > The Rocket 3.0 modules are documented in
 > `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`; the repository-wide status split is in
 > `docs/DOCUMENTATION_STATUS.md`.
 
-This non-casino reference application validates Rocket 1.4 against the pinned
-raylib 6.0 native library. All event loop, state, collections, input handling,
-rendering decisions, asset loading, callback use, audio policy, and cleanup are
-Rocket source. The C++ adapter contains no application behavior; it only maps a
-primitive C ABI onto raylib and validates resource tokens.
+This non-casino reference application demonstrates the canonical window,
+input, drawing, motion, asset, and audio path. The older tests preserve Rocket
+1.4 compatibility while their migration remains outstanding. The C++ adapter
+contains no application behavior; it maps a primitive C ABI onto raylib and
+validates resource tokens.
 
 ## Build and run
 

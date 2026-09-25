@@ -54,6 +54,12 @@ Rocket 3.5 adds the bundled `rocket.assets` module for package-rooted texture,
 font, sound, music, and shader ownership. See
 [`ROCKET_3_5_ASSETS.md`](docs/ROCKET_3_5_ASSETS.md). Rocket 3.0's historical
 reference implementation remains in `examples/raylib_showcase` for compatibility.
+For new games, follow [Building a 2D Game with Rocket 3.5](docs/BUILDING_A_2D_GAME_WITH_ROCKET_3_5.md)
+and the [Scroll2Roll vertical slice](examples/scroll2roll_vertical_slice/README.md).
+The [API inventory](docs/ROCKET_3_5_API_INVENTORY.md) identifies the supported
+replacement for each historical showcase declaration.
+[WP7 acceptance evidence](docs/ROCKET_3_5_WP7_EVIDENCE.md) records the local
+benchmark and release verification gates.
 
 WP34 full compatibility/platform acceptance and WP35 release closure are
 complete. No Rocket 3.0 work packet remains open.

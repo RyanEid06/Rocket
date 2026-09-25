@@ -8,7 +8,7 @@ on:
         required: false
         type: string
   push:
-    branches: [master, main]
+    branches: [master, main, rocket35/eddie]
   pull_request:
 
 permissions:

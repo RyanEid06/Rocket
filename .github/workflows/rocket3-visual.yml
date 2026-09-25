@@ -116,7 +116,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests rocket35_texture_adapter_tests rocket35_render_effects_adapter_tests rocket35_audio_adapter_tests rocket_phase17_raylib_adapter_tests rocket_phase28_raylib_adapter_tests rocket_phase30_raylib_adapter_tests comparator_tests evidence_schema_tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|rocket35_ui_render_.*|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
+          ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|rocket35_ui_render_.*|rocket35_scroll2roll_slice_stage0|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Configure, build, and test POSIX visual, effects, audio, and WP5 assets
@@ -127,9 +127,9 @@ jobs:
           cmake --preset "$preset"
           cmake --build "out/phase19/build/$preset" --target rocketc rocket_raylib_adapter rocket_phase32_visual_regression_tests rocket35_texture_adapter_tests rocket35_render_effects_adapter_tests rocket35_audio_adapter_tests rocket_phase17_raylib_adapter_tests rocket_phase28_raylib_adapter_tests rocket_phase30_raylib_adapter_tests comparator_tests evidence_schema_tests
           if [[ "${{ matrix.target }}" == linux-* ]]; then
-            xvfb-run -a ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|rocket35_ui_render_.*|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
+            xvfb-run -a ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|rocket35_ui_render_.*|rocket35_scroll2roll_slice_stage0|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
           else
-            ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|rocket35_ui_render_.*|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
+            ctest --test-dir "out/phase19/build/$preset" -R '^(rocket3_visual_regression|rocket3_graphics_ui_examples|rocket3_asset_store_.*|rocket35_texture_.*|rocket35_render_effects_.*|rocket35_audio_.*|rocket35_ui_render_.*|rocket35_scroll2roll_slice_stage0|phase17_raylib_adapter.*|phase28_raylib_adapter|phase30_raylib_adapter|comparator_tests|evidence_schema_tests)$' --output-on-failure
           fi
 
       - name: Upload visual evidence
@@ -143,4 +143,6 @@ jobs:
             out/rocket35/wp3/Release/scene/casino-effects-before.png
             out/rocket35/wp3/Release/scene/casino-effects-resized.png
             out/rocket35/wp6/Release/stage0/visual
+            out/rocket35/wp7/Release/stage0/scroll2roll-slice.png
+            out/rocket35/wp7/Release/stage0/scroll2roll-presented.png
           if-no-files-found: warn

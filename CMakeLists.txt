@@ -784,6 +784,22 @@ set_tests_properties(rocket35_ui_render_stage0 PROPERTIES
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket35_scroll2roll_slice_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp7/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_scroll2roll_slice_test.cmake")
+set_tests_properties(rocket35_scroll2roll_slice_stage0 PROPERTIES
+  LABELS "rocket35;wp7;game;stage0;native;visual;audio;performance"
+  TIMEOUT 600
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_error_lifetime_stage0
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1089,12 +1105,14 @@ add_test(NAME cli_build_phase14_raylib_reference
   COMMAND rocketc build "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
   PASS_REGULAR_EXPRESSION "rocket-raylib-showcase${CMAKE_EXECUTABLE_SUFFIX}"
+  RESOURCE_LOCK "raylib_showcase_artifacts"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_test_phase14_raylib_reference
   COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
   PASS_REGULAR_EXPRESSION "11 passed\; 0 failed"
+  RESOURCE_LOCK "raylib_showcase_artifacts"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_phase14_unsafe_failure
@@ -1482,6 +1500,23 @@ set_tests_properties(rocket35_ui_render_self_hosted PROPERTIES
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket35_scroll2roll_slice_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSTAGE0=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp7/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_scroll2roll_slice_test.cmake")
+set_tests_properties(rocket35_scroll2roll_slice_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp7;game;selfhost;native;visual;audio;performance"
+  TIMEOUT 900
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_error_lifetime_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -1673,6 +1708,18 @@ set_tests_properties(rocket35_ui_render_target_surface PROPERTIES
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket35_scroll2roll_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_scroll2roll_target_surface_test.cmake")
+set_tests_properties(rocket35_scroll2roll_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp7;game;target;surface;selfhost"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_error_lifetime_target_surface
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -1847,7 +1894,8 @@ if(LLVM_FOUND)
       --configuration $<CONFIG> --target "${ROCKET_NATIVE_TARGET}"
       --package-count 16 --iterations 3)
   set_tests_properties(phase20_application_validation PROPERTIES
-    LABELS "phase20;application;performance" TIMEOUT 240)
+    LABELS "phase20;application;performance" TIMEOUT 240
+    RESOURCE_LOCK "raylib_showcase_artifacts")
 endif()
 add_test(NAME cli_phase8_invalid_manifest
   COMMAND ${CMAKE_COMMAND}
@@ -2110,6 +2158,7 @@ if(LLVM_FOUND)
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_build_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
+    RESOURCE_LOCK "raylib_showcase_artifacts"
     LABELS "phase14;raylib;native"
     PASS_REGULAR_EXPRESSION "rocket-raylib-showcase${CMAKE_EXECUTABLE_SUFFIX}"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
@@ -2118,6 +2167,7 @@ if(LLVM_FOUND)
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
+    RESOURCE_LOCK "raylib_showcase_artifacts"
     LABELS "phase14;raylib;native"
     PASS_REGULAR_EXPRESSION "11 passed\; 0 failed"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
