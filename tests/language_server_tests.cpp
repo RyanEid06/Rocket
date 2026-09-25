@@ -58,6 +58,16 @@ std::size_t occurrences(const std::string& text, const std::string& pattern) {
   return result;
 }
 
+std::string jsonString(const std::string& value) {
+  std::string result = "\"";
+  for (const char character : value) {
+    if (character == '\\' || character == '"') result += '\\';
+    if (character == '\n') result += "\\n";
+    else result += character;
+  }
+  return result + '"';
+}
+
 } // namespace
 
 int main() {
@@ -111,6 +121,48 @@ int main() {
       "unknown requests receive the JSON-RPC method-not-found error", failures);
   rocket::test::expect(logStream.str().empty(),
                        "valid protocol sessions do not write protocol noise to stderr",
+                       failures);
+
+  std::string symbolSource = "struct PlayerController:\n    value: Int\n";
+  for (int index = 0; index < 700; ++index)
+    symbolSource += "struct Symbol" + std::to_string(index) + ":\n    value: Int\n";
+  std::string symbolInput;
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","method":"initialized","params":{}})");
+  symbolInput += frame(
+      R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/symbols.rocket","languageId":"rocket","version":1,"text":)" +
+      jsonString(symbolSource) + "}}}");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":2,"method":"workspace/symbol","params":{"query":""}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":3,"method":"workspace/symbol","params":{"query":"plctrl"}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":4,"method":"rocket/projectStatus","params":{}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream symbolRequests(symbolInput);
+  std::ostringstream symbolResponses;
+  std::ostringstream symbolLog;
+  rocket::LanguageServer symbolServer(symbolRequests, symbolResponses, symbolLog);
+  rocket::test::expect(symbolServer.run() == 0,
+                       "large symbol protocol session exits cleanly", failures);
+  bool symbolFramesValid = false;
+  const auto symbolMessages = bodies(symbolResponses.str(), symbolFramesValid);
+  std::string emptySymbols;
+  std::string fuzzySymbols;
+  for (const auto& message : symbolMessages) {
+    if (message.find("\"id\":2,") != std::string::npos) emptySymbols = message;
+    if (message.find("\"id\":3,") != std::string::npos) fuzzySymbols = message;
+  }
+  rocket::test::expect(symbolFramesValid && !emptySymbols.empty() &&
+                           occurrences(emptySymbols, "\"name\":") <= 200 &&
+                           occurrences(emptySymbols, "\"name\":") > 0,
+                       "workspace symbols select a bounded result from the full index",
+                       failures);
+  rocket::test::expect(fuzzySymbols.find("\"name\":\"PlayerController\"") !=
+                           std::string::npos,
+                       "workspace symbols match ordered subsequences", failures);
+  rocket::test::expect(symbolResponses.str().find("rocketWorkspaceSymbolSearch") !=
+                           std::string::npos &&
+                           fuzzySymbols.find("rocketGeneration") != std::string::npos,
+                       "workspace symbol capability and results expose the snapshot contract",
                        failures);
 
   std::istringstream abruptInput(
