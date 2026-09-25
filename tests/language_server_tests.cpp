@@ -134,22 +134,26 @@ int main() {
       jsonString(symbolSource) + "}}}");
   symbolInput += frame(R"({"jsonrpc":"2.0","id":2,"method":"workspace/symbol","params":{"query":""}})");
   symbolInput += frame(R"({"jsonrpc":"2.0","id":3,"method":"workspace/symbol","params":{"query":"plctrl"}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":6,"method":"workspace/symbol","params":{"query":"PlayerController"}})");
   symbolInput += frame(R"({"jsonrpc":"2.0","id":4,"method":"rocket/projectStatus","params":{}})");
   symbolInput += frame(R"({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null})");
   symbolInput += frame(R"({"jsonrpc":"2.0","method":"exit"})");
   std::istringstream symbolRequests(symbolInput);
   std::ostringstream symbolResponses;
   std::ostringstream symbolLog;
-  rocket::LanguageServer symbolServer(symbolRequests, symbolResponses, symbolLog);
+  rocket::test::TranscriptServer symbolServer(symbolRequests, symbolResponses,
+                                              symbolLog);
   rocket::test::expect(symbolServer.run() == 0,
                        "large symbol protocol session exits cleanly", failures);
   bool symbolFramesValid = false;
   const auto symbolMessages = bodies(symbolResponses.str(), symbolFramesValid);
   std::string emptySymbols;
   std::string fuzzySymbols;
+  std::string exactSymbols;
   for (const auto& message : symbolMessages) {
     if (message.find("\"id\":2,") != std::string::npos) emptySymbols = message;
     if (message.find("\"id\":3,") != std::string::npos) fuzzySymbols = message;
+    if (message.find("\"id\":6,") != std::string::npos) exactSymbols = message;
   }
   rocket::test::expect(symbolFramesValid && !emptySymbols.empty() &&
                            occurrences(emptySymbols, "\"name\":") <= 200 &&
@@ -159,6 +163,11 @@ int main() {
   rocket::test::expect(fuzzySymbols.find("\"name\":\"PlayerController\"") !=
                            std::string::npos,
                        "workspace symbols match ordered subsequences", failures);
+  rocket::test::expect(
+      exactSymbols.find("\"name\":\"PlayerController\"") != std::string::npos &&
+          exactSymbols.find("\"name\":\"PlayerController\"") <
+              exactSymbols.find("\"name\":\"PlayerController.value\""),
+      "workspace symbols rank exact names ahead of qualified prefixes", failures);
   rocket::test::expect(symbolResponses.str().find("rocketWorkspaceSymbolSearch") !=
                            std::string::npos &&
                            fuzzySymbols.find("rocketGeneration") != std::string::npos,
