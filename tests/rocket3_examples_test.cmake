@@ -161,7 +161,8 @@ foreach(relative IN LISTS example_files)
       DESTINATION
         "${run_artifact_root}/rocket3_graphics_ui/.rocketc/targets/${NATIVE_TARGET}")
   endif()
-  execute_process(COMMAND "${executable}"
+  execute_process(COMMAND "${CMAKE_COMMAND}" -E env
+      "ROCKET_PREMIUM_PACKAGE_ROOT=${relocated}" "${executable}"
     WORKING_DIRECTORY "${relocated}"
     RESULT_VARIABLE run_result OUTPUT_VARIABLE run_output
     ERROR_VARIABLE run_error)

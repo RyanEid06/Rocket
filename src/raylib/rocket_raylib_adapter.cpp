@@ -8,8 +8,10 @@
 
 #include <cfloat>
 #include <cmath>
+#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <initializer_list>
 #include <limits>
@@ -37,6 +39,7 @@ struct RenderTextureRecord {
   int64_t windowId = 0;
   int64_t width = 0;
   int64_t height = 0;
+  int64_t filter = RLV_TEXTURE_FILTER_POINT;
   bool native = false;
 };
 
@@ -71,6 +74,7 @@ struct ScopeRecord {
 struct SoundRecord {
   Sound value{};
   bool native = false;
+  bool playing = false;
   int64_t audioId = 0;
   int64_t assetStoreId = 0;
 };
@@ -85,6 +89,8 @@ struct FontRecord {
 struct MusicRecord {
   Music value{};
   bool native = false;
+  bool playing = false;
+  bool paused = false;
   int64_t audioId = 0;
   int64_t assetStoreId = 0;
 };
@@ -207,6 +213,7 @@ struct AdapterState {
   double testTime = 0.0;
   int64_t testMaxAnisotropy = 16;
   bool testShaderSupported = true;
+  std::string shaderDiagnostic;
   double lastTextDrawX = 0.0;
   double lastTextDrawY = 0.0;
   std::unordered_map<int64_t, std::string> buffers;
@@ -230,6 +237,39 @@ struct AdapterState {
 
 AdapterState state;
 unsigned int nativeQualityFlags = 0;
+
+void syncMusicPlayback(MusicRecord& record) {
+  // A paused stream is reported as not playing by Raylib. Only an active
+  // stream can have reached natural EOF between Rocket calls.
+  if (!state.testMode && record.playing && !record.paused &&
+      !IsMusicStreamPlaying(record.value)) {
+    record.playing = false;
+    record.paused = false;
+  }
+}
+
+void captureShaderLog(int level, const char* format, va_list arguments) {
+  char message[4096];
+  va_list copy;
+  va_copy(copy, arguments);
+  std::vsnprintf(message, sizeof(message), format, copy);
+  va_end(copy);
+  if (level >= LOG_WARNING && state.shaderDiagnostic.size() < 8192) {
+    if (!state.shaderDiagnostic.empty()) state.shaderDiagnostic += "\n";
+    state.shaderDiagnostic += message;
+  }
+  std::fprintf(stderr, "raylib shader: %s\n", message);
+}
+
+Shader loadShaderWithDiagnostics(const char* vertex, const char* fragment) {
+  // Raylib 6.0 exposes only a void setter for its process-global callback.
+  // There is no getter, so a prior callback cannot be restored safely here.
+  // Capture only the synchronous shader compilation call, then release it.
+  SetTraceLogCallback(captureShaderLog);
+  Shader shader = LoadShaderFromMemory(vertex, fragment);
+  SetTraceLogCallback(nullptr);
+  return shader;
+}
 
 int64_t performanceStateEntries() {
   return (state.windowOpen ? 1 : 0) + (state.audioOpen ? 1 : 0) +
@@ -1853,6 +1893,31 @@ extern "C" double rlv_render_texture_height_f64(int64_t renderTextureId) {
       : static_cast<double>(found->second.height);
 }
 
+extern "C" int64_t rlv_render_texture_set_filter(int64_t windowId,
+                                                    int64_t renderTextureId,
+                                                    int64_t filterMode) {
+  if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
+  const auto found = state.renderTextures.find(renderTextureId);
+  if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.windowId != windowId) return RLV_ERR_INVALID_ARGUMENT;
+  if (state.drawing || renderTargetActive(renderTextureId)) return RLV_ERR_INVALID_STATE;
+  if (filterMode != RLV_TEXTURE_FILTER_POINT &&
+      filterMode != RLV_TEXTURE_FILTER_BILINEAR) return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) {
+    SetTextureFilter(found->second.value.texture,
+                     filterMode == RLV_TEXTURE_FILTER_POINT
+                         ? TEXTURE_FILTER_POINT : TEXTURE_FILTER_BILINEAR);
+  }
+  found->second.filter = filterMode;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_render_texture_get_filter(int64_t renderTextureId) {
+  const auto found = state.renderTextures.find(renderTextureId);
+  return found == state.renderTextures.end() ? RLV_ERR_STALE_HANDLE
+                                             : found->second.filter;
+}
+
 extern "C" int64_t rlv_render_texture_unload(int64_t renderTextureId) {
   const auto found = state.renderTextures.find(renderTextureId);
   if (found == state.renderTextures.end()) return RLV_ERR_STALE_HANDLE;
@@ -2424,6 +2489,7 @@ extern "C" int64_t rlv_window_screenshot(int64_t windowId,
 extern "C" int64_t rlv_shader_load_files(int64_t windowId,
                                            int64_t vertexPathBufferId,
                                            int64_t fragmentPathBufferId) {
+  state.shaderDiagnostic.clear();
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   const std::string* vertexPath = buffer(vertexPathBufferId);
   const std::string* fragmentPath = buffer(fragmentPathBufferId);
@@ -2441,6 +2507,8 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
            error;
   };
   if (missingShaderFile(*vertexPath) || missingShaderFile(*fragmentPath)) {
+    state.shaderDiagnostic = "shader file not found: " +
+        (missingShaderFile(*vertexPath) ? *vertexPath : *fragmentPath);
     return RLV_ERR_NOT_FOUND;
   }
 
@@ -2463,12 +2531,14 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
     if (vertexSource) parseTestShaderUniformTypes(record, vertexSource);
     if (fragmentSource) parseTestShaderUniformTypes(record, fragmentSource);
   } else {
-    record.value = LoadShaderFromMemory(vertexSource, fragmentSource);
+    record.value = loadShaderWithDiagnostics(vertexSource, fragmentSource);
     if (!IsShaderValid(record.value) ||
         record.value.id == rlGetShaderIdDefault()) {
       UnloadShader(record.value);
       if (vertexSource) UnloadFileText(vertexSource);
       if (fragmentSource) UnloadFileText(fragmentSource);
+      if (state.shaderDiagnostic.empty())
+        state.shaderDiagnostic = "shader compilation or link failed (backend returned default shader)";
       return RLV_ERR_INVALID_SHADER;
     }
     record.native = true;
@@ -2485,6 +2555,7 @@ extern "C" int64_t rlv_shader_load_files(int64_t windowId,
 extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
                                             int64_t vertexSourceBufferId,
                                             int64_t fragmentSourceBufferId) {
+  state.shaderDiagnostic.clear();
   if (!validWindow(windowId)) return RLV_ERR_STALE_HANDLE;
   const std::string* vertexSource = buffer(vertexSourceBufferId);
   const std::string* fragmentSource = buffer(fragmentSourceBufferId);
@@ -2496,6 +2567,7 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
   if (state.testMode &&
       (*vertexSource == "invalid_shader" ||
        *fragmentSource == "invalid_shader")) {
+    state.shaderDiagnostic = "test backend: invalid shader source";
     return RLV_ERR_INVALID_SHADER;
   }
 
@@ -2505,12 +2577,14 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
     parseTestShaderUniformTypes(record, *vertexSource);
     parseTestShaderUniformTypes(record, *fragmentSource);
   } else {
-    record.value = LoadShaderFromMemory(
+    record.value = loadShaderWithDiagnostics(
         vertexSource->empty() ? nullptr : vertexSource->c_str(),
         fragmentSource->empty() ? nullptr : fragmentSource->c_str());
     if (!IsShaderValid(record.value) ||
         record.value.id == rlGetShaderIdDefault()) {
       UnloadShader(record.value);
+      if (state.shaderDiagnostic.empty())
+        state.shaderDiagnostic = "shader compilation or link failed (backend returned default shader)";
       return RLV_ERR_INVALID_SHADER;
     }
     record.native = true;
@@ -2520,6 +2594,16 @@ extern "C" int64_t rlv_shader_load_memory(int64_t windowId,
   state.shaders.emplace(id, record);
   recordPerformanceAllocation();
   return id;
+}
+
+extern "C" int64_t rlv_shader_diagnostic_length(void) {
+  return static_cast<int64_t>(state.shaderDiagnostic.size());
+}
+
+extern "C" int64_t rlv_shader_diagnostic_byte(int64_t index) {
+  if (index < 0 || static_cast<size_t>(index) >= state.shaderDiagnostic.size())
+    return RLV_ERR_INVALID_ARGUMENT;
+  return static_cast<unsigned char>(state.shaderDiagnostic[static_cast<size_t>(index)]);
 }
 
 extern "C" int64_t rlv_shader_unload(int64_t shaderId) {
@@ -2985,8 +3069,8 @@ extern "C" int64_t rlv_audio_close(int64_t audioId) {
   return RLV_OK;
 }
 
-extern "C" rocket_bool rlv_audio_ready(int64_t audioId) {
-  if (!validAudio(audioId)) return 0;
+extern "C" int64_t rlv_audio_ready(int64_t audioId) {
+  if (!validAudio(audioId)) return RLV_ERR_STALE_HANDLE;
   return state.testMode || IsAudioDeviceReady() ? 1 : 0;
 }
 
@@ -3039,17 +3123,25 @@ extern "C" int64_t rlv_sound_tone(int64_t audioId, double frequency,
 }
 
 extern "C" int64_t rlv_sound_play(int64_t soundId) {
-  const auto found = state.sounds.find(soundId);
+  auto found = state.sounds.find(soundId);
   if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
   if (!state.testMode) PlaySound(found->second.value);
+  found->second.playing = true;
   return RLV_OK;
 }
 
 extern "C" int64_t rlv_sound_stop(int64_t soundId) {
-  const auto found = state.sounds.find(soundId);
+  auto found = state.sounds.find(soundId);
   if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
   if (!state.testMode) StopSound(found->second.value);
+  found->second.playing = false;
   return RLV_OK;
+}
+
+extern "C" int64_t rlv_sound_playing(int64_t soundId) {
+  const auto found = state.sounds.find(soundId);
+  if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
+  return state.testMode ? found->second.playing : IsSoundPlaying(found->second.value);
 }
 
 extern "C" int64_t rlv_sound_set_volume(int64_t soundId, double volume) {
@@ -3062,17 +3154,133 @@ extern "C" int64_t rlv_sound_set_volume(int64_t soundId, double volume) {
   return RLV_OK;
 }
 
+extern "C" int64_t rlv_sound_set_pitch(int64_t soundId, double pitch) {
+  const auto found = state.sounds.find(soundId);
+  if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
+  if (!std::isfinite(pitch) || pitch <= 0.0 || pitch > 4.0)
+    return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) SetSoundPitch(found->second.value, static_cast<float>(pitch));
+  return RLV_OK;
+}
+
 extern "C" int64_t rlv_sound_unload(int64_t soundId) {
   const auto found = state.sounds.find(soundId);
   if (found == state.sounds.end()) return RLV_ERR_STALE_HANDLE;
   if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
-  if (found->second.native) UnloadSound(found->second.value);
+  if (found->second.native) {
+    StopSound(found->second.value);
+    UnloadSound(found->second.value);
+  }
   state.sounds.erase(found);
   return RLV_OK;
 }
 
 extern "C" int64_t rlv_sound_live_count(void) {
   return static_cast<int64_t>(state.sounds.size());
+}
+
+extern "C" int64_t rlv_music_load(int64_t audioId, int64_t pathBufferId) {
+  if (!validAudio(audioId)) return RLV_ERR_STALE_HANDLE;
+  const std::string* path = buffer(pathBufferId);
+  if (!path || path->empty()) return RLV_ERR_INVALID_ARGUMENT;
+  MusicRecord record;
+  record.audioId = audioId;
+  if (state.testMode) {
+    if (simulatedMissing(*path)) return RLV_ERR_NOT_FOUND;
+  } else {
+    record.value = LoadMusicStream(path->c_str());
+    if (!IsMusicValid(record.value)) return RLV_ERR_NOT_FOUND;
+    record.native = true;
+  }
+  const int64_t id = nextId();
+  state.musics.emplace(id, record);
+  recordPerformanceAllocation();
+  return id;
+}
+
+extern "C" int64_t rlv_music_play(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!state.testMode) PlayMusicStream(found->second.value);
+  found->second.playing = true;
+  found->second.paused = false;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_update(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  syncMusicPlayback(found->second);
+  if (!found->second.playing || found->second.paused) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) {
+    UpdateMusicStream(found->second.value);
+    syncMusicPlayback(found->second);
+  }
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_pause(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  syncMusicPlayback(found->second);
+  if (!found->second.playing || found->second.paused) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) PauseMusicStream(found->second.value);
+  found->second.paused = true;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_resume(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  syncMusicPlayback(found->second);
+  if (!found->second.playing || !found->second.paused) return RLV_ERR_INVALID_STATE;
+  if (!state.testMode) ResumeMusicStream(found->second.value);
+  found->second.paused = false;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_stop(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!state.testMode) StopMusicStream(found->second.value);
+  found->second.playing = false;
+  found->second.paused = false;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_playing(int64_t musicId) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  syncMusicPlayback(found->second);
+  return found->second.playing && !found->second.paused;
+}
+
+extern "C" int64_t rlv_music_set_volume(int64_t musicId, double volume) {
+  const auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (!std::isfinite(volume) || volume < 0.0 || volume > 1.0)
+    return RLV_ERR_INVALID_ARGUMENT;
+  if (!state.testMode) SetMusicVolume(found->second.value, static_cast<float>(volume));
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_set_looping(int64_t musicId, rocket_bool looping) {
+  auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  found->second.value.looping = looping != 0;
+  return RLV_OK;
+}
+
+extern "C" int64_t rlv_music_unload(int64_t musicId) {
+  const auto found = state.musics.find(musicId);
+  if (found == state.musics.end()) return RLV_ERR_STALE_HANDLE;
+  if (found->second.assetStoreId != 0) return RLV_ERR_RESOURCE_LIVE;
+  if (found->second.native) {
+    StopMusicStream(found->second.value);
+    UnloadMusicStream(found->second.value);
+  }
+  state.musics.erase(found);
+  return RLV_OK;
 }
 
 extern "C" int64_t rlv_music_live_count(void) {

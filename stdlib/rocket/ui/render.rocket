@@ -1,0 +1,230 @@
+# Immediate game-UI drawing in logical coordinates. Draw inside a logical
+# render target, then present it through rocket.graphics.canvas for DPI scaling.
+
+import rocket.assets
+import rocket.graphics
+import rocket.graphics.shapes
+import rocket.raylib.safe
+import rocket.ui.containers
+import rocket.ui.controls
+import rocket.ui.styles
+
+pub struct ImageFit:
+    kind: Int
+
+pub fn image_contain() -> ImageFit:
+    return ImageFit(0)
+
+pub fn image_cover() -> ImageFit:
+    return ImageFit(1)
+
+pub fn image_stretch() -> ImageFit:
+    return ImageFit(2)
+
+pub fn draw_panel(frame: safe.Frame, value: containers.Panel) -> Result[Bool, String]:
+    if not containers.panel_is_valid(value):
+        return Err("UI render requires a valid panel")
+    return draw_surface(frame, value.bounds, value.style.background, value.style.border, value.style.shadow)
+
+pub fn begin_panel_content_clip(frame: safe.Frame, value: containers.Panel) -> Result[safe.ScissorScope, String]:
+    if not containers.panel_is_valid(value) or not value.clip_children:
+        return Err("UI panel child clipping requires a valid clipping panel")
+    let bounds = value.content_bounds
+    return safe.begin_scissor(frame, bounds.x, bounds.y, bounds.width, bounds.height)
+
+pub fn end_panel_content_clip(scope: safe.ScissorScope) -> Result[Bool, String]:
+    return safe.end_scissor(scope)
+
+pub fn draw_button(frame: safe.Frame, font: safe.Font, value: controls.Button) -> Result[Bool, String]:
+    if not graphics.rect_has_nonnegative_size(value.bounds) or not styles.button_style_is_valid(value.style):
+        return Err("UI render requires a valid button")
+    let inset = value.style.padding + value.style.border.width
+    let text_bounds = graphics.rect(value.bounds.x + inset, value.bounds.y + inset, value.bounds.width - 2.0 * inset, value.bounds.height - 2.0 * inset)
+    if text_bounds.width <= 0.0 or text_bounds.height <= 0.0:
+        return Err("UI button padding exceeds its bounds")
+    match draw_surface(frame, value.bounds, value.style.background, value.style.border, value.style.shadow):
+        case Err(message):
+            return Err(message)
+        case Ok(drawn):
+            let ignored = drawn
+    return draw_text(frame, font, value.label, text_bounds, value.style.text, graphics.text_align_center(), graphics.text_align_middle(), false, true, graphics.text_overflow_clip())
+
+pub fn draw_label(frame: safe.Frame, font: safe.Font, value: controls.Text, horizontal_align: Int = 0, vertical_align: Int = 0, wrap: Bool = false, clip: Bool = true, overflow: Int = 0) -> Result[Bool, String]:
+    if not graphics.rect_has_nonnegative_size(value.bounds):
+        return Err("UI render requires valid label bounds")
+    return draw_text(frame, font, value.value, value.bounds, value.style, horizontal_align, vertical_align, wrap, clip, overflow)
+
+pub fn draw_image(frame: safe.Frame, value: controls.Image, texture: assets.TextureRef, fit: ImageFit, clip: Bool = true) -> Result[Bool, String]:
+    if not graphics.rect_has_nonnegative_size(value.bounds) or not styles.image_style_is_valid(value.style):
+        return Err("UI render requires a valid image")
+    if value.bounds.width <= 0.0 or value.bounds.height <= 0.0:
+        return Err("UI image bounds must have positive size")
+    if fit.kind < 0 or fit.kind > 2:
+        return Err("UI image fit policy is invalid")
+    match assets.borrow_texture(texture):
+        case Err(message):
+            return Err(message)
+        case Ok(handle):
+            return draw_texture_fit(frame, handle, value.bounds, value.style, fit, clip)
+
+pub fn draw_image_from_store(frame: safe.Frame, value: controls.Image, store: assets.AssetStore, fit: ImageFit, clip: Bool = true) -> Result[Bool, String]:
+    match assets.texture(store, value.asset_name):
+        case Err(message):
+            return Err(message)
+        case Ok(texture):
+            return draw_image(frame, value, texture, fit, clip)
+
+pub fn draw_progress_bar(frame: safe.Frame, bounds: graphics.Rect, fraction: Float, style: styles.PanelStyle, fill: graphics.Color) -> Result[Bool, String]:
+    if not graphics.rect_has_nonnegative_size(bounds) or not styles.panel_style_is_valid(style) or not color_is_valid(fill) or not finite(fraction) or fraction < 0.0 or fraction > 1.0:
+        return Err("UI progress bar requires valid bounds, style, fill, and fraction")
+    match containers.panel(bounds, style):
+        case Err(message):
+            return Err(message)
+        case Ok(panel):
+            match draw_panel(frame, panel):
+                case Err(message):
+                    return Err(message)
+                case Ok(drawn):
+                    let ignored = drawn
+            let inner = panel.content_bounds
+            if fraction == 0.0 or inner.width == 0.0 or inner.height == 0.0:
+                return Ok(true)
+            let filled = graphics.rect(inner.x, inner.y, inner.width * fraction, inner.height)
+            return draw_fill(frame, filled, fill, style.border.radius)
+
+fn draw_surface(frame: safe.Frame, bounds: graphics.Rect, background: graphics.Color, border: styles.BorderStyle, shadow: styles.ShadowStyle) -> Result[Bool, String]:
+    if bounds.width <= 0.0 or bounds.height <= 0.0:
+        return Err("UI surface bounds must have positive size")
+    if shadow.color.alpha > 0.0:
+        let shifted = graphics.rect(bounds.x + shadow.offset.x, bounds.y + shadow.offset.y, bounds.width, bounds.height)
+        match draw_fill(frame, shifted, shadow.color, border.radius):
+            case Err(message):
+                return Err(message)
+            case Ok(drawn):
+                let ignored = drawn
+    match draw_fill(frame, bounds, background, border.radius):
+        case Err(message):
+            return Err(message)
+        case Ok(drawn):
+            let ignored = drawn
+    if border.width > 0.0 and border.color.alpha > 0.0:
+        if border.radius > 0.0:
+            return shapes.draw_rounded_rect_outline(frame, bounds, border.color, radius_fraction(bounds, border.radius), border.width)
+        return shapes.draw_rect_outline(frame, bounds, border.color, border.width)
+    return Ok(true)
+
+fn draw_fill(frame: safe.Frame, bounds: graphics.Rect, color: graphics.Color, radius: Float) -> Result[Bool, String]:
+    if radius > 0.0:
+        return shapes.draw_rounded_rect(frame, bounds, color, radius_fraction(bounds, radius))
+    return shapes.draw_rect(frame, bounds, color)
+
+fn radius_fraction(bounds: graphics.Rect, radius: Float) -> Float:
+    var diameter = bounds.width
+    if bounds.height < diameter:
+        diameter = bounds.height
+    if diameter <= 0.0:
+        return 0.0
+    let fraction = 2.0 * radius / diameter
+    if fraction > 1.0:
+        return 1.0
+    return fraction
+
+fn draw_text(frame: safe.Frame, font: safe.Font, value: String, bounds: graphics.Rect, style: styles.TextStyle, horizontal_align: Int, vertical_align: Int, wrap: Bool, clip: Bool, overflow: Int) -> Result[Bool, String]:
+    if not styles.text_style_is_valid(style) or bounds.width <= 0.0 or bounds.height <= 0.0:
+        return Err("UI text requires a valid style and positive bounds")
+    return safe.draw_text_layout(frame, font, value, bounds, graphics.text_style("default", style.size), native_color(style.color), horizontal_align, vertical_align, wrap, clip, overflow)
+
+fn draw_texture_fit(frame: safe.Frame, texture: safe.Texture, bounds: graphics.Rect, style: styles.ImageStyle, fit: ImageFit, clip: Bool) -> Result[Bool, String]:
+    var width = 0.0
+    var height = 0.0
+    match safe.texture_width(texture):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            width = int_to_float(value)
+    match safe.texture_height(texture):
+        case Err(message):
+            return Err(message)
+        case Ok(value):
+            height = int_to_float(value)
+    if width <= 0.0 or height <= 0.0:
+        return Err("UI image texture has invalid dimensions")
+    var source = graphics.rect(0.0, 0.0, width, height)
+    var dest = bounds
+    if fit.kind == 0:
+        var scale = bounds.width / width
+        if bounds.height / height < scale:
+            scale = bounds.height / height
+        let drawn_width = width * scale
+        let drawn_height = height * scale
+        dest = graphics.rect(bounds.x +(bounds.width - drawn_width) / 2.0, bounds.y +(bounds.height - drawn_height) / 2.0, drawn_width, drawn_height)
+    if fit.kind == 1:
+        var scale = bounds.width / width
+        if bounds.height / height > scale:
+            scale = bounds.height / height
+        let crop_width = bounds.width / scale
+        let crop_height = bounds.height / scale
+        source = graphics.rect((width - crop_width) / 2.0,(height - crop_height) / 2.0, crop_width, crop_height)
+    let tinted = graphics.color_from_rgba(style.tint.red, style.tint.green, style.tint.blue, style.tint.alpha * style.opacity)
+    if clip:
+        match safe.begin_scissor(frame, bounds.x, bounds.y, bounds.width, bounds.height):
+            case Err(message):
+                return Err(message)
+            case Ok(scope):
+                let drawn = safe.draw_texture_pro(frame, texture, source, dest, graphics.vec2(0.0, 0.0), 0.0, native_color(tinted))
+                let ended = safe.end_scissor(scope)
+                match drawn:
+                    case Err(message):
+                        return Err(message)
+                    case Ok(value):
+                        return ended
+    return safe.draw_texture_pro(frame, texture, source, dest, graphics.vec2(0.0, 0.0), 0.0, native_color(tinted))
+
+fn native_color(value: graphics.Color) -> safe.Color:
+    return safe.color(byte_from_unit(value.red), byte_from_unit(value.green), byte_from_unit(value.blue), byte_from_unit(value.alpha))
+
+fn byte_from_unit(value: Float) -> Int:
+    var remaining = value * 255.0 + 0.5
+    var result = 0
+    if remaining >= 128.0:
+        result = result + 128
+        remaining = remaining - 128.0
+    if remaining >= 64.0:
+        result = result + 64
+        remaining = remaining - 64.0
+    if remaining >= 32.0:
+        result = result + 32
+        remaining = remaining - 32.0
+    if remaining >= 16.0:
+        result = result + 16
+        remaining = remaining - 16.0
+    if remaining >= 8.0:
+        result = result + 8
+        remaining = remaining - 8.0
+    if remaining >= 4.0:
+        result = result + 4
+        remaining = remaining - 4.0
+    if remaining >= 2.0:
+        result = result + 2
+        remaining = remaining - 2.0
+    if remaining >= 1.0:
+        result = result + 1
+    return result
+
+fn int_to_float(value: Int) -> Float:
+    var result = 0.0
+    var unit = 1.0
+    var remaining = value
+    while remaining > 0:
+        let half = remaining / 2
+        if remaining - half * 2 == 1:
+            result = result + unit
+        unit = unit * 2.0
+        remaining = half
+    return result
+
+fn color_is_valid(value: graphics.Color) -> Bool:
+    return finite(value.red) and finite(value.green) and finite(value.blue) and finite(value.alpha) and value.red >= 0.0 and value.red <= 1.0 and value.green >= 0.0 and value.green <= 1.0 and value.blue >= 0.0 and value.blue <= 1.0 and value.alpha >= 0.0 and value.alpha <= 1.0
+
+fn finite(value: Float) -> Bool:
+    return value - value == 0.0

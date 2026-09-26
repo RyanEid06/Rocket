@@ -1,0 +1,13 @@
+import rocket.raylib.native
+
+pub fn start() -> Bool:
+    unsafe:
+        return native.rlv_enable_test_mode(true) == 0 and native.rlv_test_reset() == 0
+
+pub fn sound_count() -> Int:
+    unsafe:
+        return native.rlv_sound_live_count()
+
+pub fn music_count() -> Int:
+    unsafe:
+        return native.rlv_music_live_count()

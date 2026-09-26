@@ -1,16 +1,19 @@
 # Rocket raylib compatibility showcase
 
-> **Historical compatibility example:** This package remains version 1.4 and
-> validates the legacy `src.rocket_raylib` boundary against pinned raylib 6.0.
+> **Historical compatibility example:** This package remains version 1.4. Its
+> application now uses `rocket.raylib.safe`, `rocket.assets`, and other canonical
+> Rocket 3.5 modules. Its 11 historical tests still validate the deprecated
+> `src.rocket_raylib` boundary against the single production-owned adapter and
+> pinned raylib 6.0. The package does not own or compile an adapter copy.
 > The Rocket 3.0 modules are documented in
 > `docs/ROCKET_3_0_SYNTAX_DICTIONARY.md`; the repository-wide status split is in
 > `docs/DOCUMENTATION_STATUS.md`.
 
-This non-casino reference application validates Rocket 1.4 against the pinned
-raylib 6.0 native library. All event loop, state, collections, input handling,
-rendering decisions, asset loading, callback use, audio policy, and cleanup are
-Rocket source. The C++ adapter contains no application behavior; it only maps a
-primitive C ABI onto raylib and validates resource tokens.
+This non-casino reference application demonstrates the canonical window,
+input, drawing, motion, asset, and audio path. The older tests preserve Rocket
+1.4 compatibility while their migration remains outstanding. The C++ adapter
+contains no application behavior; it maps a primitive C ABI onto raylib and
+validates resource tokens.
 
 ## Build and run
 
@@ -21,11 +24,12 @@ From the repository root in PowerShell:
 . .\dependencies\activate.ps1
 cmake --preset windows-release
 cmake --build --preset windows-release --target rocket_raylib_build
+$env:ROCKET_SHOWCASE_PACKAGE_ROOT = (Resolve-Path .\examples\raylib_showcase).Path
 Set-Location .\examples\raylib_showcase
 .\.rocketc\rocket-raylib-showcase.exe
 ```
 
-The current directory must contain `assets/`. Use the arrow keys to steer the
+The explicit package root may differ from the current directory. Use the arrow keys to steer the
 orbiter, click to relocate it, press Space to play the procedural tone, and
 press Escape to exit. If audio initialization fails, the application prints a
 message and continues silently. Failure to create the graphics window is a hard
@@ -44,7 +48,7 @@ Create a distributable static Windows bundle under `out/package` with:
 .\scripts\package-raylib-showcase.ps1 -Configuration Release
 ```
 
-Create an editable application scaffold with the same safe boundary and tests:
+Create an editable compatibility scaffold with the same legacy boundary and tests:
 
 ```powershell
 .\scripts\new-raylib-app.ps1 -Destination .\examples\my_raylib_app -Name my_raylib_app
@@ -55,7 +59,8 @@ cmake -S .\examples\my_raylib_app -B .\out\my-raylib-app `
 cmake --build .\out\my-raylib-app
 ```
 
-The generated low-level binding and native build outputs remain ignored.
+The scaffold consumes the production backend from the repository build or a
+packaged SDK. It does not receive a low-level binding or native adapter copy.
 
 ## Ownership and lifetime contract
 
@@ -233,8 +238,13 @@ tokens stay inside the safe wrapper and are destroyed before it returns.
 
 ## Typed asset store
 
-`src.rocket_assets` loads textures, fonts, sounds, music streams, and file-backed
-shaders under one namespace of unique logical names. `load_texture`,
+`src.rocket_assets` is a deprecated compatibility shim over the bundled
+`rocket.assets` module. The showcase itself loads its orbiter texture through
+`rocket.assets`; new packages should import that module directly. See
+`docs/ROCKET_3_5_ASSETS.md` for the supported contract. The shim's old
+`package_root = "."` default remains only for copied compatibility code; new
+game code passes an explicit absolute root to `rocket.assets`. The shim's
+`load_texture`,
 `load_font`, `load_sound`, `load_music`, and `load_shader` return distinct typed
 reference values. The matching typed lookup functions (`texture`, `font`,
 `sound`, `music`, and `shader`) return the stable reference for a logical name;

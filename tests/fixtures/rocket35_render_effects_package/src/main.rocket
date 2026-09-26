@@ -1,0 +1,38 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.raylib.safe
+
+pub fn draw_effect(frame: safe.Frame, texture: safe.Texture, shader: safe.Shader) -> Result[Bool, String]:
+    match safe.begin_blend(frame, safe.additive_blend()):
+        case Err(error):
+            return Err(error)
+        case Ok(blend):
+            let drawn = safe.draw_texture_pro(frame, texture, graphics.rect(0.0, 0.0, 32.0, 32.0), graphics.rect(20.0, 20.0, 64.0, 64.0), graphics.vec2(0.0, 0.0), 0.0, safe.color(255, 255, 255))
+            let ended = safe.end_blend(blend)
+            match drawn:
+                case Err(error):
+                    return Err(error)
+                case Ok(success):
+                    return ended
+
+pub fn present_effect(window: safe.Window, frame: safe.Frame, target: safe.RenderTexture, shader: safe.Shader) -> Result[Bool, String]:
+    match safe.shader_supported(window):
+        case Err(error):
+            return Err(error)
+        case Ok(supported):
+            if not supported:
+                return canvas.present_current(window, frame, target, graphics.size(320.0, 180.0))
+            match safe.begin_shader(frame, shader):
+                case Err(error):
+                    return Err(error)
+                case Ok(scope):
+                    let drawn = canvas.present_current(window, frame, target, graphics.size(320.0, 180.0))
+                    let ended = safe.end_shader(scope)
+                    match drawn:
+                        case Err(error):
+                            return Err(error)
+                        case Ok(success):
+                            return ended
+
+fn main() -> Int:
+    return 0

@@ -22,10 +22,10 @@ cmake -S .\examples\my_graphics_app -B .\out\my-graphics-app `
 cmake --build .\out\my-graphics-app
 ```
 
-The scaffold keeps the generated module under `generated/` and native objects
-under `.rocketc/`; both are ignored. Edit `src/showcase.rocket` for application
-behavior. Keep `native/rocket_raylib_adapter.*` policy-only and do not add C++
-application state or rendering decisions there.
+The scaffold consumes the production adapter built from
+`src/raylib/rocket_raylib_adapter.*`; it does not copy or compile private C++
+glue. Generated application objects remain under `.rocketc/` and are ignored.
+Edit `src/showcase.rocket` for application behavior.
 
 The basic lifecycle is:
 

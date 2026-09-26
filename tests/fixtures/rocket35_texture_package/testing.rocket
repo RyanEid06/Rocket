@@ -1,0 +1,29 @@
+import rocket.raylib.native
+
+pub fn start() -> Bool:
+    unsafe:
+        return native.rlv_enable_test_mode(true) == 0 and native.rlv_test_reset() == 0
+
+pub fn set_anisotropy(value: Int) -> Bool:
+    unsafe:
+        return native.rlv_test_set_anisotropy(value) == 0
+
+pub fn set_display(width: Int, height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi: Float) -> Bool:
+    unsafe:
+        return native.rlv_test_set_display_metrics(width, height, framebuffer_width, framebuffer_height, dpi, dpi, 1, 0) == 0
+
+pub fn set_mouse(x: Int, y: Int) -> Bool:
+    unsafe:
+        return native.rlv_test_set_mouse_state(x, y, false, false, false) == 0
+
+pub fn set_display_capabilities() -> Bool:
+    unsafe:
+        return native.rlv_test_set_display_capabilities(true, true, true, true, true) == 0
+
+pub fn texture_count() -> Int:
+    unsafe:
+        return native.rlv_texture_live_count()
+
+pub fn screenshot_count() -> Int:
+    unsafe:
+        return native.rlv_screenshot_count()

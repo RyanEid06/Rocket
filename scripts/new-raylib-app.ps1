@@ -17,7 +17,7 @@ if (Test-Path -LiteralPath $target) {
     New-Item -ItemType Directory -Path $target | Out-Null
 }
 
-foreach ($directory in @('assets', 'native', 'src', 'tests')) {
+foreach ($directory in @('assets', 'src', 'tests')) {
     Copy-Item -LiteralPath (Join-Path $templateRoot $directory) -Destination $target -Recurse
 }
 Copy-Item -LiteralPath (Join-Path $templateRoot 'rocket.toml') -Destination $target
@@ -36,4 +36,4 @@ $manifest = $manifest.Replace('name = "rocket-raylib-showcase"', "name = `"$Name
 Set-Content -LiteralPath $manifestPath -Value $manifest -Encoding ascii
 
 Write-Output "Created Rocket raylib application template at $target"
-Write-Output 'Configure Rocket from the repository CMake project to generate bindings and native libraries.'
+Write-Output 'Build with the production Rocket raylib libraries from the repository build or a packaged SDK.'

@@ -390,9 +390,10 @@ locked-offline resolve, and dependency import checking.
 
 ## raylib application workflow
 
-Rocket 1.4 pins raylib 6.0 in `dependencies/manifest.json`. CMake builds raylib
-and the primitive adapter statically, then runs `rocketc bind` into an ignored
-`generated/` module before checking or building `examples/raylib_showcase`.
+Rocket pins raylib 6.0 in `dependencies/manifest.json`. The repository CMake
+build owns one production adapter under `src/raylib`, generates the internal
+`rocket.raylib.native` declarations from its header, and then checks or builds
+`examples/raylib_showcase` against those production libraries.
 Use `scripts/run-raylib-validation.ps1` for the labeled native suite,
 `scripts/new-raylib-app.ps1` for a scaffold, and
 `scripts/package-raylib-showcase.ps1` for the historical Windows bundle. Phase

@@ -1,0 +1,51 @@
+import rocket.raylib.safe
+import testing
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            return false
+
+fn failed_with(result: Result[Bool, String], expected: String) -> Bool:
+    match result:
+        case Ok(value):
+            return false
+        case Err(message):
+            return message == expected
+
+fn main() -> Int:
+    if not testing.enable_headless_runtime():
+        return 1
+    match safe.open_window(320, 200, "Rocket 3.5 runtime foundation"):
+        case Err(message):
+            return 2
+        case Ok(window):
+            match safe.begin_frame(window):
+                case Err(message):
+                    return 3
+                case Ok(frame):
+                    if not succeeded(safe.draw_rect(frame, 12.0, 18.0, 64.0, 32.0, 255, 183, 3, 255)):
+                        return 4
+                    if not failed_with(safe.close_window(window), "raylib: invalid lifecycle state"):
+                        return 5
+                    if not succeeded(safe.end_frame(frame)):
+                        return 6
+                    if not failed_with(safe.end_frame(frame), "raylib: stale or already released handle"):
+                        return 7
+            if not succeeded(safe.set_window_size(window, 640, 360)):
+                return 8
+            match safe.begin_frame(window):
+                case Err(message):
+                    return 9
+                case Ok(frame):
+                    if not succeeded(safe.draw_rect(frame, 24.0, 36.0, 80.0, 40.0, 102, 191, 255, 255)):
+                        return 10
+                    if not succeeded(safe.end_frame(frame)):
+                        return 11
+            if not succeeded(safe.close_window(window)):
+                return 12
+            if not failed_with(safe.close_window(window), "raylib: stale or already released handle"):
+                return 13
+    return 0

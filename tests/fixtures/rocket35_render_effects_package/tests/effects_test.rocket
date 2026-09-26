@@ -1,0 +1,175 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.raylib.safe
+import std.string
+import testing
+
+fn succeeded(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(error):
+            return false
+
+fn failed_with(value: Result[Bool, String], expected: String) -> Bool:
+    match value:
+        case Ok(success):
+            return false
+        case Err(error):
+            return error == expected
+
+fn stale_blend(value: Result[safe.BlendScope, String]) -> Bool:
+    match value:
+        case Ok(scope):
+            return false
+        case Err(error):
+            return error == "raylib: stale or already released handle"
+
+fn main() -> Int:
+    if not testing.start():
+        return 1
+    match safe.open_window(640, 360, "WP3 effects"):
+        case Err(error):
+            return 2
+        case Ok(window):
+            match safe.shader_supported(window):
+                case Err(error):
+                    return 3
+                case Ok(supported):
+                    if not supported:
+                        return 4
+            if not testing.set_shader_supported(false):
+                return 5
+            match safe.shader_supported(window):
+                case Err(error):
+                    return 6
+                case Ok(supported):
+                    if supported:
+                        return 7
+            match safe.load_shader_from_source(window, "", "invalid_shader"):
+                case Ok(shader):
+                    return 8
+                case Err(error):
+                    if error != "raylib: device or backend unavailable":
+                        return 9
+            if not testing.set_shader_supported(true):
+                return 10
+            match safe.load_shader(window, "missing.vert", ""):
+                case Ok(shader):
+                    return 11
+                case Err(error):
+                    if error != "raylib: asset or uniform not found":
+                        return 12
+            match safe.load_shader_from_source(window, "", "invalid_shader"):
+                case Ok(shader):
+                    return 13
+                case Err(error):
+                    if not string.contains(error, "invalid shader source"):
+                        return 14
+            match safe.load_shader_from_source(window, "", "uniform float intensity; uniform int mode; uniform vec2 offset; uniform vec4 tint;"):
+                case Err(error):
+                    return 15
+                case Ok(shader):
+                    match safe.shader_uniform(shader, "intensity", safe.float_uniform()):
+                        case Err(error):
+                            return 16
+                        case Ok(intensity):
+                            if not succeeded(safe.set_shader_float(shader, intensity, 0.75)) or not failed_with(safe.set_shader_int(shader, intensity, 1), "raylib: shader uniform type mismatch or unsupported type"):
+                                return 17
+                    match safe.shader_uniform(shader, "mode", safe.int_uniform()):
+                        case Err(error):
+                            return 18
+                        case Ok(mode):
+                            if not succeeded(safe.set_shader_int(shader, mode, 2)):
+                                return 19
+                    match safe.shader_uniform(shader, "offset", safe.vec2_uniform()):
+                        case Err(error):
+                            return 20
+                        case Ok(offset):
+                            if not succeeded(safe.set_shader_vec2(shader, offset, graphics.vec2(4.0, -2.0))):
+                                return 21
+                    match safe.shader_uniform(shader, "tint", safe.color_uniform()):
+                        case Err(error):
+                            return 22
+                        case Ok(tint):
+                            if not succeeded(safe.set_shader_color(shader, tint, safe.color(12, 34, 56, 200))):
+                                return 23
+                    match safe.shader_uniform(shader, "missing", safe.float_uniform()):
+                        case Ok(uniform):
+                            return 24
+                        case Err(error):
+                            if error != "raylib: asset or uniform not found":
+                                return 25
+                    match safe.load_texture(window, "assets/card-atlas.png"):
+                        case Err(error):
+                            return 26
+                        case Ok(texture):
+                            match canvas.create_target(window, 320, 180):
+                                case Err(error):
+                                    return 27
+                                case Ok(target):
+                                    match safe.begin_frame(window):
+                                        case Err(error):
+                                            return 28
+                                        case Ok(frame):
+                                            match canvas.begin_target(frame, target):
+                                                case Err(error):
+                                                    return 29
+                                                case Ok(target_scope):
+                                                    match safe.begin_blend(frame, safe.additive_blend()):
+                                                        case Err(error):
+                                                            return 30
+                                                        case Ok(blend):
+                                                            if not succeeded(safe.draw_texture(frame, texture, 0, 0, safe.color(255, 255, 255))):
+                                                                return 31
+                                                            if not failed_with(canvas.end_target(target_scope), "raylib: invalid lifecycle state"):
+                                                                return 32
+                                                            match safe.begin_shader(frame, shader):
+                                                                case Err(error):
+                                                                    return 33
+                                                                case Ok(inner):
+                                                                    if not failed_with(safe.end_blend(blend), "raylib: invalid lifecycle state"):
+                                                                        return 34
+                                                                    if not succeeded(safe.end_shader(inner)) or not failed_with(safe.end_shader(inner), "raylib: stale or already released handle"):
+                                                                        return 35
+                                                            if not succeeded(safe.end_blend(blend)) or not failed_with(safe.end_blend(blend), "raylib: stale or already released handle"):
+                                                                return 36
+                                                    if not succeeded(canvas.end_target(target_scope)):
+                                                        return 37
+                                            if not testing.set_display(800, 600, 1600, 1200, 2.0):
+                                                return 38
+                                            match safe.begin_shader(frame, shader):
+                                                case Err(error):
+                                                    return 39
+                                                case Ok(effect):
+                                                    if not succeeded(canvas.present_current(window, frame, target, graphics.size(320.0, 180.0))):
+                                                        return 40
+                                                    if not succeeded(safe.end_shader(effect)):
+                                                        return 41
+                                            if not succeeded(safe.end_frame(frame)):
+                                                return 42
+                                            if not stale_blend(safe.begin_blend(frame, safe.alpha_blend())):
+                                                return 43
+                                    if not testing.set_shader_supported(false):
+                                        return 44
+                                    match safe.shader_supported(window):
+                                        case Err(error):
+                                            return 45
+                                        case Ok(supported):
+                                            if supported:
+                                                return 46
+                                    match safe.begin_frame(window):
+                                        case Err(error):
+                                            return 47
+                                        case Ok(frame):
+                                            if not succeeded(canvas.present_current(window, frame, target, graphics.size(320.0, 180.0))) or not succeeded(safe.end_frame(frame)):
+                                                return 48
+                                    if not succeeded(canvas.unload_target(target)):
+                                        return 49
+                            if not succeeded(safe.unload_texture(texture)):
+                                return 50
+                    if not succeeded(safe.unload_shader(shader)) or not failed_with(safe.unload_shader(shader), "raylib: stale or already released handle"):
+                        return 51
+            if not succeeded(safe.close_window(window)):
+                return 52
+    return 0

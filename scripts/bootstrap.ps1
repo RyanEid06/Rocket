@@ -215,8 +215,14 @@ foreach ($compiler in $stage1, $stage2, $stage3) {
 }
 & $stage3 build $raylibReference
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-$raylibTestOutput = & $stage3 test $raylibReference 2>&1
-$raylibTestStatus = $LASTEXITCODE
+$previousShowcaseRoot = $env:ROCKET_SHOWCASE_PACKAGE_ROOT
+try {
+    $env:ROCKET_SHOWCASE_PACKAGE_ROOT = $raylibReference
+    $raylibTestOutput = & $stage3 test $raylibReference 2>&1
+    $raylibTestStatus = $LASTEXITCODE
+} finally {
+    $env:ROCKET_SHOWCASE_PACKAGE_ROOT = $previousShowcaseRoot
+}
 if ($raylibTestOutput) { Write-Host ($raylibTestOutput -join [Environment]::NewLine) }
 if ($raylibTestStatus -ne 0 -or ($raylibTestOutput -join "`n") -notmatch '11 passed; 0 failed') {
     throw 'The Phase 14 raylib reference validation failed during bootstrap.'
@@ -251,7 +257,7 @@ if ((Get-FileHash -LiteralPath $header1 -Algorithm SHA256).Hash -ne
 $raylibBindings1 = Join-Path $generationDirectory 'raylib-bindings-stage2.rocket'
 $raylibBindings2 = Join-Path $generationDirectory 'raylib-bindings-stage3.rocket'
 $raylibBindings3 = Join-Path $generationDirectory 'raylib-bindings-stage3-repeat.rocket'
-$raylibHeader = Join-Path $raylibReference 'native\rocket_raylib_adapter.h'
+$raylibHeader = Join-Path $projectRoot 'src\raylib\rocket_raylib_adapter.h'
 & $stage2 bind $raylibHeader --output $raylibBindings1
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $stage3 bind $raylibHeader --output $raylibBindings2

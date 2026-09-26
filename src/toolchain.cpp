@@ -85,6 +85,9 @@ bool installedLayout(const std::filesystem::path& root,
   result.runtime = runtime;
   result.cross = !isNativeTarget(request.host, request.target);
   result.installedSdk = true;
+  const auto nativeLibraries = root / "lib";
+  if (directory(nativeLibraries))
+    result.libraryDirectories.push_back(nativeLibraries);
   const auto sysroot = root / "sysroot";
   if (directory(sysroot)) result.sysroot = sysroot;
   if (request.target.operatingSystem == TargetOperatingSystem::Windows) {
@@ -92,10 +95,6 @@ bool installedLayout(const std::filesystem::path& root,
       const auto candidate = root / "lib" / name;
       if (directory(candidate)) result.libraryDirectories.push_back(candidate);
     }
-  } else {
-    const auto nativeLibraries = root / "lib";
-    if (directory(nativeLibraries))
-      result.libraryDirectories.push_back(nativeLibraries);
   }
   return true;
 }
@@ -106,7 +105,7 @@ bool validateCrossInputs(const TargetToolchainRequest& request,
   if (request.target.operatingSystem == TargetOperatingSystem::Linux)
     return directory(result.sysroot);
   if (request.target.operatingSystem == TargetOperatingSystem::Windows)
-    return result.libraryDirectories.size() == 3;
+    return result.libraryDirectories.size() == 4;
   return false;
 }
 

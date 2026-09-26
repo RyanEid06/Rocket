@@ -1,0 +1,37 @@
+import rocket.assets
+import rocket.raylib.safe
+import std.process
+import testing
+
+fn main() -> Int:
+    if not testing.start():
+        return 1
+    match safe.open_window(320, 200, "missing asset"):
+        case Ok(window):
+            match process.environment("ROCKET_ASSET_PACKAGE_ROOT"):
+                case None:
+                    return 2
+                case Some(root):
+                    match assets.open_graphics(window, root):
+                        case Err(error):
+                            return 3
+                        case Ok(store):
+                            match assets.load_texture(store, "missing", "assets/missing-image.png"):
+                                case Ok(reference):
+                                    return 4
+                                case Err(error):
+                                    if error != "raylib: asset or uniform not found":
+                                        return 5
+                            match assets.texture(store, "missing"):
+                                case Ok(reference):
+                                    return 6
+                                case Err(error):
+                                    if error != "raylib: asset or uniform not found":
+                                        return 7
+                            let cleaned = assets.cleanup(store)
+                            let closed = safe.close_window(window)
+                            if testing.buffer_live_count() != 0:
+                                return 8
+                            return 0
+        case Err(error):
+            return 9

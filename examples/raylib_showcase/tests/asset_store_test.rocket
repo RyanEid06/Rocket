@@ -1,12 +1,14 @@
 import src.rocket_assets
 import src.rocket_raylib
 import src.rocket_raylib_testing
-import std.file
+import std.process
 
 fn package_root() -> String:
-    if file.exists("assets/orbit.ppm"):
-        return "."
-    return "examples/raylib_showcase"
+    match process.environment("ROCKET_SHOWCASE_PACKAGE_ROOT"):
+        case Some(root):
+            return root
+        case None:
+            return ""
 
 fn succeeded(result: Result[Bool, String]) -> Bool:
     match result:

@@ -84,7 +84,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $fixtures 'phase16_packages') `
         -Destination $compatibilityWork -Recurse
     $phase16App = Join-Path $compatibilityWork 'app'
-    Invoke-CompatibilityCase '2.1' 'compiler-version' @('--version') '^rocketc 2\.1\.0$'
+    Invoke-CompatibilityCase '3.0' 'compiler-version' @('--version') '^rocketc 3\.0\.0$'
     Invoke-CompatibilityCase '1.0' 'hello-source' @('run', (Join-Path $projectRoot 'examples\hello.rocket')) 'Hello from Rocket'
     Invoke-CompatibilityCase '1.1' 'collections-source' @('check', (Join-Path $fixtures 'phase11_map_set_tuple.rocket')) 'check succeeded'
     Invoke-CompatibilityCase '1.2' 'traits-source' @('check', (Join-Path $fixtures 'phase12_traits.rocket')) 'check succeeded'

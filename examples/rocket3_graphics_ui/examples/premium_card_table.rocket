@@ -1,14 +1,19 @@
 # Rocket 3 premium visual showcase. It is deliberately a neutral UI gallery:
 # it contains presentation only, with no game rules, wagering, or product logic.
 
+import rocket.assets
 import rocket.graphics
 import rocket.graphics.canvas
 import rocket.graphics.shapes
 import rocket.motion
 import rocket.raylib.safe
+import rocket.ui.containers
+import rocket.ui.controls
 import rocket.ui.layout
+import rocket.ui.render
 import rocket.ui.styles
 import rocket.ui.theme
+import std.process
 
 fn draw_card(frame: safe.Frame, font: safe.Font, bounds: graphics.Rect, label: String, hovered: Bool, lift: Float) -> Bool:
     let palette = theme.dark_theme()
@@ -33,7 +38,7 @@ fn draw_chip(frame: safe.Frame, center: graphics.Vec2, radius: Float, color: gra
     let ring = shapes.draw_circle_outline(frame, center, radius - 4.0, graphics.color_from_rgba(1.0, 1.0, 1.0, 0.70), thickness: 2.0)
     return true
 
-pub fn draw_premium_showcase(frame: safe.Frame, font: safe.Font, mapping: graphics.VirtualCanvas, elapsed: Float, reduced_motion: Bool, hovered_card: Int, button_hovered: Bool) -> Result[Bool, String]:
+pub fn draw_premium_showcase(frame: safe.Frame, font: safe.Font, card_back: safe.Texture, mapping: graphics.VirtualCanvas, elapsed: Float, reduced_motion: Bool, hovered_card: Int, button_hovered: Bool) -> Result[Bool, String]:
     let palette = theme.dark_theme()
     let logical = graphics.rect(0.0, 0.0, 960.0, 540.0)
     match canvas.begin_clip(frame, mapping, logical):
@@ -42,8 +47,19 @@ pub fn draw_premium_showcase(frame: safe.Frame, font: safe.Font, mapping: graphi
         case Ok(scope):
             let background = shapes.draw_gradient_rect(frame, logical, palette.colors.background, graphics.color_from_rgba(0.04, 0.10, 0.10), vertical: true)
             let table = graphics.rect(42.0, 56.0, 876.0, 428.0)
-            let table_surface = shapes.draw_rounded_rect(frame, table, palette.colors.table, roundness: 0.08)
-            let table_border = shapes.draw_rounded_rect_outline(frame, table, palette.colors.border, roundness: 0.08, thickness: 2.0)
+            let table_style = styles.panel_style(palette.colors.table, styles.border_style(palette.colors.border, 2.0, 17.12), styles.shadow_style(graphics.color_from_rgba(0.0, 0.0, 0.0, 0.0), graphics.vec2(0.0, 0.0)), 0.0)
+            match containers.panel(table, table_style):
+                case Err(message):
+                    let closed = canvas.end_clip(scope)
+                    return Err(message)
+                case Ok(panel):
+                    match render.draw_panel(frame, panel):
+                        case Err(message):
+                            let closed = canvas.end_clip(scope)
+                            return Err(message)
+                        case Ok(drawn):
+                            let ignored = drawn
+            let texture_accent = safe.draw_texture_pro(frame, card_back, graphics.rect(0.0, 0.0, 4.0, 4.0), graphics.rect(56.0, 68.0, 848.0, 12.0), graphics.vec2(0.0, 0.0), 0.0, safe.color(255, 255, 255, 180))
 
             let policy = motion.policy(reduced: reduced_motion, allow_essential: false)
             let lift_tween = motion.pulse(start: 0.0, finish: 10.0, duration: palette.motion.normal)
@@ -63,14 +79,18 @@ pub fn draw_premium_showcase(frame: safe.Frame, font: safe.Font, mapping: graphi
             let gold_chip = draw_chip(frame, graphics.vec2(378.0, 420.0), 24.0, palette.colors.warning)
 
             let style_states = styles.default_styles(palette)
-            let button_style = styles.resolve(style_states, styles.control_state(hovered: button_hovered))
+            let selected = styles.resolve(style_states, styles.control_state(hovered: button_hovered))
             let button_bounds = graphics.rect(708.0, 398.0, 164.0, 52.0)
-            let button = shapes.draw_rounded_rect(frame, button_bounds, button_style.button.background, roundness: 0.25)
-            let button_border = shapes.draw_rounded_rect_outline(frame, button_bounds, button_style.button.border.color, roundness: 0.25, thickness: button_style.button.border.width)
-            let button_text = safe.draw_text_layout(frame, font, "Continue", button_bounds, graphics.text_style("default", 18.0), safe.color(245, 248, 252), horizontal_align: graphics.text_align_center(), vertical_align: graphics.text_align_middle())
+            let button_style = styles.button_style(selected.button.background, styles.text_style(selected.button.text.color, 18.0), styles.border_style(selected.button.border.color, selected.button.border.width, 6.5), selected.button.shadow, selected.button.padding)
+            match render.draw_button(frame, font, controls.Button("Continue", button_bounds, button_style)):
+                case Err(message):
+                    let closed = canvas.end_clip(scope)
+                    return Err(message)
+                case Ok(drawn):
+                    let ignored = drawn
             return canvas.end_clip(scope)
 
-fn render_once(window: safe.Window, font: safe.Font, target: safe.RenderTexture, mapping: graphics.VirtualCanvas) -> Result[Bool, String]:
+fn render_once(window: safe.Window, font: safe.Font, card_back: safe.Texture, target: safe.RenderTexture, mapping: graphics.VirtualCanvas) -> Result[Bool, String]:
     match safe.begin_frame(window):
         case Err(message):
             return Err(message)
@@ -80,7 +100,7 @@ fn render_once(window: safe.Window, font: safe.Font, target: safe.RenderTexture,
                     let aborted = safe.abort_frame(frame)
                     return Err(message)
                 case Ok(target_scope):
-                    let drawn = draw_premium_showcase(frame, font, mapping, 0.16, false, 1, true)
+                    let drawn = draw_premium_showcase(frame, font, card_back, mapping, 0.16, false, 1, true)
                     let target_ended = canvas.end_target(target_scope)
                     let presented = canvas.present(frame, target, mapping)
                     let frame_ended = safe.end_frame(frame)
@@ -90,13 +110,13 @@ fn render_once(window: safe.Window, font: safe.Font, target: safe.RenderTexture,
                         case Ok(value):
                             return Ok(value)
 
-fn run_showcase(window: safe.Window, font: safe.Font, target: safe.RenderTexture) -> Int:
+fn run_showcase(window: safe.Window, font: safe.Font, card_back: safe.Texture, target: safe.RenderTexture) -> Int:
     match graphics.fit_virtual_canvas(graphics.size(960.0, 540.0), graphics.size(960.0, 540.0)):
         case Err(message):
             print(message)
             return 4
         case Ok(mapping):
-            match render_once(window, font, target, mapping):
+            match render_once(window, font, card_back, target, mapping):
                 case Err(message):
                     print(message)
                     return 5
@@ -108,6 +128,35 @@ fn run_showcase(window: safe.Window, font: safe.Font, target: safe.RenderTexture
                         case Ok(saved):
                             return 0
 
+fn with_assets(window: safe.Window, font: safe.Font, target: safe.RenderTexture) -> Int:
+    match process.environment("ROCKET_PREMIUM_PACKAGE_ROOT"):
+        case None:
+            print("Set ROCKET_PREMIUM_PACKAGE_ROOT to the package directory")
+            return 7
+        case Some(package_root):
+            return with_assets_from_root(window, font, target, package_root)
+
+fn with_assets_from_root(window: safe.Window, font: safe.Font, target: safe.RenderTexture, package_root: String) -> Int:
+    match assets.open_graphics(window, package_root, capacity: 8):
+        case Err(message):
+            print(message)
+            return 7
+        case Ok(store):
+            var status = 0
+            match assets.load_texture(store, "card-accent", "assets/card-accent.png"):
+                case Err(message):
+                    print(message)
+                    status = 8
+                case Ok(reference):
+                    match assets.borrow_texture(reference):
+                        case Err(message):
+                            print(message)
+                            status = 9
+                        case Ok(card_back):
+                            status = run_showcase(window, font, card_back, target)
+            let cleaned = assets.cleanup(store)
+            return status
+
 fn with_font(window: safe.Window, font: safe.Font) -> Int:
     match canvas.create_target(window, 960, 540):
         case Err(message):
@@ -116,7 +165,7 @@ fn with_font(window: safe.Window, font: safe.Font) -> Int:
             let window_closed = safe.close_window(window)
             return 3
         case Ok(target):
-            let status = run_showcase(window, font, target)
+            let status = with_assets(window, font, target)
             let target_closed = canvas.unload_target(target)
             let font_closed = safe.unload_font(font)
             let window_closed = safe.close_window(window)

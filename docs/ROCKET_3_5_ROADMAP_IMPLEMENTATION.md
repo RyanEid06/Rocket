@@ -14,6 +14,8 @@
 
 **Implementation owner:** Eddie owns WP1-WP7. Publishing this roadmap authorizes the plan and its handoff; it does not authorize another implementation lane to start or to modify the frozen `v3.0.0` tag.
 
+**Branch policy:** Eddie must perform and push all WP1-WP7 work only on the dedicated `rocket35/eddie` branch, using a separate worktree or checkout from Ryan's compiler lane. Do not commit, push, merge, or fast-forward Rocket 3.5 implementation work directly to `master`. Integration into `master` requires a later, explicit user-authorized review after the concurrent lanes are complete.
+
 ## Repository audit and disposition (2026-09-17)
 
 This roadmap is **accepted with the corrections recorded in this document**. It is needed for Scroll2Roll readiness, but it must not be described as proof that the Rocket 3.0 release or its prior work packages were falsely completed. Rocket 3.0 deliberately shipped a narrower contract; Rocket 3.5 promotes the remaining proven example-local capabilities and adds the missing product-level pieces.
@@ -790,6 +792,8 @@ Each work package should be split into small commits that preserve a green build
 - docs.
 
 Do not combine unrelated compiler/LSP work with Rocket 3.5 game-runtime commits.
+
+Every Rocket 3.5 commit and push must remain on `rocket35/eddie`; `master` is an integration target, not Eddie's working branch.
 
 For migrated behavior, first preserve existing tests or create equivalent failing canonical tests, then move/implement behavior, then remove the duplicate implementation only after the new path is verified.
 
