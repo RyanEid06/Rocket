@@ -556,6 +556,50 @@ def main() -> int:
         "runtime library copy contents differ",
     )
 
+    fake_game_root = work / "game-runtime-root"
+    fake_game_build = work / "game-runtime-build"
+    fake_game_package = work / "game-runtime-package"
+    (fake_game_root / "src" / "raylib").mkdir(parents=True)
+    (fake_game_root / "dependencies" / "installed" / "raylib-6.0").mkdir(
+        parents=True
+    )
+    (fake_game_build / "native" / "linux-x64").mkdir(parents=True)
+    for directory in ("lib", "licenses"):
+        (fake_game_package / directory).mkdir(parents=True)
+    (fake_game_root / "src" / "raylib" / "rocket_raylib_adapter.h").write_text(
+        "adapter\n", encoding="utf-8"
+    )
+    (fake_game_root / "dependencies" / "installed" / "raylib-6.0" / "LICENSE").write_text(
+        "raylib license\n", encoding="utf-8"
+    )
+    for name in package_tool.GAME_RUNTIME_LIBRARIES["linux-x64"]:
+        (fake_game_build / "native" / "linux-x64" / name).write_bytes(
+            name.encode("ascii")
+        )
+    real_package_root = package_tool.ROOT
+    try:
+        package_tool.ROOT = fake_game_root
+        installed_game_runtime = package_tool.install_game_runtime(
+            fake_game_build, fake_game_package, "linux-x64"
+        )
+    finally:
+        package_tool.ROOT = real_package_root
+    check(
+        installed_game_runtime
+        == list(package_tool.GAME_RUNTIME_LIBRARIES["linux-x64"])
+        and (fake_game_package / "lib" / "librocket_raylib_adapter.a").is_file()
+        and (fake_game_package / "lib" / "libraylib.a").is_file()
+        and (
+            fake_game_package
+            / "include"
+            / "rocket"
+            / "raylib"
+            / "rocket_raylib_adapter.h"
+        ).is_file()
+        and (fake_game_package / "licenses" / "RAYLIB-LICENSE.txt").is_file(),
+        "release package omits the canonical game runtime",
+    )
+
     stage0_source = (root / "src" / "main.cpp").read_text()
     selfhost_source = (root / "compiler" / "src" / "main.rocket").read_text()
     bootstrap_source = (root / "scripts" / "phase19_bootstrap.py").read_text()

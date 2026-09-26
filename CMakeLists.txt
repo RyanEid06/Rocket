@@ -187,7 +187,46 @@ endforeach()
 set(PLATFORM Desktop CACHE STRING "raylib target platform" FORCE)
 add_subdirectory("${ROCKET_RAYLIB_SOURCE}" "${CMAKE_BINARY_DIR}/raylib" EXCLUDE_FROM_ALL)
 
+# Raylib's default miniaudio context selects a system backend even when a CI
+# host has no playback device. Build its pinned audio source with an opt-in
+# null backend so the same production library can exercise sound and music
+# ownership on headless hosts. Ordinary runs keep Raylib's default selection.
+set(ROCKET_RAUDIO_ORIGINAL
+  "ma_result result = ma_context_init(NULL, 0, &ctxConfig, &AUDIO.System.context);")
+string(CONCAT ROCKET_RAUDIO_REPLACEMENT
+  "const char *nullAudio = getenv(\"ROCKET_AUDIO_NULL_BACKEND\");\n"
+  "    ma_backend nullBackend = ma_backend_null;\n"
+  "    ma_result result = (nullAudio != NULL && nullAudio[0] == '1' && nullAudio[1] == '\\0')\n"
+  "        ? ma_context_init(&nullBackend, 1, &ctxConfig, &AUDIO.System.context)\n"
+  "        : ma_context_init(NULL, 0, &ctxConfig, &AUDIO.System.context);")
+file(READ "${ROCKET_RAYLIB_SOURCE}/src/raudio.c" ROCKET_RAUDIO_SOURCE)
+string(FIND "${ROCKET_RAUDIO_SOURCE}" "${ROCKET_RAUDIO_ORIGINAL}"
+  ROCKET_RAUDIO_PATCH_POSITION)
+if(ROCKET_RAUDIO_PATCH_POSITION EQUAL -1)
+  message(FATAL_ERROR "Pinned Raylib audio initialization changed; review the headless audio patch")
+endif()
+string(REPLACE "${ROCKET_RAUDIO_ORIGINAL}" "${ROCKET_RAUDIO_REPLACEMENT}"
+  ROCKET_RAUDIO_PATCHED "${ROCKET_RAUDIO_SOURCE}")
+set(ROCKET_RAUDIO_BUILD_COPY "${CMAKE_BINARY_DIR}/generated/raylib/raudio.c")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated/raylib")
+if(EXISTS "${ROCKET_RAUDIO_BUILD_COPY}")
+  file(READ "${ROCKET_RAUDIO_BUILD_COPY}" ROCKET_RAUDIO_BUILD_CONTENT)
+endif()
+if(NOT "${ROCKET_RAUDIO_BUILD_CONTENT}" STREQUAL "${ROCKET_RAUDIO_PATCHED}")
+  file(WRITE "${ROCKET_RAUDIO_BUILD_COPY}" "${ROCKET_RAUDIO_PATCHED}")
+endif()
+get_target_property(ROCKET_RAYLIB_SOURCES raylib SOURCES)
+if(NOT "raudio.c" IN_LIST ROCKET_RAYLIB_SOURCES)
+  message(FATAL_ERROR "Pinned Raylib target no longer lists raudio.c")
+endif()
+list(REMOVE_ITEM ROCKET_RAYLIB_SOURCES "raudio.c")
+list(APPEND ROCKET_RAYLIB_SOURCES "${ROCKET_RAUDIO_BUILD_COPY}")
+set_property(TARGET raylib PROPERTY SOURCES "${ROCKET_RAYLIB_SOURCES}")
+
 set(ROCKET_RAYLIB_PACKAGE "${CMAKE_SOURCE_DIR}/examples/raylib_showcase")
+set(ROCKET_RAYLIB_SOURCE_DIRECTORY "${CMAKE_SOURCE_DIR}/src/raylib")
+set(ROCKET_RAYLIB_HEADER
+  "${ROCKET_RAYLIB_SOURCE_DIRECTORY}/rocket_raylib_adapter.h")
 set(ROCKET_WP33_EXAMPLE_PACKAGE
   "${CMAKE_SOURCE_DIR}/examples/rocket3_graphics_ui")
 set(ROCKET_NATIVE_OUTPUT "${CMAKE_BINARY_DIR}/native/${ROCKET_NATIVE_TARGET}")
@@ -218,9 +257,9 @@ if(TARGET glfw)
 endif()
 
 add_library(rocket_raylib_adapter STATIC
-  examples/raylib_showcase/native/rocket_raylib_adapter.cpp)
+  src/raylib/rocket_raylib_adapter.cpp)
 target_include_directories(rocket_raylib_adapter PUBLIC
-  examples/raylib_showcase/native)
+  src/raylib)
 target_link_libraries(rocket_raylib_adapter PUBLIC raylib)
 set_target_properties(rocket_raylib_adapter PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY "${ROCKET_RAYLIB_NATIVE_OUTPUT}"
@@ -242,6 +281,10 @@ add_library(rocketc_core
   src/toolchain.cpp
   src/lexer.cpp
   src/parser.cpp
+  src/ast_clone.cpp
+  src/workspace_state.cpp
+  src/dependency_graph.cpp
+  src/document_structure.cpp
   src/module_loader.cpp
   src/language_server.cpp
   src/formatter.cpp
@@ -359,8 +402,6 @@ if(LLVM_FOUND)
   add_dependencies(rocketc rocket_runtime)
 endif()
 
-set(ROCKET_RAYLIB_HEADER
-  "${ROCKET_RAYLIB_PACKAGE}/native/rocket_raylib_adapter.h")
 set(ROCKET_RAYLIB_BINDINGS
   "${CMAKE_BINARY_DIR}/generated/raylib/rocket_raylib_adapter.rocket")
 add_custom_command(
@@ -394,6 +435,7 @@ add_custom_target(rocket_raylib_test
   COMMAND ${CMAKE_COMMAND} -E env
           "ROCKET_NATIVE_LIBRARY_ROOT=${ROCKET_NATIVE_OUTPUT}"
           "ROCKET_ARTIFACT_ROOT=${ROCKET_TEST_ARTIFACT_ROOT}"
+          "ROCKET_SHOWCASE_PACKAGE_ROOT=${ROCKET_RAYLIB_PACKAGE}"
           $<TARGET_FILE:rocketc> test "${ROCKET_RAYLIB_PACKAGE}"
   DEPENDS rocket_raylib_bindings
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}"
@@ -444,6 +486,12 @@ add_test(NAME phase19_release_tooling
     --work "${CMAKE_SOURCE_DIR}/out/phase19/release-tooling-unit")
 set_tests_properties(phase19_release_tooling PROPERTIES
   LABELS "phase19;release;packaging;relocation;determinism;portable")
+add_test(NAME rocket35_runtime_foundation_policy
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/tests/rocket35_runtime_foundation_policy_test.py"
+    --source-dir "${CMAKE_SOURCE_DIR}")
+set_tests_properties(rocket35_runtime_foundation_policy PROPERTIES
+  LABELS "rocket35;wp1;raylib;native;packaging;policy")
 function(add_rocketc_test name)
   add_executable(rocketc_${name}_tests tests/${name}_tests.cpp)
   target_link_libraries(rocketc_${name}_tests PRIVATE rocketc_core)
@@ -463,6 +511,14 @@ if(LLVM_FOUND)
 endif()
 add_rocketc_test(diagnostics)
 add_rocketc_test(language_server)
+add_rocketc_test(analysis_queue)
+add_rocketc_test(language_server_analysis)
+add_rocketc_test(language_server_incremental)
+add_rocketc_test(workspace_state)
+if(ROCKETC_ENABLE_SANITIZERS)
+  target_compile_definitions(rocketc_language_server_incremental_tests PRIVATE ROCKETC_ASAN_TEST=1)
+endif()
+set_tests_properties(analysis_queue language_server_analysis PROPERTIES TIMEOUT 30)
 add_rocketc_test(formatter)
 add_rocketc_test(package)
 add_rocketc_test(native)
@@ -570,6 +626,127 @@ set_tests_properties(rocket3_virtual_canvas_stage0 PROPERTIES
   TIMEOUT 420
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_test(NAME rocket35_texture_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp2/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_texture_test.cmake")
+set_tests_properties(rocket35_texture_stage0 PROPERTIES
+  LABELS "rocket35;wp2;texture;canvas;display;stage0"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rocket35_texture_adapter_tests
+  tests/native/rocket35_texture_adapter_tests.cpp)
+target_link_libraries(rocket35_texture_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket35_texture_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket35_texture_adapter COMMAND rocket35_texture_adapter_tests)
+set_tests_properties(rocket35_texture_adapter PROPERTIES
+  LABELS "rocket35;wp2;raylib;native;texture;canvas")
+
+add_test(NAME rocket35_texture_table_native
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp2/${CMAKE_BUILD_TYPE}/table"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_texture_table_test.cmake")
+set_tests_properties(rocket35_texture_table_native PROPERTIES
+  LABELS "rocket35;wp2;texture;canvas;display;native;visual"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_render_effects_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp3/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_render_effects_test.cmake")
+set_tests_properties(rocket35_render_effects_stage0 PROPERTIES
+  LABELS "rocket35;wp3;blend;shader;canvas;stage0"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rocket35_render_effects_adapter_tests
+  tests/native/rocket35_render_effects_adapter_tests.cpp)
+target_link_libraries(rocket35_render_effects_adapter_tests PRIVATE
+  rocket_raylib_adapter)
+set_target_properties(rocket35_render_effects_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket35_render_effects_adapter COMMAND rocket35_render_effects_adapter_tests)
+set_tests_properties(rocket35_render_effects_adapter PROPERTIES
+  LABELS "rocket35;wp3;raylib;native;blend;shader")
+
+add_test(NAME rocket35_render_effects_scene_native
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp3/${CMAKE_BUILD_TYPE}/scene"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_render_effects_scene_test.cmake")
+set_tests_properties(rocket35_render_effects_scene_native PROPERTIES
+  LABELS "rocket35;wp3;blend;shader;canvas;native;visual"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_audio_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp4/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_audio_test.cmake")
+set_tests_properties(rocket35_audio_stage0 PROPERTIES
+  LABELS "rocket35;wp4;audio;stage0"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rocket35_audio_adapter_tests tests/native/rocket35_audio_adapter_tests.cpp)
+target_link_libraries(rocket35_audio_adapter_tests PRIVATE rocket_raylib_adapter)
+set_target_properties(rocket35_audio_adapter_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket35_audio_adapter COMMAND rocket35_audio_adapter_tests)
+set_tests_properties(rocket35_audio_adapter PROPERTIES
+  LABELS "rocket35;wp4;audio;native")
+
+add_executable(rocket35_music_eof_tests tests/native/rocket35_music_eof_tests.cpp)
+target_link_libraries(rocket35_music_eof_tests PRIVATE rocket_raylib_adapter)
+set_target_properties(rocket35_music_eof_tests PROPERTIES
+  MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_test(NAME rocket35_music_eof_null_backend
+  COMMAND rocket35_music_eof_tests
+    "${CMAKE_SOURCE_DIR}/examples/scroll2roll_vertical_slice/assets/click.wav")
+set_tests_properties(rocket35_music_eof_null_backend PROPERTIES
+  LABELS "rocket35;wp4;audio;native;null-backend;eof")
+
+add_test(NAME rocket35_audio_scene_native
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp4/${CMAKE_BUILD_TYPE}/scene"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_audio_scene_test.cmake")
+set_tests_properties(rocket35_audio_scene_native PROPERTIES
+  LABELS "rocket35;wp4;audio;native;visual"
+  SKIP_REGULAR_EXPRESSION "SKIP: audio device unavailable"
+  TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_test(NAME rocket3_ui_context_stage0
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=$<TARGET_FILE:rocketc>"
@@ -648,8 +825,39 @@ add_test(NAME rocket3_asset_store_stage0
     "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_test.cmake")
 set_tests_properties(rocket3_asset_store_stage0 PROPERTIES
-  LABELS "rocket3;wp28;assets;stage0;raylib;native;docs;formatter"
+  LABELS "rocket3;wp28;rocket35;wp5;assets;stage0;raylib;native;docs;formatter"
   TIMEOUT 360
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_ui_render_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp6/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
+    "-DVISUAL=ON"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_ui_render_test.cmake")
+set_tests_properties(rocket35_ui_render_stage0 PROPERTIES
+  LABELS "rocket35;wp6;ui;render;stage0;native;visual;docs;formatter"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_scroll2roll_slice_stage0
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp7/${CMAKE_BUILD_TYPE}/stage0"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_scroll2roll_slice_test.cmake")
+set_tests_properties(rocket35_scroll2roll_slice_stage0 PROPERTIES
+  LABELS "rocket35;wp7;game;stage0;native;visual;audio;performance"
+  TIMEOUT 600
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_test(NAME rocket3_error_lifetime_stage0
@@ -957,12 +1165,14 @@ add_test(NAME cli_build_phase14_raylib_reference
   COMMAND rocketc build "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_build_phase14_raylib_reference PROPERTIES
   PASS_REGULAR_EXPRESSION "rocket-raylib-showcase${CMAKE_EXECUTABLE_SUFFIX}"
+  RESOURCE_LOCK "raylib_showcase_artifacts"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_test_phase14_raylib_reference
   COMMAND rocketc test "${ROCKET_RAYLIB_PACKAGE}")
 set_tests_properties(cli_test_phase14_raylib_reference PROPERTIES
   PASS_REGULAR_EXPRESSION "11 passed\; 0 failed"
+  RESOURCE_LOCK "raylib_showcase_artifacts"
   LABELS "phase14;raylib;native"
   WORKING_DIRECTORY "${ROCKET_RAYLIB_PACKAGE}")
 add_test(NAME cli_phase14_unsafe_failure
@@ -1213,6 +1423,42 @@ set_tests_properties(rocket3_virtual_canvas_self_hosted PROPERTIES
   LABELS "rocket3;wp21;graphics;virtual-canvas;display;selfhost"
   TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket35_texture_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp2/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_texture_test.cmake")
+set_tests_properties(rocket35_texture_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp2;texture;canvas;display;selfhost"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket35_render_effects_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp3/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_render_effects_test.cmake")
+set_tests_properties(rocket35_render_effects_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp3;blend;shader;canvas;selfhost"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+add_test(NAME rocket35_audio_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp4/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_audio_test.cmake")
+set_tests_properties(rocket35_audio_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp4;audio;selfhost"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 add_test(NAME rocket3_ui_context_self_hosted
   COMMAND ${CMAKE_COMMAND}
     "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
@@ -1297,8 +1543,39 @@ add_test(NAME rocket3_asset_store_self_hosted
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_test.cmake")
 set_tests_properties(rocket3_asset_store_self_hosted PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
-  LABELS "rocket3;wp28;assets;selfhost;raylib;native;docs;formatter"
+  LABELS "rocket3;wp28;rocket35;wp5;assets;selfhost;raylib;native;docs;formatter"
   TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_ui_render_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp6/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_ui_render_test.cmake")
+set_tests_properties(rocket35_ui_render_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp6;ui;render;selfhost;native;docs;formatter"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_scroll2roll_slice_self_hosted
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=${ROCKET_SELFHOST_COMPILER}"
+    "-DSTAGE0=$<TARGET_FILE:rocketc>"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DWORK=${CMAKE_SOURCE_DIR}/out/rocket35/wp7/${CMAKE_BUILD_TYPE}/self-hosted"
+    "-DNATIVE_ROOT=${ROCKET_NATIVE_OUTPUT}"
+    "-DNATIVE_TARGET=${ROCKET_NATIVE_TARGET}"
+    "-DEXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+    "-DPYTHON=${Python3_EXECUTABLE}"
+    "-DSOFTWARE_OPENGL_ROOT=${CMAKE_BINARY_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_scroll2roll_slice_test.cmake")
+set_tests_properties(rocket35_scroll2roll_slice_self_hosted PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp7;game;selfhost;native;visual;audio;performance"
+  TIMEOUT 900
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_test(NAME rocket3_error_lifetime_self_hosted
@@ -1476,8 +1753,32 @@ add_test(NAME rocket3_asset_store_target_surface
     -P "${CMAKE_SOURCE_DIR}/tests/rocket3_asset_store_target_surface_test.cmake")
 set_tests_properties(rocket3_asset_store_target_surface PROPERTIES
   FIXTURES_REQUIRED self_hosted_compiler
-  LABELS "rocket3;wp28;assets;target;surface;selfhost;raylib"
+  LABELS "rocket3;wp28;rocket35;wp5;assets;target;surface;selfhost;raylib"
   TIMEOUT 420
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_ui_render_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_ui_render_target_surface_test.cmake")
+set_tests_properties(rocket35_ui_render_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp6;ui;render;target;surface;selfhost"
+  TIMEOUT 480
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_test(NAME rocket35_scroll2roll_target_surface
+  COMMAND ${CMAKE_COMMAND}
+    "-DROCKETC=$<TARGET_FILE:rocketc>"
+    "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
+    "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    -P "${CMAKE_SOURCE_DIR}/tests/rocket35_scroll2roll_target_surface_test.cmake")
+set_tests_properties(rocket35_scroll2roll_target_surface PROPERTIES
+  FIXTURES_REQUIRED self_hosted_compiler
+  LABELS "rocket35;wp7;game;target;surface;selfhost"
+  TIMEOUT 480
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_test(NAME rocket3_error_lifetime_target_surface
@@ -1654,7 +1955,8 @@ if(LLVM_FOUND)
       --configuration $<CONFIG> --target "${ROCKET_NATIVE_TARGET}"
       --package-count 16 --iterations 3)
   set_tests_properties(phase20_application_validation PROPERTIES
-    LABELS "phase20;application;performance" TIMEOUT 240)
+    LABELS "phase20;application;performance" TIMEOUT 240
+    RESOURCE_LOCK "raylib_showcase_artifacts")
 endif()
 add_test(NAME cli_phase8_invalid_manifest
   COMMAND ${CMAKE_COMMAND}
@@ -1917,6 +2219,7 @@ if(LLVM_FOUND)
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_build_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
+    RESOURCE_LOCK "raylib_showcase_artifacts"
     LABELS "phase14;raylib;native"
     PASS_REGULAR_EXPRESSION "rocket-raylib-showcase${CMAKE_EXECUTABLE_SUFFIX}"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
@@ -1925,6 +2228,7 @@ if(LLVM_FOUND)
       "${ROCKET_RAYLIB_PACKAGE}")
   set_tests_properties(cli_self_hosted_test_phase14_raylib_reference PROPERTIES
     FIXTURES_REQUIRED self_hosted_compiler
+    RESOURCE_LOCK "raylib_showcase_artifacts"
     LABELS "phase14;raylib;native"
     PASS_REGULAR_EXPRESSION "11 passed\; 0 failed"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
@@ -1934,7 +2238,7 @@ if(LLVM_FOUND)
       "-DSELFHOST=${ROCKET_SELFHOST_COMPILER}"
       "-DHEADER=${ROCKET_RAYLIB_HEADER}"
       "-DGENERATED=${ROCKET_RAYLIB_BINDINGS}"
-      "-DVENDORED=${ROCKET_RAYLIB_PACKAGE}/src/rocket_raylib_adapter.rocket"
+      "-DVENDORED=${CMAKE_SOURCE_DIR}/stdlib/rocket/raylib/native.rocket"
       "-DWORK=${CMAKE_BINARY_DIR}/phase14-generation"
       -P "${CMAKE_SOURCE_DIR}/tests/native/phase14_generation_test.cmake")
   set_tests_properties(cli_phase14_raylib_generation_parity PROPERTIES
@@ -2227,3 +2531,11 @@ if(APPLE)
 endif()
 set_tests_properties(${ROCKET_CONFIGURED_TESTS} PROPERTIES
   ENVIRONMENT "${ROCKET_CONFIGURED_TEST_ENVIRONMENT}")
+set_property(TEST rocket35_music_eof_null_backend APPEND PROPERTY ENVIRONMENT
+  "ROCKET_AUDIO_NULL_BACKEND=1")
+set_property(TEST cli_test_phase14_raylib_reference APPEND PROPERTY ENVIRONMENT
+  "ROCKET_SHOWCASE_PACKAGE_ROOT=${ROCKET_RAYLIB_PACKAGE}")
+if(TEST cli_self_hosted_test_phase14_raylib_reference)
+  set_property(TEST cli_self_hosted_test_phase14_raylib_reference APPEND PROPERTY ENVIRONMENT
+    "ROCKET_SHOWCASE_PACKAGE_ROOT=${ROCKET_RAYLIB_PACKAGE}")
+endif()

@@ -202,6 +202,8 @@ ROCKET_API int64_t rlv_render_texture_width(int64_t render_texture_id);
 ROCKET_API int64_t rlv_render_texture_height(int64_t render_texture_id);
 ROCKET_API double rlv_render_texture_width_f64(int64_t render_texture_id);
 ROCKET_API double rlv_render_texture_height_f64(int64_t render_texture_id);
+ROCKET_API int64_t rlv_render_texture_set_filter(int64_t window_id, int64_t render_texture_id, int64_t filter_mode);
+ROCKET_API int64_t rlv_render_texture_get_filter(int64_t render_texture_id);
 ROCKET_API int64_t rlv_render_texture_unload(int64_t render_texture_id);
 ROCKET_API int64_t rlv_render_texture_live_count(void);
 ROCKET_API int64_t rlv_render_target_begin(int64_t frame_id, int64_t render_texture_id);
@@ -223,6 +225,9 @@ ROCKET_API int64_t rlv_screenshot_count(void);
 ROCKET_API rocket_bool rlv_shader_supported(int64_t window_id);
 ROCKET_API int64_t rlv_shader_load_files(int64_t window_id, int64_t vertex_path_buffer_id, int64_t fragment_path_buffer_id);
 ROCKET_API int64_t rlv_shader_load_memory(int64_t window_id, int64_t vertex_source_buffer_id, int64_t fragment_source_buffer_id);
+/* UTF-8 diagnostic from the most recent shader load on this adapter instance. */
+ROCKET_API int64_t rlv_shader_diagnostic_length(void);
+ROCKET_API int64_t rlv_shader_diagnostic_byte(int64_t index);
 ROCKET_API int64_t rlv_shader_unload(int64_t shader_id);
 ROCKET_API int64_t rlv_shader_live_count(void);
 ROCKET_API int64_t rlv_shader_uniform_live_count(void);
@@ -259,15 +264,27 @@ ROCKET_API int64_t rlv_font_live_count(void);
 
 ROCKET_API int64_t rlv_audio_open(void);
 ROCKET_API int64_t rlv_audio_close(int64_t audio_id);
-ROCKET_API rocket_bool rlv_audio_ready(int64_t audio_id);
+ROCKET_API int64_t rlv_audio_ready(int64_t audio_id);
 ROCKET_API int64_t rlv_sound_load(int64_t audio_id, int64_t path_buffer_id);
 ROCKET_API int64_t rlv_sound_tone(int64_t audio_id, double frequency, double seconds);
 ROCKET_API int64_t rlv_sound_play(int64_t sound_id);
 ROCKET_API int64_t rlv_sound_stop(int64_t sound_id);
+ROCKET_API int64_t rlv_sound_playing(int64_t sound_id);
 ROCKET_API int64_t rlv_sound_set_volume(int64_t sound_id, double volume);
+ROCKET_API int64_t rlv_sound_set_pitch(int64_t sound_id, double pitch);
 ROCKET_API int64_t rlv_sound_unload(int64_t sound_id);
 ROCKET_API int64_t rlv_sound_live_count(void);
 
+ROCKET_API int64_t rlv_music_load(int64_t audio_id, int64_t path_buffer_id);
+ROCKET_API int64_t rlv_music_play(int64_t music_id);
+ROCKET_API int64_t rlv_music_update(int64_t music_id);
+ROCKET_API int64_t rlv_music_pause(int64_t music_id);
+ROCKET_API int64_t rlv_music_resume(int64_t music_id);
+ROCKET_API int64_t rlv_music_stop(int64_t music_id);
+ROCKET_API int64_t rlv_music_playing(int64_t music_id);
+ROCKET_API int64_t rlv_music_set_volume(int64_t music_id, double volume);
+ROCKET_API int64_t rlv_music_set_looping(int64_t music_id, rocket_bool looping);
+ROCKET_API int64_t rlv_music_unload(int64_t music_id);
 ROCKET_API int64_t rlv_music_live_count(void);
 
 ROCKET_API int64_t rlv_asset_store_create(int64_t window_id, int64_t audio_id, int64_t package_root_buffer_id);

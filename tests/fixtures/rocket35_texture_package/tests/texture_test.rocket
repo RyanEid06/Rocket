@@ -1,0 +1,216 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.graphics.input
+import rocket.raylib.safe
+import testing
+
+fn succeeded(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(message):
+            return false
+
+fn failed(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return false
+        case Err(message):
+            return true
+
+fn near(left: Float, right: Float) -> Bool:
+    return left - right < 0.001 and right - left < 0.001
+
+fn main() -> Int:
+    if not testing.start():
+        return 1
+    match safe.open_window_quality(800, 600, "WP2 textures", true, true, true):
+        case Err(message):
+            return 2
+        case Ok(window):
+            if not succeeded(safe.set_target_fps(window, 60)):
+                return 3
+            match safe.frame_time(window):
+                case Err(message):
+                    return 45
+                case Ok(seconds):
+                    if seconds < 0.0:
+                        return 46
+            match safe.elapsed_time(window):
+                case Err(message):
+                    return 47
+                case Ok(seconds):
+                    if seconds < 0.0:
+                        return 48
+            match safe.window_should_close(window):
+                case Err(message):
+                    return 4
+                case Ok(should_close):
+                    if should_close:
+                        return 5
+            if not testing.set_display(800, 600, 1600, 1200, 2.0):
+                return 6
+            match canvas.from_window(window, graphics.size(800.0, 450.0)):
+                case Err(message):
+                    return 7
+                case Ok(mapping):
+                    if not near(mapping.viewport.y, 150.0):
+                        return 8
+                    if not testing.set_mouse(400, 300):
+                        return 9
+                    match input.pointer_position_in_canvas(window, mapping):
+                        case Err(message):
+                            return 10
+                        case Ok(position):
+                            match position:
+                                case None:
+                                    return 11
+                                case Some(point):
+                                    if not near(point.x, 400.0) or not near(point.y, 225.0):
+                                        return 12
+                    if not testing.set_display(1000, 600, 2000, 1200, 2.0) or not testing.set_mouse(500, 300):
+                        return 49
+                    match canvas.pointer_position(window, graphics.size(800.0, 450.0)):
+                        case Err(message):
+                            return 50
+                        case Ok(position):
+                            match position:
+                                case None:
+                                    return 51
+                                case Some(point):
+                                    if not near(point.x, 400.0) or not near(point.y, 225.0):
+                                        return 52
+                    match safe.window_width(window):
+                        case Err(message):
+                            return 53
+                        case Ok(width):
+                            if width != 1000:
+                                return 54
+            if not testing.set_display_capabilities():
+                return 55
+            if not succeeded(safe.set_window_fullscreen(window, true)) or not succeeded(safe.set_window_borderless(window, true)):
+                return 56
+            match safe.window_borderless(window):
+                case Err(message):
+                    return 57
+                case Ok(enabled):
+                    if not enabled:
+                        return 58
+            if not succeeded(safe.set_window_borderless(window, false)):
+                return 59
+            var cycle = 0
+            while cycle < 20:
+                match safe.load_texture(window, "assets/card-atlas.png"):
+                    case Err(message):
+                        return 13
+                    case Ok(texture):
+                        match safe.texture_width(texture):
+                            case Err(message):
+                                return 14
+                            case Ok(width):
+                                if width != 64:
+                                    return 15
+                        if not succeeded(safe.set_texture_filter(window, texture, safe.bilinear_filter())):
+                            return 16
+                        if not succeeded(safe.set_texture_filter(window, texture, safe.trilinear_filter())):
+                            return 60
+                        if not succeeded(safe.set_texture_filter(window, texture, safe.bilinear_filter())):
+                            return 61
+                        match safe.get_texture_filter(texture):
+                            case Err(message):
+                                return 17
+                            case Ok(mode):
+                                if mode.mode != safe.bilinear_filter().mode:
+                                    return 18
+                        if not testing.set_anisotropy(0):
+                            return 19
+                        if cycle == 0:
+                            if not testing.set_anisotropy(16) or not safe.texture_filter_supported(safe.anisotropic_16x_filter()) or safe.texture_max_anisotropy() < 16.0:
+                                return 62
+                            if not succeeded(safe.set_texture_filter(window, texture, safe.anisotropic_16x_filter())):
+                                return 63
+                            if not testing.set_anisotropy(0):
+                                return 64
+                        if safe.texture_filter_supported(safe.anisotropic_16x_filter()):
+                            return 20
+                        match safe.set_texture_filter_with_fallback(window, texture, safe.anisotropic_16x_filter(), safe.point_filter()):
+                            case Err(message):
+                                return 21
+                            case Ok(mode):
+                                if mode.mode != safe.point_filter().mode:
+                                    return 22
+                        match safe.create_render_texture(window, 800, 450):
+                            case Err(message):
+                                return 23
+                            case Ok(target):
+                                if not succeeded(canvas.set_output_filter(window, target, cycle != 0)):
+                                    return 24
+                                match safe.get_render_texture_filter(target):
+                                    case Err(message):
+                                        return 65
+                                    case Ok(mode):
+                                        if cycle == 0 and mode.mode != safe.point_filter().mode:
+                                            return 66
+                                        if cycle != 0 and mode.mode != safe.bilinear_filter().mode:
+                                            return 67
+                                match safe.begin_frame(window):
+                                    case Err(message):
+                                        return 25
+                                    case Ok(frame):
+                                        match canvas.begin_target(frame, target):
+                                            case Err(message):
+                                                return 26
+                                            case Ok(scope):
+                                                if not succeeded(safe.clear_background(frame, safe.color(10, 60, 50))):
+                                                    return 27
+                                                let source = graphics.rect(0.0, 0.0, 32.0, 32.0)
+                                                let dest = graphics.rect(100.0, 100.0, 64.0, 64.0)
+                                                if not succeeded(safe.draw_texture_pro(frame, texture, source, dest, graphics.vec2(32.0, 32.0), 22.0, safe.color(255, 255, 255))):
+                                                    return 28
+                                                if not succeeded(safe.draw_texture_pro(frame, texture, graphics.rect(0.0, 32.0, 32.0, -32.0), dest, graphics.vec2(0.0, 0.0), 0.0, safe.color(255, 255, 255))):
+                                                    return 29
+                                                if not failed(safe.draw_texture_pro(frame, texture, graphics.rect(0.0, 0.0, 100.0, 100.0), dest, graphics.vec2(0.0, 0.0), 0.0, safe.color(255, 255, 255))):
+                                                    return 30
+                                                if not succeeded(canvas.end_target(scope)):
+                                                    return 31
+                                        match canvas.from_window(window, graphics.size(800.0, 450.0)):
+                                            case Err(message):
+                                                return 32
+                                            case Ok(mapping):
+                                                if not succeeded(canvas.present(frame, target, mapping)):
+                                                    return 33
+                                        if not succeeded(canvas.present_current(window, frame, target, graphics.size(800.0, 450.0))):
+                                            return 68
+                                        if not succeeded(safe.end_frame(frame)):
+                                            return 34
+                                if not succeeded(safe.save_render_texture_png(window, target, "wp2-logical.png")):
+                                    return 35
+                                if not succeeded(safe.unload_render_texture(target)):
+                                    return 36
+                                match safe.get_render_texture_filter(target):
+                                    case Ok(mode):
+                                        return 37
+                                    case Err(message):
+                                        let ignored = message
+                        if not succeeded(safe.unload_texture(texture)):
+                            return 38
+                        if not failed(safe.unload_texture(texture)):
+                            return 39
+                        match safe.texture_width(texture):
+                            case Ok(width):
+                                return 40
+                            case Err(message):
+                                let ignored = message
+                cycle = cycle + 1
+            if testing.texture_count() != 0 or testing.screenshot_count() != 20:
+                return 41
+            if not succeeded(safe.save_screenshot(window, "wp2-window.png")):
+                return 42
+            if not succeeded(safe.close_window(window)):
+                return 43
+            match safe.frame_time(window):
+                case Ok(seconds):
+                    return 44
+                case Err(message):
+                    let ignored = message
+    return 0

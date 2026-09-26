@@ -1,2 +1,9 @@
-pub extern fn rlv_enable_test_mode(enabled: Bool) -> Int
-pub extern fn rlv_test_reset() -> Int
+import rocket.raylib.native
+
+pub fn rlv_enable_test_mode(enabled: Bool) -> Int:
+    unsafe:
+        return native.rlv_enable_test_mode(enabled)
+
+pub fn rlv_test_reset() -> Int:
+    unsafe:
+        return native.rlv_test_reset()

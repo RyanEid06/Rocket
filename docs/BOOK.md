@@ -7,6 +7,9 @@ surface index is
 `ROCKET_3_0_SYNTAX_DICTIONARY.md` and the complete disposition of repository
 documentation is in `DOCUMENTATION_STATUS.md`.
 
+The in-progress Rocket 3.5 game-runtime consolidation is documented in
+`ROCKET_3_5_RUNTIME_FOUNDATION.md`.
+
 ## 1. Build and run
 
 Create a package with `rocketc new hello`, then use `rocketc check hello`,
@@ -72,16 +75,17 @@ and `rocket.ui.controls` supplies styled text, image, separator, badge, pill,
 button, and icon-button values over the centralized UI interaction contract.
 `rocket.ui.containers` adds panels, dialogs, overlays, tooltips, and toasts with
 explicit stack order, modal capture, and nested child clipping.
+Rocket 3.5 adds `rocket.ui.render` to draw those panels, styled buttons,
+labels, asset-backed images, and progress bars on a logical canvas. It consumes
+the existing UI response and style values; see `ROCKET_3_5_UI_RENDER.md`.
 `rocket.motion` supplies value-owned easing, tweens, timelines, and reduced
 motion. These modules are ordinary bundled Rocket source and keep native handles
 out of the normal application surface.
 
-The accepted typed asset store is currently the reference-package module
-`examples/raylib_showcase/src/rocket_assets.rocket`, imported as
-`src.rocket_assets`. It owns typed texture, font, sound, music, and shader
-references with package-rooted paths, an explicit bounded capacity (256 by
-default), deterministic exhaustion, and explicit cleanup. The planned
-`rocket.assets` namespace is not available in this checkout.
+Rocket 3.5 bundles `rocket.assets` for typed texture, font, sound, music, and
+shader references with package-rooted paths, bounded capacity (256 logical names
+by default), and explicit cleanup. See `ROCKET_3_5_ASSETS.md`. The older
+`src.rocket_assets` reference package remains for Rocket 3.0 compatibility.
 
 ## 8. Tools and reference
 

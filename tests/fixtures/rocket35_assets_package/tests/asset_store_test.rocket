@@ -1,0 +1,216 @@
+import rocket.assets
+import rocket.raylib.safe
+import testing
+import std.process
+
+fn package_root() -> String:
+    match process.environment("ROCKET_ASSET_PACKAGE_ROOT"):
+        case Some(root):
+            return root
+        case None:
+            return ""
+
+fn succeeded(result: Result[Bool, String]) -> Bool:
+    match result:
+        case Ok(value):
+            return value
+        case Err(message):
+            return false
+
+fn graphics_only_cycle() -> Int:
+    match safe.open_window(320, 180, "graphics-only asset store"):
+        case Err(message):
+            return 40
+        case Ok(window):
+            match assets.open_graphics(window, package_root(), capacity: 1):
+                case Err(message):
+                    return 41
+                case Ok(store):
+                    match assets.load_texture(store, "hero", "assets/orbit.ppm"):
+                        case Err(message):
+                            return 42
+                        case Ok(reference):
+                            match assets.borrow_texture(reference):
+                                case Err(message):
+                                    return 43
+                                case Ok(texture):
+                                    if texture.id <= 0:
+                                        return 44
+                    match assets.load_texture(store, "second", "assets/orbit.ppm"):
+                        case Ok(reference):
+                            return 53
+                        case Err(message):
+                            if message != "raylib: asset store capacity exceeded":
+                                return 54
+                    match assets.load_sound(store, "click", "assets/about.txt"):
+                        case Ok(reference):
+                            return 45
+                        case Err(message):
+                            if message != "raylib: device or backend unavailable":
+                                return 46
+                    match assets.load_music(store, "theme", "assets/about.txt"):
+                        case Ok(reference):
+                            return 47
+                        case Err(message):
+                            if message != "raylib: device or backend unavailable":
+                                return 48
+                    if not succeeded(assets.cleanup(store)) or not succeeded(assets.cleanup(store)):
+                        return 49
+            if not succeeded(safe.close_window(window)):
+                return 50
+    return 0
+
+fn main() -> Int:
+    if not testing.start():
+        return 1
+    match safe.open_window(320, 180, "asset store test"):
+        case Err(message):
+            return 2
+        case Ok(window):
+            match safe.open_audio():
+                case Err(message):
+                    return 3
+                case Ok(audio):
+                    match assets.open(window, audio, package_root()):
+                        case Err(message):
+                            return 4
+                        case Ok(store):
+                            match assets.capacity(store):
+                                case Err(message):
+                                    return 38
+                                case Ok(value):
+                                    if value != 256:
+                                        return 39
+                            match assets.load_texture(store, "hero", "assets/orbit.ppm"):
+                                case Err(message):
+                                    return 5
+                                case Ok(hero):
+                                    match assets.texture(store, "hero"):
+                                        case Err(message):
+                                            return 55
+                                        case Ok(cached):
+                                            if cached.id != hero.id:
+                                                return 56
+                                    match assets.load_texture(store, "hero-alias", "assets/orbit.ppm"):
+                                        case Err(message):
+                                            return 6
+                                        case Ok(alias):
+                                            match assets.borrow_texture(hero):
+                                                case Err(message):
+                                                    return 7
+                                                case Ok(hero_texture):
+                                                    match assets.borrow_texture(alias):
+                                                        case Err(message):
+                                                            return 8
+                                                        case Ok(alias_texture):
+                                                            if hero_texture.id != alias_texture.id:
+                                                                return 9
+                                                    match safe.unload_texture(hero_texture):
+                                                        case Ok(released):
+                                                            return 51
+                                                        case Err(message):
+                                                            if message != "raylib: owned resource is still live":
+                                                                return 52
+                            match assets.load_font(store, "body", "assets/about.txt"):
+                                case Err(message):
+                                    return 10
+                                case Ok(font):
+                                    match assets.borrow_font(font):
+                                        case Err(message):
+                                            return 11
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 12
+                            match assets.load_sound(store, "click", "assets/about.txt"):
+                                case Err(message):
+                                    return 13
+                                case Ok(sound):
+                                    match assets.borrow_sound(sound):
+                                        case Err(message):
+                                            return 14
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 15
+                            match assets.load_music(store, "theme", "assets/about.txt"):
+                                case Err(message):
+                                    return 16
+                                case Ok(music):
+                                    match assets.borrow_music(music):
+                                        case Err(message):
+                                            return 17
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 18
+                            match assets.load_shader(store, "glow", "", "assets/about.txt"):
+                                case Err(message):
+                                    return 19
+                                case Ok(shader):
+                                    match assets.borrow_shader(shader):
+                                        case Err(message):
+                                            return 20
+                                        case Ok(value):
+                                            if value.id <= 0:
+                                                return 21
+                            if testing.asset_count(store.id) != 6 or testing.physical_asset_count(store.id) != 5:
+                                return 22
+                            match assets.texture(store, "hero"):
+                                case Err(message):
+                                    return 23
+                                case Ok(reference):
+                                    if reference.id <= 0:
+                                        return 24
+                            match assets.texture(store, "body"):
+                                case Ok(reference):
+                                    return 25
+                                case Err(message):
+                                    if message != "raylib: asset type mismatch":
+                                        return 26
+                            match assets.load_texture(store, "hero", "assets/orbit.ppm"):
+                                case Ok(reference):
+                                    return 27
+                                case Err(message):
+                                    if message != "raylib: duplicate asset name":
+                                        return 28
+                            match assets.load_texture(store, "escape", "../outside.png"):
+                                case Ok(reference):
+                                    return 29
+                                case Err(message):
+                                    if message != "raylib: asset path escapes package root":
+                                        return 30
+                            match assets.texture(store, "hero"):
+                                case Err(message):
+                                    return 31
+                                case Ok(stale):
+                                    if not succeeded(assets.cleanup(store)):
+                                        return 32
+                                    match assets.borrow_texture(stale):
+                                        case Ok(value):
+                                            return 33
+                                        case Err(message):
+                                            if message != "raylib: stale or already released handle":
+                                                return 34
+                            if not succeeded(assets.cleanup(store)):
+                                return 35
+                    match assets.open(window, audio, package_root(), capacity: 1):
+                        case Err(message):
+                            return 40
+                        case Ok(small_store):
+                            match assets.load_texture(small_store, "first", "assets/orbit.ppm"):
+                                case Err(message):
+                                    return 41
+                                case Ok(first):
+                                    match assets.load_texture(small_store, "second", "assets/orbit.ppm"):
+                                        case Ok(second):
+                                            return 42
+                                        case Err(message):
+                                            if message != "raylib: asset store capacity exceeded":
+                                                return 43
+                            if testing.asset_count(small_store.id) != 1 or testing.physical_asset_count(small_store.id) != 1:
+                                return 44
+                            if not succeeded(assets.cleanup(small_store)):
+                                return 45
+                    if not succeeded(safe.close_audio(audio)):
+                        return 36
+            if not succeeded(safe.close_window(window)):
+                return 37
+    return graphics_only_cycle()

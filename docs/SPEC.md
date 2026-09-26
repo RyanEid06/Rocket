@@ -576,10 +576,10 @@ the modal overlay with the largest order owns input and focus capture. Modal
 entry/exit delegates to `rocket.ui`, and panel clipping delegates to
 `rocket.graphics.canvas`, preserving nested safe-scissor intersection and LIFO
 scope restoration without exposing native state.
-The accepted typed asset-store reference
-implementation is the ordinary package module `src.rocket_assets` under
-`examples/raylib_showcase/src/`; the planned `rocket.assets` namespace is not a
-standard-library module in this checkout. Its logical and physical resource
+Rocket 3.0's typed asset-store reference implementation was the ordinary
+package module `src.rocket_assets` under `examples/raylib_showcase/src/`.
+Rocket 3.5 bundles the same ownership model as `rocket.assets`; see
+`ROCKET_3_5_ASSETS.md`. Its logical and physical resource
 caches are bounded by the `open` capacity (256 by default), reject exhaustion
 before loading, and invalidate only measurements associated with fonts released
 by cleanup. UI contexts default to 2,048 retained IDs and an eight-frame unseen

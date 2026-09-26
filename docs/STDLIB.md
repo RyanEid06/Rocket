@@ -707,11 +707,29 @@ scissor token. Nested panels therefore use the backend's deterministic
 intersection, strict LIFO restoration, and frame-end leak detection without
 exposing native handles or scope state.
 
-## Typed asset-store reference package
+## `rocket.ui.render` (Rocket 3.5 WP6)
 
-The accepted Wave C typed asset store is currently an ordinary package module
-at `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
-`src.rocket_assets`. It exposes `AssetStore`, `TextureRef`, `FontRef`,
+`rocket.ui.render` draws the existing panel and button values, text labels,
+asset-backed images, and progress bars in logical coordinates. It consumes
+`controls.Button` after `controls.button` has selected its style from the
+current `ui.Response`; drawing adds no interaction state. Images accept a
+borrowed `assets.TextureRef` or resolve `controls.Image.asset_name` through a
+live `assets.AssetStore`, with contain, cover, and stretch fit policies, tint,
+opacity, and optional clipping. Labels use the canonical font layout backend
+for alignment, wrapping, clipping, and overflow.
+
+Draw into a logical render target and present it through
+`rocket.graphics.canvas` for resize and DPI scaling. When drawing children of
+a clipping panel on that target, use `begin_panel_content_clip` and
+`end_panel_content_clip` in order. `containers.begin_panel_clip` remains the
+screen-frame mapping variant. The supported shadow is an offset silhouette;
+the backend has no blurred-shadow primitive. The existing input/container
+model has no scroll position or wheel state, so WP6 does not add scrolling.
+See `ROCKET_3_5_UI_RENDER.md` for signatures and an example.
+
+## Typed assets
+
+The bundled Rocket 3.5 module `rocket.assets` exposes `AssetStore`, `TextureRef`, `FontRef`,
 `SoundRef`, `MusicRef`, and `ShaderRef`, with typed load, lookup, borrow, and
 idempotent `cleanup` operations. `open` accepts a bounded logical-resource
 capacity from 1 through 100,000 (256 by default), and `capacity` reports the
@@ -719,11 +737,12 @@ frozen value. `open_graphics(window, package_root = ".")` creates the default-
 capacity store without an audio device for texture, font, and shader workloads;
 sound and music loads from that store return the stable unavailable error.
 Exhaustion occurs before physical loading, so the logical and
-physical caches remain unchanged. Paths are rooted to the package, traversal and
+physical caches remain unchanged. Paths are rooted to the explicit package root, traversal and
 symlink escapes are rejected, duplicate names and wrong-type lookups return
-recoverable errors, and cleanup invalidates borrowed references. The planned
-`rocket.assets` / `stdlib/rocket/assets` namespace in the Rocket 3 design is not
-an available standard-library module in this checkout.
+recoverable errors, and cleanup invalidates borrowed references. `open_graphics`
+also accepts an optional capacity. See `ROCKET_3_5_ASSETS.md` for use and cleanup
+order. Rocket 3.0's `src.rocket_assets` package module remains a historical
+compatibility surface.
 
 WP30 calibrated the integrated defaults in the Windows x64 Release build; the
 reproducible measurements and environment are recorded in

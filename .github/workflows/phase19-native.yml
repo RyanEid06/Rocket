@@ -8,7 +8,7 @@ on:
         required: false
         type: string
   push:
-    branches: [master, main]
+    branches: [master, main, rocket35/eddie]
   pull_request:
 
 permissions:
@@ -37,6 +37,8 @@ jobs:
           - target: macos-arm64
             runner: macos-14
     runs-on: ${{ matrix.runner }}
+    env:
+      ROCKET_AUDIO_NULL_BACKEND: ${{ matrix.target == 'macos-arm64' && '0' || '1' }}
 
     steps:
       - name: Check out exact source

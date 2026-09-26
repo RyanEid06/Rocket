@@ -1,0 +1,19 @@
+[package]
+name = "rocket35_assets_package"
+version = "0.1.0"
+entry = "src/main.rocket"
+
+[test]
+directory = "tests"
+
+[native.windows-x64]
+libraries = "rocket_raylib_adapter.lib;raylib.lib;opengl32.lib;winmm.lib;gdi32.lib;user32.lib;shell32.lib;ole32.lib"
+
+[native.linux-x64]
+libraries = "librocket_raylib_adapter.a;libraylib.a;GL;m;pthread;dl;rt;X11"
+
+[native.linux-arm64]
+libraries = "librocket_raylib_adapter.a;libraylib.a;GL;m;pthread;dl;rt;X11"
+
+[native.macos-arm64]
+libraries = "librocket_raylib_adapter.a;libraylib.a;framework:Cocoa;framework:IOKit;framework:CoreVideo;framework:OpenGL"

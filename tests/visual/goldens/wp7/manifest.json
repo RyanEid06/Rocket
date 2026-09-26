@@ -1,0 +1,9 @@
+{
+  "schema": "rocket35-wp7-scroll2roll-v1",
+  "reference": "scroll2roll-slice.png",
+  "sha256": "f077edbe9deaddc3938031a28d582a063fc2401475406e9a59af87d43744140c",
+  "size": [960, 540],
+  "reference_host": "Windows x64, MSVC 19.44, Raylib 6.0, AMD Radeon OpenGL 3.3",
+  "tolerance": {"mean_absolute_error": 6.0, "changed_pixel_ratio": 0.10},
+  "coverage": ["table texture", "front and back card art", "chips", "font", "panel", "button", "logical target"]
+}

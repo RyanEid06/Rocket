@@ -1,0 +1,12 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.raylib.safe
+
+pub fn sample_draw(frame: safe.Frame, texture: safe.Texture) -> Result[Bool, String]:
+    return safe.draw_texture_pro(frame, texture, graphics.rect(0.0, 0.0, 32.0, 32.0), graphics.rect(80.0, 60.0, 64.0, 64.0), graphics.vec2(32.0, 32.0), 15.0, safe.color(255, 255, 255))
+
+pub fn sample_output(window: safe.Window, target: safe.RenderTexture) -> Result[Bool, String]:
+    return canvas.set_output_filter(window, target, true)
+
+fn main() -> Int:
+    return 0
