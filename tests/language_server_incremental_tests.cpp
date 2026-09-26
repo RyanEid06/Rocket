@@ -27,6 +27,16 @@ std::string jsonQuoted(const std::string &text) {
 std::string uri(const std::string &name) {
   return "file:///C:/workspace/" + name + ".rocket";
 }
+std::string fileUri(const std::filesystem::path &path) {
+  std::string result = "file:///";
+  for (const char character : path.generic_string()) {
+    if (character == ' ')
+      result += "%20";
+    else
+      result.push_back(character);
+  }
+  return result;
+}
 void initialize(rocket::test::LspSession &session) {
   session.send(
       R"({"jsonrpc":"2.0","id":"init","method":"initialize","params":{}})");
@@ -409,8 +419,8 @@ void compareRootlessWatchedDependency(int &failures) {
     std::ofstream stream(library);
     stream << before;
   }
-  const auto libraryUri = "file:///" + library.generic_string();
-  const auto consumerUri = "file:///" + consumer.generic_string();
+  const auto libraryUri = fileUri(library);
+  const auto consumerUri = fileUri(consumer);
   const auto begin = [&](rocket::test::LspSession &session) {
     initialize(session);
     session.send(
