@@ -281,6 +281,10 @@ add_library(rocketc_core
   src/toolchain.cpp
   src/lexer.cpp
   src/parser.cpp
+  src/ast_clone.cpp
+  src/workspace_state.cpp
+  src/dependency_graph.cpp
+  src/document_structure.cpp
   src/module_loader.cpp
   src/language_server.cpp
   src/formatter.cpp
@@ -507,6 +511,14 @@ if(LLVM_FOUND)
 endif()
 add_rocketc_test(diagnostics)
 add_rocketc_test(language_server)
+add_rocketc_test(analysis_queue)
+add_rocketc_test(language_server_analysis)
+add_rocketc_test(language_server_incremental)
+add_rocketc_test(workspace_state)
+if(ROCKETC_ENABLE_SANITIZERS)
+  target_compile_definitions(rocketc_language_server_incremental_tests PRIVATE ROCKETC_ASAN_TEST=1)
+endif()
+set_tests_properties(analysis_queue language_server_analysis PROPERTIES TIMEOUT 30)
 add_rocketc_test(formatter)
 add_rocketc_test(package)
 add_rocketc_test(native)

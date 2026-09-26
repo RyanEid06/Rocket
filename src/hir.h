@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -637,8 +638,9 @@ struct HirModule {
 
 class HirLowerer {
 public:
-  HirLowerer(const Module& module, Diagnostics& diagnostics)
-      : ast_(module), diagnostics_(diagnostics) {}
+  HirLowerer(const Module &module, Diagnostics &diagnostics,
+             const std::set<std::string> *bodySources = nullptr)
+      : ast_(module), diagnostics_(diagnostics), bodySources_(bodySources) {}
   std::optional<HirModule> lower();
 
 private:
@@ -743,6 +745,7 @@ private:
 
   const Module& ast_;
   Diagnostics& diagnostics_;
+  const std::set<std::string> *bodySources_ = nullptr;
   HirModule hir_;
   std::unordered_map<std::string, SymbolId> functions_;
   std::unordered_map<std::string, const Function*> functionDeclarations_;

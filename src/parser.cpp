@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "analysis_control.h"
 
 #include <string_view>
 #include <utility>
@@ -63,7 +64,10 @@ bool renderedNeedsSpace(const Token& previous, const Token& current) {
 
 } // namespace
 
-const Token& Parser::current() const { return tokens_[index_]; }
+const Token &Parser::current() const {
+  analysisCheckpoint();
+  return tokens_[index_];
+}
 const Token& Parser::previous() const { return tokens_[index_ - 1]; }
 bool Parser::at(TokenKind kind) const { return current().kind == kind; }
 bool Parser::match(TokenKind kind) { if (!at(kind)) return false; ++index_; return true; }
@@ -98,6 +102,8 @@ std::string Parser::renderTokenRange(std::size_t begin, std::size_t end) const {
 }
 
 Module Parser::parseModule() {
+  recordAnalysisParse(tokens_.empty() ? std::string{}
+                                      : tokens_.front().location.file);
   Module module;
   skipNewlines();
   while (!at(TokenKind::End)) {
