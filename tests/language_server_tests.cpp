@@ -333,6 +333,44 @@ int main() {
       "missing-import code actions are deterministic and idempotent after application",
       failures);
 
+  rocket::test::expect(
+      occurrences(semanticOutput, "\"newText\":\"math.doubled\"") == 2,
+      "missing-import quick fix also qualifies the unresolved function at its diagnostic range",
+      failures);
+
+  std::string packageActions;
+  packageActions += frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootUri":"file:///C:/workspace"}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/src/math.rocket","version":1,"text":"pub fn doubled(value: Int) -> Int:\n    return value * 2\n"}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket","version":1,"text":"fn main() -> Int:\n    return doubled(21)\n"}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket"},"context":{"diagnostics":[{"range":{"start":{"line":1,"character":11},"end":{"line":1,"character":18}},"code":"R4002","message":"undefined name 'doubled'"}]}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket","version":2},"contentChanges":[{"text":"import src.math\nfn main() -> Int:\n    return doubled(21)\n"}]}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","id":3,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket"},"context":{"diagnostics":[{"range":{"start":{"line":2,"character":11},"end":{"line":2,"character":18}},"code":"R4002","message":"undefined name 'doubled'"}]}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream packageRequests(packageActions);
+  std::ostringstream packageResponses, packageLog;
+  rocket::test::TranscriptServer packageServer(packageRequests, packageResponses, packageLog);
+  rocket::test::expect(packageServer.run() == 0, "package action session exits cleanly", failures);
+  const auto packageOutput = packageResponses.str();
+  rocket::test::expect(occurrences(packageOutput, "\"title\":\"Import src.math\"") == 1 &&
+                           occurrences(packageOutput, "\"newText\":\"src.math.doubled\"") == 2 &&
+                           occurrences(packageOutput, "\"title\":\"Qualify doubled with src.math\"") == 1,
+                       "quick fix uses package-relative module and reuses existing import", failures);
+
+  std::string nonFileActions;
+  nonFileActions += frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/math.rocket","version":1,"text":"pub fn doubled(value: Int) -> Int:\n    return value * 2\n"}}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"untitled:main","version":1,"text":"fn main() -> Int:\n    return doubled(21)\n"}}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"untitled:main"},"context":{"diagnostics":[{"range":{"start":{"line":1,"character":11},"end":{"line":1,"character":18}},"code":"R4002","message":"undefined name 'doubled'"}]}}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream nonFileRequests(nonFileActions);
+  std::ostringstream nonFileResponses, nonFileLog;
+  rocket::test::TranscriptServer nonFileServer(nonFileRequests, nonFileResponses, nonFileLog);
+  rocket::test::expect(nonFileServer.run() == 0 &&
+                           nonFileResponses.str().find("code actions require a file URI") != std::string::npos,
+                       "non-file code action requests fail safely", failures);
+
   std::string callableInput;
   callableInput += frame(
       R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})");
