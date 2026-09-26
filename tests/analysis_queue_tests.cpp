@@ -20,7 +20,7 @@ int main() {
   bool entered = false, release = false;
   std::vector<long long> published;
   auto first = std::async(std::launch::async, [&] {
-    return queue.submit([&](std::stop_token, long long generation) {
+    return queue.submit([&](rocket::StopToken, long long generation) {
       std::unique_lock lock(mutex);
       entered = true;
       cv.notify_all();
@@ -40,7 +40,7 @@ int main() {
   // burst.
   if (responsive) {
     for (int i = 0; i < 1000; ++i)
-      queue.submit([&](std::stop_token, long long generation) {
+      queue.submit([&](rocket::StopToken, long long generation) {
         return [&, generation] {
           published.push_back(generation);
           cv.notify_all();
@@ -79,7 +79,7 @@ int main() {
   rocket::AnalysisQueue stopping;
   std::promise<void> running;
   auto stopped = std::async(std::launch::async, [&] {
-    stopping.submit([&](std::stop_token stop, long long) {
+    stopping.submit([&](rocket::StopToken stop, long long) {
       running.set_value();
       const auto deadline = std::chrono::steady_clock::now() + 2s;
       while (!stop.stop_requested() &&
@@ -90,7 +90,7 @@ int main() {
   });
   running.get_future().wait();
   if (stopped.wait_for(50ms) == std::future_status::ready) {
-    stopping.submit([](std::stop_token, long long) {
+    stopping.submit([](rocket::StopToken, long long) {
       return [] {
         throw std::runtime_error("queued work published during shutdown");
       };
@@ -119,7 +119,7 @@ int main() {
   std::atomic<int> latePublications{0};
   {
     rocket::AnalysisQueue foreign;
-    foreign.submit([&, completion](std::stop_token, long long) {
+    foreign.submit([&, completion](rocket::StopToken, long long) {
       foreignEntered.set_value();
       foreignRelease.wait();
       return [&, completion] { ++latePublications; };
@@ -143,7 +143,7 @@ int main() {
   auto tokens = rocket::Lexer("cancel.rocket", source, diagnostics).lex();
   auto module = rocket::Parser(tokens, diagnostics).parseModule();
   module.library = true;
-  std::stop_source cancelled;
+  rocket::StopSource cancelled;
   cancelled.request_stop();
   rocket::AnalysisControl control{cancelled.get_token()};
   {

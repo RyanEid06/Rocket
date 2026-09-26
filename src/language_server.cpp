@@ -2051,7 +2051,7 @@ private:
                         discoveryEpoch_, publishedDiscovery_};
     auto discovery = discovery_;
     queue_.submit([input = std::move(input), discovery,
-                   this](std::stop_token stop,
+                   this](StopToken stop,
                          long long generation) -> AnalysisQueue::Publish {
       // Only the returned publication accesses this. All analysis inputs and
       // compiler owners survive independently of the protocol session.
@@ -2087,7 +2087,7 @@ private:
 
   static AnalysisResult analyzeSnapshot(const AnalysisInput &input,
                                         DiscoveryCache &cache,
-                                        std::stop_token stop,
+                                        StopToken stop,
                                         long long generation) {
     const auto started = std::chrono::steady_clock::now();
     SemanticSnapshot next;

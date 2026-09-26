@@ -1,7 +1,7 @@
 #pragma once
+#include "analysis_stop.h"
 #include <filesystem>
 #include <set>
-#include <stop_token>
 #include <string>
 
 namespace rocket {
@@ -9,7 +9,7 @@ struct AnalysisCancelled {};
 // Opt-in per-thread compiler instrumentation. Ordinary CLI compilation has no
 // active control. Cancellation unwinds the job's normal AST/HIR RAII owners.
 struct AnalysisControl {
-  std::stop_token stop;
+  StopToken stop;
   std::size_t reparsedFiles = 0;
   std::size_t semanticallyAnalyzedFiles = 0;
   std::set<std::string> invalidatedFiles;

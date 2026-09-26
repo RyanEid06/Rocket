@@ -1,4 +1,5 @@
 #pragma once
+#include "analysis_stop.h"
 
 #include <chrono>
 #include <condition_variable>
@@ -8,7 +9,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <stop_token>
 #include <thread>
 #include <utility>
 
@@ -19,8 +19,8 @@ namespace rocket {
 class AnalysisQueue {
 public:
   using Publish = std::function<void()>;
-  using Work = std::function<Publish(std::stop_token, long long)>;
-  using Executor = std::function<Publish(Work, std::stop_token, long long)>;
+  using Work = std::function<Publish(StopToken, long long)>;
+  using Executor = std::function<Publish(Work, StopToken, long long)>;
   using Failure = std::function<void(std::exception_ptr)>;
   struct Status {
     long long generation = 0, started = 0, completed = 0, stale = 0;
@@ -116,7 +116,7 @@ private:
     std::condition_variable_any cv;
     std::optional<Job> job;
     std::deque<Publish> callbacks;
-    std::stop_source stop;
+    StopSource stop;
     Status status;
     bool stopping = false, done = false;
   };
@@ -149,7 +149,7 @@ private:
       }
       Job job = std::move(*state->job);
       state->job.reset();
-      state->stop = std::stop_source{};
+      state->stop = StopSource{};
       const auto stop = state->stop.get_token();
       state->status.pending = false;
       state->status.running = true;

@@ -54,7 +54,7 @@ int main() {
   std::promise<void> releaseOld;
   auto releaseFuture = releaseOld.get_future().share();
   rocket::test::LspSession responsive([&](rocket::AnalysisQueue::Work work,
-                                          std::stop_token stop,
+                                          rocket::StopToken stop,
                                           long long generation) {
     auto publish = work(stop, generation);
     if (generation == 1) {
@@ -122,7 +122,7 @@ int main() {
   std::promise<void> running;
   std::atomic<bool> allowStop{false};
   rocket::test::LspSession stopping(
-      [&](rocket::AnalysisQueue::Work, std::stop_token stop, long long) {
+      [&](rocket::AnalysisQueue::Work, rocket::StopToken stop, long long) {
         running.set_value();
         while (!stop.stop_requested() || !allowStop.load())
           std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -186,7 +186,7 @@ int main() {
   std::promise<void> failReady, releaseFailure;
   auto failureRelease = releaseFailure.get_future().share();
   rocket::test::LspSession failing(
-      [&](rocket::AnalysisQueue::Work work, std::stop_token stop,
+      [&](rocket::AnalysisQueue::Work work, rocket::StopToken stop,
           long long generation) -> rocket::AnalysisQueue::Publish {
         if (generation == 1) {
           failReady.set_value();
@@ -386,7 +386,7 @@ int main() {
     auto batchRelease = releaseBatch.get_future().share();
     auto committed = batchPublished.get_future();
     rocket::test::LspSession batch([&](rocket::AnalysisQueue::Work work,
-                                       std::stop_token stop,
+                                       rocket::StopToken stop,
                                        long long generation) {
       if (generation == 1) {
         auto publish = work(stop, generation);
@@ -484,7 +484,7 @@ int main() {
   auto blockedServer = std::async(std::launch::async, [&] {
     rocket::LanguageServer server(
         blockedInputStream, blockedOutputStream, blockedLog,
-        [&](rocket::AnalysisQueue::Work work, std::stop_token stop,
+        [&](rocket::AnalysisQueue::Work work, rocket::StopToken stop,
             long long generation) {
           if (generation == 2) {
             acceptedWithBlockedOutput.set_value();
