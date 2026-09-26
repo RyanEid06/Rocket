@@ -347,7 +347,9 @@ def validate_stages(
     )
     runner.run(
         [stages[3], "test", ROOT / "examples" / "raylib_showcase"],
-        env=stage3_env, pattern=r"11 passed; 0 failed", label="stage3-raylib-test"
+        env={**stage3_env,
+             "ROCKET_SHOWCASE_PACKAGE_ROOT": str(ROOT / "examples" / "raylib_showcase")},
+        pattern=r"11 passed; 0 failed", label="stage3-raylib-test"
     )
     validations += 2
 

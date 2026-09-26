@@ -215,8 +215,14 @@ foreach ($compiler in $stage1, $stage2, $stage3) {
 }
 & $stage3 build $raylibReference
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-$raylibTestOutput = & $stage3 test $raylibReference 2>&1
-$raylibTestStatus = $LASTEXITCODE
+$previousShowcaseRoot = $env:ROCKET_SHOWCASE_PACKAGE_ROOT
+try {
+    $env:ROCKET_SHOWCASE_PACKAGE_ROOT = $raylibReference
+    $raylibTestOutput = & $stage3 test $raylibReference 2>&1
+    $raylibTestStatus = $LASTEXITCODE
+} finally {
+    $env:ROCKET_SHOWCASE_PACKAGE_ROOT = $previousShowcaseRoot
+}
 if ($raylibTestOutput) { Write-Host ($raylibTestOutput -join [Environment]::NewLine) }
 if ($raylibTestStatus -ne 0 -or ($raylibTestOutput -join "`n") -notmatch '11 passed; 0 failed') {
     throw 'The Phase 14 raylib reference validation failed during bootstrap.'
