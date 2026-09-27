@@ -1,0 +1,78 @@
+import rocket.raylib.safe
+import testing
+
+fn ok(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(error):
+            return false
+
+fn fails(value: Result[Bool, String], expected: String) -> Bool:
+    match value:
+        case Ok(success):
+            return false
+        case Err(error):
+            return error == expected
+
+fn active(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(playing):
+            return playing
+        case Err(error):
+            return false
+
+fn main() -> Int:
+    if not testing.start():
+        return 1
+    var cycle = 0
+    while cycle < 16:
+        match safe.open_audio():
+            case Err(error):
+                return 2
+            case Ok(audio):
+                if not active(safe.audio_ready(audio)):
+                    return 3
+                match safe.load_music(audio, "music.wav"):
+                    case Err(error):
+                        return 4
+                    case Ok(music):
+                        match safe.create_tone(audio, 440.0, 0.02):
+                            case Err(error):
+                                return 5
+                            case Ok(click):
+                                match safe.load_sound(audio, "chip.wav"):
+                                    case Err(error):
+                                        return 6
+                                    case Ok(chip):
+                                        if not fails(safe.close_audio(audio), "raylib: owned resource is still live"):
+                                            return 7
+                                        if not fails(safe.update_music(music), "raylib: invalid lifecycle state"):
+                                            return 8
+                                        if not ok(safe.set_music_volume(music, 0.3)) or not ok(safe.set_music_looping(music, true)) or not ok(safe.set_sound_pitch(click, 1.2)):
+                                            return 9
+                                        if not ok(safe.play_music(music)) or not ok(safe.play_sound(click)) or not ok(safe.play_sound(chip)):
+                                            return 10
+                                        if not active(safe.music_playing(music)) or not active(safe.sound_playing(click)) or not active(safe.sound_playing(chip)):
+                                            return 11
+                                        var tick = 0
+                                        while tick < 128:
+                                            if not ok(safe.update_music(music)):
+                                                return 12
+                                            tick = tick + 1
+                                        if not ok(safe.pause_music(music)) or active(safe.music_playing(music)):
+                                            return 13
+                                        if not fails(safe.update_music(music), "raylib: invalid lifecycle state") or not ok(safe.resume_music(music)):
+                                            return 14
+                                        if not ok(safe.stop_sound(click)) or not ok(safe.stop_music(music)):
+                                            return 15
+                                        if not ok(safe.unload_sound(click)) or not ok(safe.unload_sound(chip)) or not ok(safe.unload_music(music)):
+                                            return 16
+                                        if not fails(safe.play_music(music), "raylib: stale or already released handle"):
+                                            return 17
+                if not ok(safe.close_audio(audio)) or not fails(safe.audio_ready(audio), "raylib: stale or already released handle"):
+                    return 18
+        cycle = cycle + 1
+    if testing.sound_count() != 0 or testing.music_count() != 0:
+        return 19
+    return 0

@@ -18,6 +18,7 @@ execute_process(
   COMMAND "${CMAKE_COMMAND}" -E env
     "ROCKET_NATIVE_LIBRARY_ROOT=${NATIVE_ROOT}"
     "ROCKET_ARTIFACT_ROOT=${WORK}/artifacts"
+    "ROCKET_SHOWCASE_PACKAGE_ROOT=${package}"
     "${ROCKETC}" test "${package}" --filter asset_store
   WORKING_DIRECTORY "${SOURCE_DIR}"
   RESULT_VARIABLE test_result OUTPUT_VARIABLE test_output ERROR_VARIABLE test_error)
@@ -29,7 +30,7 @@ endif()
 foreach(source IN ITEMS
     "${package}/src/rocket_assets.rocket"
     "${package}/src/rocket_raylib.rocket"
-    "${package}/src/rocket_raylib_adapter.rocket"
+    "${SOURCE_DIR}/stdlib/rocket/raylib/native.rocket"
     "${package}/src/rocket_raylib_testing.rocket"
     "${package}/tests/asset_store_test.rocket")
   execute_process(COMMAND "${ROCKETC}" fmt "${source}" --check
@@ -62,3 +63,8 @@ if(store_found EQUAL -1 OR load_texture_found EQUAL -1 OR
 endif()
 
 message(STATUS "WP28 asset-store stage/compiler surface passed")
+
+# Keep the historical showcase contract green while exercising the bundled
+# WP5 module through the same stage0/self-hosted entry point.
+set(WORK "${WORK}/canonical")
+include("${SOURCE_DIR}/tests/rocket35_assets_test.cmake")

@@ -1,6 +1,7 @@
 #include "package.h"
-#include "package_registry.h"
+#include "analysis_control.h"
 #include "package_git.h"
+#include "package_registry.h"
 
 #include <algorithm>
 #include <array>
@@ -751,6 +752,7 @@ std::vector<std::filesystem::path> rocketSources(const std::filesystem::path& pa
       absolute, std::filesystem::directory_options::skip_permission_denied, filesystemError);
   const std::filesystem::recursive_directory_iterator end;
   while (iterator != end) {
+    analysisCheckpoint();
     if (filesystemError) { error = filesystemError.message(); return {}; }
     if (iterator->is_directory() && ignoredDirectory(iterator->path())) {
       iterator.disable_recursion_pending();

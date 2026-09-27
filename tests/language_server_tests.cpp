@@ -1,4 +1,5 @@
 #include "language_server.h"
+#include "lsp_session.h"
 #include "test_support.h"
 
 #include <charconv>
@@ -80,7 +81,8 @@ int main() {
   std::istringstream requestStream(input);
   std::ostringstream responseStream;
   std::ostringstream logStream;
-  rocket::LanguageServer server(requestStream, responseStream, logStream);
+  rocket::test::TranscriptServer server(requestStream, responseStream,
+                                        logStream);
   rocket::test::expect(server.run() == 0,
                        "shutdown followed by exit is a clean LSP session", failures);
 
@@ -165,7 +167,7 @@ int main() {
   std::istringstream unicodeRequestStream(unicodeInput);
   std::ostringstream unicodeResponseStream;
   std::ostringstream unicodeLogStream;
-  rocket::LanguageServer unicodeServer(
+  rocket::test::TranscriptServer unicodeServer(
       unicodeRequestStream, unicodeResponseStream, unicodeLogStream);
   rocket::test::expect(
       unicodeServer.run() == 0 &&
@@ -232,8 +234,8 @@ int main() {
   std::istringstream semanticRequests(semanticInput);
   std::ostringstream semanticResponses;
   std::ostringstream semanticLog;
-  rocket::LanguageServer semanticServer(
-      semanticRequests, semanticResponses, semanticLog);
+  rocket::test::TranscriptServer semanticServer(semanticRequests,
+                                                semanticResponses, semanticLog);
   const auto semanticStarted = std::chrono::steady_clock::now();
   const std::string semanticOutput = [&] {
     const int status = semanticServer.run();
@@ -293,8 +295,8 @@ int main() {
   std::istringstream callableRequests(callableInput);
   std::ostringstream callableResponses;
   std::ostringstream callableLog;
-  rocket::LanguageServer callableServer(
-      callableRequests, callableResponses, callableLog);
+  rocket::test::TranscriptServer callableServer(callableRequests,
+                                                callableResponses, callableLog);
   const int callableStatus = callableServer.run();
   const std::string callableOutput = callableResponses.str();
   rocket::test::expect(
@@ -316,6 +318,23 @@ int main() {
       semanticElapsed < 5000,
       "multi-document incomplete-code protocol latency remains below five seconds",
       failures);
+
+  std::string saveInput =
+      frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})") +
+      frame(
+          R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/save.rocket","version":1,"text":"fn helper() -> Int:\n    return 0\n"}}})") +
+      frame(
+          R"({"jsonrpc":"2.0","method":"textDocument/didSave","params":{"textDocument":{"uri":"file:///C:/workspace/save.rocket"},"text":"fn helper() -> Int:\n    return 0\n"}})") +
+      frame(R"({"jsonrpc":"2.0","id":2,"method":"shutdown"})") +
+      frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream saveRequests(saveInput);
+  std::ostringstream saveResponses, saveLog;
+  rocket::test::TranscriptServer saveServer(saveRequests, saveResponses,
+                                            saveLog);
+  saveServer.run();
+  rocket::test::expect(
+      occurrences(saveResponses.str(), "rocket/analysisStatus") == 1,
+      "unchanged save does not repeat semantic analysis", failures);
 
   return rocket::test::finish(failures, "language server");
 }

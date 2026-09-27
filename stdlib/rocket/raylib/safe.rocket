@@ -4,55 +4,8 @@
 
 import rocket.graphics
 import rocket.raylib.native
+import std.binary
 import std.string
-
-extern fn rlv_draw_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_rounded_rectangle(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_rounded_rectangle_outline(frame_id: Int, x: Float, y: Float, width: Float, height: Float, roundness: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_rectangle_gradient_vertical(frame_id: Int, x: Float, y: Float, width: Float, height: Float, top_red: Int, top_green: Int, top_blue: Int, top_alpha: Int, bottom_red: Int, bottom_green: Int, bottom_blue: Int, bottom_alpha: Int) -> Int
-extern fn rlv_draw_rectangle_gradient_horizontal(frame_id: Int, x: Float, y: Float, width: Float, height: Float, left_red: Int, left_green: Int, left_blue: Int, left_alpha: Int, right_red: Int, right_green: Int, right_blue: Int, right_alpha: Int) -> Int
-extern fn rlv_draw_circle_outline(frame_id: Int, x: Float, y: Float, radius: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_ellipse(frame_id: Int, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_ring(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_ring_sector(frame_id: Int, x: Float, y: Float, inner_radius: Float, outer_radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_circle_sector(frame_id: Int, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_circle_gradient(frame_id: Int, x: Float, y: Float, radius: Float, inner_red: Int, inner_green: Int, inner_blue: Int, inner_alpha: Int, outer_red: Int, outer_green: Int, outer_blue: Int, outer_alpha: Int) -> Int
-extern fn rlv_draw_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_thick_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_triangle(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_triangle_outline(frame_id: Int, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_polygon(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_polygon_outline(frame_id: Int, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_draw_bezier_line(frame_id: Int, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_mouse_pressed(window_id: Int, button: Int) -> Bool
-extern fn rlv_mouse_down(window_id: Int, button: Int) -> Bool
-extern fn rlv_mouse_released(window_id: Int, button: Int) -> Bool
-extern fn rlv_mouse_framebuffer_x(window_id: Int) -> Float
-extern fn rlv_mouse_framebuffer_y(window_id: Int) -> Float
-extern fn rlv_key_pressed(window_id: Int, key: Int) -> Bool
-extern fn rlv_key_down(window_id: Int, key: Int) -> Bool
-extern fn rlv_window_framebuffer_width_f64(window_id: Int) -> Float
-extern fn rlv_window_framebuffer_height_f64(window_id: Int) -> Float
-extern fn rlv_window_dpi_scale_x(window_id: Int) -> Float
-extern fn rlv_window_dpi_scale_y(window_id: Int) -> Float
-extern fn rlv_window_display_revision(window_id: Int) -> Int
-extern fn rlv_window_logical_width(window_id: Int) -> Int
-extern fn rlv_window_set_size(window_id: Int, width: Int, height: Int) -> Int
-extern fn rlv_window_set_fullscreen(window_id: Int, enabled: Bool) -> Int
-extern fn rlv_window_set_borderless(window_id: Int, enabled: Bool) -> Int
-extern fn rlv_render_texture_load(window_id: Int, width: Int, height: Int) -> Int
-extern fn rlv_render_texture_width_f64(render_texture_id: Int) -> Float
-extern fn rlv_render_texture_height_f64(render_texture_id: Int) -> Float
-extern fn rlv_render_texture_width(render_texture_id: Int) -> Int
-extern fn rlv_render_texture_unload(render_texture_id: Int) -> Int
-extern fn rlv_render_target_begin(frame_id: Int, render_texture_id: Int) -> Int
-extern fn rlv_render_target_end(scope_id: Int) -> Int
-extern fn rlv_render_texture_draw(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_render_texture_draw_framebuffer(frame_id: Int, render_texture_id: Int, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float, origin_x: Float, origin_y: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Int
-extern fn rlv_render_texture_save_png(window_id: Int, render_texture_id: Int, path_buffer_id: Int) -> Int
-extern fn rlv_scissor_begin(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
-extern fn rlv_scissor_begin_framebuffer(frame_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
-extern fn rlv_scissor_end(scope_id: Int) -> Int
 
 pub struct Window:
     id: Int
@@ -63,13 +16,46 @@ pub struct Frame:
 pub struct RenderTexture:
     id: Int
 
+pub struct Texture:
+    id: Int
+
+pub struct TextureFilter:
+    mode: Int
+
 pub struct RenderTargetScope:
     id: Int
 
 pub struct ScissorScope:
     id: Int
 
+pub struct BlendMode:
+    mode: Int
+
+pub struct BlendScope:
+    id: Int
+
+pub struct Shader:
+    id: Int
+
+pub struct ShaderUniformType:
+    kind: Int
+
+pub struct ShaderUniform:
+    id: Int
+
+pub struct ShaderScope:
+    id: Int
+
 pub struct Font:
+    id: Int
+
+pub struct AudioDevice:
+    id: Int
+
+pub struct Sound:
+    id: Int
+
+pub struct Music:
     id: Int
 
 pub struct Color:
@@ -80,6 +66,74 @@ pub struct Color:
 
 pub fn color(red: Int, green: Int, blue: Int, alpha: Int = 255) -> Color:
     return Color(red, green, blue, alpha)
+
+# Stable game-facing key names for the checked key_pressed/key_down queries.
+# Host constants stay in rocket.raylib.native.
+pub fn key_space() -> Int:
+    return native.RLV_KEY_SPACE
+
+pub fn key_escape() -> Int:
+    return native.RLV_KEY_ESCAPE
+
+pub fn key_right() -> Int:
+    return native.RLV_KEY_RIGHT
+
+pub fn key_left() -> Int:
+    return native.RLV_KEY_LEFT
+
+pub fn key_down_arrow() -> Int:
+    return native.RLV_KEY_DOWN
+
+pub fn key_up_arrow() -> Int:
+    return native.RLV_KEY_UP
+
+pub fn point_filter() -> TextureFilter:
+    return TextureFilter(0)
+
+pub fn bilinear_filter() -> TextureFilter:
+    return TextureFilter(1)
+
+pub fn trilinear_filter() -> TextureFilter:
+    return TextureFilter(2)
+
+pub fn anisotropic_4x_filter() -> TextureFilter:
+    return TextureFilter(3)
+
+pub fn anisotropic_8x_filter() -> TextureFilter:
+    return TextureFilter(4)
+
+pub fn anisotropic_16x_filter() -> TextureFilter:
+    return TextureFilter(5)
+
+pub fn alpha_blend() -> BlendMode:
+    return BlendMode(0)
+
+pub fn additive_blend() -> BlendMode:
+    return BlendMode(1)
+
+pub fn multiplied_blend() -> BlendMode:
+    return BlendMode(2)
+
+pub fn add_colors_blend() -> BlendMode:
+    return BlendMode(3)
+
+pub fn subtract_colors_blend() -> BlendMode:
+    return BlendMode(4)
+
+pub fn premultiplied_alpha_blend() -> BlendMode:
+    return BlendMode(5)
+
+pub fn float_uniform() -> ShaderUniformType:
+    return ShaderUniformType(0)
+
+pub fn int_uniform() -> ShaderUniformType:
+    return ShaderUniformType(1)
+
+pub fn vec2_uniform() -> ShaderUniformType:
+    return ShaderUniformType(2)
+
+pub fn color_uniform() -> ShaderUniformType:
+    return ShaderUniformType(3)
 
 fn status_message(status: Int) -> String:
     if status == -1:
@@ -124,11 +178,18 @@ fn invalid_geometry() -> Result[Bool, String]:
 
 fn window_is_valid(window: Window) -> Bool:
     unsafe:
-        return rlv_window_logical_width(window.id) > 0
+        return native.rlv_window_logical_width(window.id) > 0
 
 fn render_texture_is_valid(target: RenderTexture) -> Bool:
     unsafe:
-        return rlv_render_texture_width(target.id) > 0
+        return native.rlv_render_texture_width(target.id) > 0
+
+fn texture_is_valid(texture: Texture) -> Bool:
+    unsafe:
+        return native.rlv_texture_width(texture.id) > 0
+
+fn filter_is_valid(value: TextureFilter) -> Bool:
+    return value.mode >= 0 and value.mode <= 5
 
 fn valid_input_code(value: Int) -> Bool:
     return value >= 0 and value <= 2147483647
@@ -166,9 +227,48 @@ pub fn open_window(width: Int, height: Int, title: String) -> Result[Window, Str
                 return Ok(Window(window_id))
             return Err(status_message(window_id))
 
+pub fn open_window_quality(width: Int, height: Int, title: String, resizable: Bool = true, high_dpi: Bool = true, msaa4x: Bool = true) -> Result[Window, String]:
+    if width <= 0 or height <= 0:
+        return Err("raylib: invalid argument")
+    match encode_text(title):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var window_id = 0
+            unsafe:
+                window_id = native.rlv_window_open_quality(width, height, buffer_id, resizable, high_dpi, msaa4x)
+            let released = release_text(buffer_id)
+            if window_id > 0:
+                return Ok(Window(window_id))
+            return Err(status_message(window_id))
+
 pub fn close_window(window: Window) -> Result[Bool, String]:
     unsafe:
         return status_result(native.rlv_window_close(window.id))
+
+pub fn window_should_close(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_should_close(window.id))
+
+pub fn set_target_fps(window: Window, fps: Int) -> Result[Bool, String]:
+    if fps < 0:
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_set_target_fps(window.id, fps))
+
+pub fn frame_time(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_frame_time(window.id))
+
+pub fn elapsed_time(window: Window) -> Result[Float, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_time(window.id))
 
 pub fn begin_frame(window: Window) -> Result[Frame, String]:
     unsafe:
@@ -185,121 +285,127 @@ pub fn abort_frame(frame: Frame) -> Result[Bool, String]:
     unsafe:
         return status_result(native.rlv_abort_drawing(frame.id))
 
+pub fn clear_background(frame: Frame, value: Color) -> Result[Bool, String]:
+    if not valid_color(value.red, value.green, value.blue, value.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_clear_background(frame.id, value.red, value.green, value.blue, value.alpha))
+
 pub fn draw_rect(frame: Frame, x: Float, y: Float, width: Float, height: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, red, green, blue, alpha, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, red, green, blue, alpha, red, green, blue, alpha))
 
 pub fn draw_rect_outline(frame: Frame, x: Float, y: Float, width: Float, height: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rectangle_outline(frame.id, x, y, width, height, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rectangle_outline(frame.id, x, y, width, height, thickness, red, green, blue, alpha))
 
 pub fn draw_rounded_rect(frame: Frame, x: Float, y: Float, width: Float, height: Float, roundness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not finite(roundness) or roundness < 0.0 or roundness > 1.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rounded_rectangle(frame.id, x, y, width, height, roundness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rounded_rectangle(frame.id, x, y, width, height, roundness, red, green, blue, alpha))
 
 pub fn draw_rounded_rect_outline(frame: Frame, x: Float, y: Float, width: Float, height: Float, roundness: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not finite(roundness) or roundness < 0.0 or roundness > 1.0 or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_rounded_rectangle_outline(frame.id, x, y, width, height, roundness, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_rounded_rectangle_outline(frame.id, x, y, width, height, roundness, thickness, red, green, blue, alpha))
 
 pub fn draw_circle(frame: Frame, x: Float, y: Float, radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_gradient(frame.id, x, y, radius, red, green, blue, alpha, red, green, blue, alpha))
+        return status_result(native.rlv_draw_circle_gradient(frame.id, x, y, radius, red, green, blue, alpha, red, green, blue, alpha))
 
 pub fn draw_circle_outline(frame: Frame, x: Float, y: Float, radius: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_outline(frame.id, x, y, radius, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_circle_outline(frame.id, x, y, radius, thickness, red, green, blue, alpha))
 
 pub fn draw_ellipse(frame: Frame, x: Float, y: Float, radius_x: Float, radius_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(x) or not finite(y) or not finite(radius_x) or not finite(radius_y) or radius_x < 0.0 or radius_y < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_ellipse(frame.id, x, y, radius_x, radius_y, red, green, blue, alpha))
+        return status_result(native.rlv_draw_ellipse(frame.id, x, y, radius_x, radius_y, red, green, blue, alpha))
 
 pub fn draw_ring(frame: Frame, x: Float, y: Float, inner_radius: Float, outer_radius: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(x) or not finite(y) or not finite(inner_radius) or not finite(outer_radius) or inner_radius < 0.0 or outer_radius < inner_radius or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_ring(frame.id, x, y, inner_radius, outer_radius, red, green, blue, alpha))
+        return status_result(native.rlv_draw_ring(frame.id, x, y, inner_radius, outer_radius, red, green, blue, alpha))
 
 pub fn draw_ring_sector(frame: Frame, x: Float, y: Float, inner_radius: Float, outer_radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(x) or not finite(y) or not finite(inner_radius) or not finite(outer_radius) or inner_radius < 0.0 or outer_radius < inner_radius or not finite(start_angle) or not finite(end_angle) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_ring_sector(frame.id, x, y, inner_radius, outer_radius, start_angle, end_angle, red, green, blue, alpha))
+        return status_result(native.rlv_draw_ring_sector(frame.id, x, y, inner_radius, outer_radius, start_angle, end_angle, red, green, blue, alpha))
 
 pub fn draw_sector(frame: Frame, x: Float, y: Float, radius: Float, start_angle: Float, end_angle: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not finite(start_angle) or not finite(end_angle) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_sector(frame.id, x, y, radius, start_angle, end_angle, red, green, blue, alpha))
+        return status_result(native.rlv_draw_circle_sector(frame.id, x, y, radius, start_angle, end_angle, red, green, blue, alpha))
 
 pub fn draw_line(frame: Frame, start_x: Float, start_y: Float, end_x: Float, end_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(start_x) or not finite(start_y) or not finite(end_x) or not finite(end_y) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_line(frame.id, start_x, start_y, end_x, end_y, red, green, blue, alpha))
+        return status_result(native.rlv_draw_line(frame.id, start_x, start_y, end_x, end_y, red, green, blue, alpha))
 
 pub fn draw_thick_line(frame: Frame, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(start_x) or not finite(start_y) or not finite(end_x) or not finite(end_y) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_thick_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_thick_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
 
 pub fn draw_triangle(frame: Frame, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(first_x) or not finite(first_y) or not finite(second_x) or not finite(second_y) or not finite(third_x) or not finite(third_y) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_triangle(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, red, green, blue, alpha))
+        return status_result(native.rlv_draw_triangle(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, red, green, blue, alpha))
 
 pub fn draw_triangle_outline(frame: Frame, first_x: Float, first_y: Float, second_x: Float, second_y: Float, third_x: Float, third_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(first_x) or not finite(first_y) or not finite(second_x) or not finite(second_y) or not finite(third_x) or not finite(third_y) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_triangle_outline(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_triangle_outline(frame.id, first_x, first_y, second_x, second_y, third_x, third_y, thickness, red, green, blue, alpha))
 
 pub fn draw_polygon(frame: Frame, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or sides < 3 or not finite(rotation) or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_polygon(frame.id, x, y, sides, radius, rotation, red, green, blue, alpha))
+        return status_result(native.rlv_draw_polygon(frame.id, x, y, sides, radius, rotation, red, green, blue, alpha))
 
 pub fn draw_polygon_outline(frame: Frame, x: Float, y: Float, sides: Int, radius: Float, rotation: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or sides < 3 or not finite(rotation) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_polygon_outline(frame.id, x, y, sides, radius, rotation, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_polygon_outline(frame.id, x, y, sides, radius, rotation, thickness, red, green, blue, alpha))
 
 pub fn draw_bezier(frame: Frame, start_x: Float, start_y: Float, end_x: Float, end_y: Float, thickness: Float, red: Int, green: Int, blue: Int, alpha: Int) -> Result[Bool, String]:
     if not finite(start_x) or not finite(start_y) or not finite(end_x) or not finite(end_y) or not finite(thickness) or thickness < 0.0 or not valid_color(red, green, blue, alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_bezier_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
+        return status_result(native.rlv_draw_bezier_line(frame.id, start_x, start_y, end_x, end_y, thickness, red, green, blue, alpha))
 
 pub fn draw_gradient_rect(frame: Frame, x: Float, y: Float, width: Float, height: Float, start_red: Int, start_green: Int, start_blue: Int, start_alpha: Int, end_red: Int, end_green: Int, end_blue: Int, end_alpha: Int, vertical: Bool) -> Result[Bool, String]:
     if not valid_rect(x, y, width, height) or not valid_color(start_red, start_green, start_blue, start_alpha) or not valid_color(end_red, end_green, end_blue, end_alpha):
         return invalid_geometry()
     unsafe:
         if vertical:
-            return status_result(rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
-        return status_result(rlv_draw_rectangle_gradient_horizontal(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
+            return status_result(native.rlv_draw_rectangle_gradient_vertical(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
+        return status_result(native.rlv_draw_rectangle_gradient_horizontal(frame.id, x, y, width, height, start_red, start_green, start_blue, start_alpha, end_red, end_green, end_blue, end_alpha))
 
 pub fn draw_gradient_circle(frame: Frame, x: Float, y: Float, radius: Float, inner_red: Int, inner_green: Int, inner_blue: Int, inner_alpha: Int, outer_red: Int, outer_green: Int, outer_blue: Int, outer_alpha: Int) -> Result[Bool, String]:
     if not valid_circle(x, y, radius) or not valid_color(inner_red, inner_green, inner_blue, inner_alpha) or not valid_color(outer_red, outer_green, outer_blue, outer_alpha):
         return invalid_geometry()
     unsafe:
-        return status_result(rlv_draw_circle_gradient(frame.id, x, y, radius, inner_red, inner_green, inner_blue, inner_alpha, outer_red, outer_green, outer_blue, outer_alpha))
+        return status_result(native.rlv_draw_circle_gradient(frame.id, x, y, radius, inner_red, inner_green, inner_blue, inner_alpha, outer_red, outer_green, outer_blue, outer_alpha))
 
 pub fn pointer_pressed(window: Window, button: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -307,7 +413,7 @@ pub fn pointer_pressed(window: Window, button: Int) -> Result[Bool, String]:
     if not valid_input_code(button):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_mouse_pressed(window.id, button))
+        return Ok(native.rlv_mouse_pressed(window.id, button))
 
 pub fn pointer_down(window: Window, button: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -315,7 +421,7 @@ pub fn pointer_down(window: Window, button: Int) -> Result[Bool, String]:
     if not valid_input_code(button):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_mouse_down(window.id, button))
+        return Ok(native.rlv_mouse_down(window.id, button))
 
 pub fn pointer_released(window: Window, button: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -323,7 +429,7 @@ pub fn pointer_released(window: Window, button: Int) -> Result[Bool, String]:
     if not valid_input_code(button):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_mouse_released(window.id, button))
+        return Ok(native.rlv_mouse_released(window.id, button))
 
 pub fn key_pressed(window: Window, key: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -331,7 +437,7 @@ pub fn key_pressed(window: Window, key: Int) -> Result[Bool, String]:
     if not valid_input_code(key):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_key_pressed(window.id, key))
+        return Ok(native.rlv_key_pressed(window.id, key))
 
 pub fn key_down(window: Window, key: Int) -> Result[Bool, String]:
     if not window_is_valid(window):
@@ -339,70 +445,214 @@ pub fn key_down(window: Window, key: Int) -> Result[Bool, String]:
     if not valid_input_code(key):
         return Err("raylib: invalid argument")
     unsafe:
-        return Ok(rlv_key_down(window.id, key))
+        return Ok(native.rlv_key_down(window.id, key))
 
 pub fn pointer_framebuffer_x(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_mouse_framebuffer_x(window.id))
+        return Ok(native.rlv_mouse_framebuffer_x(window.id))
 
 pub fn pointer_framebuffer_y(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_mouse_framebuffer_y(window.id))
+        return Ok(native.rlv_mouse_framebuffer_y(window.id))
 
 # F17 display/render-target primitives used by rocket.graphics.canvas.
+pub fn window_width(window: Window) -> Result[Int, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_logical_width(window.id))
+
+pub fn window_height(window: Window) -> Result[Int, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_logical_height(window.id))
+
+pub fn window_resized(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_resized(window.id))
+
+pub fn window_fullscreen(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_fullscreen(window.id))
+
+pub fn window_borderless(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_borderless(window.id))
+
+pub fn screenshot_supported(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_window_screenshot_supported(window.id))
+
+pub fn save_screenshot(window: Window, path: String) -> Result[Bool, String]:
+    match encode_text(path):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var status = -2
+            unsafe:
+                status = native.rlv_window_screenshot(window.id, buffer_id)
+            let released = release_text(buffer_id)
+            if status != 0:
+                return Err(status_message(status))
+            return released
+
 pub fn framebuffer_width(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_framebuffer_width_f64(window.id))
+        return Ok(native.rlv_window_framebuffer_width_f64(window.id))
 
 pub fn framebuffer_height(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_framebuffer_height_f64(window.id))
+        return Ok(native.rlv_window_framebuffer_height_f64(window.id))
 
 pub fn dpi_scale_x(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_dpi_scale_x(window.id))
+        return Ok(native.rlv_window_dpi_scale_x(window.id))
 
 pub fn dpi_scale_y(window: Window) -> Result[Float, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_dpi_scale_y(window.id))
+        return Ok(native.rlv_window_dpi_scale_y(window.id))
 
 pub fn display_revision(window: Window) -> Result[Int, String]:
     if not window_is_valid(window):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_window_display_revision(window.id))
+        return Ok(native.rlv_window_display_revision(window.id))
 
 pub fn set_window_size(window: Window, width: Int, height: Int) -> Result[Bool, String]:
     if width <= 0 or height <= 0:
         return Err("raylib: invalid argument")
     unsafe:
-        return status_result(rlv_window_set_size(window.id, width, height))
+        return status_result(native.rlv_window_set_size(window.id, width, height))
 
 pub fn set_window_fullscreen(window: Window, enabled: Bool) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_window_set_fullscreen(window.id, enabled))
+        return status_result(native.rlv_window_set_fullscreen(window.id, enabled))
 
 pub fn set_window_borderless(window: Window, enabled: Bool) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_window_set_borderless(window.id, enabled))
+        return status_result(native.rlv_window_set_borderless(window.id, enabled))
+
+pub fn load_texture(window: Window, path: String) -> Result[Texture, String]:
+    match encode_text(path):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var texture_id = 0
+            unsafe:
+                texture_id = native.rlv_texture_load(window.id, buffer_id)
+            let released = release_text(buffer_id)
+            if texture_id > 0:
+                return Ok(Texture(texture_id))
+            return Err(status_message(texture_id))
+
+pub fn texture_width(texture: Texture) -> Result[Int, String]:
+    unsafe:
+        let width = native.rlv_texture_width(texture.id)
+        if width < 0:
+            return Err(status_message(width))
+        return Ok(width)
+
+pub fn texture_height(texture: Texture) -> Result[Int, String]:
+    unsafe:
+        let height = native.rlv_texture_height(texture.id)
+        if height < 0:
+            return Err(status_message(height))
+        return Ok(height)
+
+pub fn unload_texture(texture: Texture) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_texture_unload(texture.id))
+
+pub fn draw_texture(frame: Frame, texture: Texture, x: Int, y: Int, tint: Color) -> Result[Bool, String]:
+    if not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_texture_draw(frame.id, texture.id, x, y, tint.red, tint.green, tint.blue, tint.alpha))
+
+pub fn draw_texture_scaled(frame: Frame, texture: Texture, x: Int, y: Int, scale: Float, tint: Color) -> Result[Bool, String]:
+    if not finite(scale) or scale <= 0.0 or not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_texture_draw_scaled(frame.id, texture.id, x, y, scale, tint.red, tint.green, tint.blue, tint.alpha))
+
+# Negative source width or height flips artwork within the selected atlas region.
+pub fn draw_texture_pro(frame: Frame, texture: Texture, source: graphics.Rect, dest: graphics.Rect, origin: graphics.Vec2, rotation: Float, tint: Color) -> Result[Bool, String]:
+    if not finite(source.x) or not finite(source.y) or not finite(source.width) or not finite(source.height) or source.width == 0.0 or source.height == 0.0 or source.x < 0.0 or source.y < 0.0:
+        return invalid_geometry()
+    if not valid_rect(dest.x, dest.y, dest.width, dest.height) or not finite(origin.x) or not finite(origin.y) or not finite(rotation) or not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_texture_draw_pro(frame.id, texture.id, source.x, source.y, source.width, source.height, dest.x, dest.y, dest.width, dest.height, origin.x, origin.y, rotation, tint.red, tint.green, tint.blue, tint.alpha))
+
+pub fn texture_filter_supported(value: TextureFilter) -> Bool:
+    if not filter_is_valid(value):
+        return false
+    unsafe:
+        return native.rlv_texture_filter_supported(value.mode)
+
+pub fn texture_max_anisotropy() -> Float:
+    unsafe:
+        return native.rlv_texture_max_anisotropy()
+
+pub fn get_texture_filter(texture: Texture) -> Result[TextureFilter, String]:
+    unsafe:
+        let mode = native.rlv_texture_get_filter(texture.id)
+        if mode < 0:
+            return Err(status_message(mode))
+        return Ok(TextureFilter(mode))
+
+pub fn set_texture_filter(window: Window, texture: Texture, value: TextureFilter) -> Result[Bool, String]:
+    if not filter_is_valid(value):
+        return Err("raylib: invalid argument")
+    if not texture_is_valid(texture):
+        return Err("raylib: stale or already released handle")
+    if not texture_filter_supported(value):
+        return Err("raylib: device or backend unavailable")
+    unsafe:
+        return status_result(native.rlv_texture_set_filter(window.id, texture.id, value.mode))
+
+pub fn set_texture_filter_with_fallback(window: Window, texture: Texture, preferred: TextureFilter, fallback: TextureFilter) -> Result[TextureFilter, String]:
+    if not filter_is_valid(preferred) or not filter_is_valid(fallback):
+        return Err("raylib: invalid argument")
+    if texture_filter_supported(preferred):
+        match set_texture_filter(window, texture, preferred):
+            case Ok(success):
+                return Ok(preferred)
+            case Err(error):
+                if error != "raylib: device or backend unavailable":
+                    return Err(error)
+    match set_texture_filter(window, texture, fallback):
+        case Ok(success):
+            return Ok(fallback)
+        case Err(error):
+            return Err(error)
 
 pub fn create_render_texture(window: Window, width: Int, height: Int) -> Result[RenderTexture, String]:
     if width <= 0 or height <= 0:
         return Err("raylib: invalid argument")
     unsafe:
-        let target_id = rlv_render_texture_load(window.id, width, height)
+        let target_id = native.rlv_render_texture_load(window.id, width, height)
         if target_id > 0:
             return Ok(RenderTexture(target_id))
         return Err(status_message(target_id))
@@ -411,40 +661,61 @@ pub fn render_texture_width(target: RenderTexture) -> Result[Float, String]:
     if not render_texture_is_valid(target):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_render_texture_width_f64(target.id))
+        return Ok(native.rlv_render_texture_width_f64(target.id))
 
 pub fn render_texture_height(target: RenderTexture) -> Result[Float, String]:
     if not render_texture_is_valid(target):
         return Err("raylib: stale or already released handle")
     unsafe:
-        return Ok(rlv_render_texture_height_f64(target.id))
+        return Ok(native.rlv_render_texture_height_f64(target.id))
+
+pub fn set_render_texture_filter(window: Window, target: RenderTexture, value: TextureFilter) -> Result[Bool, String]:
+    if value.mode != 0 and value.mode != 1:
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_render_texture_set_filter(window.id, target.id, value.mode))
+
+pub fn get_render_texture_filter(target: RenderTexture) -> Result[TextureFilter, String]:
+    unsafe:
+        let mode = native.rlv_render_texture_get_filter(target.id)
+        if mode < 0:
+            return Err(status_message(mode))
+        return Ok(TextureFilter(mode))
 
 pub fn unload_render_texture(target: RenderTexture) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_render_texture_unload(target.id))
+        return status_result(native.rlv_render_texture_unload(target.id))
 
 pub fn begin_render_target(frame: Frame, target: RenderTexture) -> Result[RenderTargetScope, String]:
     unsafe:
-        let scope_id = rlv_render_target_begin(frame.id, target.id)
+        let scope_id = native.rlv_render_target_begin(frame.id, target.id)
         if scope_id > 0:
             return Ok(RenderTargetScope(scope_id))
         return Err(status_message(scope_id))
 
 pub fn end_render_target(scope: RenderTargetScope) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_render_target_end(scope.id))
+        return status_result(native.rlv_render_target_end(scope.id))
 
 pub fn draw_render_texture(frame: Frame, target: RenderTexture, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float) -> Result[Bool, String]:
     if not finite(source_x) or not finite(source_y) or not finite(source_width) or not finite(source_height) or not finite(dest_x) or not finite(dest_y) or not finite(dest_width) or not finite(dest_height):
         return Err("raylib: invalid argument")
     unsafe:
-        return status_result(rlv_render_texture_draw(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+        return status_result(native.rlv_render_texture_draw(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+
+pub fn draw_render_texture_pro(frame: Frame, target: RenderTexture, source: graphics.Rect, dest: graphics.Rect, origin: graphics.Vec2, rotation: Float, tint: Color) -> Result[Bool, String]:
+    if not finite(source.x) or not finite(source.y) or not finite(source.width) or not finite(source.height) or source.width == 0.0 or source.height == 0.0 or source.x < 0.0 or source.y < 0.0:
+        return invalid_geometry()
+    if not valid_rect(dest.x, dest.y, dest.width, dest.height) or not finite(origin.x) or not finite(origin.y) or not finite(rotation) or not valid_color(tint.red, tint.green, tint.blue, tint.alpha):
+        return invalid_geometry()
+    unsafe:
+        return status_result(native.rlv_render_texture_draw(frame.id, target.id, source.x, source.y, source.width, source.height, dest.x, dest.y, dest.width, dest.height, origin.x, origin.y, rotation, tint.red, tint.green, tint.blue, tint.alpha))
 
 pub fn draw_render_texture_framebuffer(frame: Frame, target: RenderTexture, source_x: Float, source_y: Float, source_width: Float, source_height: Float, dest_x: Float, dest_y: Float, dest_width: Float, dest_height: Float) -> Result[Bool, String]:
     if not finite(source_x) or not finite(source_y) or not finite(source_width) or not finite(source_height) or not finite(dest_x) or not finite(dest_y) or not finite(dest_width) or not finite(dest_height):
         return Err("raylib: invalid argument")
     unsafe:
-        return status_result(rlv_render_texture_draw_framebuffer(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
+        return status_result(native.rlv_render_texture_draw_framebuffer(frame.id, target.id, source_x, source_y, source_width, source_height, dest_x, dest_y, dest_width, dest_height, 0.0, 0.0, 0.0, 255, 255, 255, 255))
 
 pub fn save_render_texture_png(window: Window, target: RenderTexture, path: String) -> Result[Bool, String]:
     match encode_text(path):
@@ -453,7 +724,7 @@ pub fn save_render_texture_png(window: Window, target: RenderTexture, path: Stri
         case Ok(buffer_id):
             var status = -2
             unsafe:
-                status = rlv_render_texture_save_png(window.id, target.id, buffer_id)
+                status = native.rlv_render_texture_save_png(window.id, target.id, buffer_id)
             let released = release_text(buffer_id)
             if status != 0:
                 return Err(status_message(status))
@@ -463,7 +734,7 @@ pub fn begin_scissor(frame: Frame, x: Float, y: Float, width: Float, height: Flo
     if not valid_rect(x, y, width, height):
         return Err("raylib: invalid argument")
     unsafe:
-        let scope_id = rlv_scissor_begin(frame.id, x, y, width, height)
+        let scope_id = native.rlv_scissor_begin(frame.id, x, y, width, height)
         if scope_id > 0:
             return Ok(ScissorScope(scope_id))
         return Err(status_message(scope_id))
@@ -472,14 +743,142 @@ pub fn begin_framebuffer_scissor(frame: Frame, x: Float, y: Float, width: Float,
     if not valid_rect(x, y, width, height):
         return Err("raylib: invalid argument")
     unsafe:
-        let scope_id = rlv_scissor_begin_framebuffer(frame.id, x, y, width, height)
+        let scope_id = native.rlv_scissor_begin_framebuffer(frame.id, x, y, width, height)
         if scope_id > 0:
             return Ok(ScissorScope(scope_id))
         return Err(status_message(scope_id))
 
 pub fn end_scissor(scope: ScissorScope) -> Result[Bool, String]:
     unsafe:
-        return status_result(rlv_scissor_end(scope.id))
+        return status_result(native.rlv_scissor_end(scope.id))
+
+pub fn begin_blend(frame: Frame, mode: BlendMode) -> Result[BlendScope, String]:
+    if mode.mode < 0 or mode.mode > 5:
+        return Err("raylib: invalid argument")
+    unsafe:
+        let scope_id = native.rlv_blend_begin(frame.id, mode.mode)
+        if scope_id > 0:
+            return Ok(BlendScope(scope_id))
+        return Err(status_message(scope_id))
+
+pub fn end_blend(scope: BlendScope) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_blend_end(scope.id))
+
+pub fn shader_supported(window: Window) -> Result[Bool, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    unsafe:
+        return Ok(native.rlv_shader_supported(window.id))
+
+fn shader_load_error(status: Int) -> String:
+    if status != -7:
+        return status_message(status)
+    var bytes = binary.from_string("")
+    var length = 0
+    unsafe:
+        length = native.rlv_shader_diagnostic_length()
+    var index = 0
+    while index < length and index < 16384:
+        var byte_value = 0
+        unsafe:
+            byte_value = native.rlv_shader_diagnostic_byte(index)
+        match binary.write_u8(byte_value):
+            case Err(error):
+                return status_message(status)
+            case Ok(part):
+                bytes = binary.concat(bytes, part)
+        index = index + 1
+    match binary.to_string(bytes):
+        case Err(error):
+            return status_message(status)
+        case Ok(diagnostic):
+            if string.byte_length(diagnostic) == 0:
+                return status_message(status)
+            return string.concat("raylib: invalid shader program: ", diagnostic)
+
+fn load_shader_buffers(window: Window, vertex: String, fragment: String, from_source: Bool) -> Result[Shader, String]:
+    if not window_is_valid(window):
+        return Err("raylib: stale or already released handle")
+    match encode_text(vertex):
+        case Err(error):
+            return Err(error)
+        case Ok(vertex_buffer):
+            match encode_text(fragment):
+                case Err(error):
+                    let released = release_text(vertex_buffer)
+                    return Err(error)
+                case Ok(fragment_buffer):
+                    var shader_id = -2
+                    unsafe:
+                        if from_source:
+                            shader_id = native.rlv_shader_load_memory(window.id, vertex_buffer, fragment_buffer)
+                        else:
+                            shader_id = native.rlv_shader_load_files(window.id, vertex_buffer, fragment_buffer)
+                    let released_vertex = release_text(vertex_buffer)
+                    let released_fragment = release_text(fragment_buffer)
+                    if shader_id <= 0:
+                        return Err(shader_load_error(shader_id))
+                    return Ok(Shader(shader_id))
+
+# Pass "" for a stage that should use the backend's default shader stage.
+pub fn load_shader(window: Window, vertex_path: String, fragment_path: String) -> Result[Shader, String]:
+    return load_shader_buffers(window, vertex_path, fragment_path, false)
+
+pub fn load_shader_from_source(window: Window, vertex_source: String, fragment_source: String) -> Result[Shader, String]:
+    return load_shader_buffers(window, vertex_source, fragment_source, true)
+
+pub fn unload_shader(shader: Shader) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_shader_unload(shader.id))
+
+pub fn shader_uniform(shader: Shader, name: String, uniform_type: ShaderUniformType) -> Result[ShaderUniform, String]:
+    if string.byte_length(name) == 0 or uniform_type.kind < 0 or uniform_type.kind > 3:
+        return Err("raylib: invalid argument")
+    match encode_text(name):
+        case Err(error):
+            return Err(error)
+        case Ok(name_buffer):
+            var uniform_id = -2
+            unsafe:
+                uniform_id = native.rlv_shader_uniform(shader.id, name_buffer, uniform_type.kind)
+            let released = release_text(name_buffer)
+            if uniform_id <= 0:
+                return Err(status_message(uniform_id))
+            return Ok(ShaderUniform(uniform_id))
+
+pub fn set_shader_float(shader: Shader, uniform: ShaderUniform, value: Float) -> Result[Bool, String]:
+    if not finite(value):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_shader_set_float(shader.id, uniform.id, value))
+
+pub fn set_shader_int(shader: Shader, uniform: ShaderUniform, value: Int) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_shader_set_int(shader.id, uniform.id, value))
+
+pub fn set_shader_vec2(shader: Shader, uniform: ShaderUniform, value: graphics.Vec2) -> Result[Bool, String]:
+    if not finite(value.x) or not finite(value.y):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_shader_set_vec2(shader.id, uniform.id, value.x, value.y))
+
+pub fn set_shader_color(shader: Shader, uniform: ShaderUniform, value: Color) -> Result[Bool, String]:
+    if not valid_color(value.red, value.green, value.blue, value.alpha):
+        return Err("raylib: invalid argument")
+    unsafe:
+        return status_result(native.rlv_shader_set_color(shader.id, uniform.id, value.red, value.green, value.blue, value.alpha))
+
+pub fn begin_shader(frame: Frame, shader: Shader) -> Result[ShaderScope, String]:
+    unsafe:
+        let scope_id = native.rlv_shader_begin(frame.id, shader.id)
+        if scope_id > 0:
+            return Ok(ShaderScope(scope_id))
+        return Err(status_message(scope_id))
+
+pub fn end_shader(scope: ShaderScope) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_shader_end(scope.id))
 
 # Typography stays behind the same checked boundary as the legacy drawing
 # helpers above. Layout tokens are consumed and destroyed before they escape
@@ -592,3 +991,123 @@ pub fn unload_font(font: Font) -> Result[Bool, String]:
         return Err("raylib: stale or already released handle")
     unsafe:
         return status_result(native.rlv_font_unload(font.id))
+
+# The device owns sounds and music. Unload every resource before closing it.
+# A close with live resources fails, leaving the device open for cleanup.
+pub fn open_audio() -> Result[AudioDevice, String]:
+    unsafe:
+        let audio_id = native.rlv_audio_open()
+        if audio_id > 0:
+            return Ok(AudioDevice(audio_id))
+        return Err(status_message(audio_id))
+
+pub fn close_audio(audio: AudioDevice) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_audio_close(audio.id))
+
+pub fn audio_ready(audio: AudioDevice) -> Result[Bool, String]:
+    unsafe:
+        let status = native.rlv_audio_ready(audio.id)
+        if status < 0:
+            return Err(status_message(status))
+        return Ok(status != 0)
+
+pub fn load_sound(audio: AudioDevice, path: String) -> Result[Sound, String]:
+    match encode_text(path):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var sound_id = -2
+            unsafe:
+                sound_id = native.rlv_sound_load(audio.id, buffer_id)
+            let released = release_text(buffer_id)
+            if sound_id > 0:
+                return Ok(Sound(sound_id))
+            return Err(status_message(sound_id))
+
+pub fn create_tone(audio: AudioDevice, frequency: Float, seconds: Float) -> Result[Sound, String]:
+    unsafe:
+        let sound_id = native.rlv_sound_tone(audio.id, frequency, seconds)
+        if sound_id > 0:
+            return Ok(Sound(sound_id))
+        return Err(status_message(sound_id))
+
+pub fn play_sound(sound: Sound) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_sound_play(sound.id))
+
+pub fn stop_sound(sound: Sound) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_sound_stop(sound.id))
+
+pub fn sound_playing(sound: Sound) -> Result[Bool, String]:
+    unsafe:
+        let status = native.rlv_sound_playing(sound.id)
+        if status < 0:
+            return Err(status_message(status))
+        return Ok(status != 0)
+
+pub fn set_sound_volume(sound: Sound, volume: Float) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_sound_set_volume(sound.id, volume))
+
+pub fn set_sound_pitch(sound: Sound, pitch: Float) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_sound_set_pitch(sound.id, pitch))
+
+pub fn unload_sound(sound: Sound) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_sound_unload(sound.id))
+
+pub fn load_music(audio: AudioDevice, path: String) -> Result[Music, String]:
+    match encode_text(path):
+        case Err(error):
+            return Err(error)
+        case Ok(buffer_id):
+            var music_id = -2
+            unsafe:
+                music_id = native.rlv_music_load(audio.id, buffer_id)
+            let released = release_text(buffer_id)
+            if music_id > 0:
+                return Ok(Music(music_id))
+            return Err(status_message(music_id))
+
+pub fn play_music(music: Music) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_play(music.id))
+
+# Call once per game-loop iteration while the stream is playing.
+pub fn update_music(music: Music) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_update(music.id))
+
+pub fn pause_music(music: Music) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_pause(music.id))
+
+pub fn resume_music(music: Music) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_resume(music.id))
+
+pub fn stop_music(music: Music) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_stop(music.id))
+
+pub fn music_playing(music: Music) -> Result[Bool, String]:
+    unsafe:
+        let status = native.rlv_music_playing(music.id)
+        if status < 0:
+            return Err(status_message(status))
+        return Ok(status != 0)
+
+pub fn set_music_volume(music: Music, volume: Float) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_set_volume(music.id, volume))
+
+pub fn set_music_looping(music: Music, looping: Bool) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_set_looping(music.id, looping))
+
+pub fn unload_music(music: Music) -> Result[Bool, String]:
+    unsafe:
+        return status_result(native.rlv_music_unload(music.id))

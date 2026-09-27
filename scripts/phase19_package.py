@@ -31,6 +31,12 @@ TARGETS = {
     "linux-arm64": ("aarch64-unknown-linux-gnu", "", ".a"),
     "macos-arm64": ("arm64-apple-macosx", "", ".a"),
 }
+GAME_RUNTIME_LIBRARIES = {
+    "windows-x64": ("rocket_raylib_adapter.lib", "raylib.lib"),
+    "linux-x64": ("librocket_raylib_adapter.a", "libraylib.a"),
+    "linux-arm64": ("librocket_raylib_adapter.a", "libraylib.a"),
+    "macos-arm64": ("librocket_raylib_adapter.a", "libraylib.a"),
+}
 
 
 class PackageFailure(RuntimeError):
@@ -88,6 +94,33 @@ def require_file(path: Path, description: str) -> Path:
     if not resolved.is_file():
         raise PackageFailure(f"missing {description}: {resolved}")
     return resolved
+
+
+def install_game_runtime(build: Path, package: Path, target: str) -> list[str]:
+    """Install the production Raylib backend and its pinned native dependency."""
+    native_root = build / "native" / target
+    installed: list[str] = []
+    for name in GAME_RUNTIME_LIBRARIES[target]:
+        source = require_file(native_root / name, f"{target} game runtime library")
+        shutil.copy2(source, package / "lib" / name)
+        installed.append(name)
+    include = package / "include" / "rocket" / "raylib"
+    include.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        require_file(
+            ROOT / "src" / "raylib" / "rocket_raylib_adapter.h",
+            "production Raylib adapter header",
+        ),
+        include / "rocket_raylib_adapter.h",
+    )
+    shutil.copy2(
+        require_file(
+            ROOT / "dependencies" / "installed" / "raylib-6.0" / "LICENSE",
+            "pinned Raylib license",
+        ),
+        package / "licenses" / "RAYLIB-LICENSE.txt",
+    )
+    return installed
 
 
 def run(
@@ -485,6 +518,7 @@ def package_tree(arguments: argparse.Namespace) -> tuple[Path, dict[str, object]
     # installed name.
     packaged_runtime = package / "lib" / f"rocket_runtime{runtime_suffix}"
     shutil.copy2(runtime, packaged_runtime)
+    game_runtime_libraries = install_game_runtime(build, package, arguments.target)
     llvm_tools = copy_llvm(arguments, package)
 
     if windows:
@@ -549,7 +583,8 @@ def package_tree(arguments: argparse.Namespace) -> tuple[Path, dict[str, object]
 `stage0/rocketc-stage0{executable_suffix}` is the permanent C++20 bootstrap
 compiler. The SDK contains its matching ABI-v1 runtime, LLVM 22.1.6 compiler,
 LLD linker, librarian, Clang resource headers, standard library, language
-server, target metadata, bootstrap proof, provenance, and checksums.
+server, production Rocket Raylib adapter, pinned Raylib 6.0 library, target
+metadata, bootstrap proof, provenance, and checksums.
 
 An ordinary native Rocket compile uses only tools inside this SDK plus the
 target operating system's native SDK and system libraries. It does not require
@@ -581,6 +616,7 @@ Release channel: {arguments.channel}.
         "bootstrap_proof_sha256": sha256(package / "BOOTSTRAP_SHA256SUMS.txt"),
         "llvm_tools": llvm_tools,
         "bundled_runtime_libraries": bundled_runtime_libraries,
+        "game_runtime_libraries": game_runtime_libraries,
         "signed": False,
         "signing_note": "repository completion does not require an official signing certificate",
     }
@@ -710,20 +746,51 @@ def verify_relocation(package: Path, arguments: argparse.Namespace) -> dict[str,
     suffix = TARGETS[arguments.target][1]
     compiler = relocation / "bin" / f"rocketc{suffix}"
     stage0 = relocation / "stage0" / f"rocketc-stage0{suffix}"
-    run([compiler, "--version"], env=env, cwd=work, pattern=r"^rocketc 2\.1\.0$")
+    run([compiler, "--version"], env=env, cwd=work, pattern=r"^rocketc 3\.0\.0$")
     target_output = run(
         [compiler, "target", "--verbose"], env=env, cwd=work,
         pattern=rf"(?m)^target: {re.escape(arguments.target)}$"
     )
-    run([stage0, "--version"], env=env, cwd=work, pattern=r"^rocketc 2\.1\.0$")
+    run([stage0, "--version"], env=env, cwd=work, pattern=r"^rocketc 3\.0\.0$")
     if arguments.target != "windows-x64":
         verify_packaged_driver(relocation, work, arguments.target, env)
     fixture = work / "package-fixture"
-    shutil.copytree(ROOT / "tests" / "fixtures" / "phase8_package", fixture)
+    shutil.copytree(
+        ROOT / "tests" / "fixtures" / "rocket35_game_runtime_package", fixture
+    )
     run([compiler, "check", fixture], env=env, cwd=work, pattern=r"check succeeded")
     run([compiler, "build", fixture], env=env, cwd=work, pattern=r"built ")
-    run([compiler, "run", fixture], env=env, cwd=work, pattern=r"(?m)^42$")
-    run([compiler, "test", fixture], env=env, cwd=work, pattern=r"2 passed; 0 failed")
+    run(
+        [compiler, "run", fixture], env=env, cwd=work,
+        pattern=r"(?m)^rocket35-runtime-ok$"
+    )
+    run(
+        [compiler, "test", fixture], env=env, cwd=work,
+        pattern=r"1 passed; 0 failed"
+    )
+    assets_fixture = work / "asset-package-fixture"
+    shutil.copytree(
+        ROOT / "tests" / "fixtures" / "rocket35_assets_package", assets_fixture
+    )
+    asset_env = dict(env, ROCKET_ASSET_PACKAGE_ROOT=str(assets_fixture))
+    run([compiler, "check", assets_fixture], env=asset_env, cwd=work,
+        pattern=r"check succeeded")
+    run([compiler, "build", assets_fixture], env=asset_env, cwd=work,
+        pattern=r"built ")
+    run([compiler, "test", assets_fixture], env=asset_env, cwd=work,
+        pattern=r"2 passed; 0 failed")
+    ui_fixture = work / "ui-render-package-fixture"
+    shutil.copytree(
+        ROOT / "tests" / "fixtures" / "rocket35_ui_render_package", ui_fixture
+    )
+    ui_env = dict(env, ROCKET_UI_PACKAGE_ROOT=str(ui_fixture))
+    run([compiler, "check", ui_fixture], env=ui_env, cwd=work,
+        pattern=r"check succeeded")
+    run([compiler, "build", ui_fixture], env=ui_env, cwd=work,
+        pattern=r"built ")
+    run([compiler, "run", ui_fixture], env=ui_env, cwd=work)
+    run([compiler, "test", ui_fixture], env=ui_env, cwd=work,
+        pattern=r"1 passed; 0 failed")
     return {
         "schema": "rocket-relocation-report-2",
         "version": VERSION,

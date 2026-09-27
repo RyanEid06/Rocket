@@ -241,6 +241,8 @@ void nativeShaderCycle() {
   expect(rlv_shader_load_memory(window, vertex, invalidFragment) ==
              RLV_ERR_INVALID_SHADER,
          "reject raylib default-shader fallback after compile failure");
+  expect(rlv_shader_diagnostic_length() > 0,
+         "retain backend shader compilation diagnostics");
   const char* validFilePath = "wp17-valid-fragment.fs";
   {
     std::ofstream validFile(validFilePath, std::ios::binary);

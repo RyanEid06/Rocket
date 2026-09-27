@@ -1,155 +1,155 @@
-import src.rocket_raylib_adapter
+import rocket.raylib.native
 
 # Test-only deterministic backend controls. Production application code imports
 # src.rocket_raylib instead; these functions never expose a native pointer.
 
 fn checked(status: Int) -> Bool:
-    return status == rocket_raylib_adapter.RLV_OK
+    return status == native.RLV_OK
 
 pub fn enable() -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_enable_test_mode(true))
+        return checked(native.rlv_enable_test_mode(true))
 
 pub fn reset() -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_reset())
+        return checked(native.rlv_test_reset())
 
 pub fn set_key(key: Int, pressed: Bool, down: Bool) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_set_key(key, pressed, down))
+        return checked(native.rlv_test_set_key(key, pressed, down))
 
 pub fn set_mouse(x: Int, y: Int, pressed: Bool) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_set_mouse(x, y, pressed))
+        return checked(native.rlv_test_set_mouse(x, y, pressed))
 
 pub fn set_mouse_state(x: Int, y: Int, pressed: Bool, down: Bool, released: Bool) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_set_mouse_state(x, y, pressed, down, released))
+        return checked(native.rlv_test_set_mouse_state(x, y, pressed, down, released))
 
 pub fn request_close(value: Bool) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_request_close(value))
+        return checked(native.rlv_test_request_close(value))
 
 pub fn draw_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_draw_count()
+        return native.rlv_draw_count()
 
 pub fn geometry_call_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_geometry_call_count()
+        return native.rlv_geometry_call_count()
 
 pub fn point_buffer_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_point_buffer_live_count()
+        return native.rlv_point_buffer_live_count()
 
 pub fn buffer_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_buffer_live_count()
+        return native.rlv_buffer_live_count()
 
 pub fn texture_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_texture_live_count()
+        return native.rlv_texture_live_count()
 
 pub fn render_texture_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_render_texture_live_count()
+        return native.rlv_render_texture_live_count()
 
 pub fn scope_depth() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_scope_depth()
+        return native.rlv_scope_depth()
 
 pub fn render_target_switch_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_render_target_switch_count()
+        return native.rlv_render_target_switch_count()
 
 pub fn scissor_switch_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_scissor_switch_count()
+        return native.rlv_scissor_switch_count()
 
 pub fn blend_switch_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_blend_switch_count()
+        return native.rlv_blend_switch_count()
 
 pub fn screenshot_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_screenshot_count()
+        return native.rlv_screenshot_count()
 
 pub fn shader_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_shader_live_count()
+        return native.rlv_shader_live_count()
 
 pub fn shader_uniform_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_shader_uniform_live_count()
+        return native.rlv_shader_uniform_live_count()
 
 pub fn shader_switch_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_shader_switch_count()
+        return native.rlv_shader_switch_count()
 
 pub fn font_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_font_live_count()
+        return native.rlv_font_live_count()
 
 pub fn text_layout_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_text_layout_live_count()
+        return native.rlv_text_layout_live_count()
 
 pub fn measurement_cache_size() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_font_measurement_cache_size()
+        return native.rlv_font_measurement_cache_size()
 
 pub fn measurement_cache_capacity() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_font_measurement_cache_capacity()
+        return native.rlv_font_measurement_cache_capacity()
 
 pub fn measurement_cache_hits() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_font_measurement_cache_hits()
+        return native.rlv_font_measurement_cache_hits()
 
 pub fn measurement_cache_misses() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_font_measurement_cache_misses()
+        return native.rlv_font_measurement_cache_misses()
 
 pub fn text_draw_x() -> Float:
     unsafe:
-        return rocket_raylib_adapter.rlv_test_text_draw_x()
+        return native.rlv_test_text_draw_x()
 
 pub fn text_draw_y() -> Float:
     unsafe:
-        return rocket_raylib_adapter.rlv_test_text_draw_y()
+        return native.rlv_test_text_draw_y()
 
 pub fn sound_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_sound_live_count()
+        return native.rlv_sound_live_count()
 
 pub fn music_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_music_live_count()
+        return native.rlv_music_live_count()
 
 pub fn asset_store_live_count() -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_asset_store_live_count()
+        return native.rlv_asset_store_live_count()
 
 pub fn asset_count(store_id: Int) -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_asset_store_asset_count(store_id)
+        return native.rlv_asset_store_asset_count(store_id)
 
 pub fn physical_asset_count(store_id: Int) -> Int:
     unsafe:
-        return rocket_raylib_adapter.rlv_asset_store_physical_count(store_id)
+        return native.rlv_asset_store_physical_count(store_id)
 
 pub fn set_test_anisotropy(level: Int) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_set_anisotropy(level))
+        return checked(native.rlv_test_set_anisotropy(level))
 
 pub fn set_shader_supported(supported: Bool) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_set_shader_supported(supported))
+        return checked(native.rlv_test_set_shader_supported(supported))
 
 pub fn set_display_metrics(logical_width: Int, logical_height: Int, framebuffer_width: Int, framebuffer_height: Int, dpi_scale_x: Float, dpi_scale_y: Float, monitor_count: Int, current_monitor: Int) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_set_display_metrics(logical_width, logical_height, framebuffer_width, framebuffer_height, dpi_scale_x, dpi_scale_y, monitor_count, current_monitor))
+        return checked(native.rlv_test_set_display_metrics(logical_width, logical_height, framebuffer_width, framebuffer_height, dpi_scale_x, dpi_scale_y, monitor_count, current_monitor))
 
 pub fn set_display_capabilities(resize: Bool, fullscreen: Bool, borderless: Bool, monitor_selection: Bool, screenshot: Bool) -> Bool:
     unsafe:
-        return checked(rocket_raylib_adapter.rlv_test_set_display_capabilities(resize, fullscreen, borderless, monitor_selection, screenshot))
+        return checked(native.rlv_test_set_display_capabilities(resize, fullscreen, borderless, monitor_selection, screenshot))

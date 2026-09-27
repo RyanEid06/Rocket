@@ -1,0 +1,48 @@
+{
+  "schema": "rocket35-wp6-ui-goldens-v1",
+  "capture_size": [640, 360],
+  "reference_host": "Windows x64, Raylib 6.0, AMD Radeon OpenGL 3.3",
+  "policy": "Reviewed source goldens; bounded pixel comparison permits font and GPU raster differences across native targets.",
+  "scenes": [
+    {
+      "name": "button states",
+      "reference": "button-states.png",
+      "sha256": "592a571c9557ebdbb5df1913c4ffb85431d27f16a760489d83e89199d3567b4b",
+      "coverage": ["idle", "hover", "pressed", "disabled", "focused"],
+      "anchors": [[50, 135], [200, 135], [350, 135], [505, 135], [270, 225]],
+      "tolerance": {"mean_absolute_error": 4.0, "changed_pixel_ratio": 0.08, "anchor_channel_delta": 20}
+    },
+    {
+      "name": "panel and card",
+      "reference": "panel-card.png",
+      "sha256": "2892b8c88e606f23b741d4d841ecbcd8b57c666b1f4061998d36a69df8f85afa",
+      "coverage": ["fill", "border", "corner radius", "shadow"],
+      "anchors": [[180, 80], [300, 150], [480, 100]],
+      "tolerance": {"mean_absolute_error": 4.0, "changed_pixel_ratio": 0.08, "anchor_channel_delta": 20}
+    },
+    {
+      "name": "label layout",
+      "reference": "label-layout.png",
+      "sha256": "8b0d00451fe7fc5c857996c559f826db92225a27edd678318f7026a3cd5aad19",
+      "coverage": ["wrap", "left", "right", "center", "top", "middle", "bottom", "clip"],
+      "lit_regions": [[46, 56, 242, 108, 1000], [352, 56, 242, 108, 1000], [192, 216, 256, 70, 150]],
+      "tolerance": {"mean_absolute_error": 4.0, "changed_pixel_ratio": 0.08, "anchor_channel_delta": 20}
+    },
+    {
+      "name": "image fit",
+      "reference": "image-fit.png",
+      "sha256": "9d22567b17b25d7a892f7a1bce0837d9029300e33f768719f570f18a75082594",
+      "coverage": ["contain", "cover", "stretch", "clip"],
+      "anchors": [[70, 140], [270, 140], [480, 140]],
+      "tolerance": {"mean_absolute_error": 4.0, "changed_pixel_ratio": 0.08, "anchor_channel_delta": 20}
+    },
+    {
+      "name": "composed layout",
+      "reference": "composed-layout.png",
+      "sha256": "c28e90d974ba79b8df21822535702e13e6516c9f6369837de006d0eaf2006ee3",
+      "coverage": ["panel", "button", "label", "image", "progress bar"],
+      "anchors": [[160, 170], [270, 145], [450, 145], [360, 245]],
+      "tolerance": {"mean_absolute_error": 4.0, "changed_pixel_ratio": 0.08, "anchor_channel_delta": 20}
+    }
+  ]
+}

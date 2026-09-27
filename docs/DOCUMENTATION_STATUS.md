@@ -48,10 +48,9 @@ below retain their recorded facts; a historical banner points readers here.
 - The production compiler is `compiler/src/main.rocket`. C++ is the permanent
   reproducible stage0 plus runtime, native-adapter, language-server, and test
   infrastructure.
-- The accepted typed asset-store implementation is the reference package module
-  `examples/raylib_showcase/src/rocket_assets.rocket`, imported as
-  `src.rocket_assets`. The `rocket.assets` / `stdlib/rocket/assets` names in
-  the provisional Rocket 3 design are not available modules in this checkout.
+- Rocket 3.0's accepted typed asset-store implementation was the showcase
+  reference module `src.rocket_assets`. Rocket 3.5 bundles `rocket.assets`;
+  `ROCKET_3_5_ASSETS.md` documents the current ownership and path contract.
 
 ## Disposition table
 
@@ -154,8 +153,9 @@ The documentation-only diff was reviewed on 2026-09-10.
   support or Windows-only claim. Remaining old wording is confined to the
   explicitly historical `PHASE_20_AUDIT.md`,
   `RELEASE_1_0.md`, and `RELEASE_1_8.md`; `rocket.assets` and
-  `stdlib/rocket/assets` mentions are labeled unavailable or intended-future,
-  with `src.rocket_assets` identified as the current reference package.
+  `stdlib/rocket/assets` mentions were labeled unavailable or intended-future
+  at the WP35 release, with `src.rocket_assets` as the 3.0 reference package.
+  Rocket 3.5 WP5 now bundles `rocket.assets`.
 - **Scope:** no compiler, Rocket source, standard-library source, tests, build
   wiring, generated output, or dependency artifact changed. The only
   dependency-path change is the explanatory `dependencies/README.md` file

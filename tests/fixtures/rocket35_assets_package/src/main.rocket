@@ -1,0 +1,17 @@
+import rocket.assets
+
+pub fn asset_surface(store: assets.AssetStore, texture: assets.TextureRef, font: assets.FontRef, sound: assets.SoundRef, music: assets.MusicRef, shader: assets.ShaderRef) -> Bool:
+    let textures = assets.texture(store, "texture")
+    let fonts = assets.font(store, "font")
+    let sounds = assets.sound(store, "sound")
+    let musics = assets.music(store, "music")
+    let shaders = assets.shader(store, "shader")
+    let borrowed_texture = assets.borrow_texture(texture)
+    let borrowed_font = assets.borrow_font(font)
+    let borrowed_sound = assets.borrow_sound(sound)
+    let borrowed_music = assets.borrow_music(music)
+    let borrowed_shader = assets.borrow_shader(shader)
+    return true
+
+fn main() -> Int:
+    return 0

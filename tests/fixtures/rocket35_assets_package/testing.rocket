@@ -1,0 +1,17 @@
+import rocket.raylib.native
+
+pub fn start() -> Bool:
+    unsafe:
+        return native.rlv_enable_test_mode(true) == 0 and native.rlv_test_reset() == 0
+
+pub fn asset_count(store_id: Int) -> Int:
+    unsafe:
+        return native.rlv_asset_store_asset_count(store_id)
+
+pub fn physical_asset_count(store_id: Int) -> Int:
+    unsafe:
+        return native.rlv_asset_store_physical_count(store_id)
+
+pub fn buffer_live_count() -> Int:
+    unsafe:
+        return native.rlv_buffer_live_count()

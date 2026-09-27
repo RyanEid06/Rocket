@@ -21,7 +21,8 @@ inert source in offline mode.
 
 - protocol message: 16 MiB; header: 16 KiB;
 - open document: 4 MiB;
-- project defaults: 4,096 files and 64 MiB of source;
+- project defaults: 4,096 files and 64 MiB of source; configurable maxima:
+  16,384 files and 256 MiB;
 - one workspace edit: 1,024 edits;
 - malformed frames, invalid JSON-RPC, stale versions, invalid UTF-16 ranges,
   oversized content, and requests before `initialize` receive bounded errors.
@@ -53,8 +54,8 @@ and incremental synchronization (`textDocumentSync.change = 2`). Full-content
 changes remain accepted as the bounded compatibility baseline. Versions must
 increase. `workspace/didChangeConfiguration` accepts:
 
-- `rocket.maximumProjectFiles` (1..4096),
-- `rocket.maximumProjectBytes` (1 MiB..64 MiB),
+- `rocket.maximumProjectFiles` (16..16384; default 4096),
+- `rocket.maximumProjectBytes` (1 MiB..256 MiB; default 64 MiB),
 - `rocket.telemetry` (boolean).
 
 Workspace-folder changes rebuild the bounded graph. Closing a document removes

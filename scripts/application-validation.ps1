@@ -135,7 +135,14 @@ try {
         $process.Dispose()
     }
 
-    Invoke-Rocket @('test', (Join-Path $projectRoot 'examples\raylib_showcase')) '11 passed; 0 failed'
+    $showcaseRoot = Join-Path $projectRoot 'examples\raylib_showcase'
+    $previousShowcaseRoot = $env:ROCKET_SHOWCASE_PACKAGE_ROOT
+    try {
+        $env:ROCKET_SHOWCASE_PACKAGE_ROOT = $showcaseRoot
+        Invoke-Rocket @('test', $showcaseRoot) '11 passed; 0 failed'
+    } finally {
+        $env:ROCKET_SHOWCASE_PACKAGE_ROOT = $previousShowcaseRoot
+    }
     Invoke-Rocket @('run', (Join-Path $projectRoot 'examples\ownership_concurrency.rocket')) '41[\r\n]+3[\r\n]+42'
 
     $reportPath = Join-Path $work 'application-validation.json'

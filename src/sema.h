@@ -3,6 +3,7 @@
 #include "hir.h"
 
 #include <optional>
+#include <set>
 #include <string>
 
 namespace rocket {
@@ -12,7 +13,8 @@ public:
   SemanticAnalyzer(const Module& module, Diagnostics& diagnostics)
       : module_(module), diagnostics_(diagnostics) {}
   bool analyze();
-  std::optional<HirModule> analyzeToHir();
+  std::optional<HirModule>
+  analyzeToHir(const std::set<std::string> *bodySources = nullptr);
 
   static Type typeFromName(const std::string& name) { return rocket::typeFromName(name); }
   static std::string typeName(const Type& type) { return rocket::typeName(type); }

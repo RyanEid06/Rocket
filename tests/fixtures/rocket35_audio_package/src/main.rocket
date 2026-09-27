@@ -1,0 +1,19 @@
+import rocket.raylib.safe
+
+pub fn play_table_audio(audio: safe.AudioDevice, music: safe.Music, click: safe.Sound, chip: safe.Sound) -> Result[Bool, String]:
+    match safe.play_music(music):
+        case Err(error):
+            return Err(error)
+        case Ok(playing):
+            match safe.play_sound(click):
+                case Err(error):
+                    return Err(error)
+                case Ok(clicked):
+                    match safe.play_sound(chip):
+                        case Err(error):
+                            return Err(error)
+                        case Ok(chipped):
+                            return safe.update_music(music)
+
+fn main() -> Int:
+    return 0

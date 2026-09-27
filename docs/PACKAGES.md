@@ -10,8 +10,9 @@ sections under the unchanged security and reproducibility boundary.
 
 Rocket 3.0 does not change package identity, lockfile, registry, or native
 input rules. Its graphics/UI source modules are bundled or package
-sources under the existing graph rules; the typed asset store currently lives
-in the reference package as `src.rocket_assets`. Rocket 3.0 is additive to this
+sources under the existing graph rules; its typed asset store lived in the
+reference package as `src.rocket_assets`. Rocket 3.5 bundles `rocket.assets`
+without changing package identity or native-input rules. Rocket 3.0 is additive to this
 contract and accepted on all four production targets. See
 `ROCKET_3_0_SYNTAX_DICTIONARY.md` for the current API
 index and `DOCUMENTATION_STATUS.md` for document ownership.

@@ -347,7 +347,9 @@ def validate_stages(
     )
     runner.run(
         [stages[3], "test", ROOT / "examples" / "raylib_showcase"],
-        env=stage3_env, pattern=r"11 passed; 0 failed", label="stage3-raylib-test"
+        env={**stage3_env,
+             "ROCKET_SHOWCASE_PACKAGE_ROOT": str(ROOT / "examples" / "raylib_showcase")},
+        pattern=r"11 passed; 0 failed", label="stage3-raylib-test"
     )
     validations += 2
 
@@ -382,7 +384,7 @@ def validate_stages(
     generation_commands = [
         ("header", [stages[3], "emit-header", fixtures / "phase13_static_library", "--output"]),
         ("bindings", [stages[3], "bind", ROOT / "tests" / "native" / "phase13_native.h", "--output"]),
-        ("raylib", [stages[3], "bind", ROOT / "examples" / "raylib_showcase" / "native" / "rocket_raylib_adapter.h", "--output"]),
+        ("raylib", [stages[3], "bind", ROOT / "src" / "raylib" / "rocket_raylib_adapter.h", "--output"]),
     ]
     for name, prefix in generation_commands:
         first = generated / f"{name}-1.{'h' if name == 'header' else 'rocket'}"

@@ -1,0 +1,2 @@
+Rocket compatibility showcase: legacy raylib coverage plus the Rocket 3.0
+typed asset-store reference package.

@@ -15,9 +15,9 @@ Rocket 3.0.0 is accepted on all four documented target rows. Its modules use
 the same package graph and native-input rules; themes, controls, containers,
 and bounded-cache calibration are part of the released source contract.
 For current callable syntax and graphics/UI APIs, use
-`ROCKET_3_0_SYNTAX_DICTIONARY.md`. The typed asset-store reference module is
-`src.rocket_assets` in the raylib showcase package, not a `rocket.assets`
-standard-library module.
+`ROCKET_3_0_SYNTAX_DICTIONARY.md`. Rocket 3.5 bundles `rocket.assets`; see
+`ROCKET_3_5_ASSETS.md` for its package-root and ownership contract. The
+showcase's `src.rocket_assets` remains the Rocket 3.0 reference module.
 
 Public packages should document exported modules, failure values, ownership,
 thread-safety, resource bounds, unsafe/native requirements, and supported

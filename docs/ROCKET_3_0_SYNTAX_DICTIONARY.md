@@ -289,6 +289,19 @@ focus, Space/Enter activation, disabled behavior, modal capture, and outside-
 viewport rejection to rocket.ui.interact. Style resolution follows the WP25
 disabled, pressed, hovered, focused, normal priority.
 
+### rocket.ui.render (Rocket 3.5)
+
+`draw_panel(frame, panel)`, `draw_button(frame, font, button)`,
+`draw_label(frame, font, text, horizontal_align, vertical_align, wrap, clip,
+overflow)`, `draw_image(frame, image, texture_ref, fit, clip)`,
+`draw_image_from_store(frame, image, store, fit, clip)`, and
+`draw_progress_bar(frame, bounds, fraction, panel_style, fill)` draw the
+corresponding Rocket 3 UI values in logical pixels. `image_contain()`,
+`image_cover()`, and `image_stretch()` select fit policy. A clipping panel on
+the logical target uses `begin_panel_content_clip` / `end_panel_content_clip`.
+The button renderer accepts the selected `ButtonResult.control`; it does not
+compute pointer or keyboard state. See `ROCKET_3_5_UI_RENDER.md`.
+
 ### rocket.ui.containers
 
 Panel, Overlay, Dialog, Tooltip, and Toast are public value types. panel(bounds,

@@ -1,4 +1,7 @@
 #include "module_loader.h"
+#include "analysis_control.h"
+#include "ast_clone.h"
+#include "workspace_state.h"
 
 #include "lexer.h"
 #include "parser.h"
@@ -66,6 +69,8 @@ std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) 
        {std::filesystem::path{"std"} / "testing.rocket", "std"}},
       {"rocket.motion",
        {std::filesystem::path{"rocket"} / "motion.rocket", "std"}},
+      {"rocket.assets",
+       {std::filesystem::path{"rocket"} / "assets.rocket", "rocket"}},
       {"rocket.graphics",
        {std::filesystem::path{"rocket"} / "graphics.rocket", "rocket"}},
       {"rocket.graphics.shapes",
@@ -86,6 +91,8 @@ std::optional<BundledSourceModule> bundledSourceModule(const std::string& name) 
        {std::filesystem::path{"rocket"} / "ui" / "controls.rocket", "rocket"}},
       {"rocket.ui.containers",
        {std::filesystem::path{"rocket"} / "ui" / "containers.rocket", "rocket"}},
+      {"rocket.ui.render",
+       {std::filesystem::path{"rocket"} / "ui" / "render.rocket", "rocket"}},
       {"rocket.raylib.native",
        {std::filesystem::path{"rocket"} / "raylib" / "native.rocket", "rocket"}},
       {"rocket.raylib.safe",
@@ -119,14 +126,18 @@ public:
   Loader(std::filesystem::path root, std::filesystem::path packageRoot,
          std::filesystem::path targetSourceRoot,
          std::vector<PackageDependencyRoot> dependencyRoots,
-         Diagnostics& diagnostics, const SourceOverlays* overlays = nullptr)
-      : rootPath_(std::filesystem::absolute(std::move(root)).lexically_normal()),
-        packageRoot_(std::filesystem::absolute(std::move(packageRoot)).lexically_normal()),
-        targetSourceRoot_(targetSourceRoot.empty()
-                              ? std::filesystem::path{}
-                              : std::filesystem::absolute(
-                                    std::move(targetSourceRoot)).lexically_normal()),
-        diagnostics_(diagnostics), overlays_(overlays) {
+         Diagnostics &diagnostics, const SourceOverlays *overlays = nullptr,
+         WorkspaceState *state = nullptr)
+      : rootPath_(
+            std::filesystem::absolute(std::move(root)).lexically_normal()),
+        packageRoot_(std::filesystem::absolute(std::move(packageRoot))
+                         .lexically_normal()),
+        targetSourceRoot_(
+            targetSourceRoot.empty()
+                ? std::filesystem::path{}
+                : std::filesystem::absolute(std::move(targetSourceRoot))
+                      .lexically_normal()),
+        diagnostics_(diagnostics), overlays_(overlays), state_(state) {
     for (auto& dependency : dependencyRoots) {
       if (dependency.direct) rootDependencies_.insert(dependency.name);
       dependencyRoots_.emplace(dependency.name, std::move(dependency));
@@ -138,7 +149,10 @@ public:
                  targetSourceRoot_, "", rootDependencies_, 0))
       return std::nullopt;
     buildIndexes();
-    for (auto& [name, module] : modules_) rewrite(module);
+    for (auto &[name, module] : modules_) {
+      analysisCheckpoint();
+      rewrite(module);
+    }
     if (diagnostics_.hasErrors()) return std::nullopt;
 
     Module merged;
@@ -232,11 +246,28 @@ private:
       states_[name] = 2;
       return false;
     }
+    analysisCheckpoint();
+    if (activeAnalysis)
+      activeAnalysis->loadedFiles.insert(path.string());
     sourceBytes_ += source.size();
-    Lexer lexer(path.string(), std::move(source), diagnostics_);
-    auto tokens = lexer.lex();
-    Parser parser(tokens, diagnostics_);
-    Module ast = parser.parseModule();
+    Module ast;
+    if (state_ != nullptr) {
+      const auto &parsed = state_->parse(path, source);
+      if (!parsed.diagnostics.hasErrors()) {
+        ast = cloneModule(parsed.module);
+      } else {
+        // Error recovery can continue through tokens which a cached, partial
+        // tree cannot represent. Use the original compiler path for this root.
+        Lexer lexer(path.string(), std::move(source), diagnostics_);
+        auto tokens = lexer.lex();
+        ast = Parser(tokens, diagnostics_).parseModule();
+      }
+    } else {
+      Lexer lexer(path.string(), std::move(source), diagnostics_);
+      auto tokens = lexer.lex();
+      Parser parser(tokens, diagnostics_);
+      ast = parser.parseModule();
+    }
     ast.name = name;
     auto [inserted, unused] = modules_.emplace(name, LoadedModule{name, path, std::move(ast)});
     LoadedModule& module = inserted->second;
@@ -336,6 +367,7 @@ private:
 
   void buildIndexes() {
     for (auto& [name, module] : modules_) {
+      analysisCheckpoint();
       for (const auto& function : module.ast.functions) {
         const std::string callable = localFunctionName(function);
         module.functions.insert(callable);
@@ -482,6 +514,7 @@ private:
 
   void rewriteExpression(LoadedModule& module, std::unique_ptr<Expr>& expression,
                          const std::unordered_set<std::string>& typeParameters) {
+    analysisCheckpoint();
     switch (expression->kind) {
     case ExprKind::Await:
       rewriteExpression(module, static_cast<AwaitExpr&>(*expression).value,
@@ -566,6 +599,7 @@ private:
   void rewriteBlock(LoadedModule& module,
                     std::vector<std::unique_ptr<Stmt>>& statements,
                     const std::unordered_set<std::string>& typeParameters) {
+    analysisCheckpoint();
     for (auto& statement : statements) {
       switch (statement->kind) {
       case StmtKind::Binding: {
@@ -640,6 +674,7 @@ private:
   }
 
   void rewrite(LoadedModule& module) {
+    analysisCheckpoint();
     for (auto& structure : module.ast.structs) {
       const std::unordered_set<std::string> parameters(structure.typeParameters.begin(),
                                                         structure.typeParameters.end());
@@ -719,6 +754,7 @@ private:
   std::filesystem::path targetSourceRoot_;
   Diagnostics& diagnostics_;
   const SourceOverlays* overlays_ = nullptr;
+  WorkspaceState *state_ = nullptr;
   std::map<std::string, PackageDependencyRoot> dependencyRoots_;
   std::unordered_set<std::string> rootDependencies_;
   std::map<std::string, LoadedModule> modules_;
@@ -770,6 +806,17 @@ std::optional<Module> loadModuleGraph(
     const SourceOverlays& overlays, Diagnostics& diagnostics) {
   return Loader(rootPath, packageRoot, {}, dependencyRoots, diagnostics,
                 &overlays).load();
+}
+
+std::optional<Module>
+loadModuleGraphCached(const std::filesystem::path &rootPath,
+                      const std::filesystem::path &packageRoot,
+                      const std::vector<PackageDependencyRoot> &dependencyRoots,
+                      const SourceOverlays &overlays, WorkspaceState &state,
+                      Diagnostics &diagnostics) {
+  return Loader(rootPath, packageRoot, {}, dependencyRoots, diagnostics,
+                &overlays, &state)
+      .load();
 }
 
 } // namespace rocket

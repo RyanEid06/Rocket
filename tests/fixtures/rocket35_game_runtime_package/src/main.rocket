@@ -1,0 +1,6 @@
+import rocket.raylib.safe
+
+fn main() -> Int:
+    let tint = safe.color(255, 255, 255)
+    print("rocket35-runtime-ok")
+    return 0

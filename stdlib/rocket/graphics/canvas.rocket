@@ -3,6 +3,7 @@
 # without native rendering; this module connects that mapping to live windows.
 
 import rocket.graphics
+import rocket.graphics.input
 import rocket.raylib.safe
 
 pub fn framebuffer_size(window: safe.Window) -> Result[graphics.Size, String]:
@@ -30,6 +31,15 @@ pub fn refresh(window: safe.Window, mapping: graphics.VirtualCanvas) -> Result[g
         return Err("virtual canvas mapping is invalid")
     return from_window(window, mapping.logical_size)
 
+# Recompute against current framebuffer metrics before hit testing, so a
+# resized or DPI-moved window never uses the previous frame's letterbox.
+pub fn pointer_position(window: safe.Window, logical_size: graphics.Size) -> Result[Option[graphics.Vec2], String]:
+    match from_window(window, logical_size):
+        case Err(message):
+            return Err(message)
+        case Ok(mapping):
+            return input.pointer_position_in_canvas(window, mapping)
+
 pub fn dpi_scale(window: safe.Window) -> Result[graphics.Vec2, String]:
     var x = 0.0
     match safe.dpi_scale_x(window):
@@ -48,6 +58,11 @@ pub fn display_revision(window: safe.Window) -> Result[Int, String]:
 
 pub fn create_target(window: safe.Window, width: Int, height: Int) -> Result[safe.RenderTexture, String]:
     return safe.create_render_texture(window, width, height)
+
+pub fn set_output_filter(window: safe.Window, target: safe.RenderTexture, smooth: Bool) -> Result[Bool, String]:
+    if smooth:
+        return safe.set_render_texture_filter(window, target, safe.bilinear_filter())
+    return safe.set_render_texture_filter(window, target, safe.point_filter())
 
 pub fn unload_target(target: safe.RenderTexture) -> Result[Bool, String]:
     return safe.unload_render_texture(target)
@@ -76,6 +91,13 @@ pub fn present(frame: safe.Frame, target: safe.RenderTexture, mapping: graphics.
     if target_width != mapping.logical_size.width or target_height != mapping.logical_size.height:
         return Err("virtual canvas target size does not match logical size")
     return safe.draw_render_texture_framebuffer(frame, target, 0.0, 0.0, mapping.logical_size.width, -mapping.logical_size.height, mapping.viewport.x, mapping.viewport.y, mapping.viewport.width, mapping.viewport.height)
+
+pub fn present_current(window: safe.Window, frame: safe.Frame, target: safe.RenderTexture, logical_size: graphics.Size) -> Result[Bool, String]:
+    match from_window(window, logical_size):
+        case Err(message):
+            return Err(message)
+        case Ok(mapping):
+            return present(frame, target, mapping)
 
 pub fn begin_clip(frame: safe.Frame, mapping: graphics.VirtualCanvas, logical_bounds: graphics.Rect) -> Result[safe.ScissorScope, String]:
     if not graphics.virtual_canvas_is_valid(mapping) or not graphics.rect_has_nonnegative_size(logical_bounds):

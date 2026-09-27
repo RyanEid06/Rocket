@@ -1,0 +1,189 @@
+import rocket.graphics
+import rocket.graphics.canvas
+import rocket.raylib.safe
+
+fn succeeded(value: Result[Bool, String]) -> Bool:
+    match value:
+        case Ok(success):
+            return success
+        case Err(message):
+            print(message)
+            return false
+
+fn physical_width(window: safe.Window) -> Float:
+    match safe.framebuffer_width(window):
+        case Err(message):
+            print(message)
+            return 0.0
+        case Ok(width):
+            return width
+
+fn draw_table(frame: safe.Frame, felt: safe.Texture, cards: safe.Texture, chips: safe.Texture) -> Bool:
+    let white = safe.color(255, 255, 255)
+    if not succeeded(safe.draw_texture(frame, felt, 0, 0, white)):
+        return false
+    if not succeeded(safe.draw_texture_pro(frame, cards, graphics.rect(0.0, 0.0, 80.0, 112.0), graphics.rect(301.0, 202.0, 96.0, 134.0), graphics.vec2(48.0, 67.0), -15.0, white)):
+        return false
+    if not succeeded(safe.draw_texture_pro(frame, cards, graphics.rect(80.0, 0.0, 80.0, 112.0), graphics.rect(364.0, 194.0, 96.0, 134.0), graphics.vec2(48.0, 67.0), -4.0, white)):
+        return false
+    if not succeeded(safe.draw_texture_pro(frame, cards, graphics.rect(160.0, 0.0, 80.0, 112.0), graphics.rect(432.0, 197.0, 96.0, 134.0), graphics.vec2(48.0, 67.0), 8.0, white)):
+        return false
+    if not succeeded(safe.draw_texture_pro(frame, cards, graphics.rect(240.0, 0.0, 80.0, 112.0), graphics.rect(500.0, 210.0, 96.0, 134.0), graphics.vec2(48.0, 67.0), 18.0, white)):
+        return false
+    match safe.begin_blend(frame, safe.additive_blend()):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(blend):
+            let first = safe.draw_texture_pro(frame, chips, graphics.rect(0.0, 0.0, 72.0, 72.0), graphics.rect(159.0, 276.0, 72.0, 72.0), graphics.vec2(36.0, 36.0), 0.0, safe.color(160, 200, 255, 200))
+            let second = safe.draw_texture_pro(frame, chips, graphics.rect(72.0, 0.0, 72.0, 72.0), graphics.rect(206.0, 303.0, 72.0, 72.0), graphics.vec2(36.0, 36.0), 9.0, safe.color(255, 220, 170, 200))
+            let ended = safe.end_blend(blend)
+            if not succeeded(first) or not succeeded(second) or not succeeded(ended):
+                return false
+    if not succeeded(safe.draw_texture_pro(frame, chips, graphics.rect(144.0, 0.0, 72.0, 72.0), graphics.rect(600.0, 275.0, 72.0, 72.0), graphics.vec2(36.0, 36.0), -12.0, white)):
+        return false
+    if not succeeded(safe.draw_texture_pro(frame, chips, graphics.rect(0.0, 0.0, 72.0, 72.0), graphics.rect(643.0, 305.0, 72.0, 72.0), graphics.vec2(36.0, 36.0), 12.0, white)):
+        return false
+    return true
+
+fn present(window: safe.Window, frame: safe.Frame, target: safe.RenderTexture, shader: Option[safe.Shader]) -> Bool:
+    match shader:
+        case None:
+            return succeeded(canvas.present_current(window, frame, target, graphics.size(800.0, 450.0)))
+        case Some(effect):
+            match safe.begin_shader(frame, effect):
+                case Err(message):
+                    print(message)
+                    return false
+                case Ok(scope):
+                    let drawn = canvas.present_current(window, frame, target, graphics.size(800.0, 450.0))
+                    let ended = safe.end_shader(scope)
+                    return succeeded(drawn) and succeeded(ended)
+
+fn render(window: safe.Window, felt: safe.Texture, cards: safe.Texture, chips: safe.Texture, target: safe.RenderTexture, shader: Option[safe.Shader]) -> Bool:
+    match safe.begin_frame(window):
+        case Err(message):
+            print(message)
+            return false
+        case Ok(frame):
+            match canvas.begin_target(frame, target):
+                case Err(message):
+                    let aborted = safe.abort_frame(frame)
+                    return false
+                case Ok(scope):
+                    if not succeeded(safe.clear_background(frame, safe.color(8, 35, 31))) or not draw_table(frame, felt, cards, chips):
+                        let ended = canvas.end_target(scope)
+                        let aborted = safe.abort_frame(frame)
+                        return false
+                    if not succeeded(canvas.end_target(scope)):
+                        let aborted = safe.abort_frame(frame)
+                        return false
+            if not succeeded(safe.clear_background(frame, safe.color(5, 22, 21))) or not present(window, frame, target, shader):
+                let aborted = safe.abort_frame(frame)
+                return false
+            return succeeded(safe.end_frame(frame))
+
+fn run(window: safe.Window) -> Int:
+    match safe.load_texture(window, "assets/felt.png"):
+        case Err(message):
+            print(message)
+            return 2
+        case Ok(felt):
+            match safe.load_texture(window, "assets/card-atlas.png"):
+                case Err(message):
+                    let unloaded = safe.unload_texture(felt)
+                    return 3
+                case Ok(cards):
+                    match safe.load_texture(window, "assets/chip-atlas.png"):
+                        case Err(message):
+                            let unloaded_felt = safe.unload_texture(felt)
+                            let unloaded_cards = safe.unload_texture(cards)
+                            return 4
+                        case Ok(chips):
+                            match canvas.create_target(window, 800, 450):
+                                case Err(message):
+                                    let unloaded_felt = safe.unload_texture(felt)
+                                    let unloaded_cards = safe.unload_texture(cards)
+                                    let unloaded_chips = safe.unload_texture(chips)
+                                    return 5
+                                case Ok(target):
+                                    var status = 0
+                                    var shader: Option[safe.Shader] = None()
+                                    match safe.shader_supported(window):
+                                        case Err(message):
+                                            print(message)
+                                            status = 6
+                                        case Ok(supported):
+                                            if supported:
+                                                match safe.load_shader(window, "", "assets/tint.fs"):
+                                                    case Err(message):
+                                                        print(message)
+                                                        status = 7
+                                                    case Ok(effect):
+                                                        shader = Some(effect)
+                                            else:
+                                                print("wp3-shader-unavailable")
+                                    match shader:
+                                        case None:
+                                            let ignored = status
+                                        case Some(effect):
+                                            match safe.shader_uniform(effect, "warmth", safe.float_uniform()):
+                                                case Err(message):
+                                                    print(message)
+                                                    status = 8
+                                                case Ok(uniform):
+                                                    if not succeeded(safe.set_shader_float(effect, uniform, 0.35)):
+                                                        status = 9
+                                    if status == 0 and not succeeded(canvas.set_output_filter(window, target, true)):
+                                        status = 10
+                                    if status == 0 and not render(window, felt, cards, chips, target, None()):
+                                        status = 11
+                                    if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-off.png")):
+                                        status = 20
+                                    if status == 0 and not render(window, felt, cards, chips, target, shader):
+                                        status = 21
+                                    if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-before.png")):
+                                        status = 12
+                                    let before_width = physical_width(window)
+                                    if status == 0 and not succeeded(safe.set_window_size(window, 1000, 600)):
+                                        status = 13
+                                    # X11 applies resize requests while later frames pump window events.
+                                    var resize_frame = 0
+                                    while status == 0 and resize_frame < 8:
+                                        if not render(window, felt, cards, chips, target, shader):
+                                            status = 14
+                                        resize_frame = resize_frame + 1
+                                    if status == 0:
+                                        if physical_width(window) == before_width:
+                                            print("wp3-resize-unavailable")
+                                        else:
+                                            print("wp3-resize-applied")
+                                    if status == 0 and not succeeded(safe.save_screenshot(window, "casino-effects-resized.png")):
+                                        status = 15
+                                    match shader:
+                                        case None:
+                                            let ignored = status
+                                        case Some(effect):
+                                            if not succeeded(safe.unload_shader(effect)):
+                                                status = 16
+                                    let unloaded_target = canvas.unload_target(target)
+                                    let unloaded_felt = safe.unload_texture(felt)
+                                    let unloaded_cards = safe.unload_texture(cards)
+                                    let unloaded_chips = safe.unload_texture(chips)
+                                    if not succeeded(unloaded_target) or not succeeded(unloaded_felt) or not succeeded(unloaded_cards) or not succeeded(unloaded_chips):
+                                        return 17
+                                    return status
+
+fn main() -> Int:
+    match safe.open_window_quality(1200, 750, "Rocket 3.5 WP3 effects"):
+        case Err(message):
+            print(message)
+            return 1
+        case Ok(window):
+            if not succeeded(safe.set_target_fps(window, 60)):
+                let closed = safe.close_window(window)
+                return 19
+            let status = run(window)
+            if not succeeded(safe.close_window(window)):
+                return 18
+            return status
