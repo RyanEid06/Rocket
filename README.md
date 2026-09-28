@@ -31,7 +31,7 @@ Install Git LFS before cloning so the compiler tools and platform archives are
 downloaded as real files. Clone the branch with:
 
     git lfs install
-    git clone --branch consummer --single-branch https://github.com/RyanEid06/Rocket.git
+    git clone --branch consumer --single-branch https://github.com/RyanEid06/Rocket.git
 
 There is no source build step. From PowerShell, run the Windows SDK with:
 
