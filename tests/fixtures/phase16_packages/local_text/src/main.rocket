@@ -1,2 +1,0 @@
-pub fn label() -> String:
-    return "local"

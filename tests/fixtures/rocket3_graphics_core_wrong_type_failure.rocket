@@ -1,5 +1,0 @@
-import rocket.graphics
-
-fn main() -> Int:
-    let invalid = graphics.vec2(x: true, y: 0.0)
-    return 0

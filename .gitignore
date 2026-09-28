@@ -1,18 +1,5 @@
-/build/
-/.vs/
-.langc/
-**/.rocketc/
-/examples/*/generated/
-/dependencies/cache/
-/dependencies/installed/
 /out/
-**/__pycache__/
-*.py[cod]
-*.exe
-*.o
-*.obj
-*.s
-*.ll
-
-# Local out-of-scope application prototype; Rocket remains the language repository.
-/Blackjack-v1/
+/dependencies/
+/compiler/
+/tests/
+**/.rocketc/

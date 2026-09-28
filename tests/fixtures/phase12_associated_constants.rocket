@@ -1,9 +1,0 @@
-struct Limits:
-    value: Int
-
-impl Limits:
-    pub const DEFAULT: Int = 42
-
-fn main() -> Int:
-    print(Limits.DEFAULT)
-    return 0

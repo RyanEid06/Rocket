@@ -1,2 +1,0 @@
-fn main() -> Int:
-    return (fn(value: Int) -> Int => value)("wrong")

@@ -1,3 +1,0 @@
-fn main() -> Int:
-    print("phase19-cross-ok")
-    return 0

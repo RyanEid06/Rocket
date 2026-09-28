@@ -1,4 +1,0 @@
-import math
-
-fn main() -> Int:
-    return math.answer()

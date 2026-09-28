@@ -1,5 +1,0 @@
-import src.math
-
-fn main() -> Int:
-    print(math.doubled(21))
-    return 0

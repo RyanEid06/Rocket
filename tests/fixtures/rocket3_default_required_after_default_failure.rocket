@@ -1,5 +1,0 @@
-fn invalid(first: Int = 1, second: Int) -> Int:
-    return first + second
-
-fn main() -> Int:
-    return 0

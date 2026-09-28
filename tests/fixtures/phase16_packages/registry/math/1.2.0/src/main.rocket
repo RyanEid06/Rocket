@@ -1,4 +1,0 @@
-import utility
-
-pub fn answer() -> Int:
-    return utility.identity(42)

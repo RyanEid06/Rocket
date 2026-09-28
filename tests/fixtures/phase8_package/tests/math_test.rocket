@@ -1,6 +1,0 @@
-import src.math
-
-fn main() -> Int:
-    if math.doubled(3) == 6:
-        return 0
-    return 1

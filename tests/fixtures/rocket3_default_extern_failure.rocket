@@ -1,4 +1,0 @@
-extern fn native_value(value: Int = 1) -> Int
-
-fn main() -> Int:
-    return 0

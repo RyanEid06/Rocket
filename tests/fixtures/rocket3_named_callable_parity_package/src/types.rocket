@@ -1,3 +1,0 @@
-pub enum PackageValue:
-    Item(amount: Int, label: String)
-    Legacy(Int)

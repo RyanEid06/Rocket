@@ -1,3 +1,7 @@
-*.rocket text eol=lf
-*.expected text eol=lf
-*.ppm binary
+* binary
+*.rocket text eol=lf diff
+README.md text eol=lf diff
+.gitattributes text eol=lf diff
+.gitignore text eol=lf diff
+SHA256SUMS.txt text eol=lf diff
+bin/clang.exe filter=lfs diff=lfs merge=lfs -text

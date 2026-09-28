@@ -1,5 +1,0 @@
-import rocket.motion
-
-fn main() -> Int:
-    let invalid = motion.linear(true)
-    return 0

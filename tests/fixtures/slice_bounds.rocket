@@ -1,5 +1,0 @@
-fn main() -> Int:
-    let values = [10, 20, 30]
-    let invalid = values[1..4]
-    print(invalid[0])
-    return 0

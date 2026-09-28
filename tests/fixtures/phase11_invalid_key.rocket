@@ -1,6 +1,0 @@
-import std.collections
-
-fn main() -> Int:
-    let invalid = collections.map_from_arrays([1.5], [1])
-    print(collections.map_length(invalid))
-    return 0

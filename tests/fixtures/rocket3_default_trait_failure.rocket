@@ -1,5 +1,0 @@
-trait Scale:
-    fn scale(self: Self, value: Int = 1) -> Int
-
-fn main() -> Int:
-    return 0
