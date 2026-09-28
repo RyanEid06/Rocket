@@ -117,11 +117,12 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'release: publish cleaned Unix consumer SDKs'
+          git commit -m 'release: publish cleaned cross-platform consumer SDKs'
           git push origin HEAD:consumer
           local_sha="$(git rev-parse HEAD)"
           remote_sha="$(git ls-remote origin refs/heads/consumer | cut -f1)"
           test "$local_sha" = "$remote_sha"
+          rm -rf -- candidate
           test -z "$(git status --porcelain)"
           echo "consumer=$local_sha"
 
