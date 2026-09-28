@@ -1,0 +1,131 @@
+name: Sync cleaned Rocket SDK consumer packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GIT_LFS_SKIP_SMUDGE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: consumer
+          fetch-depth: 1
+          lfs: false
+      - name: Download and verify the three published consumer archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p candidate
+          gh api repos/RyanEid06/Rocket-RocketIDE/releases/tags/v3.0.0 > candidate/release.json
+          for target in linux-x64 linux-arm64 macos-arm64; do
+            gh release download v3.0.0 -R RyanEid06/Rocket-RocketIDE \
+              -p "Rocket-SDK-3.0.0-$target.tar.xz" -D candidate
+          done
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          release = json.loads(Path('candidate/release.json').read_text())
+          assets = {item['name']: item for item in release['assets']}
+          for target in ('linux-x64', 'linux-arm64', 'macos-arm64'):
+              name = f'Rocket-SDK-3.0.0-{target}.tar.xz'
+              path = Path('candidate') / name
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assert assets[name]['size'] == path.stat().st_size
+              assert assets[name]['digest'] == f'sha256:{digest}'
+              print(name, path.stat().st_size, digest)
+          PY
+      - name: Replace only the three Unix packages and consumer instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git rm -- platforms/rocket-3.0.0-linux-x64.tar.xz \
+            platforms/rocket-3.0.0-linux-arm64.tar.xz \
+            platforms/rocket-3.0.0-macos-arm64.tar.xz
+          for target in linux-x64 linux-arm64 macos-arm64; do
+            cp "candidate/Rocket-SDK-3.0.0-$target.tar.xz" platforms/
+          done
+          cat > README.md <<'EOF'
+          # Rocket consumer SDK
+
+          This branch contains ready-to-use Rocket 3.0.0 SDK packages for Windows x64,
+          Linux x64, Linux ARM64, and macOS Apple Silicon ARM64. They originate from
+          Rocket source commit `1f6ba76f16f3246095d5d573c28d825d8b9367e3`.
+          The compiler reports 3.0.0; the included standard library has the game APIs
+          present in that source commit.
+
+          | Target | Consumer package |
+          | --- | --- |
+          | Windows x64 | `platforms/windows-x64/` |
+          | Linux x64 | `platforms/Rocket-SDK-3.0.0-linux-x64.tar.xz` |
+          | Linux ARM64 | `platforms/Rocket-SDK-3.0.0-linux-arm64.tar.xz` |
+          | macOS Apple Silicon ARM64 | `platforms/Rocket-SDK-3.0.0-macos-arm64.tar.xz` |
+
+          The Unix archives contain only production compiler and language-server
+          launchers, toolchain and runtime libraries, standard library, target metadata,
+          dependency licenses, installation instructions, checksums, and release metadata.
+          Extract a complete archive and follow its `INSTALL.md`. The Windows SDK is
+          unpacked in `platforms/windows-x64/`; keep all files together and run
+          `platforms/windows-x64/bin/rocketc.exe --version` from a Windows shell.
+
+          The same Unix archives are available from the [published release](https://github.com/RyanEid06/Rocket-RocketIDE/releases/tag/v3.0.0).
+          `SHA256SUMS.txt` covers distributed files in this branch. Install Git LFS
+          before cloning so large binaries and archives are fetched as real files:
+
+          ```sh
+          git lfs install
+          git clone --branch consumer --single-branch https://github.com/RyanEid06/Rocket.git
+          ```
+
+          `master` retains Rocket developer source and tests. RocketIDE is a separate
+          Windows application; configure this SDK in its Tools > Rocket SDK Settings.
+          EOF
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          manifest = Path('SHA256SUMS.txt')
+          old = {'platforms/rocket-3.0.0-linux-x64.tar.xz',
+                 'platforms/rocket-3.0.0-linux-arm64.tar.xz',
+                 'platforms/rocket-3.0.0-macos-arm64.tar.xz'}
+          changed = {'README.md'} | {
+              f'platforms/Rocket-SDK-3.0.0-{target}.tar.xz'
+              for target in ('linux-x64', 'linux-arm64', 'macos-arm64')
+          }
+          previous = {}
+          for line in manifest.read_text().splitlines():
+              digest, path = line.split('  ', 1)
+              if path not in old and path not in changed:
+                  previous[path] = digest
+          for name in changed:
+              previous[name] = hashlib.sha256(Path(name).read_bytes()).hexdigest()
+          manifest.write_text(''.join(f'{digest}  {name}\n'
+                                      for name, digest in sorted(previous.items())))
+          PY
+          git add -- README.md SHA256SUMS.txt \
+            platforms/Rocket-SDK-3.0.0-linux-x64.tar.xz \
+            platforms/Rocket-SDK-3.0.0-linux-arm64.tar.xz \
+            platforms/Rocket-SDK-3.0.0-macos-arm64.tar.xz
+          git diff --cached --check
+          git diff --cached --stat
+      - name: Commit, push, and verify consumer branch alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'release: publish cleaned Unix consumer SDKs'
+          git push origin HEAD:consumer
+          local_sha="$(git rev-parse HEAD)"
+          remote_sha="$(git ls-remote origin refs/heads/consumer | cut -f1)"
+          test "$local_sha" = "$remote_sha"
+          test -z "$(git status --porcelain)"
+          echo "consumer=$local_sha"
+
