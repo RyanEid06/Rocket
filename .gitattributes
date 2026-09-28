@@ -1,6 +1,7 @@
 * binary
 *.rocket text eol=lf diff
 README.md text eol=lf diff
+ROADMAP.md text eol=lf diff
 .gitattributes text eol=lf diff
 .gitignore text eol=lf diff
 SHA256SUMS.txt text eol=lf diff
