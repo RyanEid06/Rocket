@@ -1,18 +1,39 @@
 # Rocket consumer SDK
 
-This branch is a ready-to-use Rocket SDK for Windows x64. It is built from
-Rocket master commit 1f6ba76f16f3246095d5d573c28d825d8b9367e3. The
-compiler reports version 3.0.0, and the included standard library contains the
-Rocket 3.5 game APIs present in that source commit. This is a source snapshot,
-not a separately versioned Rocket 3.5 release.
+This branch is a ready-to-use Rocket SDK for Windows x64, Linux x64, Linux
+ARM64, and macOS Apple Silicon ARM64. All platform packages come from Rocket
+master commit 1f6ba76f16f3246095d5d573c28d825d8b9367e3. The compiler reports
+version 3.0.0, and the included standard libraries contain the Rocket 3.5 game
+APIs present in that source commit. This is a source snapshot, not a separately
+versioned Rocket 3.5 release.
 
-The SDK includes the production compiler, its Clang/LLD toolchain, native
-runtime and linker libraries, standard library, target metadata, and required
-licenses. It leaves out compiler source, tests, examples, editor integrations,
-and bootstrap tools.
+Each platform package includes its production compiler, required native
+toolchain and runtime libraries, standard library, target metadata, and
+licenses. The Windows SDK is unpacked at the repository root. The Linux and
+macOS packages are the official, complete release archives in `platforms/`;
+they are kept intact so their platform tools, setup instructions, provenance,
+and work-package acceptance records stay together. This branch adds no
+standalone example projects.
 
-Install Git LFS before cloning so bin/clang.exe is downloaded as an executable.
-There is no source build step. From PowerShell:
+| Target | Package |
+| --- | --- |
+| Windows x64 | SDK files in the repository root |
+| Linux x64 | `platforms/rocket-3.0.0-linux-x64.tar.xz` |
+| Linux ARM64 | `platforms/rocket-3.0.0-linux-arm64.tar.xz` |
+| macOS Apple Silicon ARM64 | `platforms/rocket-3.0.0-macos-arm64.tar.xz` |
+
+The three archives are the verified Rocket 3.0.0 release packages. Their
+SHA-256 hashes are listed in `SHA256SUMS.txt` and match the published release.
+Extract a platform archive with `tar -xf <archive>`; its root folder contains
+`PACKAGE.md` with platform prerequisites and setup instructions.
+
+Install Git LFS before cloning so the compiler tools and platform archives are
+downloaded as real files. Clone the branch with:
+
+    git lfs install
+    git clone --branch consummer --single-branch https://github.com/RyanEid06/Rocket.git
+
+There is no source build step. From PowerShell, run the Windows SDK with:
 
     .\bin\rocketc.exe --version
     .\bin\rocketc.exe check .\path\to\app.rocket
@@ -25,4 +46,4 @@ to bin. SHA256SUMS.txt covers every distributed file except itself.
 
 See [the named roadmap](ROADMAP.md) for the game-platform milestones and
 remaining release checks. Master remains the source of truth for Rocket
-development; this branch is the consumer distribution for Windows x64.
+development; this branch contains the ready-to-use consumer SDK packages.

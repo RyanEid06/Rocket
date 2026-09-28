@@ -2,8 +2,9 @@
 
 This roadmap uses feature names so readers can understand each milestone
 without internal work-packet IDs. It summarizes the Rocket source at master
-commit 1f6ba76f16f3246095d5d573c28d825d8b9367e3, packaged here for
-Windows x64. The compiler still identifies itself as Rocket 3.0.0.
+commit 1f6ba76f16f3246095d5d573c28d825d8b9367e3, packaged here for Windows
+x64, Linux x64, Linux ARM64, and macOS Apple Silicon ARM64. The compiler still
+identifies itself as Rocket 3.0.0.
 
 | Milestone | Current state |
 | --- | --- |
@@ -30,5 +31,7 @@ The source roadmap and evidence are on master:
    download, version, source commit, and checksum information to match it.
 4. Recheck the website's roadmap and SDK links after each Rocket release.
 
-This branch currently provides the verified Windows x64 consumer package.
-Other platform packages need their own native build and relocation checks.
+This branch includes four ready-to-use platform packages from the same source
+commit. The three archive packages retain the published release artifacts and
+their verified SHA-256 hashes in `SHA256SUMS.txt`; follow each included
+`PACKAGE.md` for platform setup requirements.

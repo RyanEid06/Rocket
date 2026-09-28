@@ -880,3 +880,6 @@ f5107723cd64121ae83646b8da43e9f187ded692c9d4b753d99c4eb00c4ef2ef  stdlib/rocket/
 f876ad06aaca15953519a23565a850f692d5ce51d1d8f390283c247003a5354f  stdlib/rocket/ui/styles.rocket
 ffd0274a65d0430dd5ed986fb8d9e571456551e709bb647de310bb2ae33f1d21  stdlib/rocket/ui/theme.rocket
 02fabf22716a42ceba2255308cacf1cb582e4c33cfd388b4725b1d9d01ed5d29  stdlib/std/testing.rocket
+1a716073f2941d7d4c63d25687a542d65164cafd24aba299e2b9880a615ad0fc  platforms/rocket-3.0.0-linux-x64.tar.xz
+1db0eadfb0e592b36442e2993a8939baa5e04dd99dab7bc32737093e4a261c3e  platforms/rocket-3.0.0-linux-arm64.tar.xz
+96192c6fda0a479c31d3bd4e1d4da67f400912f3faa30f60abc1cd7d1102dfa7  platforms/rocket-3.0.0-macos-arm64.tar.xz
