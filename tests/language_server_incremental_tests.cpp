@@ -102,6 +102,26 @@ std::string request(rocket::test::LspSession &session, const std::string &id,
                jsonQuoted(method) + R"(,"params":)" + params + '}');
   return session.response(id);
 }
+// Each session has its own snapshot clock. Compare the entire ordered response,
+// including all semantic fields, after normalizing only the generation number
+// in the server's workspace-symbol data object. Generation is tested separately.
+std::string semanticWorkspaceSymbols(std::string response) {
+  const std::string marker = R"("data":{"rocketGeneration":)";
+  std::size_t position = 0;
+  while ((position = response.find(marker, position)) != std::string::npos) {
+    position += marker.size();
+    auto end = position;
+    while (end < response.size() && response[end] >= '0' && response[end] <= '9')
+      ++end;
+    if (end > position && end < response.size() && response[end] == '}')
+      response.replace(position, end - position, "0");
+    ++position;
+  }
+  return response;
+}
+bool sameWorkspaceSymbols(const std::string &left, const std::string &right) {
+  return semanticWorkspaceSymbols(left) == semanticWorkspaceSymbols(right);
+}
 long long numberField(const std::string &response, const std::string &name) {
   const auto marker = "\"" + name + "\":";
   const auto start = response.find(marker);
@@ -219,7 +239,7 @@ void compareCleanFull(const std::string &label,
                                  std::string::npos,
                          label + ": rename edits equal clean full", failures);
   }
-  rocket::test::expect(incrementalSymbols == cleanSymbols,
+  rocket::test::expect(sameWorkspaceSymbols(incrementalSymbols, cleanSymbols),
                        label + ": workspace symbols equal clean full",
                        failures);
   for (std::size_t index = 0; index < files.size(); ++index) {
@@ -317,7 +337,7 @@ void compareLargeWorkspace(int &failures) {
   const auto cleanDocument = request(
       clean, "large-document", "textDocument/documentSymbol",
       R"({"textDocument":{"uri":)" + jsonQuoted(uri("library")) + R"(}})");
-  rocket::test::expect(incrementalSymbols == cleanSymbols &&
+  rocket::test::expect(sameWorkspaceSymbols(incrementalSymbols, cleanSymbols) &&
                            incrementalDocument == cleanDocument,
                        "239-file symbols equal clean full", failures);
   for (const auto &file : files) {
@@ -396,7 +416,7 @@ void compareUnopenedDependency(int &failures) {
       request(clean, "unopened-symbols", "workspace/symbol", R"({"query":""})");
   const auto cleanDiagnostics = clean.recorded;
   rocket::test::expect(
-      incrementalSymbols == cleanSymbols &&
+      sameWorkspaceSymbols(incrementalSymbols, cleanSymbols) &&
           latestDiagnostics(incrementalDiagnostics, libraryUri) ==
               latestDiagnostics(cleanDiagnostics, libraryUri) &&
           latestDiagnostics(incrementalDiagnostics, consumerUri) ==
@@ -453,7 +473,7 @@ void compareRootlessWatchedDependency(int &failures) {
       request(clean, "rootless-symbols", "workspace/symbol", R"({"query":""})");
   const auto cleanPublished = latestDiagnostics(cleanDiagnostics, consumerUri);
   rocket::test::expect(
-      incrementalSymbols == cleanSymbols &&
+      sameWorkspaceSymbols(incrementalSymbols, cleanSymbols) &&
           latestDiagnostics(incrementalDiagnostics, consumerUri) ==
               cleanPublished &&
           cleanPublished.find("\"message\":") != std::string::npos,
@@ -590,7 +610,7 @@ void compareManifestEdit(int &failures) {
   const auto cleanDiagnostics = clean.recorded;
   const auto cleanSymbols =
       request(clean, "symbols", "workspace/symbol", R"({"query":""})");
-  rocket::test::expect(updatedSymbols == cleanSymbols,
+  rocket::test::expect(sameWorkspaceSymbols(updatedSymbols, cleanSymbols),
                        "manifest edit symbols equal clean full", failures);
   for (const auto &name : {"first.rocket", "second.rocket"}) {
     const auto documentUri = rootUri + "/" + name;
@@ -636,15 +656,61 @@ void compareBurst(int &failures) {
       request(clean, "symbols", "workspace/symbol", R"({"query":""})");
   rocket::test::expect(!incrementalDiagnostics.empty() &&
                            incrementalDiagnostics == cleanDiagnostics &&
-                           incrementalSymbols == cleanSymbols,
+                           sameWorkspaceSymbols(incrementalSymbols, cleanSymbols),
                        "burst final diagnostics and symbols equal clean full",
                        failures);
   finish(clean);
+}
+void checkWorkspaceSymbolGenerations(int &failures) {
+  rocket::test::LspSession session;
+  initialize(session);
+  open(session, "alpha", "fn alpha() -> Int:\n    return 1\n", 1);
+  open(session, "beta", "fn beta() -> Int:\n    return 2\n", 1);
+  const auto before =
+      request(session, "symbols", "workspace/symbol", R"({"query":""})");
+  auto hasGeneration = [](const std::string &response, long long generation,
+                          std::size_t expectedCount) {
+    const std::string marker = R"("data":{"rocketGeneration":)";
+    const auto expected = marker + std::to_string(generation) + '}';
+    std::size_t count = 0;
+    std::size_t position = 0;
+    while ((position = response.find(marker, position)) != std::string::npos) {
+      if (response.compare(position, expected.size(), expected) != 0)
+        return false;
+      ++count;
+      position += expected.size();
+    }
+    return count == expectedCount;
+  };
+  rocket::test::expect(hasGeneration(before, 2, 2),
+                       "all workspace symbols carry the settled generation",
+                       failures);
+  change(session, "alpha", "fn alpha() -> Int:\n    return 3\n");
+  const auto after =
+      request(session, "symbols", "workspace/symbol", R"({"query":""})");
+  rocket::test::expect(hasGeneration(after, 3, 2) && before != after &&
+                           sameWorkspaceSymbols(before, after),
+                       "a body edit advances generation for edited and cached "
+                       "symbols without changing their semantics",
+                       failures);
+  const auto repeated =
+      request(session, "symbols", "workspace/symbol", R"({"query":""})");
+  rocket::test::expect(after == repeated,
+                       "read-only symbol queries do not advance generation",
+                       failures);
+  const auto filtered =
+      request(session, "filtered", "workspace/symbol", R"({"query":"beta"})");
+  rocket::test::expect(hasGeneration(filtered, 3, 1) &&
+                           filtered.find(R"("name":"beta")") != std::string::npos,
+                       "filtered unchanged symbols carry the current generation",
+                       failures);
+  finish(session);
 }
 } // namespace
 
 int runTests() {
   int failures = 0;
+  checkWorkspaceSymbolGenerations(failures);
   rocket::test::LspSession session;
   session.send(
       R"({"jsonrpc":"2.0","id":"init","method":"initialize","params":{}})");

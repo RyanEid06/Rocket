@@ -26,6 +26,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <queue>
 #include <set>
 #include <sstream>
 #include <string>
@@ -2516,6 +2517,11 @@ private:
         {"signatureHelpProvider", Json(std::move(signature))},
         {"textDocumentSync", Json(std::move(sync))},
         {"workspace", Json(std::move(workspace))},
+        {"experimental", Json(Json::Object{
+            {"rocketWorkspaceSymbolSearch", Json(Json::Object{
+                {"version", Json::integer(1)},
+                {"maxResults", Json::integer(200)},
+                {"generation", Json("rocket/projectStatus")}})}})},
         {"workspaceSymbolProvider", Json(true)}});
   }
 
@@ -3235,6 +3241,10 @@ private:
     if (uri == nullptr || source == nullptr) {
       sendError(id, -32602, "code actions require a Rocket document"); return;
     }
+    const auto documentPath = pathFromUri(*uri);
+    if (!documentPath) {
+      sendError(id, -32602, "code actions require a file URI"); return;
+    }
     Json::Array actions;
     const auto imports = documentImports(*source);
     const auto* context = asObject(field(asObject(params), "context"));
@@ -3254,9 +3264,25 @@ private:
         for (const auto& [key, symbol] : snapshot_.symbols)
           if (symbol.publicDeclaration && symbol.shortName == missing) {
             const std::size_t symbolDot = symbol.name.rfind('.');
-            const std::string candidateModule = symbolDot == std::string::npos
-                ? std::filesystem::path(symbol.location.file).stem().string()
-                : symbol.name.substr(0, symbolDot);
+            // Imports are relative to the package root, not the source file's
+            // directory. A declaration in src/math.rocket requires src.math.
+            std::string candidateModule;
+            if (symbolDot != std::string::npos) {
+              // Resolved symbols already carry logical dependency aliases;
+              // never replace those with a vendor/cache filesystem path.
+              candidateModule = symbol.name.substr(0, symbolDot);
+            } else {
+              const auto importRoot = publishedDiscovery_ &&
+                                              !publishedDiscovery_->packageRoot.empty()
+                                          ? publishedDiscovery_->packageRoot
+                                          : documentPath->parent_path();
+              auto relative = std::filesystem::absolute(symbol.location.file)
+                                  .lexically_normal().lexically_relative(importRoot);
+              if (relative.empty() || relative.begin()->string() == "..") continue;
+              relative.replace_extension();
+              candidateModule = relative.generic_string();
+              std::replace(candidateModule.begin(), candidateModule.end(), '/', '.');
+            }
             const auto existing = matches.find(candidateModule);
             if (existing == matches.end() ||
                 (existing->second->name.find('.') == std::string::npos &&
@@ -3265,13 +3291,30 @@ private:
           }
         if (matches.size() != 1) continue;
         const std::string module = matches.begin()->first;
-        if (imports.contains(module)) continue;
-        Json::Array edits{importTextEdit(*source, module)};
+        // An import binds the module, not its public members. Qualify the exact
+        // unresolved token too; otherwise the suggested fix leaves R4002 behind.
+        const auto* diagnosticRange = field(diagnosticObject, "range");
+        const auto* range = asObject(diagnosticRange);
+        const auto* start = asObject(field(range, "start"));
+        const auto* end = asObject(field(range, "end"));
+        long long startLine = 0, startCharacter = 0, endLine = 0, endCharacter = 0;
+        if (!integerValue(field(start, "line"), startLine) ||
+            !integerValue(field(start, "character"), startCharacter) ||
+            !integerValue(field(end, "line"), endLine) ||
+            !integerValue(field(end, "character"), endCharacter)) continue;
+        const auto startOffset = offsetAtPosition(*source, startLine, startCharacter);
+        const auto endOffset = offsetAtPosition(*source, endLine, endCharacter);
+        if (!startOffset || !endOffset || *startOffset > *endOffset ||
+            source->substr(*startOffset, *endOffset - *startOffset) != missing) continue;
+        Json::Array edits;
+        if (!imports.contains(module)) edits.emplace_back(importTextEdit(*source, module));
+        edits.emplace_back(Json(Json::Object{
+            {"range", *diagnosticRange}, {"newText", Json(module + "." + missing)}}));
         actions.emplace_back(Json(Json::Object{
             {"diagnostics", Json(Json::Array{diagnostic})},
             {"edit", workspaceEdit(*uri, std::move(edits))},
             {"isPreferred", Json(true)}, {"kind", Json("quickfix")},
-            {"title", Json("Import " + module)}}));
+            {"title", Json(imports.contains(module) ? "Qualify " + missing + " with " + module : "Import " + module)}}));
       }
     }
     Diagnostics formatDiagnostics;
@@ -3297,21 +3340,81 @@ private:
   void workspaceSymbols(const Json& id, const Json* params) {
     std::string query;
     if (const auto* value = asString(field(asObject(params), "query"))) query = *value;
+    if (query.size() > 256) {
+      sendError(id, -32602, "workspace symbol query exceeds 256 bytes");
+      return;
+    }
     std::transform(query.begin(), query.end(), query.begin(), [](unsigned char value) {
       return static_cast<char>(std::tolower(value));
     });
-    Json::Array symbols;
+    auto scoreName = [&query](const std::string& name) -> int {
+      if (query.empty()) return 0;
+      std::string lower = name;
+      std::transform(lower.begin(), lower.end(), lower.begin(),
+                     [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+      if (lower == query) return 10000;
+      if (lower.starts_with(query)) return 8000 - static_cast<int>(lower.size());
+      if (lower.find(query) != std::string::npos)
+        return 6000 - static_cast<int>(lower.size());
+      std::size_t next = 0;
+      int score = 1000 - static_cast<int>(lower.size());
+      std::size_t previous = std::string::npos;
+      for (const char character : query) {
+        const std::size_t found = lower.find(character, next);
+        if (found == std::string::npos) return -1;
+        score += 16;
+        if (previous != std::string::npos && found == previous + 1) score += 8;
+        if (found == 0 || name[found] == '_' ||
+            (found > 0 && (name[found - 1] == '_' || name[found - 1] == '-' ||
+                           name[found - 1] == '.' || name[found - 1] == ':' ||
+                           (std::islower(static_cast<unsigned char>(name[found - 1])) &&
+                            std::isupper(static_cast<unsigned char>(name[found]))))))
+          score += 12;
+        previous = found;
+        next = found + 1;
+      }
+      return score;
+    };
+    struct RankedSymbol {
+      int score;
+      const SemanticSymbol* symbol;
+      std::string key;
+    };
+    auto better = [](const RankedSymbol& left, const RankedSymbol& right) {
+      if (left.score != right.score) return left.score > right.score;
+      if (left.symbol->name != right.symbol->name)
+        return left.symbol->name < right.symbol->name;
+      return left.key < right.key;
+    };
+    std::priority_queue<RankedSymbol, std::vector<RankedSymbol>, decltype(better)>
+        selected(better);
+    constexpr std::size_t MaximumWorkspaceSymbolResults = 200;
     for (const auto& [key, symbol] : snapshot_.symbols) {
       if (!pathInsideWorkspace(symbol.location.file)) continue;
-      std::string candidate = symbol.name;
-      std::transform(candidate.begin(), candidate.end(), candidate.begin(),
-                     [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
-      if (!query.empty() && candidate.find(query) == std::string::npos) continue;
-      symbols.emplace_back(
-          Json(Json::Object{{"kind", Json::integer(lspSymbolKind(symbol))},
-                            {"location", symbolLocation(symbol)},
-                            {"name", Json(symbol.name)}}));
-      if (symbols.size() >= 1024) break;
+      const int score = std::max(scoreName(symbol.name), scoreName(symbol.shortName));
+      if (score < 0) continue;
+      RankedSymbol candidate{score, &symbol, key};
+      if (selected.size() < MaximumWorkspaceSymbolResults) selected.push(candidate);
+      else if (better(candidate, selected.top())) {
+        selected.pop();
+        selected.push(candidate);
+      }
+    }
+    std::vector<RankedSymbol> ranked;
+    ranked.reserve(selected.size());
+    while (!selected.empty()) {
+      ranked.push_back(selected.top());
+      selected.pop();
+    }
+    std::sort(ranked.begin(), ranked.end(), better);
+    Json::Array symbols;
+    for (const auto& result : ranked) {
+      const auto& symbol = *result.symbol;
+      symbols.emplace_back(Json(Json::Object{
+          {"data", Json(Json::Object{
+              {"rocketGeneration", Json::integer(snapshot_.generation)}})},
+          {"kind", Json::integer(lspSymbolKind(symbol))},
+          {"location", symbolLocation(symbol)}, {"name", Json(symbol.name)}}));
     }
     sendResult(id, Json(std::move(symbols)));
   }

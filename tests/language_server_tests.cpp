@@ -58,6 +58,16 @@ std::size_t occurrences(const std::string& text, const std::string& pattern) {
   return result;
 }
 
+std::string jsonString(const std::string& value) {
+  std::string result = "\"";
+  for (const char character : value) {
+    if (character == '\\' || character == '"') result += '\\';
+    if (character == '\n') result += "\\n";
+    else result += character;
+  }
+  return result + '"';
+}
+
 } // namespace
 
 int main() {
@@ -111,6 +121,57 @@ int main() {
       "unknown requests receive the JSON-RPC method-not-found error", failures);
   rocket::test::expect(logStream.str().empty(),
                        "valid protocol sessions do not write protocol noise to stderr",
+                       failures);
+
+  std::string symbolSource = "struct PlayerController:\n    value: Int\n";
+  for (int index = 0; index < 700; ++index)
+    symbolSource += "struct Symbol" + std::to_string(index) + ":\n    value: Int\n";
+  std::string symbolInput;
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","method":"initialized","params":{}})");
+  symbolInput += frame(
+      R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/symbols.rocket","languageId":"rocket","version":1,"text":)" +
+      jsonString(symbolSource) + "}}}");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":2,"method":"workspace/symbol","params":{"query":""}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":3,"method":"workspace/symbol","params":{"query":"plctrl"}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":6,"method":"workspace/symbol","params":{"query":"PlayerController"}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":4,"method":"rocket/projectStatus","params":{}})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null})");
+  symbolInput += frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream symbolRequests(symbolInput);
+  std::ostringstream symbolResponses;
+  std::ostringstream symbolLog;
+  rocket::test::TranscriptServer symbolServer(symbolRequests, symbolResponses,
+                                              symbolLog);
+  rocket::test::expect(symbolServer.run() == 0,
+                       "large symbol protocol session exits cleanly", failures);
+  bool symbolFramesValid = false;
+  const auto symbolMessages = bodies(symbolResponses.str(), symbolFramesValid);
+  std::string emptySymbols;
+  std::string fuzzySymbols;
+  std::string exactSymbols;
+  for (const auto& message : symbolMessages) {
+    if (message.find("\"id\":2,") != std::string::npos) emptySymbols = message;
+    if (message.find("\"id\":3,") != std::string::npos) fuzzySymbols = message;
+    if (message.find("\"id\":6,") != std::string::npos) exactSymbols = message;
+  }
+  rocket::test::expect(symbolFramesValid && !emptySymbols.empty() &&
+                           occurrences(emptySymbols, "\"name\":") <= 200 &&
+                           occurrences(emptySymbols, "\"name\":") > 0,
+                       "workspace symbols select a bounded result from the full index",
+                       failures);
+  rocket::test::expect(fuzzySymbols.find("\"name\":\"PlayerController\"") !=
+                           std::string::npos,
+                       "workspace symbols match ordered subsequences", failures);
+  rocket::test::expect(
+      exactSymbols.find("\"name\":\"PlayerController\"") != std::string::npos &&
+          exactSymbols.find("\"name\":\"PlayerController\"") <
+              exactSymbols.find("\"name\":\"PlayerController.value\""),
+      "workspace symbols rank exact names ahead of qualified prefixes", failures);
+  rocket::test::expect(symbolResponses.str().find("rocketWorkspaceSymbolSearch") !=
+                           std::string::npos &&
+                           fuzzySymbols.find("rocketGeneration") != std::string::npos,
+                       "workspace symbol capability and results expose the snapshot contract",
                        failures);
 
   std::istringstream abruptInput(
@@ -271,6 +332,44 @@ int main() {
       importActionCount == 2,
       "missing-import code actions are deterministic and idempotent after application",
       failures);
+
+  rocket::test::expect(
+      occurrences(semanticOutput, "\"newText\":\"math.doubled\"") == 2,
+      "missing-import quick fix also qualifies the unresolved function at its diagnostic range",
+      failures);
+
+  std::string packageActions;
+  packageActions += frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootUri":"file:///C:/workspace"}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/src/math.rocket","version":1,"text":"pub fn doubled(value: Int) -> Int:\n    return value * 2\n"}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket","version":1,"text":"fn main() -> Int:\n    return doubled(21)\n"}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket"},"context":{"diagnostics":[{"range":{"start":{"line":1,"character":11},"end":{"line":1,"character":18}},"code":"R4002","message":"undefined name 'doubled'"}]}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket","version":2},"contentChanges":[{"text":"import src.math\nfn main() -> Int:\n    return doubled(21)\n"}]}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","id":3,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"file:///C:/workspace/src/main.rocket"},"context":{"diagnostics":[{"range":{"start":{"line":2,"character":11},"end":{"line":2,"character":18}},"code":"R4002","message":"undefined name 'doubled'"}]}}})");
+  packageActions += frame(R"({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null})");
+  packageActions += frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream packageRequests(packageActions);
+  std::ostringstream packageResponses, packageLog;
+  rocket::test::TranscriptServer packageServer(packageRequests, packageResponses, packageLog);
+  rocket::test::expect(packageServer.run() == 0, "package action session exits cleanly", failures);
+  const auto packageOutput = packageResponses.str();
+  rocket::test::expect(occurrences(packageOutput, "\"title\":\"Import src.math\"") == 1 &&
+                           occurrences(packageOutput, "\"newText\":\"src.math.doubled\"") == 2 &&
+                           occurrences(packageOutput, "\"title\":\"Qualify doubled with src.math\"") == 1,
+                       "quick fix uses package-relative module and reuses existing import", failures);
+
+  std::string nonFileActions;
+  nonFileActions += frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/workspace/math.rocket","version":1,"text":"pub fn doubled(value: Int) -> Int:\n    return value * 2\n"}}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"untitled:main","version":1,"text":"fn main() -> Int:\n    return doubled(21)\n"}}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{"textDocument":{"uri":"untitled:main"},"context":{"diagnostics":[{"range":{"start":{"line":1,"character":11},"end":{"line":1,"character":18}},"code":"R4002","message":"undefined name 'doubled'"}]}}})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null})");
+  nonFileActions += frame(R"({"jsonrpc":"2.0","method":"exit"})");
+  std::istringstream nonFileRequests(nonFileActions);
+  std::ostringstream nonFileResponses, nonFileLog;
+  rocket::test::TranscriptServer nonFileServer(nonFileRequests, nonFileResponses, nonFileLog);
+  rocket::test::expect(nonFileServer.run() == 0 &&
+                           nonFileResponses.str().find("code actions require a file URI") != std::string::npos,
+                       "non-file code action requests fail safely", failures);
 
   std::string callableInput;
   callableInput += frame(
