@@ -9,15 +9,15 @@ versioned Rocket 3.5 release.
 
 Each platform package includes its production compiler, required native
 toolchain and runtime libraries, standard library, target metadata, and
-licenses. The Windows SDK is unpacked at the repository root. The Linux and
-macOS packages are the official, complete release archives in `platforms/`;
-they are kept intact so their platform tools, setup instructions, provenance,
-and work-package acceptance records stay together. This branch adds no
-standalone example projects.
+licenses. All platform packages are grouped under `platforms/`. The Windows
+SDK is unpacked in `platforms/windows-x64/`; the Linux and macOS packages are
+the official, complete release archives kept intact so their platform tools,
+setup instructions, provenance, and work-package acceptance records stay
+together. This branch adds no standalone example projects.
 
 | Target | Package |
 | --- | --- |
-| Windows x64 | SDK files in the repository root |
+| Windows x64 | `platforms/windows-x64/` |
 | Linux x64 | `platforms/rocket-3.0.0-linux-x64.tar.xz` |
 | Linux ARM64 | `platforms/rocket-3.0.0-linux-arm64.tar.xz` |
 | macOS Apple Silicon ARM64 | `platforms/rocket-3.0.0-macos-arm64.tar.xz` |
@@ -35,10 +35,10 @@ downloaded as real files. Clone the branch with:
 
 There is no source build step. From PowerShell, run the Windows SDK with:
 
-    .\bin\rocketc.exe --version
-    .\bin\rocketc.exe check .\path\to\app.rocket
-    .\bin\rocketc.exe run .\path\to\app.rocket
-    .\bin\rocketc.exe build .\path\to\app.rocket
+    .\platforms\windows-x64\bin\rocketc.exe --version
+    .\platforms\windows-x64\bin\rocketc.exe check .\path\to\app.rocket
+    .\platforms\windows-x64\bin\rocketc.exe run .\path\to\app.rocket
+    .\platforms\windows-x64\bin\rocketc.exe build .\path\to\app.rocket
 
 For a package, pass the directory containing rocket.toml instead of a single
 Rocket source file. The compiler locates its bundled runtime and tools relative
