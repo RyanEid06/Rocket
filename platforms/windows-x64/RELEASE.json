@@ -1,0 +1,24 @@
+{
+  "compiler_sha256": "c00a2ed8c637337c069e093765f6505c9939321a30cb89c3ee3649fa7bc201f9",
+  "original_archive": "rocket-3.0.0-windows-x64.zip",
+  "original_archive_sha256": "42bae12625717a776dac358d9177a01d8dd91762d4e6ed91384fc46d34e45de7",
+  "product": "Rocket SDK",
+  "removed_categories": {
+    "BOOTSTRAP_SHA256SUMS.txt": 1,
+    "CONTRIBUTING.md": 1,
+    "PACKAGE.md": 1,
+    "README.md": 1,
+    "RELEASE-PROVENANCE.json": 1,
+    "RELOCATION_REPORT.json": 1,
+    "SECURITY.md": 1,
+    "SHA256SUMS.txt": 1,
+    "bin": 2,
+    "docs": 68,
+    "editors": 35,
+    "stage0": 1,
+    "tools": 5
+  },
+  "source_commit": "1f6ba76f16f3246095d5d573c28d825d8b9367e3",
+  "target": "windows-x64",
+  "version": "3.0.0"
+}
