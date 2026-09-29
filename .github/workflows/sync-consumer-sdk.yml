@@ -80,6 +80,8 @@ jobs:
           Extract a complete Unix archive and follow its `INSTALL.md`. The Windows SDK
           is unpacked in `platforms/windows-x64/`; keep all files together and run
           `platforms/windows-x64/bin/rocketc.exe --version` from a Windows shell.
+          On Ubuntu or Debian, install `libc6-dev libcurl4-openssl-dev` for native builds.
+          On macOS, install Xcode Command Line Tools and use an active macOS SDK.
 
           The same SDK archives are available from the [published release](https://github.com/RyanEid06/Rocket-RocketIDE/releases/tag/v3.0.0).
           `SHA256SUMS.txt` covers distributed files in this branch. Install Git LFS
