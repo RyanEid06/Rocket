@@ -14,8 +14,11 @@ present in that source commit.
 | macOS Apple Silicon ARM64 | `platforms/Rocket-SDK-3.0.0-macos-arm64.tar.xz` |
 
 Each package contains production compiler and language-server launchers,
-toolchain and runtime libraries, standard library, target metadata,
+the matching stage-zero host, toolchain and runtime libraries, standard library, target metadata,
 dependency licenses, installation instructions, checksums, and release metadata.
+Keep `stage0/` with the SDK: version 3.0.0 uses this matching host for debugging,
+structured IDE commands, and package security operations. It is part of the
+released runtime and must not be removed or replaced with an older compiler.
 Extract a complete Unix archive and follow its `INSTALL.md`. The Windows SDK
 is unpacked in `platforms/windows-x64/`; keep all files together and run
 `platforms/windows-x64/bin/rocketc.exe --version` from a Windows shell.

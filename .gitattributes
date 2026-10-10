@@ -7,3 +7,4 @@ ROADMAP.md text eol=lf diff
 SHA256SUMS.txt text eol=lf diff
 platforms/windows-x64/bin/clang.exe filter=lfs diff=lfs merge=lfs -text
 platforms/*.tar.xz filter=lfs diff=lfs merge=lfs -text
+platforms/windows-x64/stage0/rocketc-stage0.exe filter=lfs diff=lfs merge=lfs -text
