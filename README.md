@@ -36,3 +36,14 @@ git clone --branch consumer --single-branch https://github.com/RyanEid06/Rocket.
 
 `master` retains Rocket developer source and tests. RocketIDE is a separate
 Windows application; configure this SDK in its Tools > Rocket SDK Settings.
+
+## Configure the SDK in RocketIDE on Windows
+
+1. Install and open [RocketIDE](https://ryaneid06.github.io/Rocket-RocketIDE/).
+2. Choose **Tools > Rocket SDK Settings...**.
+3. Beside **Rocket compiler**, click **Browse...** and select this branch's `platforms\windows-x64\bin\rocketc.exe`. If you downloaded the SDK ZIP instead, select `Rocket-SDK-3.0.0-windows-x64\bin\rocketc.exe` in your extracted folder.
+4. Beside **Language server**, click **Browse...** and select `bin\rocket-lsp.exe` from that same SDK. Keep every SDK directory, including `stage0`, together.
+5. Click **Save**, then choose **Tools > Validate Rocket Environment**. Open **View > Output** and look for `Environment validation passed.` and compiler version `rocketc 3.0.0`.
+6. Open a writable project folder with **File > Open Folder...**, open or save a `.rocket` file, then use **Build > Check Rocket Target** and **Run > Run Rocket Target**.
+
+If you move the SDK, select its new paths again. See the [first-program and debugging guide](https://github.com/RyanEid06/Rocket-RocketIDE/blob/main/docs/GETTING_STARTED.md) for a complete example.
